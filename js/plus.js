@@ -2,9 +2,10 @@
    EPS ONE — Onglet PLUS : mise à jour, partage,
    à propos, confidentialité/RGPD, nouvelle année scolaire
    ========================================================= */
-const APP_VERSION = '5.5';
+const APP_VERSION = '5.6';
 const APP_URL = 'https://steffdelaseuva-hue.github.io/eps-one/';
 const CHANGELOG = [
+  { v: '5.6', items: ['Tablette de collecte : aucun envoi pendant la séance, bouton « 📤 Envoyer les relevés » en fin de cours (envoi aussi à la mise en veille)'] },
   { v: '5.5', items: ['Synchronisation : le même outil peut être utilisé en même temps sur plusieurs tablettes (2 terrains, plusieurs voies…) ; les séances en cours restent propres à chaque tablette, seuls les résultats enregistrés sont fusionnés'] },
   { v: '5.4', items: ['Accès sur invitation : les collègues demandent un accès, l’administrateur valide ou retire (Plus → Accès des collègues)', 'Synchronisation par fusion : plusieurs tablettes peuvent relever en même temps sur le même compte, tout est regroupé sans écrasement', 'Envois groupés (économie du quota) et mode « Tablette de collecte »'] },
   { v: '5.3', items: ['Sons : correction des bips inaudibles sur iPhone/iPad (tests VMA, chronos, minuteurs…)'] },

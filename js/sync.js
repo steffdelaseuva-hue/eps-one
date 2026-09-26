@@ -119,14 +119,26 @@ async function pushChanged() {
     }
     S.status = 'ok'; S.err = ''; S.last = meta.last = Date.now();
   } catch (e) { S.status = 'error'; S.err = e.message; }
-  pushing = false; saveBase(); saveMeta();
+  pushing = false; saveBase(); saveMeta(); drawSendPill();
   if (changedLocal) { _save(); try { if (!document.getElementById('screen').classList.contains('open')) renderHome(); } catch (e) {} }
   refreshUI();
 }
 // Envois groupés : au plus un envoi toutes les 10 s pendant que l'on saisit (économise le quota Firebase)
 const PUSH_EVERY = 10000;
-const schedulePush = () => { if (applying || !S.user || pushTimer) return; pushTimer = setTimeout(() => { pushTimer = null; pushChanged(); }, PUSH_EVERY); };
-window.syncFlush = () => { if (!S.user) return; clearTimeout(pushTimer); pushTimer = setTimeout(() => { pushTimer = null; pushChanged(); }, 1200); };
+// Tablette de collecte : rien n'est envoyé pendant la séance, seulement sur demande (bouton « Envoyer les relevés »)
+// ou quand la tablette se met en veille / quitte l'app, pour ne rien perdre.
+const pendingCount = () => S.user ? syncKeys().filter(k => meta.keys[k]?.h !== hash(JSON.stringify(outb(k)))).length : 0;
+function drawSendPill() {
+  let b = document.getElementById('sync-pill'); const n = meta.collect && S.user && accessOK() ? pendingCount() : 0;
+  if (!n) { if (b) b.remove(); return; }
+  if (!b) { b = document.createElement('button'); b.id = 'sync-pill'; b.className = 'btn btn-grad';
+    b.style.cssText = 'position:fixed;right:14px;bottom:calc(84px + env(safe-area-inset-bottom));z-index:150;padding:12px 16px;border-radius:999px;box-shadow:var(--shadow);font-weight:800;width:auto';
+    b.onclick = async () => { b.disabled = true; b.textContent = '📤 Envoi…'; await pushChanged(); b.disabled = false; toast(pendingCount() ? 'Envoi incomplet : réessayez' : 'Relevés envoyés ✔'); drawSendPill(); };
+    document.body.appendChild(b); }
+  b.textContent = `📤 Envoyer les relevés (${n})`;
+}
+const schedulePush = () => { if (applying || !S.user) return; if (meta.collect) { setTimeout(drawSendPill, 50); return; } if (pushTimer) return; pushTimer = setTimeout(() => { pushTimer = null; pushChanged(); }, PUSH_EVERY); };
+window.syncFlush = () => { if (!S.user || meta.collect) return; clearTimeout(pushTimer); pushTimer = setTimeout(() => { pushTimer = null; pushChanged(); }, 1200); };
 const forcePushAll = async () => { syncKeys().forEach(k => { meta.keys[k] = { h: 'x', t: meta.keys[k]?.t || 0 }; }); await pushChanged(); };
 
 /* Chaque sauvegarde locale programme un envoi groupé */
@@ -219,8 +231,8 @@ async function startSync() {
   meta.linked = true; saveMeta();
   listen();                                                             // applique les données du compte
   if (ok === null) { await writeCheck(); setTimeout(forcePushAll, 2500); } // 1er chiffrement : tout renvoyer chiffré
-  else setTimeout(pushChanged, 2500);
-  refreshUI();
+  else if (!meta.collect) setTimeout(pushChanged, 2500);
+  refreshUI(); drawSendPill();
 }
 
 /* ---------- Accès sur invitation ----------
@@ -325,12 +337,12 @@ async function boot() {
     });
   } catch (e) { S.status = 'error'; S.err = 'Connexion à Firebase impossible (hors ligne ?)'; gateBooted = true; gate(); refreshUI(); }
 }
-window.addEventListener('online', () => S.user && pushChanged());
-document.addEventListener('visibilitychange', () => { if (!S.user) return; if (document.visibilityState === 'hidden') { clearTimeout(pushTimer); pushTimer = null; pushChanged(); } else { pushChanged(); if (meta.collect) pullAll(); } });
+window.addEventListener('online', () => S.user && !meta.collect && pushChanged());
+document.addEventListener('visibilitychange', () => { if (!S.user) return; if (document.visibilityState === 'hidden') { clearTimeout(pushTimer); pushTimer = null; pushChanged(); } else { if (meta.collect) pullAll(); else pushChanged(); } });
 window.addEventListener('pagehide', () => { if (S.user) pushChanged(); });
 
 /* ---------- Interface ---------- */
-const statusText = () => S.user ? (S.needKey ? 'Mode : synchronisé · mot de passe requis' : S.mismatch ? 'Mode : synchronisé · clé à mettre à jour' : ({ sync: 'Mode : synchronisé · envoi…', error: 'Mode : synchronisé · erreur' })[S.status] || `Mode : synchronisé · ${S.user.email}`) : 'Mode : stockage local (cet appareil uniquement)';
+const statusText = () => S.user ? (S.needKey ? 'Mode : synchronisé · mot de passe requis' : S.mismatch ? 'Mode : synchronisé · clé à mettre à jour' : ({ sync: 'Mode : synchronisé · envoi…', error: 'Mode : synchronisé · erreur' })[S.status] || (meta.collect ? `Mode : tablette de collecte · ${pendingCount()} rubrique(s) à envoyer` : `Mode : synchronisé · ${S.user.email}`)) : 'Mode : stockage local (cet appareil uniquement)';
 function refreshUI() {
   const sub = document.getElementById('sync-sub'); if (sub) sub.textContent = statusText();
   const box = document.getElementById('sync-panel'); if (box) drawPanel(box);
@@ -363,7 +375,8 @@ function drawPanel(el) {
     el.innerHTML = `<div class="card"><h3>☁️ Synchronisation activée</h3>
         <p style="margin:6px 0">Compte : <b>${esc(S.user.email)}</b></p><p class="muted" style="margin:0">État : ${statusText()} · dernière synchro : ${last}</p>${errP}
         <div class="row" style="margin-top:12px"><button class="btn btn-grad" id="sy-now">🔄 Synchroniser maintenant</button><button class="btn btn-ghost" id="sy-out">Revenir en stockage local</button></div>
-        <label style="display:flex;gap:8px;align-items:flex-start;margin-top:14px;color:var(--text);font-weight:600"><input type="checkbox" id="sy-col" ${meta.collect ? 'checked' : ''} style="width:auto;margin-top:3px"><span>📥 Tablette de collecte<br><span class="muted" style="font-weight:400;font-size:.82rem">Pour les tablettes prêtées pendant un cours : elles envoient leurs relevés sans suivre en direct les autres appareils (économise le quota). Les données de toutes les tablettes se retrouvent fusionnées sur votre compte.</span></span></label></div>
+        <label style="display:flex;gap:8px;align-items:flex-start;margin-top:14px;color:var(--text);font-weight:600"><input type="checkbox" id="sy-col" ${meta.collect ? 'checked' : ''} style="width:auto;margin-top:3px"><span>📥 Tablette de collecte (envoi en fin de séance)<br><span class="muted" style="font-weight:400;font-size:.82rem">Pour les tablettes prêtées pendant un cours : rien n'est envoyé pendant la séance. En fin de cours, touchez le bouton « 📤 Envoyer les relevés » (l'envoi se fait aussi quand la tablette se met en veille). Les relevés de toutes les tablettes sont fusionnés sur votre compte, presque sans consommer de quota.</span></span></label>
+        ${meta.collect ? `<button class="btn btn-grad btn-block" style="margin-top:10px" id="sy-send">📤 Envoyer les relevés maintenant${pendingCount() ? ' (' + pendingCount() + ')' : ''}</button>` : ''}</div>
       ${E2E_TXT}
       <div class="card" style="margin-top:12px"><h3>🗑 Supprimer mes données en ligne</h3>
         <p class="muted" style="margin:4px 0 10px">Efface toutes vos données stockées sur Firebase et arrête la synchronisation. Les données restent sur cet appareil.</p>
@@ -397,7 +410,8 @@ function drawPanel(el) {
       unsub && unsub(); unsub = null; S.mismatch = false; await writeCheck(); await forcePushAll(); meta.linked = true; saveMeta(); listen(); toast('Données en ligne remplacées ✔'); });
   } else if (S.user) {
     $('#sy-now').onclick = () => run(async () => { await forcePushAll(); await pullAll(); toast('Synchronisé ✔'); });
-    $('#sy-col').onchange = e => { meta.collect = e.target.checked; saveMeta(); listen(); toast(meta.collect ? 'Tablette de collecte ✔' : 'Synchronisation en direct ✔'); };
+    $('#sy-col').onchange = e => { meta.collect = e.target.checked; saveMeta(); listen(); drawSendPill(); if (!meta.collect) pushChanged(); toast(meta.collect ? 'Tablette de collecte ✔' : 'Synchronisation en direct ✔'); refreshUI(); };
+    if ($('#sy-send')) $('#sy-send').onclick = () => run(async () => { await pushChanged(); toast(pendingCount() ? 'Envoi incomplet : réessayez' : 'Relevés envoyés ✔'); });
     $('#sy-out').onclick = () => run(async () => { if (!confirm('Revenir en stockage local ?\nLa synchronisation s\'arrête sur cet appareil. Vos données restent ici et en ligne.')) return; setMode('local'); forgetKey(); await fb.authM.signOut(fb.auth); });
     $('#sy-del').onclick = () => run(async () => {
       if (!confirm('Supprimer toutes vos données en ligne ?\nElles resteront seulement sur cet appareil. Vos autres appareils ne seront plus synchronisés.')) return;
