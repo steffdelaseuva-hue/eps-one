@@ -81,6 +81,20 @@ function merge3(base, loc, rem) {
     return out; }
   return loc;                                                    // valeur simple en conflit : cet appareil garde la sienne
 }
+/* Données propres à chaque appareil (jamais synchronisées) : séances EN COURS, équipes du match
+   en cours, réglages d'affichage… Ainsi plusieurs tablettes peuvent utiliser le même outil en même
+   temps (2 terrains, plusieurs voies…) ; seuls les résultats ENREGISTRÉS sont fusionnés. */
+const LOCAL_TOP = new Set(['recent', 'lastClass', 'natLanes', 'natMode', 'acroFiltre', 'matchTeams']);
+const LOCAL_SUB = { co: ['current'], duathlon: ['current', 'lastCfg'], combine: ['current'], wod: ['current'], escalade: ['defi', 'lastVoie', 'lastMode', 'filt'] };
+const syncKeys = () => Object.keys(DB).filter(k => !LOCAL_TOP.has(k));
+function outb(k, v = DB[k]) {                                   // version envoyée (sans l'état local)
+  v = v ?? null; const sub = LOCAL_SUB[k]; if (!sub || !isObj(v)) return v;
+  const o = { ...v }; sub.forEach(f => delete o[f]); return o;
+}
+function withLocal(k, v) {                                       // réattache l'état local de cet appareil
+  const sub = LOCAL_SUB[k]; if (!sub || !isObj(v)) return v;
+  const o = { ...v }; sub.forEach(f => { if (isObj(DB[k]) && f in DB[k]) o[f] = DB[k][f]; else delete o[f]; }); return o;
+}
 const readDoc = async r => { if (!r) return undefined; if (typeof r.c === 'string') return JSON.parse(await decrypt(r.c)); if (typeof r.v === 'string') return JSON.parse(r.v); return undefined; };
 
 /* ---------- Envoi (groupé) des rubriques modifiées ---------- */
@@ -88,19 +102,19 @@ let pushing = false;
 async function pushChanged() {
   if (!fb || !S.user || !CK || S.mismatch || !accessOK() || pushing) return;
   const { doc, runTransaction } = fb.fs;
-  const keys = Object.keys(DB).filter(k => meta.keys[k]?.h !== hash(JSON.stringify(DB[k] ?? null)));
+  const keys = syncKeys().filter(k => meta.keys[k]?.h !== hash(JSON.stringify(outb(k))));
   if (!keys.length) return;
   pushing = true; S.status = 'sync'; refreshUI(); let changedLocal = false;
   try {
     for (const k of keys) {
       const ref = doc(fb.db, 'epsone', S.user.uid, 'data', k); let out, t;
       await runTransaction(fb.db, async tx => {
-        const d = await tx.get(ref), local = DB[k] ?? null; out = local;
-        if (d.exists()) { const r = d.data(); if (!(r.dev === meta.dev && r.t === meta.keys[k]?.t)) out = merge3(getBase(k), local, await readDoc(r)); }
+        const d = await tx.get(ref), local = outb(k); out = local;
+        if (d.exists()) { const r = d.data(); if (!(r.dev === meta.dev && r.t === meta.keys[k]?.t)) out = merge3(getBase(k), local, outb(k, await readDoc(r))); }
         const j = JSON.stringify(out ?? null); if (j.length > 700000) throw new Error(`Rubrique « ${k} » trop volumineuse pour la synchronisation`);
         t = Date.now(); tx.set(ref, { c: await encrypt(j), t, dev: meta.dev });
       });
-      if (!jeq(out, DB[k] ?? null)) { applying = true; DB[k] = out; applying = false; changedLocal = true; }
+      if (!jeq(out, outb(k))) { applying = true; DB[k] = withLocal(k, out); applying = false; changedLocal = true; }
       setBase(k, out); meta.keys[k] = { h: hash(JSON.stringify(out ?? null)), t };
     }
     S.status = 'ok'; S.err = ''; S.last = meta.last = Date.now();
@@ -113,7 +127,7 @@ async function pushChanged() {
 const PUSH_EVERY = 10000;
 const schedulePush = () => { if (applying || !S.user || pushTimer) return; pushTimer = setTimeout(() => { pushTimer = null; pushChanged(); }, PUSH_EVERY); };
 window.syncFlush = () => { if (!S.user) return; clearTimeout(pushTimer); pushTimer = setTimeout(() => { pushTimer = null; pushChanged(); }, 1200); };
-const forcePushAll = async () => { Object.keys(DB).forEach(k => { meta.keys[k] = { h: 'x', t: meta.keys[k]?.t || 0 }; }); await pushChanged(); };
+const forcePushAll = async () => { syncKeys().forEach(k => { meta.keys[k] = { h: 'x', t: meta.keys[k]?.t || 0 }; }); await pushChanged(); };
 
 /* Chaque sauvegarde locale programme un envoi groupé */
 const _save = window.save;
@@ -121,14 +135,15 @@ window.save = function () { _save(); schedulePush(); };
 
 /* ---------- Réception : fusion des données venues des autres appareils ---------- */
 async function applyRemote(k, r) {
-  if (k === CHECK_ID || !r) return false;
+  if (k === CHECK_ID || !r || LOCAL_TOP.has(k)) return false;
   if (r.dev === meta.dev && meta.keys[k]?.t >= r.t) return false;          // notre propre envoi
   let rv; try { rv = await readDoc(r); } catch (e) { S.mismatch = true; S.status = 'error'; refreshUI(); return false; }
   if (rv === undefined) return false;
-  const local = DB[k] ?? null, m = meta.keys[k], dirty = m && m.h !== hash(JSON.stringify(local));
+  rv = outb(k, rv);
+  const local = outb(k), m = meta.keys[k], dirty = m && m.h !== hash(JSON.stringify(local));
   const out = !m ? (replaceOnce || local == null ? rv : mergeData(local, rv)) : dirty ? merge3(getBase(k), local, rv) : rv;
   setBase(k, rv);
-  applying = true; DB[k] = out; applying = false;
+  applying = true; DB[k] = withLocal(k, out); applying = false;
   meta.keys[k] = { h: dirty || !m ? (jeq(out, rv) ? hash(JSON.stringify(rv)) : 'x') : hash(JSON.stringify(rv)), t: r.t };
   return !jeq(out, local);
 }
@@ -138,7 +153,7 @@ async function applySnap(docs) {
   for (const x of docs) { if (await applyRemote(x.id, x.data())) changed = true; }
   replaceOnce = false;
   saveBase(); saveMeta();
-  if (Object.keys(DB).some(k => meta.keys[k]?.h === 'x')) schedulePush();
+  if (syncKeys().some(k => meta.keys[k]?.h === 'x')) schedulePush();
   if (changed) { _save(); S.last = meta.last = Date.now(); S.status = 'ok'; refreshUI();
     try { if (!document.getElementById('screen').classList.contains('open')) renderHome(); } catch (e) {}
     toast('🔄 Données synchronisées'); }
@@ -189,7 +204,8 @@ async function startSync() {
         if (d.id === CHECK_ID) continue; const r = d.data(); let v;
         try { v = typeof r.c === 'string' ? await decrypt(r.c) : r.v; } catch (e) { continue; }
         if (typeof v !== 'string') continue;
-        try { DB[d.id] = DB[d.id] === undefined ? JSON.parse(v) : mergeData(DB[d.id], JSON.parse(v)); } catch (e) {}
+        if (LOCAL_TOP.has(d.id)) continue;
+        try { const rv = outb(d.id, JSON.parse(v)); DB[d.id] = DB[d.id] === undefined ? rv : withLocal(d.id, mergeData(outb(d.id), rv)); } catch (e) {}
       }
       _save(); meta.keys = {}; meta.linked = true; saveMeta();
       if (ok === null) await writeCheck();
