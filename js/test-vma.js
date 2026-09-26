@@ -27,10 +27,11 @@ TOOL_IMPL.testvma = function (el) {
     vameval: { name: 'VAMEVAL', type: 'palier', v0: 8, inc: 0.5, dist: 20,
                desc: 'Sur piste, un plot tous les <b>20 m</b>. À chaque bip, l\'élève doit être au plot suivant. Paliers de 1 min, +0,5 km/h par palier.' },
     g4515:   { name: '45-15', type: '4515', v0: 8, inc: 0.5,
-               desc: '<b>45 s de course / 15 s de récupération</b>. Plot de départ, puis un plot à <b>100 m</b> (8 km/h) et un plot tous les <b>6,25 m</b> au-delà : +0,5 km/h à chaque palier. L\'élève revient au départ pendant les 15 s.' },
+               desc: '<b>45 s de course / 15 s de récupération</b>. Plot de départ, puis un plot à <b>100 m</b> (8 km/h) et un plot tous les <b>6,25 m</b> au-delà : +0,5 km/h à chaque palier. L\'élève revient au départ pendant les 15 s. Un bip à chaque plot (25, 50, 75, 100 m puis tous les 6,25 m) aide à tenir l\'allure.' },
     astrand: { name: 'Astrand (3 min)', type: 'duree', dur: 180, coef: 17.143,
                desc: 'Courir la <b>plus grande distance en 3 minutes</b>. VMA (km/h) = distance (m) × coefficient ÷ 1000.' },
   };
+  let cyc45 = -1, plots45 = [];
   let key = 'vameval', run = false, E = 0, t0 = 0, iv = null, pre = null;
   let nextBip = 0, bips = 0, stageSeen = 0, phase = '', lastMark = -1;
   let students = [];
@@ -105,7 +106,7 @@ TOOL_IMPL.testvma = function (el) {
     voice('Attention… départ dans 3 secondes'); step();
   }
   function begin() {
-    const c = cfg(); E = 0; bips = 0; stageSeen = 0; lastMark = -1; phase = '';
+    const c = cfg(); cyc45 = -1; plots45 = []; E = 0; bips = 0; stageSeen = 0; lastMark = -1; phase = '';
     nextBip = c.type === 'palier' ? c.dist * 3600 / c.v0 : 0;
     t0 = performance.now(); run = true; beep(1300, .45);
     if (c.type === 'palier') voice(`Palier 1, ${kmh(c.v0)} kilomètres heure`);
@@ -129,11 +130,15 @@ TOOL_IMPL.testvma = function (el) {
     } else if (c.type === '4515') {
       const stage = Math.floor(e / 60000), inCycle = e % 60000;
       const ph = inCycle < 45000 ? 'run' : 'rest';
+      // bip à chaque plot : 25, 50, 75, 100 m puis tous les 6,25 m jusqu'à la distance du palier
+      if (stage !== cyc45) { cyc45 = stage; const v = speedAt(stage, c), d = 12.5 * v, pos = [25, 50, 75];
+        for (let x = 100; x <= d + 0.01; x += 6.25) pos.push(x);
+        plots45 = pos.filter(x => x < d - 0.5).map(x => x * 3.6 / v * 1000); }
+      while (ph === 'run' && plots45.length && inCycle >= plots45[0]) { plots45.shift(); beep(1150, .08); }
       const mark = Math.floor(e / 500); // repères sonores
       if (mark !== lastMark) {
         lastMark = mark; const s = inCycle / 1000;
         if (stage > 0 && s < 0.5) { beep(1300, .45); voice(`Palier ${stage + 1}, partez`); }
-        if (Math.abs(s - 22.5) < 0.25) beep(900, .08);                       // mi-parcours
         if (Math.abs(s - 45) < 0.25) { beep(700, .15); setTimeout(() => beep(700, .3), 200); voice('Stop, récupération'); }
         if ([57, 58, 59].some(x => Math.abs(s - x) < 0.25)) beep(660, .1);  // 3-2-1 avant départ
       }

@@ -73,6 +73,58 @@ function natationVite(el) {
   return () => clearInterval(iv);
 }
 
+/* ---------- Nager vite : 2 à 4 nageurs en même temps ---------- */
+function natationMulti(el, n) {
+  const cls0 = DB.classes.some(c => c.name === DB.lastClass) ? DB.lastClass : (DB.classes[0] || {}).name || '';
+  const st0 = cls0 ? studentsOf(cls0) : [];
+  const S = { cls: cls0, d: 25, lanes: Array.from({ length: n }, (_, i) => ({ si: i % Math.max(1, st0.length), t0: 0, acc: 0, run: false, c: 0 })) };
+  const sec = L => L.acc + (L.run ? (performance.now() - L.t0) / 1000 : 0);
+  const cols = ['#B8912A', '#1E5BD8', '#1B9E5A', '#C0504D'];
+  let iv;
+  const draw = () => {
+    const st = S.cls ? studentsOf(S.cls) : [];
+    el.innerHTML = `<div class="card"><div class="row">${DB.classes.length ? `<div><label style="margin-top:0">Classe</label><select id="mc">${DB.classes.map(c => `<option ${c.name === S.cls ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</select></div>` : ''}
+        <div><label style="margin-top:0">Distance (m)</label><select id="md">${[25, 50, 100, 200].map(v => `<option ${v === S.d ? 'selected' : ''}>${v}</option>`).join('')}</select></div></div>
+        <div class="row" style="margin-top:10px"><button class="btn btn-grad" id="mall">🚩 Départ groupé</button><button class="btn btn-ghost" id="mrz">↺ Tout remettre à zéro</button></div></div>
+      ${st.length ? '' : '<div class="card empty" style="margin-top:12px">Créez d\'abord une classe dans « Mes classes ».</div>'}
+      <div style="display:grid;grid-template-columns:repeat(${n > 2 ? 2 : n},1fr);gap:10px;margin-top:12px">${S.lanes.map((L, i) => { const t = sec(L), ix = natIndice(S.d, t, L.c);
+        return `<div class="card" style="border-top:5px solid ${cols[i]};padding:10px">
+          <div class="muted" style="font-size:.72rem;font-weight:800">LIGNE ${i + 1}</div>
+          <select data-ls="${i}" style="padding:7px;margin-top:2px">${st.map((x, k) => `<option value="${k}" ${k === L.si ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select>
+          <div class="big" data-lt="${i}" style="font-size:clamp(1.7rem,7vw,2.6rem);margin:6px 0">${fmt(t * 1000)}</div>
+          <button class="btn ${L.run ? 'btn-danger' : 'btn-grad'} btn-block" data-lg="${i}" style="padding:10px 4px">${L.run ? '⏹ Arrivée' : L.acc ? '▶ Reprendre' : '▶ Départ'}</button>
+          <div class="muted" style="font-size:.72rem;font-weight:800;margin-top:8px">COUPS DE BRAS</div>
+          <div class="row" style="gap:6px;align-items:center"><button class="btn btn-ghost" style="flex:0 0 40px;padding:12px 0" data-lm="${i}">−</button>
+            <button class="btn btn-grad" style="padding:14px 4px;font-size:1.3rem;font-weight:900" data-lp="${i}">${L.c}</button></div>
+          <div class="muted" style="font-size:.78rem;margin-top:6px" data-li="${i}">${S.d === 25 ? `Indice : <b style="color:var(--text)">${natI(ix)}</b>` : `${L.c && t ? (S.d / L.c).toFixed(2).replace('.', ',') + ' m / coup' : ''}`}</div></div>`; }).join('')}</div>
+      <button class="btn btn-grad btn-block" style="margin-top:12px" id="msv">💾 Enregistrer les ${n} nageurs</button>
+      <div class="section-title"><h2>Derniers enregistrements</h2></div><div class="card sheet-table" id="mls"></div>`;
+    const $ = s => el.querySelector(s), all = s => el.querySelectorAll(s);
+    if ($('#mc')) $('#mc').onchange = e => { S.cls = e.target.value; DB.lastClass = S.cls; save(); S.lanes.forEach((L, i) => L.si = i); draw(); };
+    $('#md').onchange = e => { S.d = +e.target.value; draw(); };
+    const go = L => { if (L.run) { L.acc = sec(L); L.run = false; beep(1000, .25); } else { L.t0 = performance.now(); L.run = true; beep(1300, .3); } };
+    $('#mall').onclick = () => { const t = performance.now(); S.lanes.forEach(L => { if (!L.run && !L.acc) { L.t0 = t; L.run = true; } }); beep(1300, .45); draw(); };
+    $('#mrz').onclick = () => { S.lanes.forEach(L => Object.assign(L, { t0: 0, acc: 0, run: false, c: 0 })); draw(); };
+    all('[data-ls]').forEach(x => x.onchange = () => { S.lanes[+x.dataset.ls].si = +x.value; });
+    all('[data-lg]').forEach(b => b.onclick = () => { go(S.lanes[+b.dataset.lg]); draw(); });
+    all('[data-lp]').forEach(b => b.onclick = () => { const L = S.lanes[+b.dataset.lp]; L.c++; b.textContent = L.c; beep(1100, .03, .15); });
+    all('[data-lm]').forEach(b => b.onclick = () => { const L = S.lanes[+b.dataset.lm]; L.c = Math.max(0, L.c - 1); draw(); });
+    $('#msv').onclick = () => { if (S.lanes.some(L => L.run)) return toast('Arrêtez d\'abord tous les chronos'); let k = 0;
+      S.lanes.forEach(L => { const eleve = st[L.si], t = Math.round(sec(L) * 100) / 100; if (!eleve || !t) return;
+        DB.natation.push({ date: Date.now(), classe: S.cls, eleve, d: S.d, t, c: L.c }); k++; });
+      if (!k) return toast('Aucun temps à enregistrer'); save(); toast(`${k} nageur(s) enregistré(s) ✔`);
+      const next = Math.max(...S.lanes.map(L => L.si)) + 1;
+      S.lanes.forEach((L, i) => Object.assign(L, { si: st.length ? (next + i) % st.length : 0, t0: 0, acc: 0, run: false, c: 0 })); draw(); };
+    const R = DB.natation.slice(-8).reverse();
+    $('#mls').innerHTML = R.length ? `<table><tr><th>Élève</th><th>Dist.</th><th>Temps</th><th>Coups</th><th>Indice 25 m</th></tr>${R.map(r => `<tr><td><b>${esc(r.eleve)}</b></td><td>${r.d} m</td><td>${fmt(r.t * 1000)}</td><td>${r.c || '–'}</td><td><b>${natI(natIndice(r.d, r.t, r.c))}</b></td></tr>`).join('')}</table>
+      <p class="muted" style="font-size:.75rem;margin:6px 0 0">Tous les résultats, avec l'export CSV, sont visibles en mode « 1 nageur ».</p>` : '<div class="empty">Aucun résultat enregistré.</div>';
+  };
+  draw();
+  iv = setInterval(() => { S.lanes.forEach((L, i) => { if (!L.run) return; const e = el.querySelector(`[data-lt="${i}"]`); if (e) e.textContent = fmt(sec(L) * 1000);
+    const x = el.querySelector(`[data-li="${i}"]`); if (x && S.d === 25) x.innerHTML = `Indice : <b style="color:var(--text)">${natI(natIndice(S.d, sec(L), L.c))}</b>`; }); }, 60);
+  return () => clearInterval(iv);
+}
+
 /* ---------- Savoir nager (test ASNS) ---------- */
 DB.asns = DB.asns || {};
 const ASNS = ['Entrer dans l\'eau en chute arrière', 'Nager sur le ventre', 'Passer sous l\'obstacle', 'Nage ventrale', 'Surplace vertical (debout)',
@@ -119,7 +171,13 @@ TOOL_IMPL.natation = function (el) {
     el.innerHTML = `<div class="co-tabs">${[['vite', '⏱ Nager vite'], ['savoir', '🏅 Savoir nager']].map(([k, l]) => `<button data-nm="${k}" class="${mode === k ? 'on' : ''}">${l}</button>`).join('')}</div><div id="nat-b"></div>`;
     el.querySelectorAll('[data-nm]').forEach(b => b.onclick = () => { mode = DB.natMode = b.dataset.nm; save(); frame(); });
     const box = el.querySelector('#nat-b');
-    stop = mode === 'vite' ? natationVite(box) : natationSavoir(box);
+    if (mode === 'vite') {
+      const L = DB.natLanes || 1;
+      box.innerHTML = `<div class="card" style="margin-bottom:12px"><label style="margin-top:0">Nageurs chronométrés en même temps</label><div class="seg">${[1, 2, 3, 4].map(n => `<button data-ln="${n}" class="${L === n ? 'on' : ''}">${n}</button>`).join('')}</div></div><div id="nat-v"></div>`;
+      box.querySelectorAll('[data-ln]').forEach(b => b.onclick = () => { DB.natLanes = +b.dataset.ln; save(); frame(); });
+      const vb = box.querySelector('#nat-v');
+      stop = L > 1 ? natationMulti(vb, L) : natationVite(vb);
+    } else stop = natationSavoir(box);
   };
   frame();
   return () => { if (stop) stop(); };

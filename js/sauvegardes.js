@@ -44,9 +44,9 @@ hook('multi', el => addSaveCard(el, { tool: 'multi', label: 'les temps', bulk: (
 hook('vma', el => addSaveCard(el, { tool: 'vma', label: 'la VMA', single: () => ({ valeur: (el.querySelector('#v').value || '').replace('.', ',') + ' km/h', detail: 'VMA' }) }));
 hook('vitesse', el => addSaveCard(el, { tool: 'vitesse', label: 'la vitesse', single: () => { const b = el.querySelector('#res .card b'); return b ? { valeur: b.textContent + ' km/h', detail: `${el.querySelector('#d').value} m en ${el.querySelector('#m').value} min ${el.querySelector('#s').value} s` } : null; } }));
 hook('rm', el => addSaveCard(el, { tool: 'rm', label: 'la 1RM', single: () => { const b = el.querySelector('#res .card b'); return b ? { valeur: b.textContent, detail: `${el.querySelector('#c').value} kg × ${el.querySelector('#r').value} rép.` } : null; } }));
-hook('testvma', el => { const add = () => { el.querySelector('.card[data-tvsave]')?.remove(); const holder = document.createElement('div'); el.appendChild(holder);
+hook('testvma', el => { const add = () => { el.querySelector('[data-tvsave]')?.remove(); const holder = document.createElement('div'); holder.dataset.tvsave = '1'; el.appendChild(holder);
     addSaveCard(holder, { tool: 'testvma', label: 'la VMA', bulk: () => [...el.querySelectorAll('.tv-row.done')].map(r => ({ nom: r.querySelector('.nm').textContent.trim(), valeur: (r.querySelector('.res b')?.textContent || '').replace('VMA ', ''), detail: r.querySelector('.res')?.textContent.split('\n')[0] || '' })) }); };
-  add(); new MutationObserver(() => { if (!el.querySelector('[data-bulk]')) add(); }).observe(el, { childList: true }); });
+  add(); new MutationObserver(() => { if (!el.querySelector('[data-tvsave]')) add(); }).observe(el, { childList: true }); });
 hook('photo', el => addSaveCard(el, { tool: 'photo', label: 'les temps d\'arrivée', bulk: () => [...el.querySelectorAll('#ml .list-item')].map(r => { const s = r.querySelectorAll('span'), b = r.querySelectorAll('b'); return { nom: s[0]?.textContent.trim(), valeur: b[1]?.textContent }; }) }));
 hook('chronos12', el => { const bar = el.querySelector('.chronos-bar'); if (!bar || !DB.classes.length) return;
   const btn = document.createElement('button'); btn.className = 'btn btn-grad'; btn.textContent = '💾 Enregistrer les temps'; bar.appendChild(btn);

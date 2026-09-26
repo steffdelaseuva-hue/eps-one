@@ -22,6 +22,15 @@ const SPORTS = {
   tt:       { name: 'Tennis de table', coll: false, type: 'points', target: 11, ecart: true, score: [{ l: 'Point +1', p: 1 }] },
 };
 const BONUS_VALUES = [1, 2, 3, 5, 10, 100, 1000];
+/* Observations individuelles : critères selon le sport */
+function obsCrit(sport) {
+  const sp = SPORTS[sport];
+  if (sp.coll) { const c = [['poss', 'Possession'], ['tir', 'Tirs'], ['but', sp.shot], ['perte', 'Balle perdue']]; if (sport === 'basket') c.push(['reb', 'Rebond']); return c; }
+  if (sport === 'volley') return [['serv', 'Service'], ['pt', 'Point marqué'], ['faute', 'Faute']];
+  if (sport === 'escrime') return [['touche', 'Touche donnée'], ['recue', 'Touche reçue']];
+  return [['pt', 'Point gagné'], ['gagnant', 'Coup gagnant'], ['faute', 'Faute directe']];
+}
+const obsLine = (o, sport) => obsCrit(sport).map(([k, l]) => `${l.toLowerCase()} ${o.c[k] || 0}`).join(' · ') + (o.c.tir ? ` · réussite ${Math.round((o.c.but || 0) / o.c.tir * 100)} %` : '');
 const TOUCH_ZONES = ['Casque', 'Cou', 'Buste', 'Bras', 'Dos'];
 
 /* ---------- Terrains (SVG, orientés en longueur) ---------- */
@@ -104,7 +113,7 @@ document.head.insertAdjacentHTML('beforeend', `<style>
 const RLA_BOX = '<details class="card" style="margin-top:12px"><summary style="font-weight:800;cursor:pointer">🏉 Ligne d\'avantage : recueil individuel (recule / avance / bloque)</summary><div id="rla-host" style="margin-top:10px"></div></details>';
 
 TOOL_IMPL.match = function (el) {
-  let S = { sport: 'handball', a: 'Équipe A', b: 'Équipe B', type: 'temps', dur: 10, target: 21, ecart: true, bonus: [1, 2, 5], stats: true, zones: false, nz: 4, ia: 0, ib: 1 };
+  let S = { sport: 'handball', a: 'Équipe A', b: 'Équipe B', type: 'temps', dur: 10, target: 21, ecart: true, bonus: [1, 2, 5], stats: true, zones: false, nz: 4, ia: 0, ib: 1, obsOn: false, obsN: 2 };
   let selPl = null;
   let M = null, iv = null;
   const SP = () => SPORTS[S.sport];
@@ -127,6 +136,8 @@ TOOL_IMPL.match = function (el) {
         ${sp.coll ? `<label style="display:flex;gap:8px;align-items:center;margin-top:14px"><input type="checkbox" id="st" ${S.stats ? 'checked' : ''} style="width:auto"> Statistiques : tirs tentés, ${sp.shot === 'Essai' ? 'essais' : sp.shot === 'Panier' ? 'paniers' : sp.shot === 'Point' ? 'points' : 'buts'} marqués, pertes de balle, passes décisives</label>` : ''}
         ${sp.zones ? `<label style="display:flex;gap:8px;align-items:center;margin-top:10px"><input type="checkbox" id="zo" ${S.zones ? 'checked' : ''} style="width:auto"> Zones visées (progression du ballon sur le terrain)</label>
           <div id="nzw" style="display:${S.zones ? 'block' : 'none'}"><label>Nombre de zones dans la longueur</label><div class="tog" id="nz">${[3, 4, 5].map(n => `<button data-n="${n}" class="${S.nz === n ? 'on' : ''}">${n} zones</button>`).join('')}</div></div>` : ''}
+        <label style="display:flex;gap:8px;align-items:center;margin-top:14px"><input type="checkbox" id="ob" ${S.obsOn ? 'checked' : ''} style="width:auto"> Observations individuelles : ${obsCrit(S.sport).map(c => c[1].toLowerCase()).join(', ')}</label>
+        <div id="obw" style="display:${S.obsOn ? 'block' : 'none'}"><label>Nombre de joueurs observés</label><div class="tog" id="obn">${[2, 3, 4].map(n => `<button data-on="${n}" class="${S.obsN === n ? 'on' : ''}">${n} joueurs</button>`).join('')}</div></div>
       </div>
       ${S.sport === 'rugby' ? RLA_BOX : ''}
       <button class="btn btn-grad btn-block" style="margin-top:14px;padding:16px;font-size:1.05rem" id="go">▶ Lancer le match</button>
@@ -136,12 +147,14 @@ TOOL_IMPL.match = function (el) {
     const $ = s => el.querySelector(s);
     const keep = () => { S.a = $('#na').value.trim() || 'Équipe A'; S.b = $('#nb').value.trim() || 'Équipe B';
       if ($('#du')) S.dur = Math.max(1, +$('#du').value || 1); if ($('#tg')) S.target = Math.max(1, +$('#tg').value || 1); if ($('#ec')) S.ecart = $('#ec').checked;
-      if ($('#st')) S.stats = $('#st').checked; if ($('#zo')) S.zones = $('#zo').checked; };
+      if ($('#st')) S.stats = $('#st').checked; if ($('#zo')) S.zones = $('#zo').checked; S.obsOn = $('#ob').checked; };
     el.querySelectorAll('[data-s]').forEach(b => b.onclick = () => { keep(); S.sport = b.dataset.s; const sp = SP(); S.type = sp.type; if (sp.dur) S.dur = sp.dur; if (sp.target) S.target = sp.target; S.ecart = !!sp.ecart; if (!sp.zones) S.zones = false; setup(); });
     el.querySelectorAll('[data-t]').forEach(b => b.onclick = () => { keep(); S.type = b.dataset.t; setup(); });
     el.querySelectorAll('[data-b]').forEach(b => b.onclick = () => { const v = +b.dataset.b; S.bonus = S.bonus.includes(v) ? S.bonus.filter(x => x !== v) : [...S.bonus, v].sort((x, y) => x - y); b.classList.toggle('on'); });
     el.querySelectorAll('[data-n]').forEach(b => b.onclick = () => { S.nz = +b.dataset.n; el.querySelectorAll('[data-n]').forEach(x => x.classList.toggle('on', x === b)); });
     if ($('#zo')) $('#zo').onchange = () => $('#nzw').style.display = $('#zo').checked ? 'block' : 'none';
+    $('#ob').onchange = () => $('#obw').style.display = $('#ob').checked ? 'block' : 'none';
+    el.querySelectorAll('[data-on]').forEach(b => b.onclick = () => { S.obsN = +b.dataset.on; el.querySelectorAll('[data-on]').forEach(x => x.classList.toggle('on', x === b)); });
     $('#go').onclick = () => { keep(); start(); };
     wireTeams();
     mountRLA();
@@ -150,6 +163,24 @@ TOOL_IMPL.match = function (el) {
     if ($('#hx')) $('#hx').onclick = () => download(`matchs-${new Date().toISOString().slice(0, 10)}.csv`, csv([
       ['Date', 'Sport', 'Équipe A', 'Score A', 'Score B', 'Équipe B', 'Tirs A', 'Marqués A', 'Pertes A', 'Passes déc. A', 'Bonus A', 'Tirs B', 'Marqués B', 'Pertes B', 'Passes déc. B', 'Bonus B', 'Joueurs A', 'Joueurs B'],
       ...DB.matchs.map(m => [new Date(m.date).toLocaleString('fr-FR'), SPORTS[m.sport]?.name || m.sport, m.a, m.sa, m.sb, m.b, ...[0, 1].flatMap(t => { const s = m.stats[t]; return [s.tirs, s.marques, s.pertes, s.passes, s.bonus]; }), (m.pa || []).join(', '), (m.pb || []).join(', ')])]));
+  }
+
+  /* ----- Observations individuelles (2 à 4 joueurs) ----- */
+  function drawObs() {
+    const h = el.querySelector('#obs-host'); if (!h || !M) return;
+    const C = obsCrit(S.sport), pool = [...M.pa.map(n => [n, 0]), ...M.pb.map(n => [n, 1])];
+    if (!M.obs) M.obs = Array.from({ length: S.obsN }, (_, i) => ({ name: pool[i] ? pool[i][0] : '', team: pool[i] ? pool[i][1] : 0, c: {} }));
+    h.innerHTML = `<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px">${M.obs.map((o, i) => `<div class="card" style="padding:8px;border-top:4px solid ${o.team ? '#1E5BD8' : '#B8912A'}">
+        ${pool.length ? `<select data-op="${i}" style="padding:6px;font-weight:700">${pool.map(([n, t]) => `<option value="${t}|${esc(n)}" ${n === o.name ? 'selected' : ''}>${esc(n)} (${esc(t ? S.b : S.a)})</option>`).join('')}</select>`
+          : `<input data-oi="${i}" value="${esc(o.name)}" placeholder="Joueur ${i + 1}" style="padding:6px;font-weight:700">`}
+        <div style="display:flex;flex-direction:column;gap:5px;margin-top:6px">${C.map(([k, l]) => `<div style="display:flex;gap:4px;align-items:center"><button class="btn btn-ghost" style="flex:0 0 32px;padding:8px 0" data-om="${i}|${k}">−</button>
+          <button class="btn btn-grad" style="flex:1;padding:8px 4px;font-size:.8rem;justify-content:space-between;display:flex" data-oa="${i}|${k}"><span>${k === 'tir' ? 'Tir raté' : l}</span><b>${k === 'tir' ? (o.c.tir || 0) - (o.c.but || 0) : o.c[k] || 0}</b></button></div>`).join('')}</div>
+        ${o.c.tir ? `<div class="muted" style="font-size:.72rem;margin-top:4px">Réussite ${Math.round((o.c.but || 0) / o.c.tir * 100)} %</div>` : ''}</div>`).join('')}</div>
+      ${pool.length ? '' : '<p class="muted" style="font-size:.78rem;margin:6px 0 0">Astuce : constituez les équipes avec les élèves pour choisir les joueurs dans une liste.</p>'}`;
+    h.querySelectorAll('[data-op]').forEach(x => x.onchange = () => { const [t, n] = x.value.split('|'); Object.assign(M.obs[+x.dataset.op], { name: n, team: +t }); drawObs(); });
+    h.querySelectorAll('[data-oi]').forEach(x => x.onchange = () => { M.obs[+x.dataset.oi].name = x.value.trim(); });
+    h.querySelectorAll('[data-oa]').forEach(b => b.onclick = () => { const [i, k] = b.dataset.oa.split('|'), c = M.obs[+i].c; c[k] = (c[k] || 0) + 1; if (k === 'but') c.tir = (c.tir || 0) + 1; beep(1000, .03, .15); drawObs(); });
+    h.querySelectorAll('[data-om]').forEach(b => b.onclick = () => { const [i, k] = b.dataset.om.split('|'), c = M.obs[+i].c; if (k === 'tir' && (c.tir || 0) <= (c.but || 0)) return; c[k] = Math.max(0, (c[k] || 0) - 1); if (k === 'but') c.tir = Math.max(0, (c.tir || 0) - 1); drawObs(); });
   }
 
   /* ----- Rugby : ligne d'avantage intégrée ----- */
@@ -170,7 +201,7 @@ TOOL_IMPL.match = function (el) {
         ${(() => { const fr = freeOf(t); return `<div class="card team mt-team" data-tm="-1" style="border-top:5px dashed var(--line);background:var(--grad-soft)"><h3><span>Non placés / absents</span><span class="muted">${fr.length}</span></h3>
           <div class="pls">${fr.map((n, j) => `<button class="pl-chip ${selPl === '-1|' + j ? 'sel' : ''}" data-pl="-1|${j}">${esc(n)}</button>`).join('') || '<span class="muted">—</span>'}</div></div>`; })()}</div>
       ${t.teams.length > 1 ? `<div class="row"><div><label>Équipe A (sur le terrain)</label><select id="ia">${opt(S.ia)}</select></div><div><label>Équipe B</label><select id="ib">${opt(S.ib)}</select></div></div>` : ''}
-      <button class="link" id="mt-clr" style="margin-top:8px">Effacer la composition</button></div>`;
+      <div class="row" style="margin-top:8px"><button class="btn btn-ghost" id="mt-ed">✏️ Modifier / supprimer des équipes</button><button class="btn btn-ghost" id="mt-clr">🗑 Supprimer toutes les équipes</button></div></div>`;
   }
   function wireTeams() {
     const $ = s => el.querySelector(s);
@@ -187,6 +218,9 @@ TOOL_IMPL.match = function (el) {
     el.querySelectorAll('[data-pl]').forEach(b => b.onclick = ev => { ev.stopPropagation(); selPl = selPl === b.dataset.pl ? null : b.dataset.pl; S.a = $('#na').value; S.b = $('#nb').value; setup(); });
     el.querySelectorAll('[data-tm]').forEach(c => c.onclick = () => { if (!selPl) return; const [i, j] = selPl.split('|').map(Number), k = +c.dataset.tm; selPl = null;
       if (k !== i) { const n = i < 0 ? freeOf(t)[j] : t.teams[i].members.splice(j, 1)[0]; if (n && k >= 0) t.teams[k].members.push(n); save(); } S.a = $('#na').value; S.b = $('#nb').value; setup(); });
+    $('#mt-ed').onclick = () => { S.a = $('#na').value; S.b = $('#nb').value; editGroupsPanel('Équipes', { cls: t.cls, list: () => DB.matchTeams.teams, names: x => x.members,
+      take: (x, n) => { x.members.splice(x.members.indexOf(n), 1); }, put: (x, n) => x.members.push(n), make: name => ({ name: name.replace('Groupe', 'Équipe'), members: [] }),
+      onChange: save, onClose: () => { if (!DB.matchTeams.teams.length) { DB.matchTeams = null; S.a = 'Équipe A'; S.b = 'Équipe B'; } else { const L = DB.matchTeams.teams.length; if (S.ia >= L) S.ia = 0; if (S.ib >= L) S.ib = Math.min(1, L - 1); } save(); setup(); } }); };
     $('#mt-clr').onclick = () => { if (!confirm('Effacer la composition des équipes ?')) return; DB.matchTeams = null; selPl = null; S.a = 'Équipe A'; S.b = 'Équipe B'; save(); setup(); };
   }
 
@@ -226,6 +260,7 @@ TOOL_IMPL.match = function (el) {
         </div>`).join('')}</div>
       <div class="row" style="margin-top:12px"><button class="btn btn-ghost" id="un">↶ Annuler la dernière action</button><button class="btn btn-danger" id="end">🏁 Fin du match</button></div>
       <p class="muted" id="last" style="text-align:center;margin:8px 0"></p>
+      ${S.obsOn ? '<details class="card" open style="margin-top:12px"><summary style="font-weight:800;cursor:pointer">👁 Observations individuelles</summary><div id="obs-host" style="margin-top:8px"></div></details>' : ''}
       ${S.sport === 'rugby' ? RLA_BOX : ''}`;
     const $ = s => el.querySelector(s);
     const setPoss = p => { M.poss = p; el.querySelectorAll('[data-p]').forEach(b => b.classList.toggle('on', +b.dataset.p === p)); paintZones(); };
@@ -243,7 +278,7 @@ TOOL_IMPL.match = function (el) {
     $('#un').onclick = () => { const e = M.ev.pop(); if (!e) return; if (M.over) M.over = false; paint(); $('#last').textContent = 'Annulé : ' + e.label + ' (' + (e.team ? S.b : S.a) + ')'; };
     $('#end').onclick = () => { if (confirm('Terminer le match ?')) finish(); };
     iv = setInterval(tick, 200); paint(); paintZones();
-    mountRLA();
+    mountRLA(); drawObs();
   }
   function paintZones() {
     if (!el.querySelector('[data-zl]')) return;
@@ -274,7 +309,7 @@ TOOL_IMPL.match = function (el) {
   function finish() {
     if (!M) return; M.over = true; M.run = false; clearInterval(iv);
     const rec = { date: Date.now(), sport: S.sport, a: S.a, b: S.b, sa: scoreOf(0), sb: scoreOf(1), duree: Math.round(M.acc / 1000), nz: SP().zones && S.zones ? S.nz : 0,
-      pa: M.pa, pb: M.pb, coll: SP().coll && S.stats, stats: stats(M.ev, SP().zones && S.zones ? S.nz : 0), ev: M.ev };
+      pa: M.pa, pb: M.pb, obs: M.obs && M.obs.filter(o => o.name) || null, coll: SP().coll && S.stats, stats: stats(M.ev, SP().zones && S.zones ? S.nz : 0), ev: M.ev };
     summary(rec, false);
   }
 
@@ -293,17 +328,21 @@ TOOL_IMPL.match = function (el) {
         ${m.nz ? Array.from({ length: m.nz }, (_, z) => row(`Zone ${z + 1} atteinte`, s => s.zones[z])).join('') : ''}
         ${m.sport === 'escrime' ? TOUCH_ZONES.map((z, i) => row(`Touches ${z.toLowerCase()}`, s => (s.touches || [])[i] || 0)).join('') : ''}
       </table>${m.nz ? `<p class="muted" style="margin:8px 0 0;font-size:.8rem">Zone 1 = camp de l'équipe, zone ${m.nz} = près du but adverse.</p>` : ''}</div>
+      ${(m.obs || []).length ? `<div class="section-title"><h2>Observations individuelles</h2></div><div class="card sheet-table"><table><tr><th>Joueur</th>${obsCrit(m.sport).map(c => `<th>${c[1]}</th>`).join('')}${SPORTS[m.sport]?.coll ? '<th>Réussite</th>' : ''}</tr>
+        ${m.obs.map(o => `<tr><td><b>${esc(o.name)}</b><div class="muted" style="font-size:.72rem">${esc(o.team ? m.b : m.a)}</div></td>${obsCrit(m.sport).map(([k]) => `<td>${o.c[k] || 0}</td>`).join('')}${SPORTS[m.sport]?.coll ? `<td>${o.c.tir ? Math.round((o.c.but || 0) / o.c.tir * 100) + ' %' : '–'}</td>` : ''}</tr>`).join('')}</table></div>` : ''}
       <div class="section-title"><h2>Déroulé du match</h2></div>
       <div class="card" style="max-height:260px;overflow:auto;padding:4px 12px">${m.ev.length ? m.ev.map(e => `<div class="muted" style="padding:4px 0;border-bottom:1px solid var(--line)"><b style="color:var(--text)">${fmt(e.t * 1000, false)}</b> · ${esc(e.team ? m.b : m.a)} · ${esc(e.label)}</div>`).join('') : '<div class="empty">Aucune action.</div>'}</div>
       <div class="row" style="margin-top:14px">${fromHistory ? '<button class="btn btn-ghost" id="bk">← Retour</button>' : '<button class="btn btn-grad" id="sv">💾 Enregistrer le match</button><button class="btn btn-ghost" id="rs">↶ Reprendre</button>'}<button class="btn btn-ghost" id="ex">📤 CSV</button></div>
       ${fromHistory ? '' : '<button class="btn btn-ghost btn-block" style="margin-top:10px" id="nw">Nouveau match sans enregistrer</button>'}`;
     const $ = s => el.querySelector(s);
-    $('#ex').onclick = () => download(`match-${m.a}-${m.b}.csv`.replace(/[^\w.-]+/g, '-'), csv([['Temps', 'Équipe', 'Action', 'Points'], ...m.ev.map(e => [fmt(e.t * 1000, false), e.team ? m.b : m.a, e.label, e.pts || ''])]));
+    $('#ex').onclick = () => download(`match-${m.a}-${m.b}.csv`.replace(/[^\w.-]+/g, '-'), csv([['Temps', 'Équipe', 'Action', 'Points'], ...m.ev.map(e => [fmt(e.t * 1000, false), e.team ? m.b : m.a, e.label, e.pts || '']), ...((m.obs || []).length ? [[], ['Joueur observé', 'Équipe', ...obsCrit(m.sport).map(c => c[1])], ...m.obs.map(o => [o.name, o.team ? m.b : m.a, ...obsCrit(m.sport).map(([k]) => o.c[k] || 0)])] : [])]));
     if (fromHistory) { $('#bk').onclick = setup; return; }
-    $('#sv').onclick = () => { DB.matchs.push(m); save(); toast('Match enregistré ✔'); setup(); };
+    $('#sv').onclick = () => { DB.matchs.push(m);
+      (m.obs || []).forEach(o => { if (DB.classes.some(c => studentsOf(c.name).includes(o.name))) saveResult({ tool: 'match', label: 'Match · ' + (SPORTS[m.sport]?.name || ''), classe: (DB.classes.find(c => studentsOf(c.name).includes(o.name)) || {}).name || '', eleve: o.name, valeur: `${m.sa}–${m.sb} (${o.team ? m.b : m.a})`, detail: obsLine(o, m.sport) }); });
+      save(); toast('Match enregistré ✔'); setup(); };
     $('#nw').onclick = () => { if (confirm('Quitter sans enregistrer ?')) setup(); };
     $('#rs').onclick = () => { // revenir au match (ex. fin par erreur)
-      const saved = M; start(); M.ev = saved.ev; M.acc = saved.acc; M.pa = saved.pa; M.pb = saved.pb; M.poss = saved.poss; M.over = false; paint(); tick(); };
+      const saved = M; start(); M.ev = saved.ev; M.acc = saved.acc; M.pa = saved.pa; M.pb = saved.pb; M.obs = saved.obs; drawObs(); M.poss = saved.poss; M.over = false; paint(); tick(); };
   }
 
   setup();
