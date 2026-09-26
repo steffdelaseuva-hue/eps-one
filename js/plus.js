@@ -2,9 +2,10 @@
    EPS ONE — Onglet PLUS : mise à jour, partage,
    à propos, confidentialité/RGPD, nouvelle année scolaire
    ========================================================= */
-const APP_VERSION = '5.2';
+const APP_VERSION = '5.3';
 const APP_URL = 'https://steffdelaseuva-hue.github.io/eps-one/';
 const CHANGELOG = [
+  { v: '5.3', items: ['Sons : correction des bips inaudibles sur iPhone/iPad (tests VMA, chronos, minuteurs…)'] },
   { v: '5.2', items: ['Test VMA 45-15 : bip à chaque plot', 'Test VMA : correction d’un blocage quand aucune classe n’existe', 'Gestion de match : observations individuelles de 2 à 4 joueurs (possessions, tirs, buts/paniers, balles perdues, rebonds au basket)', 'Gestion de match : modifier / supprimer des équipes ou toutes les équipes'] },
   { v: '5.1', items: ['Natation (nager vite) : chronométrage de 1 à 4 nageurs en même temps, avec comptage des coups de bras et indice de nage par ligne'] },
   { v: '5.0', items: ['Escalade : équipes (formation, modification), filtre par équipe dans Passage, défis entre équipes avec choix du grimpeur à chaque voie'] },

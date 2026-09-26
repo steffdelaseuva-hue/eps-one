@@ -375,12 +375,19 @@ let wake=null;
 async function requestWake(){try{wake=await navigator.wakeLock?.request('screen')}catch(e){}}
 function releaseWake(){try{wake?.release();wake=null}catch(e){}}
 
-/* Sons */
+/* Sons — WebAudio. Sur iPhone/iPad : le contexte audio doit être « débloqué »
+   par un toucher, et la courbe de volume doit partir de l'instant présent. */
 let actx=null;
+function audioCtx(){actx=actx||new (window.AudioContext||window.webkitAudioContext)();if(actx.state!=='running')actx.resume().catch(()=>{});return actx;}
+function unlockAudio(){try{if(navigator.audioSession)navigator.audioSession.type='playback';}catch(e){}
+  try{const c=audioCtx(),b=c.createBuffer(1,1,22050),s=c.createBufferSource();s.buffer=b;s.connect(c.destination);s.start(0);}catch(e){}}
+['touchend','pointerdown','click','keydown'].forEach(ev=>document.addEventListener(ev,unlockAudio,{passive:true,capture:true}));
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&actx)actx.resume().catch(()=>{});});
 function beep(freq=880,dur=.15,vol=.4){
-  try{actx=actx||new (window.AudioContext||window.webkitAudioContext)();
-  const o=actx.createOscillator(),g=actx.createGain();o.frequency.value=freq;o.type='square';
-  g.gain.value=vol;o.connect(g);g.connect(actx.destination);o.start();g.gain.exponentialRampToValueAtTime(.001,actx.currentTime+dur);o.stop(actx.currentTime+dur);}catch(e){}
+  try{const c=audioCtx(),t=c.currentTime+.005,o=c.createOscillator(),g=c.createGain();
+    o.type='square';o.frequency.setValueAtTime(freq,t);
+    g.gain.setValueAtTime(vol,t);g.gain.exponentialRampToValueAtTime(.001,t+dur);
+    o.connect(g);g.connect(c.destination);o.start(t);o.stop(t+dur+.02);}catch(e){}
 }
 const fmt=(ms,cs=true)=>{ms=Math.max(0,ms);const m=Math.floor(ms/60000),s=Math.floor(ms/1000)%60,c=Math.floor(ms/10)%100;
   return String(m).padStart(2,'0')+':'+String(s).padStart(2,'0')+(cs?','+String(c).padStart(2,'0'):'');};
