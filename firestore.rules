@@ -1,0 +1,29 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Administrateur d'EPS ONE
+    function isAdmin() {
+      return request.auth != null && request.auth.token.email == 'steffdelaseuva@gmail.com';
+    }
+    // Compte autorisé par l'administrateur
+    function approved() {
+      return isAdmin() || (exists(/databases/$(database)/documents/access/$(request.auth.uid))
+        && get(/databases/$(database)/documents/access/$(request.auth.uid)).data.status == 'approved');
+    }
+
+    // Demandes d'accès : chacun crée la sienne (en attente), seul l'administrateur décide
+    match /access/{uid} {
+      allow read: if request.auth != null && (request.auth.uid == uid || isAdmin());
+      allow create: if request.auth != null && request.auth.uid == uid
+                    && request.resource.data.status == 'pending'
+                    && request.resource.data.email == request.auth.token.email;
+      allow update, delete: if isAdmin();
+    }
+
+    // Données chiffrées de chaque compte : uniquement le propriétaire, s'il est autorisé
+    match /epsone/{uid}/{document=**} {
+      allow read, write: if request.auth != null && request.auth.uid == uid && approved();
+    }
+  }
+}

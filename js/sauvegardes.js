@@ -7,7 +7,7 @@ DB.resultats = DB.resultats || [];
 ICONS.resultats = '<rect x="4" y="3.5" width="16" height="17" rx="2.5"/><path d="M8 8h8M8 12h8M8 16h5"/><circle cx="17.5" cy="17.5" r="3.5" fill="var(--card)"/><path d="M16 17.5l1 1 2-2"/>';
 
 const lastClass = () => (DB.classes.find(c => c.name === DB.lastClass) || DB.classes[0] || {}).name || '';
-function saveResult(r) { DB.resultats.push({ date: Date.now(), ...r }); save(); }
+function saveResult(r) { DB.resultats.push({ date: Date.now(), ...r }); save(); window.syncFlush && window.syncFlush(); }
 
 /* Carte à ajouter en bas d'un outil.
    single: () => ({ valeur, detail })  → enregistrement pour l'élève choisi

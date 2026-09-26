@@ -44,55 +44,115 @@ async function keyMatches(key) {
 }
 async function writeCheck() { const { doc, setDoc } = fb.fs; await setDoc(doc(fb.db, 'epsone', S.user.uid, 'data', CHECK_ID), { c: await encrypt(CHECK_TXT), t: Date.now() }); }
 
-/* ---------- Envoi des rubriques modifiées (chiffrées) ---------- */
-async function pushChanged() {
-  if (!fb || !S.user || !CK || S.mismatch) return;
-  const { doc, setDoc } = fb.fs;
-  const jobs = [];
-  for (const k of Object.keys(DB)) {
-    const j = JSON.stringify(DB[k] ?? null), h = hash(j);
-    if (meta.keys[k]?.h === h) continue;
-    if (j.length > 700000) { S.err = `Rubrique « ${k} » trop volumineuse pour la synchronisation`; continue; }
-    const t = Date.now(); meta.keys[k] = { h, t };
-    jobs.push(encrypt(j).then(c => setDoc(doc(fb.db, 'epsone', S.user.uid, 'data', k), { c, t, dev: meta.dev })));
+/* ---------- Synchronisation par fusion (plusieurs appareils en même temps) ----------
+   Chaque appareil garde la « base » : la dernière version reçue du serveur pour chaque rubrique.
+   Fusion à 3 voies (base, cet appareil, serveur) : les ajouts des deux côtés sont conservés,
+   une suppression faite d'un côté est appliquée, et en cas de conflit sur une même valeur
+   c'est cet appareil qui garde la sienne. Les envois passent par une transaction : deux
+   tablettes qui envoient en même temps ne s'écrasent pas. */
+const BASE_KEY = 'epsone_sync_base';
+let BASE; try { BASE = JSON.parse(localStorage.getItem(BASE_KEY)) || {}; } catch (e) { BASE = {}; }
+const saveBase = () => { try { localStorage.setItem(BASE_KEY, JSON.stringify(BASE)); } catch (e) {} };
+const setBase = (k, v) => { if (v && typeof v === 'object') BASE[k] = JSON.stringify(v); else delete BASE[k]; };
+const getBase = k => { try { return BASE[k] != null ? JSON.parse(BASE[k]) : undefined; } catch (e) { return undefined; } };
+const jeq = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+const itemKey = x => isObj(x) ? (x.id != null ? 'id:' + x.id : x.k != null ? 'k:' + x.k : x.name != null ? 'name:' + x.name : x.nom != null ? 'nom:' + x.nom : 'json:' + JSON.stringify(x)) : 'val:' + JSON.stringify(x);
+function merge3(base, loc, rem) {
+  if (jeq(loc, rem)) return loc;
+  if (base === undefined) return mergeData(loc, rem);          // pas d'historique commun : union
+  if (jeq(loc, base)) return rem;
+  if (jeq(rem, base)) return loc;
+  if (Array.isArray(loc) && Array.isArray(rem)) {
+    const B = new Map((Array.isArray(base) ? base : []).map(x => [itemKey(x), x]));
+    const L = new Map(loc.map(x => [itemKey(x), x])), R = new Map(rem.map(x => [itemKey(x), x]));
+    const out = [];
+    for (const x of loc) { const k = itemKey(x);
+      if (R.has(k)) out.push(isObj(x) || Array.isArray(x) ? merge3(B.get(k), x, R.get(k)) : x);
+      else if (!B.has(k)) out.push(x); }                        // ajouté ici ; sinon supprimé sur le serveur
+    for (const x of rem) { const k = itemKey(x); if (!L.has(k) && !B.has(k)) out.push(x); }  // ajouté ailleurs
+    return out;
   }
-  if (!jobs.length) return;
-  S.status = 'sync'; refreshUI();
-  try { await Promise.all(jobs); S.status = 'ok'; S.err = ''; S.last = meta.last = Date.now(); }
-  catch (e) { S.status = 'error'; S.err = e.message; }
-  saveMeta(); refreshUI();
+  if (isObj(loc) && isObj(rem)) { const b = isObj(base) ? base : {}, out = {};
+    for (const k of new Set([...Object.keys(loc), ...Object.keys(rem)])) {
+      const inL = k in loc, inR = k in rem, inB = k in b;
+      if (inL && inR) out[k] = merge3(inB ? b[k] : undefined, loc[k], rem[k]);
+      else if (inL) { if (!inB || !jeq(loc[k], b[k])) out[k] = loc[k]; }   // supprimé ailleurs sauf si modifié ici
+      else { if (!inB || !jeq(rem[k], b[k])) out[k] = rem[k]; } }
+    return out; }
+  return loc;                                                    // valeur simple en conflit : cet appareil garde la sienne
 }
-const schedulePush = () => { if (applying || !S.user) return; clearTimeout(pushTimer); pushTimer = setTimeout(pushChanged, 1500); };
-const forcePushAll = async () => { Object.keys(DB).forEach(k => { meta.keys[k] = { h: 'x', t: 0 }; }); await pushChanged(); };
+const readDoc = async r => { if (!r) return undefined; if (typeof r.c === 'string') return JSON.parse(await decrypt(r.c)); if (typeof r.v === 'string') return JSON.parse(r.v); return undefined; };
 
-/* Chaque sauvegarde locale déclenche un envoi */
+/* ---------- Envoi (groupé) des rubriques modifiées ---------- */
+let pushing = false;
+async function pushChanged() {
+  if (!fb || !S.user || !CK || S.mismatch || !accessOK() || pushing) return;
+  const { doc, runTransaction } = fb.fs;
+  const keys = Object.keys(DB).filter(k => meta.keys[k]?.h !== hash(JSON.stringify(DB[k] ?? null)));
+  if (!keys.length) return;
+  pushing = true; S.status = 'sync'; refreshUI(); let changedLocal = false;
+  try {
+    for (const k of keys) {
+      const ref = doc(fb.db, 'epsone', S.user.uid, 'data', k); let out, t;
+      await runTransaction(fb.db, async tx => {
+        const d = await tx.get(ref), local = DB[k] ?? null; out = local;
+        if (d.exists()) { const r = d.data(); if (!(r.dev === meta.dev && r.t === meta.keys[k]?.t)) out = merge3(getBase(k), local, await readDoc(r)); }
+        const j = JSON.stringify(out ?? null); if (j.length > 700000) throw new Error(`Rubrique « ${k} » trop volumineuse pour la synchronisation`);
+        t = Date.now(); tx.set(ref, { c: await encrypt(j), t, dev: meta.dev });
+      });
+      if (!jeq(out, DB[k] ?? null)) { applying = true; DB[k] = out; applying = false; changedLocal = true; }
+      setBase(k, out); meta.keys[k] = { h: hash(JSON.stringify(out ?? null)), t };
+    }
+    S.status = 'ok'; S.err = ''; S.last = meta.last = Date.now();
+  } catch (e) { S.status = 'error'; S.err = e.message; }
+  pushing = false; saveBase(); saveMeta();
+  if (changedLocal) { _save(); try { if (!document.getElementById('screen').classList.contains('open')) renderHome(); } catch (e) {} }
+  refreshUI();
+}
+// Envois groupés : au plus un envoi toutes les 10 s pendant que l'on saisit (économise le quota Firebase)
+const PUSH_EVERY = 10000;
+const schedulePush = () => { if (applying || !S.user || pushTimer) return; pushTimer = setTimeout(() => { pushTimer = null; pushChanged(); }, PUSH_EVERY); };
+window.syncFlush = () => { if (!S.user) return; clearTimeout(pushTimer); pushTimer = setTimeout(() => { pushTimer = null; pushChanged(); }, 1200); };
+const forcePushAll = async () => { Object.keys(DB).forEach(k => { meta.keys[k] = { h: 'x', t: meta.keys[k]?.t || 0 }; }); await pushChanged(); };
+
+/* Chaque sauvegarde locale programme un envoi groupé */
 const _save = window.save;
 window.save = function () { _save(); schedulePush(); };
 
-/* ---------- Réception en direct (déchiffrement) ---------- */
+/* ---------- Réception : fusion des données venues des autres appareils ---------- */
+async function applyRemote(k, r) {
+  if (k === CHECK_ID || !r) return false;
+  if (r.dev === meta.dev && meta.keys[k]?.t >= r.t) return false;          // notre propre envoi
+  let rv; try { rv = await readDoc(r); } catch (e) { S.mismatch = true; S.status = 'error'; refreshUI(); return false; }
+  if (rv === undefined) return false;
+  const local = DB[k] ?? null, m = meta.keys[k], dirty = m && m.h !== hash(JSON.stringify(local));
+  const out = !m ? (replaceOnce || local == null ? rv : mergeData(local, rv)) : dirty ? merge3(getBase(k), local, rv) : rv;
+  setBase(k, rv);
+  applying = true; DB[k] = out; applying = false;
+  meta.keys[k] = { h: dirty || !m ? (jeq(out, rv) ? hash(JSON.stringify(rv)) : 'x') : hash(JSON.stringify(rv)), t: r.t };
+  return !jeq(out, local);
+}
+let replaceOnce = false;
+async function applySnap(docs) {
+  let changed = false;
+  for (const x of docs) { if (await applyRemote(x.id, x.data())) changed = true; }
+  replaceOnce = false;
+  saveBase(); saveMeta();
+  if (Object.keys(DB).some(k => meta.keys[k]?.h === 'x')) schedulePush();
+  if (changed) { _save(); S.last = meta.last = Date.now(); S.status = 'ok'; refreshUI();
+    try { if (!document.getElementById('screen').classList.contains('open')) renderHome(); } catch (e) {}
+    toast('🔄 Données synchronisées'); }
+}
 function listen() {
   const { collection, onSnapshot } = fb.fs;
-  unsub && unsub();
-  unsub = onSnapshot(collection(fb.db, 'epsone', S.user.uid, 'data'), async snap => {
-    let changed = false;
-    for (const ch of snap.docChanges()) {
-      if (ch.type === 'removed' || ch.doc.id === CHECK_ID) continue;
-      const k = ch.doc.id, r = ch.doc.data(); if (!r) continue;
-      if (r.dev === meta.dev && meta.keys[k]?.t >= r.t) continue;          // notre propre envoi
-      let v;
-      if (typeof r.c === 'string') { try { v = await decrypt(r.c); } catch (e) { S.mismatch = true; S.status = 'error'; refreshUI(); return; } }
-      else if (typeof r.v === 'string') v = r.v;                            // ancien format non chiffré
-      else continue;
-      const localH = hash(JSON.stringify(DB[k] ?? null)), m = meta.keys[k];
-      const localDirty = m && m.h !== localH;
-      if (!m || !localDirty || r.t > (m.t || 0)) {
-        try { applying = true; DB[k] = JSON.parse(v); meta.keys[k] = { h: typeof r.c === 'string' ? hash(v) : 'legacy', t: r.t }; changed = true; } finally { applying = false; }
-      }
-    }
-    if (changed) { _save(); saveMeta(); S.last = meta.last = Date.now(); S.status = 'ok'; refreshUI();
-      try { if (!document.getElementById('screen').classList.contains('open')) renderHome(); } catch (e) {}
-      toast('🔄 Données synchronisées'); }
-  }, e => { S.status = 'error'; S.err = e.message; refreshUI(); });
+  unsub && unsub(); unsub = null;
+  if (meta.collect) { pullAll(); return; }                              // tablette de collecte : pas d'écoute en direct
+  unsub = onSnapshot(collection(fb.db, 'epsone', S.user.uid, 'data'), snap => applySnap(snap.docChanges().filter(c => c.type !== 'removed').map(c => c.doc)),
+    e => { S.status = 'error'; S.err = e.message; refreshUI(); });
+}
+async function pullAll() {
+  const { collection, getDocs } = fb.fs;
+  try { const snap = await getDocs(collection(fb.db, 'epsone', S.user.uid, 'data')); await applySnap(snap.docs); } catch (e) { S.status = 'error'; S.err = e.message; refreshUI(); }
 }
 
 /* Fusion « Combiner » : ajoute les données du compte sans effacer celles de l'appareil.
@@ -116,6 +176,7 @@ function mergeData(a, b) {
 
 /* Branchement d'un appareil sur le compte (clé disponible) */
 async function startSync() {
+  if (!accessOK() || !S.user) return;
   S.needKey = false; S.mismatch = false;
   const ok = await keyMatches(CK);
   if (ok === false) { S.mismatch = true; S.status = 'error'; refreshUI(); return; }
@@ -136,7 +197,7 @@ async function startSync() {
       try { if (!document.getElementById('screen').classList.contains('open')) renderHome(); } catch (e) {}
       toast('🔄 Données combinées'); return;
     }
-    meta.keys = {};                                                       // Remplacer : l'appareil reprend la sauvegarde du compte
+    meta.keys = {}; replaceOnce = true;                                   // Remplacer : l'appareil reprend la sauvegarde du compte
   }
   if (!remoteHasData) meta.keys = {};
   meta.linked = true; saveMeta();
@@ -145,6 +206,89 @@ async function startSync() {
   else setTimeout(pushChanged, 2500);
   refreshUI();
 }
+
+/* ---------- Accès sur invitation ----------
+   access/{uid} = { email, status: 'pending' | 'approved' | 'refused', date }
+   L'administrateur approuve les comptes. Un appareil approuvé une fois reste
+   utilisable (y compris en stockage local) tant que l'accès n'est pas retiré. */
+const ADMIN_EMAIL = 'steffdelaseuva@gmail.com', ACC_KEY = 'epsone_access';
+const isAdminUser = u => !!u && (u.email || '').toLowerCase() === ADMIN_EMAIL;
+let accCache; try { accCache = JSON.parse(localStorage.getItem(ACC_KEY)) || null; } catch (e) { accCache = null; }
+const setAcc = v => { accCache = v; try { v ? localStorage.setItem(ACC_KEY, JSON.stringify(v)) : localStorage.removeItem(ACC_KEY); } catch (e) {} };
+const deviceOK = () => !!accCache && (accCache.st === 'approved' || accCache.st === 'admin');
+let accUnsub = null, gateBooted = false;
+S.access = null;                                  // 'admin' | 'approved' | 'pending' | 'refused' | 'error'
+function watchAccess(u) {
+  accUnsub && accUnsub(); accUnsub = null;
+  if (isAdminUser(u)) { S.access = 'admin'; setAcc({ st: 'admin', email: u.email }); return Promise.resolve('admin'); }
+  const { doc, getDoc, setDoc, onSnapshot } = fb.fs, ref = doc(fb.db, 'access', u.uid);
+  return (async () => {
+    try { const d = await getDoc(ref);
+      if (!d.exists()) await setDoc(ref, { email: u.email, status: 'pending', date: Date.now() });
+    } catch (e) { S.access = deviceOK() ? accCache.st : 'error'; gate(); return S.access; }
+    return new Promise(res => { let first = true;
+      accUnsub = onSnapshot(ref, snap => { const st = snap.exists() ? snap.data().status : 'pending'; const was = S.access; S.access = st;
+        if (st === 'approved') setAcc({ st: 'approved', email: u.email }); else if (st === 'refused') setAcc(null);
+        if (first) { first = false; res(st); } else { gate(); if (st === 'approved' && was !== 'approved') { toast('✅ Accès validé'); S.user && startSync().catch(() => {}); } } },
+        () => { S.access = deviceOK() ? accCache.st : 'error'; if (first) { first = false; res(S.access); } gate(); });
+    });
+  })();
+}
+const accessOK = () => S.access === 'admin' || S.access === 'approved' || (!S.user && deviceOK());
+function gate() {
+  let g = document.getElementById('eps-gate');
+  if (!window.EPSONE_FIREBASE || accessOK()) { if (g) g.remove(); try { renderPlus(); } catch (e) {} return; }
+  if (!g) { g = document.createElement('div'); g.id = 'eps-gate';
+    g.style.cssText = 'position:fixed;inset:0;z-index:400;background:var(--bg,#F2F5FB);overflow:auto;padding:24px 16px;display:flex;justify-content:center;align-items:flex-start'; document.body.appendChild(g); }
+  const errP = S.err ? `<p style="color:var(--danger);font-size:.85rem">${esc(S.err)}</p>` : '';
+  const head = `<div style="text-align:center;margin:10px 0 16px"><img src="icons/icone-v3-192.png" alt="" style="width:76px;height:76px;border-radius:18px"><h2 style="margin:10px 0 2px">EPS ONE</h2><div class="muted">Accès réservé</div></div>`;
+  let body;
+  if (!gateBooted) body = `<div class="card" style="text-align:center"><p class="muted" style="margin:0">Chargement…</p></div>`;
+  else if (!S.ready) body = `<div class="card"><h3>📶 Connexion nécessaire</h3><p class="muted">La première connexion à EPS ONE demande internet. Vérifiez la connexion puis réessayez.</p><button class="btn btn-grad btn-block" onclick="location.reload()">Réessayer</button></div>`;
+  else if (!S.user) body = `<div class="card"><h3>🔑 Connexion</h3>
+      <p class="muted" style="margin:4px 0 0">EPS ONE est accessible sur invitation. Créez un compte : votre demande sera validée par l'administrateur.</p>
+      <label>E-mail</label><input id="gt-mail" type="email" autocomplete="username" value="${esc(meta.mail || '')}">
+      <label>Mot de passe (6 caractères minimum)</label><input id="gt-pass" type="password" autocomplete="current-password">${errP}
+      <div class="row" style="margin-top:12px"><button class="btn btn-grad" id="gt-in">Se connecter</button><button class="btn btn-ghost" id="gt-new">Demander un accès</button></div>
+      <button class="link" style="margin-top:10px" id="gt-forgot">Mot de passe oublié ?</button></div>`;
+  else if (S.access === 'refused') body = `<div class="card"><h3>⛔ Accès refusé</h3><p class="muted">Le compte <b>${esc(S.user.email)}</b> n'a pas accès à EPS ONE.</p><button class="btn btn-ghost btn-block" id="gt-out">Se déconnecter</button></div>`;
+  else body = `<div class="card"><h3>⏳ Demande en attente</h3>
+      <p style="line-height:1.45">Votre demande d'accès pour <b>${esc(S.user.email)}</b> a été envoyée. L'app s'ouvrira automatiquement dès que l'administrateur l'aura validée.</p>${S.access === 'error' ? '<p class="muted" style="font-size:.82rem">Vérification impossible pour le moment (connexion ?).</p>' : ''}
+      <button class="btn btn-ghost btn-block" id="gt-out">Se déconnecter</button></div>`;
+  g.innerHTML = `<div style="max-width:440px;width:100%">${head}${body}</div>`;
+  const $ = q => g.querySelector(q);
+  const run = async fn => { S.err = ''; try { await fn(); } catch (e) { S.err = ({ 'auth/invalid-credential': 'E-mail ou mot de passe incorrect.', 'auth/email-already-in-use': 'Un compte existe déjà avec cet e-mail : connectez-vous.', 'auth/weak-password': 'Mot de passe trop court (6 caractères minimum).', 'auth/invalid-email': 'E-mail invalide.', 'auth/network-request-failed': 'Pas de connexion internet.', 'auth/too-many-requests': 'Trop d\'essais : réessayez plus tard.' })[e.code] || e.message; } gate(); };
+  if ($('#gt-in')) {
+    const creds = () => { const m = $('#gt-mail').value.trim(), p = $('#gt-pass').value; meta.mail = m; saveMeta(); if (!m || !p) throw new Error('E-mail et mot de passe requis.'); return [m, p]; };
+    const login = create => run(async () => { const [m, p] = creds(); CK = await deriveKey(m, p); setMode('cloud');
+      try { await (create ? fb.authM.createUserWithEmailAndPassword : fb.authM.signInWithEmailAndPassword)(fb.auth, m, p); await storeKey(m, CK); } catch (e) { CK = null; throw e; } });
+    $('#gt-in').onclick = () => login(false); $('#gt-new').onclick = () => login(true);
+    $('#gt-forgot').onclick = () => run(async () => { const m = $('#gt-mail').value.trim(); if (!m) throw new Error('Indiquez votre e-mail.'); await fb.authM.sendPasswordResetEmail(fb.auth, m); toast('E-mail de réinitialisation envoyé'); });
+  }
+  if ($('#gt-out')) $('#gt-out').onclick = () => run(async () => { forgetKey(); await fb.authM.signOut(fb.auth); });
+}
+window.isEpsAdmin = () => isAdminUser(S.user);
+
+/* Panneau administrateur : valider les demandes */
+window.openAccessAdmin = () => openPanel('Accès des collègues', el => {
+  const box = document.createElement('div'); el.appendChild(box);
+  if (!isAdminUser(S.user) || !fb) { box.innerHTML = '<div class="card empty">Réservé à l\'administrateur connecté.</div>'; return; }
+  const { collection, onSnapshot, doc, setDoc, deleteDoc } = fb.fs; let list = [];
+  const LBL = { pending: ['⏳ En attente', 'var(--gold)'], approved: ['✅ Autorisé', '#1B9E5A'], refused: ['⛔ Refusé', 'var(--danger)'] };
+  const draw = () => { const order = { pending: 0, approved: 1, refused: 2 }; list.sort((a, b) => (order[a.status] ?? 3) - (order[b.status] ?? 3) || (b.date || 0) - (a.date || 0));
+    box.innerHTML = `<div class="card"><p style="margin:0;line-height:1.45">Les collègues créent leur compte depuis l'écran « Accès réservé ». Leur demande apparaît ici : <b>vous seul</b> décidez qui peut utiliser EPS ONE.</p>
+      <p class="muted" style="margin:6px 0 0;font-size:.82rem">${list.filter(x => x.status === 'pending').length} en attente · ${list.filter(x => x.status === 'approved').length} autorisé(s)</p></div>
+      ${list.length ? list.map(x => `<div class="card" style="margin-top:10px"><div style="display:flex;justify-content:space-between;gap:8px;align-items:center"><b style="word-break:break-all">${esc(x.email || x.id)}</b><span style="font-weight:800;font-size:.8rem;color:${(LBL[x.status] || ['', 'inherit'])[1]};white-space:nowrap">${(LBL[x.status] || [x.status])[0]}</span></div>
+        <div class="muted" style="font-size:.78rem">Demande du ${x.date ? new Date(x.date).toLocaleDateString('fr-FR') : '?'}</div>
+        <div class="row" style="margin-top:8px;gap:6px">${x.status !== 'approved' ? `<button class="btn btn-grad" data-ok="${x.id}">✅ Autoriser</button>` : ''}${x.status !== 'refused' ? `<button class="btn btn-ghost" data-ko="${x.id}">${x.status === 'approved' ? '⛔ Retirer l\'accès' : '⛔ Refuser'}</button>` : ''}<button class="btn btn-ghost" style="flex:0 0 44px" data-rm="${x.id}">🗑</button></div></div>`).join('')
+        : '<div class="card empty" style="margin-top:10px">Aucune demande pour l\'instant.</div>'}`;
+    const set = (id, st) => { const { id: _i, ...rest } = list.find(x => x.id === id) || {}; setDoc(doc(fb.db, 'access', id), { ...rest, status: st, decided: Date.now() }).then(() => toast(st === 'approved' ? 'Accès autorisé ✔' : 'Accès retiré')).catch(e => toast(e.message)); };
+    box.querySelectorAll('[data-ok]').forEach(b => b.onclick = () => set(b.dataset.ok, 'approved'));
+    box.querySelectorAll('[data-ko]').forEach(b => b.onclick = () => { if (confirm('Refuser / retirer l\'accès à ce compte ?')) set(b.dataset.ko, 'refused'); });
+    box.querySelectorAll('[data-rm]').forEach(b => b.onclick = () => { if (confirm('Effacer cette demande de la liste ? (le compte pourra redemander un accès)')) deleteDoc(doc(fb.db, 'access', b.dataset.rm)).catch(e => toast(e.message)); }); };
+  const un = onSnapshot(collection(fb.db, 'access'), snap => { list = snap.docs.map(d => ({ id: d.id, ...d.data() })); draw(); }, e => { box.innerHTML = `<div class="card empty">Lecture impossible : ${esc(e.message)}<br>Les règles Firestore ont-elles été publiées ?</div>`; });
+  const obs = new MutationObserver(() => { if (!box.isConnected) { un(); obs.disconnect(); } }); obs.observe(document.body, { childList: true, subtree: true });
+});
 
 /* ---------- Démarrage ---------- */
 async function boot() {
@@ -156,16 +300,18 @@ async function boot() {
     let db; try { db = fsM.initializeFirestore(app, { localCache: fsM.persistentLocalCache() }); } catch (e) { db = fsM.getFirestore(app); }
     fb = { auth, authM, db, fs: fsM }; S.ready = true;
     authM.onAuthStateChanged(auth, async u => {
-      S.user = u; S.status = u ? 'ok' : 'off'; S.needKey = false; S.mismatch = false;
-      if (u) { CK = CK || await loadKey(u.email); if (!CK) { S.needKey = true; refreshUI(); return; }
+      S.user = u; S.status = u ? 'ok' : 'off'; S.needKey = false; S.mismatch = false; gateBooted = true;
+      if (u) { S.access = null; await watchAccess(u); gate(); if (!accessOK()) { refreshUI(); return; }
+        CK = CK || await loadKey(u.email); if (!CK) { S.needKey = true; refreshUI(); return; }
         try { await startSync(); } catch (e) { S.status = 'error'; S.err = e.message; } }
-      else { unsub && unsub(); unsub = null; }
+      else { unsub && unsub(); unsub = null; accUnsub && accUnsub(); accUnsub = null; S.access = null; gate(); }
       refreshUI();
     });
-  } catch (e) { S.status = 'error'; S.err = 'Connexion à Firebase impossible (hors ligne ?)'; refreshUI(); }
+  } catch (e) { S.status = 'error'; S.err = 'Connexion à Firebase impossible (hors ligne ?)'; gateBooted = true; gate(); refreshUI(); }
 }
 window.addEventListener('online', () => S.user && pushChanged());
-document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && S.user) pushChanged(); });
+document.addEventListener('visibilitychange', () => { if (!S.user) return; if (document.visibilityState === 'hidden') { clearTimeout(pushTimer); pushTimer = null; pushChanged(); } else { pushChanged(); if (meta.collect) pullAll(); } });
+window.addEventListener('pagehide', () => { if (S.user) pushChanged(); });
 
 /* ---------- Interface ---------- */
 const statusText = () => S.user ? (S.needKey ? 'Mode : synchronisé · mot de passe requis' : S.mismatch ? 'Mode : synchronisé · clé à mettre à jour' : ({ sync: 'Mode : synchronisé · envoi…', error: 'Mode : synchronisé · erreur' })[S.status] || `Mode : synchronisé · ${S.user.email}`) : 'Mode : stockage local (cet appareil uniquement)';
@@ -200,7 +346,8 @@ function drawPanel(el) {
   } else if (S.user) {
     el.innerHTML = `<div class="card"><h3>☁️ Synchronisation activée</h3>
         <p style="margin:6px 0">Compte : <b>${esc(S.user.email)}</b></p><p class="muted" style="margin:0">État : ${statusText()} · dernière synchro : ${last}</p>${errP}
-        <div class="row" style="margin-top:12px"><button class="btn btn-grad" id="sy-now">🔄 Synchroniser maintenant</button><button class="btn btn-ghost" id="sy-out">Revenir en stockage local</button></div></div>
+        <div class="row" style="margin-top:12px"><button class="btn btn-grad" id="sy-now">🔄 Synchroniser maintenant</button><button class="btn btn-ghost" id="sy-out">Revenir en stockage local</button></div>
+        <label style="display:flex;gap:8px;align-items:flex-start;margin-top:14px;color:var(--text);font-weight:600"><input type="checkbox" id="sy-col" ${meta.collect ? 'checked' : ''} style="width:auto;margin-top:3px"><span>📥 Tablette de collecte<br><span class="muted" style="font-weight:400;font-size:.82rem">Pour les tablettes prêtées pendant un cours : elles envoient leurs relevés sans suivre en direct les autres appareils (économise le quota). Les données de toutes les tablettes se retrouvent fusionnées sur votre compte.</span></span></label></div>
       ${E2E_TXT}
       <div class="card" style="margin-top:12px"><h3>🗑 Supprimer mes données en ligne</h3>
         <p class="muted" style="margin:4px 0 10px">Efface toutes vos données stockées sur Firebase et arrête la synchronisation. Les données restent sur cet appareil.</p>
@@ -233,7 +380,8 @@ function drawPanel(el) {
     $('#sy-mrep').onclick = () => run(async () => { if (!confirm('Remplacer toutes les données en ligne par celles de cet appareil ?')) return;
       unsub && unsub(); unsub = null; S.mismatch = false; await writeCheck(); await forcePushAll(); meta.linked = true; saveMeta(); listen(); toast('Données en ligne remplacées ✔'); });
   } else if (S.user) {
-    $('#sy-now').onclick = () => run(async () => { await forcePushAll(); toast('Synchronisé ✔'); });
+    $('#sy-now').onclick = () => run(async () => { await forcePushAll(); await pullAll(); toast('Synchronisé ✔'); });
+    $('#sy-col').onchange = e => { meta.collect = e.target.checked; saveMeta(); listen(); toast(meta.collect ? 'Tablette de collecte ✔' : 'Synchronisation en direct ✔'); };
     $('#sy-out').onclick = () => run(async () => { if (!confirm('Revenir en stockage local ?\nLa synchronisation s\'arrête sur cet appareil. Vos données restent ici et en ligne.')) return; setMode('local'); forgetKey(); await fb.authM.signOut(fb.auth); });
     $('#sy-del').onclick = () => run(async () => {
       if (!confirm('Supprimer toutes vos données en ligne ?\nElles resteront seulement sur cet appareil. Vos autres appareils ne seront plus synchronisés.')) return;
@@ -242,7 +390,7 @@ function drawPanel(el) {
       await Promise.all(snap.docs.map(d => deleteDoc(d.ref)));
       let accountMsg = '';
       try { await fb.authM.deleteUser(fb.auth.currentUser); accountMsg = ' et compte supprimé'; } catch (e) { await fb.authM.signOut(fb.auth); }
-      meta.keys = {}; meta.linked = false; saveMeta(); forgetKey(); setMode('local');
+      meta.keys = {}; meta.linked = false; saveMeta(); BASE = {}; saveBase(); forgetKey(); setMode('local');
       toast('Données en ligne supprimées' + accountMsg + ' ✔');
     });
   } else {
@@ -281,4 +429,4 @@ function chooser() {
 
 boot();
 try { renderPlus(); } catch (e) {}
-setTimeout(chooser, 600);
+gate(); setTimeout(() => { if (!gateBooted && deviceOK()) { gateBooted = true; gate(); } }, 6000);
