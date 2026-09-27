@@ -2,9 +2,10 @@
    EPS ONE — Onglet PLUS : mise à jour, partage,
    à propos, confidentialité/RGPD, nouvelle année scolaire
    ========================================================= */
-const APP_VERSION = '6.2';
+const APP_VERSION = '6.3';
 const APP_URL = 'https://steffdelaseuva-hue.github.io/eps-one/';
 const CHANGELOG = [
+  { v: '6.3', items: ['Plus : ligne Contact (e-mail)'] },
   { v: '6.2', items: ['Accueil : bouton « 📥 Importer vos classes »'] },
   { v: '6.1', items: ['Page Synchronisation : explication Local / Synchronisation précisée'] },
   { v: '6.0', items: ['Page Synchronisation : explication « Local ou synchronisation ? »'] },
@@ -304,6 +305,7 @@ function renderPlus() {
       ${item('lock', 'navy', 'Confidentialité & RGPD', 'Données, caméra, suppression', 'openPrivacy()')}
       ${item('info', 'navy', 'À propos', 'Objectif, installation, crédits', 'openAbout()')}
       ${item('update', 'grad', 'Mise à jour', `Version ${APP_VERSION} · nouveautés`, 'openUpdate()')}
+      ${item('mail', 'blue', 'Contact', 'steffdelaseuva@gmail.com', "location.href='mailto:steffdelaseuva@gmail.com?subject=EPS%20ONE'")}
     </div>
     <div class="menu-sec">Année scolaire</div>
     <div class="card" style="padding:0">
