@@ -192,7 +192,10 @@ th{color:var(--muted);font-size:.78rem;text-transform:uppercase}
     <div class="hero">
       <h2>Tous vos outils EPS,<br>au même endroit.</h2>
       <p>Chronos, timers, tirages au sort, équipes, table de marque, calculs VMA… Pensé pour la tablette et le téléphone, en plein cours.</p>
-      <button class="btn btn-white" onclick="go('outils')">Ouvrir les OUTILS →</button>
+      <div style="display:flex;flex-wrap:wrap;gap:10px;position:relative">
+        <button class="btn btn-white" onclick="go('outils')">Ouvrir les OUTILS →</button>
+        <button class="btn btn-white" onclick="openImportClasses()">📥 Importer vos classes</button>
+      </div>
     </div>
 
     <div class="section-title"><h2>Mes favoris</h2><button class="link" onclick="go('outils')">Gérer</button></div>
@@ -328,6 +331,7 @@ function toolCard(t){
     ${t.ready?'':'<span class="badge">Bientôt</span>'}
     <div class="ti">${ico(t.id)}</div><b>${esc(t.name)}</b><small>${esc(t.desc)}</small></div>`;
 }
+function openImportClasses(){ openTool('classes'); setTimeout(()=>{ const c=document.getElementById('imp'); if(c){ c.scrollIntoView({behavior:'smooth',block:'center'}); const card=c.closest('.card'); if(card){ card.style.transition='box-shadow .3s'; card.style.boxShadow='0 0 0 3px var(--gold)'; setTimeout(()=>card.style.boxShadow='',1800);} } },150); }
 function renderHome(){
   const f=DB.favs.map(T).filter(Boolean);
   document.getElementById('fav-grid').innerHTML=f.length?f.map(toolCard).join(''):'<div class="empty card" style="grid-column:1/-1">Touchez ☆ sur un outil pour l\'ajouter ici.</div>';

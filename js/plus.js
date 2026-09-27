@@ -2,9 +2,10 @@
    EPS ONE — Onglet PLUS : mise à jour, partage,
    à propos, confidentialité/RGPD, nouvelle année scolaire
    ========================================================= */
-const APP_VERSION = '6.1';
+const APP_VERSION = '6.2';
 const APP_URL = 'https://steffdelaseuva-hue.github.io/eps-one/';
 const CHANGELOG = [
+  { v: '6.2', items: ['Accueil : bouton « 📥 Importer vos classes »'] },
   { v: '6.1', items: ['Page Synchronisation : explication Local / Synchronisation précisée'] },
   { v: '6.0', items: ['Page Synchronisation : explication « Local ou synchronisation ? »'] },
   { v: '5.9', items: ['Page Mise à jour : les 5 dernières versions, historique complet repliable'] },
