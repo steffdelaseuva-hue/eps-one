@@ -2,9 +2,10 @@
    EPS ONE — Onglet PLUS : mise à jour, partage,
    à propos, confidentialité/RGPD, nouvelle année scolaire
    ========================================================= */
-const APP_VERSION = '7.1';
+const APP_VERSION = '7.2';
 const APP_URL = 'https://steffdelaseuva-hue.github.io/eps-one/';
 const CHANGELOG = [
+  { v: '7.2', items: ['Page publique de confidentialité (confidentialite.html)'] },
   { v: '7.1', items: ['Option « Google Drive » activée dans Stockage & synchronisation'] },
   { v: '7.0', items: ['Accès immédiat sans validation pour les utilisateurs qui choisissent leur propre Google Drive ; le compte EPS ONE reste sur invitation'] },
   { v: '6.9', items: ['Page Stockage & synchronisation réorganisée : fonctionnement hors ligne par défaut, options facultatives, modes de stockage'] },
