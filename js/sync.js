@@ -357,6 +357,11 @@ function refreshUI() {
   const sub = document.getElementById('sync-sub'); if (sub) sub.textContent = statusText();
   const box = document.getElementById('sync-panel'); if (box) drawPanel(box);
 }
+const MODES_TXT = `<div class="card" style="margin-top:12px"><h3>📱 Local ou ☁️ synchronisation ?</h3>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
+    <div style="padding:10px;border-radius:12px;background:var(--grad-soft)"><b>📱 Stockage local</b><p style="margin:6px 0 0;font-size:.85rem;line-height:1.4">Les données restent sur la tablette utilisée. Plusieurs tablettes peuvent servir, mais leurs relevés restent séparés et ne se regroupent pas.</p></div>
+    <div style="padding:10px;border-radius:12px;background:var(--grad-soft)"><b>☁️ Synchronisation</b><p style="margin:6px 0 0;font-size:.85rem;line-height:1.4">Plusieurs tablettes connectées au même compte peuvent utiliser le même outil en même temps (2 terrains, plusieurs voies…). En fin de cours, tous les relevés se regroupent sur <b>sa propre tablette</b> (connexion internet nécessaire pour l'envoi). On retrouve aussi ses données sur l'iPhone, l'iPad…</p></div>
+  </div></div>`;
 const E2E_TXT = `<div class="card" style="margin-top:12px"><h3>🔒 Chiffrement de bout en bout</h3>
   <p style="margin:6px 0;font-size:.9rem;line-height:1.45">Vos données sont <b>chiffrées sur cet appareil avant l'envoi</b> (AES-256), avec une clé tirée de votre mot de passe. Firebase ne stocke que du contenu illisible : <b>personne d'autre — ni Google, ni l'administrateur du projet — ne peut les lire</b>.</p>
   <p class="muted" style="margin:0;font-size:.82rem">⚠️ Si vous oubliez votre mot de passe, les données en ligne deviennent illisibles. Celles de vos appareils sont conservées et pourront être renvoyées après la réinitialisation.</p></div>`;
@@ -372,7 +377,7 @@ function drawPanel(el) {
     el.innerHTML = `<div class="card" style="background:var(--grad-soft)"><h3>📱 Stockage local</h3>
         <p style="margin:6px 0;line-height:1.45">Votre compte <b>${esc(S.user.email)}</b> est validé : vous pouvez utiliser toute l'application. Vos données restent <b>sur cet appareil</b>.</p>
         <p class="muted" style="margin:0;font-size:.85rem">La synchronisation entre appareils est activée compte par compte par l'administrateur. Pensez à exporter régulièrement vos données (Plus → Exporter mes données).</p>
-        <button class="link" style="margin-top:10px" id="sy-lout">Se déconnecter</button></div>`;
+        <button class="link" style="margin-top:10px" id="sy-lout">Se déconnecter</button></div>${MODES_TXT}`;
     el.querySelector('#sy-lout').onclick = async () => { await fb.authM.signOut(fb.auth); refreshUI(); };
     return;
   }
@@ -395,6 +400,7 @@ function drawPanel(el) {
         <div class="row" style="margin-top:12px"><button class="btn btn-grad" id="sy-now">🔄 Synchroniser maintenant</button><button class="btn btn-ghost" id="sy-out">Revenir en stockage local</button></div>
         <label style="display:flex;gap:8px;align-items:flex-start;margin-top:14px;color:var(--text);font-weight:600"><input type="checkbox" id="sy-col" ${meta.collect ? 'checked' : ''} style="width:auto;margin-top:3px"><span>📥 Tablette de collecte (envoi en fin de séance)<br><span class="muted" style="font-weight:400;font-size:.82rem">Pour les tablettes prêtées pendant un cours : rien n'est envoyé pendant la séance. En fin de cours, touchez le bouton « 📤 Envoyer les relevés » (l'envoi se fait aussi quand la tablette se met en veille). Les relevés de toutes les tablettes sont fusionnés sur votre compte, presque sans consommer de quota.</span></span></label>
         ${meta.collect ? `<button class="btn btn-grad btn-block" style="margin-top:10px" id="sy-send">📤 Envoyer les relevés maintenant${pendingCount() ? ' (' + pendingCount() + ')' : ''}</button>` : ''}</div>
+      ${MODES_TXT}
       ${E2E_TXT}
       <div class="card" style="margin-top:12px"><h3>🗑 Supprimer mes données en ligne</h3>
         <p class="muted" style="margin:4px 0 10px">Efface toutes vos données stockées sur Firebase et arrête la synchronisation. Les données restent sur cet appareil.</p>
@@ -411,7 +417,7 @@ function drawPanel(el) {
         <label>Mot de passe (6 caractères minimum)</label><input id="sy-pass" type="password" autocomplete="current-password">${errP}
         <div class="row" style="margin-top:12px"><button class="btn btn-grad" id="sy-in">Se connecter</button><button class="btn btn-ghost" id="sy-new">Créer un compte</button></div>
         <button class="link" style="margin-top:10px" id="sy-forgot">Mot de passe oublié ?</button></div>
-      ${E2E_TXT}`;
+      ${MODES_TXT}${E2E_TXT}`;
   }
   const $ = s => el.querySelector(s);
   const run = async fn => { S.err = ''; try { await fn(); } catch (e) { S.err = ({ 'auth/invalid-credential': 'E-mail ou mot de passe incorrect.', 'auth/wrong-password': 'Mot de passe incorrect.', 'auth/user-not-found': 'Aucun compte avec cet e-mail.', 'auth/email-already-in-use': 'Un compte existe déjà avec cet e-mail : connectez-vous.', 'auth/weak-password': 'Mot de passe trop court (6 caractères minimum).', 'auth/invalid-email': 'E-mail invalide.', 'auth/network-request-failed': 'Pas de connexion internet.', 'auth/too-many-requests': 'Trop d\'essais : réessayez dans quelques minutes.' })[e.code] || e.message; } refreshUI(); };

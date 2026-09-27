@@ -2,14 +2,18 @@
    EPS ONE — Onglet PLUS : mise à jour, partage,
    à propos, confidentialité/RGPD, nouvelle année scolaire
    ========================================================= */
-const APP_VERSION = '5.7';
+const APP_VERSION = '6.1';
 const APP_URL = 'https://steffdelaseuva-hue.github.io/eps-one/';
 const CHANGELOG = [
+  { v: '6.1', items: ['Page Synchronisation : explication Local / Synchronisation précisée'] },
+  { v: '6.0', items: ['Page Synchronisation : explication « Local ou synchronisation ? »'] },
+  { v: '5.9', items: ['Page Mise à jour : les 5 dernières versions, historique complet repliable'] },
+  { v: '5.8', items: ['Correction : les pages Synchronisation et Accès des collègues affichaient aussi le contenu de la page précédente'] },
   { v: '5.7', items: ['Accès des collègues : la synchronisation s’active compte par compte par l’administrateur ; sinon stockage local uniquement'] },
   { v: '5.6', items: ['Tablette de collecte : aucun envoi pendant la séance, bouton « 📤 Envoyer les relevés » en fin de cours (envoi aussi à la mise en veille)'] },
   { v: '5.5', items: ['Synchronisation : le même outil peut être utilisé en même temps sur plusieurs tablettes (2 terrains, plusieurs voies…) ; les séances en cours restent propres à chaque tablette, seuls les résultats enregistrés sont fusionnés'] },
   { v: '5.4', items: ['Accès sur invitation : les collègues demandent un accès, l’administrateur valide ou retire (Plus → Accès des collègues)', 'Synchronisation par fusion : plusieurs tablettes peuvent relever en même temps sur le même compte, tout est regroupé sans écrasement', 'Envois groupés (économie du quota) et mode « Tablette de collecte »'] },
-  { v: '5.3', items: ['Sons : correction des bips inaudibles sur iPhone/iPad (tests VMA, chronos, minuteurs…)'] },
+  { v: '5.3', items: ['Sons : les bips sont de nouveau audibles sur iPhone/iPad (tests VMA, chronos, minuteurs…)'] },
   { v: '5.2', items: ['Test VMA 45-15 : bip à chaque plot', 'Test VMA : correction d’un blocage quand aucune classe n’existe', 'Gestion de match : observations individuelles de 2 à 4 joueurs (possessions, tirs, buts/paniers, balles perdues, rebonds au basket)', 'Gestion de match : modifier / supprimer des équipes ou toutes les équipes'] },
   { v: '5.1', items: ['Natation (nager vite) : chronométrage de 1 à 4 nageurs en même temps, avec comptage des coups de bras et indice de nage par ligne'] },
   { v: '5.0', items: ['Escalade : équipes (formation, modification), filtre par équipe dans Passage, défis entre équipes avec choix du grimpeur à chaque voie'] },
@@ -82,11 +86,18 @@ document.head.insertAdjacentHTML('beforeend', `<style>
 </style>`);
 
 /* ---------- Panneau générique (réutilise l'écran d'outil) ---------- */
+/* Nouveautés : les petites corrections sont regroupées sous une ligne simple */
+const isFix = t => /^(Correction|Corrections)\b|:\s*correction\b/i.test(t);
+function clEntry(c) {
+  const main = c.items.filter(i => !isFix(i)), fixes = c.items.length - main.length;
+  return `<h3><span class="ver-badge">v${c.v}</span></h3><ul>${main.map(i => `<li>${esc(i)}</li>`).join('')}${fixes ? '<li class="muted">Corrections et améliorations</li>' : ''}</ul>`;
+}
 function openPanel(title, render) {
   currentTool = null;
   document.getElementById('screen-title').textContent = title;
   document.getElementById('screen-star').style.visibility = 'hidden';
-  const body = document.getElementById('screen-body'); body.className = 'body';
+  if (typeof cleanup === 'function') { try { cleanup(); } catch (e) {} } cleanup = null;
+  const body = document.getElementById('screen-body'); body.className = 'body'; body.innerHTML = '';
   cleanup = render(body) || null;
   document.getElementById('screen').classList.add('open');
   document.getElementById('screen-body').scrollTop = 0;
@@ -102,7 +113,8 @@ function openUpdate() {
         <button class="btn btn-grad btn-block" style="margin-top:14px" id="up">🔄 Mettre à jour l'application</button>
         <p class="muted" style="margin:10px 0 0">Recharge la dernière version publiée. Vos données (classes, grilles, suivi…) sont conservées.</p></div>
       <div class="section-title"><h2>Nouveautés</h2></div>
-      <div class="card doc">${CHANGELOG.map(c => `<h3><span class="ver-badge">v${c.v}</span></h3><ul>${c.items.map(i => `<li>${esc(i)}</li>`).join('')}</ul>`).join('')}</div>`;
+      <div class="card doc">${CHANGELOG.slice(0, 5).map(clEntry).join('')}
+        ${CHANGELOG.length > 5 ? `<details style="margin-top:10px"><summary style="cursor:pointer;font-weight:800">Voir tout l'historique (${CHANGELOG.length - 5} versions précédentes)</summary>${CHANGELOG.slice(5).map(clEntry).join('')}</details>` : ''}</div>`;
     const st = el.querySelector('#st');
     fetch('version.json?t=' + Date.now(), { cache: 'no-store' }).then(r => r.json()).then(v => {
       st.innerHTML = v.version !== APP_VERSION
