@@ -100,7 +100,7 @@ const readDoc = async r => { if (!r) return undefined; if (typeof r.c === 'strin
 /* ---------- Envoi (groupé) des rubriques modifiées ---------- */
 let pushing = false;
 async function pushChanged() {
-  if (!fb || !S.user || !CK || S.mismatch || !accessOK() || pushing) return;
+  if (!fb || !S.user || !CK || S.mismatch || !syncAllowed() || pushing) return;
   const { doc, runTransaction } = fb.fs;
   const keys = syncKeys().filter(k => meta.keys[k]?.h !== hash(JSON.stringify(outb(k))));
   if (!keys.length) return;
@@ -129,7 +129,7 @@ const PUSH_EVERY = 10000;
 // ou quand la tablette se met en veille / quitte l'app, pour ne rien perdre.
 const pendingCount = () => S.user ? syncKeys().filter(k => meta.keys[k]?.h !== hash(JSON.stringify(outb(k)))).length : 0;
 function drawSendPill() {
-  let b = document.getElementById('sync-pill'); const n = meta.collect && S.user && accessOK() ? pendingCount() : 0;
+  let b = document.getElementById('sync-pill'); const n = meta.collect && S.user && syncAllowed() ? pendingCount() : 0;
   if (!n) { if (b) b.remove(); return; }
   if (!b) { b = document.createElement('button'); b.id = 'sync-pill'; b.className = 'btn btn-grad';
     b.style.cssText = 'position:fixed;right:14px;bottom:calc(84px + env(safe-area-inset-bottom));z-index:150;padding:12px 16px;border-radius:999px;box-shadow:var(--shadow);font-weight:800;width:auto';
@@ -137,7 +137,7 @@ function drawSendPill() {
     document.body.appendChild(b); }
   b.textContent = `📤 Envoyer les relevés (${n})`;
 }
-const schedulePush = () => { if (applying || !S.user) return; if (meta.collect) { setTimeout(drawSendPill, 50); return; } if (pushTimer) return; pushTimer = setTimeout(() => { pushTimer = null; pushChanged(); }, PUSH_EVERY); };
+const schedulePush = () => { if (applying || !S.user || !syncAllowed()) return; if (meta.collect) { setTimeout(drawSendPill, 50); return; } if (pushTimer) return; pushTimer = setTimeout(() => { pushTimer = null; pushChanged(); }, PUSH_EVERY); };
 window.syncFlush = () => { if (!S.user || meta.collect) return; clearTimeout(pushTimer); pushTimer = setTimeout(() => { pushTimer = null; pushChanged(); }, 1200); };
 const forcePushAll = async () => { syncKeys().forEach(k => { meta.keys[k] = { h: 'x', t: meta.keys[k]?.t || 0 }; }); await pushChanged(); };
 
@@ -173,6 +173,7 @@ async function applySnap(docs) {
 function listen() {
   const { collection, onSnapshot } = fb.fs;
   unsub && unsub(); unsub = null;
+  if (!syncAllowed()) return;
   if (meta.collect) { pullAll(); return; }                              // tablette de collecte : pas d'écoute en direct
   unsub = onSnapshot(collection(fb.db, 'epsone', S.user.uid, 'data'), snap => applySnap(snap.docChanges().filter(c => c.type !== 'removed').map(c => c.doc)),
     e => { S.status = 'error'; S.err = e.message; refreshUI(); });
@@ -203,7 +204,7 @@ function mergeData(a, b) {
 
 /* Branchement d'un appareil sur le compte (clé disponible) */
 async function startSync() {
-  if (!accessOK() || !S.user) return;
+  if (!syncAllowed() || !S.user) return;
   S.needKey = false; S.mismatch = false;
   const ok = await keyMatches(CK);
   if (ok === false) { S.mismatch = true; S.status = 'error'; refreshUI(); return; }
@@ -248,20 +249,25 @@ let accUnsub = null, gateBooted = false;
 S.access = null;                                  // 'admin' | 'approved' | 'pending' | 'refused' | 'error'
 function watchAccess(u) {
   accUnsub && accUnsub(); accUnsub = null;
-  if (isAdminUser(u)) { S.access = 'admin'; setAcc({ st: 'admin', email: u.email }); return Promise.resolve('admin'); }
+  if (isAdminUser(u)) { S.access = 'admin'; S.syncOK = true; setAcc({ st: 'admin', email: u.email }); return Promise.resolve('admin'); }
   const { doc, getDoc, setDoc, onSnapshot } = fb.fs, ref = doc(fb.db, 'access', u.uid);
   return (async () => {
     try { const d = await getDoc(ref);
       if (!d.exists()) await setDoc(ref, { email: u.email, status: 'pending', date: Date.now() });
     } catch (e) { S.access = deviceOK() ? accCache.st : 'error'; gate(); return S.access; }
     return new Promise(res => { let first = true;
-      accUnsub = onSnapshot(ref, snap => { const st = snap.exists() ? snap.data().status : 'pending'; const was = S.access; S.access = st;
-        if (st === 'approved') setAcc({ st: 'approved', email: u.email }); else if (st === 'refused') setAcc(null);
-        if (first) { first = false; res(st); } else { gate(); if (st === 'approved' && was !== 'approved') { toast('✅ Accès validé'); S.user && startSync().catch(() => {}); } } },
+      accUnsub = onSnapshot(ref, snap => { const d = snap.exists() ? snap.data() : {}, st = d.status || 'pending', was = S.access, wasSync = S.syncOK; S.access = st; S.syncOK = st === 'approved' && d.sync === true;
+        if (st === 'approved') setAcc({ st: 'approved', email: u.email, sync: S.syncOK }); else if (st === 'refused') setAcc(null);
+        if (first) { first = false; res(st); } else { gate();
+          if (st === 'approved' && was !== 'approved') toast('✅ Accès validé');
+          if (syncAllowed() && (!wasSync || was !== 'approved')) { toast('☁️ Synchronisation activée pour votre compte'); resumeSync(); }
+          if (!syncAllowed() && wasSync) { unsub && unsub(); unsub = null; setMode('local'); refreshUI(); } } },
         () => { S.access = deviceOK() ? accCache.st : 'error'; if (first) { first = false; res(S.access); } gate(); });
     });
   })();
 }
+const syncAllowed = () => S.access === 'admin' || (S.access === 'approved' && S.syncOK);
+async function resumeSync() { if (!S.user) return; setMode('cloud'); CK = CK || await loadKey(S.user.email); if (!CK) { S.needKey = true; refreshUI(); return; } try { await startSync(); } catch (e) {} refreshUI(); }
 const accessOK = () => S.access === 'admin' || S.access === 'approved' || (!S.user && deviceOK());
 function gate() {
   let g = document.getElementById('eps-gate');
@@ -305,13 +311,17 @@ window.openAccessAdmin = () => openPanel('Accès des collègues', el => {
   const LBL = { pending: ['⏳ En attente', 'var(--gold)'], approved: ['✅ Autorisé', '#1B9E5A'], refused: ['⛔ Refusé', 'var(--danger)'] };
   const draw = () => { const order = { pending: 0, approved: 1, refused: 2 }; list.sort((a, b) => (order[a.status] ?? 3) - (order[b.status] ?? 3) || (b.date || 0) - (a.date || 0));
     box.innerHTML = `<div class="card"><p style="margin:0;line-height:1.45">Les collègues créent leur compte depuis l'écran « Accès réservé ». Leur demande apparaît ici : <b>vous seul</b> décidez qui peut utiliser EPS ONE.</p>
-      <p class="muted" style="margin:6px 0 0;font-size:.82rem">${list.filter(x => x.status === 'pending').length} en attente · ${list.filter(x => x.status === 'approved').length} autorisé(s)</p></div>
+      <p class="muted" style="margin:6px 0 0;font-size:.82rem">${list.filter(x => x.status === 'pending').length} en attente · ${list.filter(x => x.status === 'approved').length} autorisé(s) · ${list.filter(x => x.status === 'approved' && x.sync).length} avec synchronisation</p>
+      <p class="muted" style="margin:6px 0 0;font-size:.8rem">Un compte autorisé utilise l'app en stockage local. Activez la synchronisation uniquement pour les collègues de votre choix : c'est elle qui consomme le quota Firebase.</p></div>
       ${list.length ? list.map(x => `<div class="card" style="margin-top:10px"><div style="display:flex;justify-content:space-between;gap:8px;align-items:center"><b style="word-break:break-all">${esc(x.email || x.id)}</b><span style="font-weight:800;font-size:.8rem;color:${(LBL[x.status] || ['', 'inherit'])[1]};white-space:nowrap">${(LBL[x.status] || [x.status])[0]}</span></div>
         <div class="muted" style="font-size:.78rem">Demande du ${x.date ? new Date(x.date).toLocaleDateString('fr-FR') : '?'}</div>
+        ${x.status === 'approved' ? `<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:8px;padding:8px 10px;border-radius:12px;background:var(--grad-soft)"><span style="font-size:.85rem"><b>${x.sync ? '☁️ Synchronisation activée' : '📱 Stockage local uniquement'}</b></span><button class="btn ${x.sync ? 'btn-ghost' : 'btn-grad'}" style="flex:0 0 auto;padding:7px 10px;font-size:.8rem" data-sy="${x.id}">${x.sync ? 'Désactiver' : 'Activer la synchro'}</button></div>` : ''}
         <div class="row" style="margin-top:8px;gap:6px">${x.status !== 'approved' ? `<button class="btn btn-grad" data-ok="${x.id}">✅ Autoriser</button>` : ''}${x.status !== 'refused' ? `<button class="btn btn-ghost" data-ko="${x.id}">${x.status === 'approved' ? '⛔ Retirer l\'accès' : '⛔ Refuser'}</button>` : ''}<button class="btn btn-ghost" style="flex:0 0 44px" data-rm="${x.id}">🗑</button></div></div>`).join('')
         : '<div class="card empty" style="margin-top:10px">Aucune demande pour l\'instant.</div>'}`;
     const set = (id, st) => { const { id: _i, ...rest } = list.find(x => x.id === id) || {}; setDoc(doc(fb.db, 'access', id), { ...rest, status: st, decided: Date.now() }).then(() => toast(st === 'approved' ? 'Accès autorisé ✔' : 'Accès retiré')).catch(e => toast(e.message)); };
     box.querySelectorAll('[data-ok]').forEach(b => b.onclick = () => set(b.dataset.ok, 'approved'));
+    box.querySelectorAll('[data-sy]').forEach(b => b.onclick = () => { const x = list.find(y => y.id === b.dataset.sy), { id: _i, ...rest } = x;
+      setDoc(doc(fb.db, 'access', x.id), { ...rest, sync: !x.sync, decided: Date.now() }).then(() => toast(!x.sync ? 'Synchronisation activée ✔' : 'Synchronisation désactivée')).catch(e => toast(e.message)); });
     box.querySelectorAll('[data-ko]').forEach(b => b.onclick = () => { if (confirm('Refuser / retirer l\'accès à ce compte ?')) set(b.dataset.ko, 'refused'); });
     box.querySelectorAll('[data-rm]').forEach(b => b.onclick = () => { if (confirm('Effacer cette demande de la liste ? (le compte pourra redemander un accès)')) deleteDoc(doc(fb.db, 'access', b.dataset.rm)).catch(e => toast(e.message)); }); };
   const un = onSnapshot(collection(fb.db, 'access'), snap => { list = snap.docs.map(d => ({ id: d.id, ...d.data() })); draw(); }, e => { box.innerHTML = `<div class="card empty">Lecture impossible : ${esc(e.message)}<br>Les règles Firestore ont-elles été publiées ?</div>`; });
@@ -329,7 +339,7 @@ async function boot() {
     fb = { auth, authM, db, fs: fsM }; S.ready = true;
     authM.onAuthStateChanged(auth, async u => {
       S.user = u; S.status = u ? 'ok' : 'off'; S.needKey = false; S.mismatch = false; gateBooted = true;
-      if (u) { S.access = null; await watchAccess(u); gate(); if (!accessOK()) { refreshUI(); return; }
+      if (u) { S.access = null; S.syncOK = false; await watchAccess(u); gate(); if (!accessOK() || !syncAllowed()) { refreshUI(); return; }
         CK = CK || await loadKey(u.email); if (!CK) { S.needKey = true; refreshUI(); return; }
         try { await startSync(); } catch (e) { S.status = 'error'; S.err = e.message; } }
       else { unsub && unsub(); unsub = null; accUnsub && accUnsub(); accUnsub = null; S.access = null; gate(); }
@@ -342,7 +352,7 @@ document.addEventListener('visibilitychange', () => { if (!S.user) return; if (d
 window.addEventListener('pagehide', () => { if (S.user) pushChanged(); });
 
 /* ---------- Interface ---------- */
-const statusText = () => S.user ? (S.needKey ? 'Mode : synchronisé · mot de passe requis' : S.mismatch ? 'Mode : synchronisé · clé à mettre à jour' : ({ sync: 'Mode : synchronisé · envoi…', error: 'Mode : synchronisé · erreur' })[S.status] || (meta.collect ? `Mode : tablette de collecte · ${pendingCount()} rubrique(s) à envoyer` : `Mode : synchronisé · ${S.user.email}`)) : 'Mode : stockage local (cet appareil uniquement)';
+const statusText = () => S.user && S.access === 'approved' && !S.syncOK ? 'Mode : stockage local (synchronisation non activée pour ce compte)' : S.user ? (S.needKey ? 'Mode : synchronisé · mot de passe requis' : S.mismatch ? 'Mode : synchronisé · clé à mettre à jour' : ({ sync: 'Mode : synchronisé · envoi…', error: 'Mode : synchronisé · erreur' })[S.status] || (meta.collect ? `Mode : tablette de collecte · ${pendingCount()} rubrique(s) à envoyer` : `Mode : synchronisé · ${S.user.email}`)) : 'Mode : stockage local (cet appareil uniquement)';
 function refreshUI() {
   const sub = document.getElementById('sync-sub'); if (sub) sub.textContent = statusText();
   const box = document.getElementById('sync-panel'); if (box) drawPanel(box);
@@ -358,6 +368,14 @@ function drawPanel(el) {
   }
   const last = S.last ? new Date(S.last).toLocaleString('fr-FR') : 'jamais';
   const errP = S.err ? `<p style="color:var(--danger);font-size:.85rem">${esc(S.err)}</p>` : '';
+  if (S.user && S.access === 'approved' && !S.syncOK) {
+    el.innerHTML = `<div class="card" style="background:var(--grad-soft)"><h3>📱 Stockage local</h3>
+        <p style="margin:6px 0;line-height:1.45">Votre compte <b>${esc(S.user.email)}</b> est validé : vous pouvez utiliser toute l'application. Vos données restent <b>sur cet appareil</b>.</p>
+        <p class="muted" style="margin:0;font-size:.85rem">La synchronisation entre appareils est activée compte par compte par l'administrateur. Pensez à exporter régulièrement vos données (Plus → Exporter mes données).</p>
+        <button class="link" style="margin-top:10px" id="sy-lout">Se déconnecter</button></div>`;
+    el.querySelector('#sy-lout').onclick = async () => { await fb.authM.signOut(fb.auth); refreshUI(); };
+    return;
+  }
   if (S.user && S.needKey) {
     el.innerHTML = `<div class="card"><h3>🔒 Activer le chiffrement sur cet appareil</h3>
         <p class="muted" style="margin:4px 0 0">Compte : <b>${esc(S.user.email)}</b>. Saisissez votre mot de passe une fois : il sert à créer la clé de chiffrement de cet appareil. La synchronisation reprend ensuite automatiquement.</p>

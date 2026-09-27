@@ -2,9 +2,10 @@
    EPS ONE — Onglet PLUS : mise à jour, partage,
    à propos, confidentialité/RGPD, nouvelle année scolaire
    ========================================================= */
-const APP_VERSION = '5.6';
+const APP_VERSION = '5.7';
 const APP_URL = 'https://steffdelaseuva-hue.github.io/eps-one/';
 const CHANGELOG = [
+  { v: '5.7', items: ['Accès des collègues : la synchronisation s’active compte par compte par l’administrateur ; sinon stockage local uniquement'] },
   { v: '5.6', items: ['Tablette de collecte : aucun envoi pendant la séance, bouton « 📤 Envoyer les relevés » en fin de cours (envoi aussi à la mise en veille)'] },
   { v: '5.5', items: ['Synchronisation : le même outil peut être utilisé en même temps sur plusieurs tablettes (2 terrains, plusieurs voies…) ; les séances en cours restent propres à chaque tablette, seuls les résultats enregistrés sont fusionnés'] },
   { v: '5.4', items: ['Accès sur invitation : les collègues demandent un accès, l’administrateur valide ou retire (Plus → Accès des collègues)', 'Synchronisation par fusion : plusieurs tablettes peuvent relever en même temps sur le même compte, tout est regroupé sans écrasement', 'Envois groupés (économie du quota) et mode « Tablette de collecte »'] },
@@ -165,7 +166,7 @@ function openPrivacy() {
         <h3>🔐 En résumé</h3>
         <ul><li><b>Deux modes au choix</b> : <b>stockage local</b> (par défaut, rien n'est envoyé en ligne) ou <b>compte e-mail</b> pour synchroniser ses appareils.</li>
           <li><b>Aucune publicité</b>, aucun cookie de suivi, aucune statistique de visite.</li>
-          <li><b>Accès sur invitation</b> : une première connexion avec un compte e-mail validé par l'administrateur est nécessaire sur chaque appareil. L'adresse e-mail et l'état de la demande (en attente, autorisé, refusé) sont enregistrés, non chiffrés, uniquement pour gérer les autorisations.</li>
+          <li><b>Accès sur invitation</b> : une première connexion avec un compte e-mail validé par l'administrateur est nécessaire sur chaque appareil. L'adresse e-mail, l'état de la demande (en attente, autorisé, refusé) et l'activation ou non de la synchronisation sont enregistrés, non chiffrés, uniquement pour gérer les autorisations.</li>
           <li>Mode actuel sur cet appareil : <b>${window.EPSONE_SYNC && window.EPSONE_SYNC.user ? 'Synchronisé (' + esc(window.EPSONE_SYNC.user.email) + ')' : 'Stockage local'}</b>.</li></ul>
         <h3>📱 Mode « Stockage local »</h3>
         <p>Classes, listes d'élèves, évaluations, suivi, dispenses… sont enregistrés uniquement dans le navigateur de cet appareil (stockage local). Rien n'est envoyé sur un serveur, rien n'est partagé. Effacer les données de Safari/Chrome ou désinstaller l'app les supprime : pensez à exporter régulièrement une sauvegarde.</p>
