@@ -65,13 +65,16 @@ TOOL_IMPL.wod = function (el) {
           <label>Famille</label><select data-fam="${bi}">${WOD_FAM.map((f, k) => `<option value="${k}" ${b.famille === k ? 'selected' : ''}>${f}</option>`).join('')}</select>
           <label>Séries (nombre de tours du bloc)</label><input type="number" min="1" data-ser="${bi}" value="${b.series}">
           <label>Exercices · répétitions · niveau</label>
-          <div>${b.ex.map((x, xi) => `<div class="ex-row"><span class="nm">${esc(x.nom)}</span><input type="number" min="0" data-reps="${bi}-${xi}" value="${x.reps}" title="répétitions (ou secondes pour le gainage)">
-            <div class="nv">${[1, 2, 3, 4].map(n => `<button data-nv="${bi}-${xi}-${n}" class="${x.niv === n ? 'on' : ''}">N${n}</button>`).join('')}</div><button class="btn btn-ghost" style="padding:5px 9px" data-rmx="${bi}-${xi}">✕</button></div>`).join('') || '<div class="muted">Aucun exercice.</div>'}</div>
+          <div>${b.ex.map((x, xi) => `<div class="ex-row"><span class="nm">${esc(x.nom)}</span><button class="btn btn-danger" style="flex:0 0 auto;padding:6px 10px;font-size:.8rem" data-rmx="${bi}-${xi}" title="Retirer cet exercice">🗑 Retirer</button>
+            <div style="display:flex;gap:6px;align-items:center;width:100%"><input type="number" min="0" data-reps="${bi}-${xi}" value="${x.reps}" title="répétitions (ou secondes pour le gainage)"><span class="muted" style="font-size:.75rem">rép.</span>
+            <div class="nv">${[1, 2, 3, 4].map(n => `<button data-nv="${bi}-${xi}-${n}" class="${x.niv === n ? 'on' : ''}">N${n}</button>`).join('')}</div></div></div>`).join('') || '<div class="muted">Aucun exercice.</div>'}</div>
           <div class="row" style="margin-top:8px"><select data-add="${bi}"><option value="">＋ Ajouter un exercice…</option>${allEx.map(x => `<option>${esc(x)}</option>`).join('')}<option value="__new">✎ Exercice non répertorié…</option></select></div>
           <label style="display:flex;gap:8px;align-items:center;margin-top:12px"><input type="checkbox" data-run="${bi}" ${b.run ? 'checked' : ''} style="width:auto"> Course / RUN dans ce bloc</label>
           ${b.run ? `<div class="row"><select data-rt="${bi}">${Object.entries(RUN_T).map(([k, v]) => `<option value="${k}" ${b.runType === k ? 'selected' : ''}>${v}</option>`).join('')}</select><input type="number" min="1" data-rv="${bi}" value="${b.runVal}"></div>` : ''}
         </div>`).join('')}
       <button class="btn btn-ghost btn-block" style="margin-top:10px" id="addb">＋ Ajouter un bloc</button>
+      ${custom.length ? `<details class="card" style="margin-top:10px"><summary style="cursor:pointer;font-weight:800">✎ Mes exercices ajoutés (${custom.length})</summary><p class="muted" style="margin:6px 0;font-size:.8rem">Exercices créés avec « Exercice non répertorié ». Les retirer de la liste ne les enlève pas des blocs déjà composés.</p>
+        ${custom.map((x, k) => `<div class="ex-row"><span class="nm">${esc(x)}</span><button class="btn btn-ghost" style="flex:0 0 auto;padding:5px 10px" data-rmc="${k}">🗑</button></div>`).join('')}</details>` : ''}
       <p class="muted" style="margin:10px 2px">Répétitions : pour le gainage, indiquez des secondes.</p>
       <div class="row" style="margin-top:6px"><button class="btn btn-grad" id="sv">💾 Enregistrer</button><button class="btn btn-ghost" id="bk">Annuler</button>${idx != null ? '<button class="btn btn-danger" id="del">Supprimer</button>' : ''}</div>`;
       const $ = s => box.querySelector(s), all = s => box.querySelectorAll(s);
@@ -88,6 +91,7 @@ TOOL_IMPL.wod = function (el) {
         if (v === '__new') { v = (prompt('Nom du nouvel exercice :') || '').trim(); if (!v) return draw(); if (!allEx.includes(v)) custom.push(v); }
         e.blocs[+s.dataset.add].ex.push({ nom: v, reps: 10, niv: 1 }); draw(); });
       all('[data-run]').forEach(c => c.onchange = () => { read(); e.blocs[+c.dataset.run].run = c.checked; draw(); });
+      all('[data-rmc]').forEach(b => b.onclick = () => { read(); if (!confirm(`Retirer « ${custom[+b.dataset.rmc]} » de la liste des exercices ?`)) return; custom.splice(+b.dataset.rmc, 1); DB.wod.customEx = custom.slice(); save(); draw(); });
       all('[data-rmb]').forEach(b => b.onclick = () => { read(); if (e.blocs.length > 1) e.blocs.splice(+b.dataset.rmb, 1); draw(); });
       all('[data-up]').forEach(b => b.onclick = () => { read(); const i = +b.dataset.up; [e.blocs[i - 1], e.blocs[i]] = [e.blocs[i], e.blocs[i - 1]]; draw(); });
       $('#addb').onclick = () => { read(); e.blocs.push(newBloc(e.sport, e.blocs.length)); draw(); };

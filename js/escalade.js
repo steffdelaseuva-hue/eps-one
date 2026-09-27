@@ -110,7 +110,7 @@ TOOL_IMPL.escalade = function (el) {
         : '<div class="card empty">Aucune équipe pour cette classe.</div>'}`;
     const $ = s => box.querySelector(s);
     $('#ec').onchange = e => { P.cls = e.target.value; DB.lastClass = P.cls; P.eq = ''; save(); equipes(box); };
-    mountComposer($('#ecmp'), { id: 'esq', modes: ['random', 'hetero', 'homo'], button: '👥 Former les équipes',
+    mountComposer($('#ecmp'), { id: 'esq', prep: false, modes: ['random', 'hetero', 'homo'], button: '👥 Former les équipes',
       onTeams: teams => { if (T.length && !confirm('Remplacer les équipes existantes ?')) return;
         E.equipes[P.cls] = teams.map(t => ({ name: t.name, members: t.members.map(m => m.n) })); P.eq = ''; save(); toast('Équipes formées ✔'); equipes(box); } });
     const sel = box.querySelector('#esq-cls'); if (sel) { sel.value = P.cls; sel.dispatchEvent(new Event('change')); }

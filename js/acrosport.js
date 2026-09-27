@@ -185,7 +185,7 @@ TOOL_IMPL.acrosport = function (el) {
         <div class="card team" data-drop="-1" style="cursor:pointer;border-top:5px dashed var(--line);background:var(--grad-soft)"><h3><span>Non placés / absents</span><span class="muted">${free.length}</span></h3>
           <div style="display:flex;flex-wrap:wrap;gap:5px">${free.map(n => chip(-1, n)).join('') || '<span class="muted">Tous les élèves sont dans un groupe.</span>'}</div></div></div>
       <button class="btn btn-ghost btn-block" style="margin-top:12px" id="agadd">＋ Nouveau groupe</button>`;
-    mountComposer(box.querySelector('#acmp'), { id: 'acg', modes: ['random', 'hetero', 'homo'], button: '👥 Former les groupes',
+    mountComposer(box.querySelector('#acmp'), { id: 'acg', prep: false, modes: ['random', 'hetero', 'homo'], button: '👥 Former les groupes',
       onTeams: teams => { if (gs.some(g => g.seq.length) && !confirm('Remplacer les groupes existants ? Leurs enchaînements seront supprimés.')) return;
         clearImgs(gs);
         A.groupes[cls] = teams.map(t => ({ id: newId(), name: t.name.replace('Équipe', 'Groupe'), members: t.members.map(m => m.n), seq: [] }));

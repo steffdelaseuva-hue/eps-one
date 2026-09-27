@@ -82,7 +82,9 @@ function teamsHTML(teams, withLevels) {
 }
 
 /* ---------- Module « Composer les équipes » réutilisable ---------- */
-function mountComposer(host, { id, modes = ['random', 'hetero', 'homo'], allowFree = false, minPerLevel = 1, button = '🧩 Former les équipes', onTeams }) {
+/* Groupes préparés à l'avance, par outil et par classe (ex. 10 h et 14 h le même jour) */
+DB.prepGroups = DB.prepGroups || {};
+function mountComposer(host, { id, modes = ['random', 'hetero', 'homo'], allowFree = false, minPerLevel = 1, button = '🧩 Former les équipes', onTeams, prep = true }) {
   const M = { random: ['Aléatoire', ''], hetero: ['Hétérogène', 'niveaux mélangés'], homo: ['Homogène', 'équipes de niveau'] };
   let mode = 'random';
   const q = s => host.querySelector(`#${id}-${s}`);
@@ -92,10 +94,24 @@ function mountComposer(host, { id, modes = ['random', 'hetero', 'homo'], allowFr
     <div id="${id}-lvz"><div id="${id}-sum"></div><button class="btn btn-ghost btn-block" id="${id}-lv"><span style="display:inline-block;width:20px;height:20px;vertical-align:-4px;margin-right:6px">${ico('levels')}</span>Classer les élèves par niveau de jeu</button><div id="${id}-box"></div></div>
     <label>Répartition</label><div class="seg" id="${id}-seg">${modes.map(m => `<button data-m="${m}">${M[m][0]}${M[m][1] ? `<br><small style="font-weight:600;opacity:.85">${M[m][1]}</small>` : ''}</button>`).join('')}</div>
     <div class="row"><div><label>Former selon</label><select id="${id}-k"><option value="n">Nombre d'équipes</option><option value="s">Élèves par équipe</option></select></div><div><label>Valeur</label><input id="${id}-v" type="number" value="4" min="1"></div></div>
-    <button class="btn btn-grad btn-block" style="margin-top:12px" id="${id}-go">${button}</button>`;
+    <button class="btn btn-grad btn-block" style="margin-top:12px" id="${id}-go">${button}</button>
+    ${prep ? `<button class="btn btn-ghost btn-block" style="margin-top:8px" id="${id}-prep">💾 Préparer pour plus tard (sans commencer)</button><div id="${id}-saved"></div>` : ''}`;
   const cls = () => q('cls')?.value || '';
+  const PK = () => (DB.prepGroups = DB.prepGroups || {}, id + '|' + cls());
+  const showSaved = () => { const box = q('saved'); if (!box) return; const c = cls(), P = c && DB.prepGroups[PK()];
+    if (!P) { box.innerHTML = c ? '<p class="muted" style="margin:8px 2px 0;font-size:.8rem">Astuce : préparez à l\'avance les groupes de vos prochaines classes, ils vous attendront ici.</p>' : ''; return; }
+    const d = new Date(P.date);
+    box.innerHTML = `<div class="card" style="margin-top:10px;border:2px solid var(--gold)"><b>📋 Groupes préparés pour ${esc(c)}</b>
+      <div class="muted" style="font-size:.8rem">${P.teams.length} groupe(s) · le ${d.toLocaleDateString('fr-FR')} à ${d.toLocaleTimeString('fr-FR').slice(0, 5)}</div>
+      <details style="margin-top:6px"><summary style="cursor:pointer;font-size:.85rem;font-weight:700">Voir les groupes</summary>${teamsHTML(P.teams, P.withLevels)}</details>
+      <div class="row" style="margin-top:8px;gap:6px"><button class="btn btn-grad" id="${id}-use">▶ Utiliser ces groupes</button><button class="btn btn-ghost" style="flex:0 0 46px" id="${id}-ped">✏️</button><button class="btn btn-ghost" style="flex:0 0 46px" id="${id}-pdel">🗑</button></div></div>`;
+    q('use').onclick = () => { beep(1000, .1); const T = JSON.parse(JSON.stringify(P.teams)); onTeams(T, { mode: P.mode, withLevels: P.withLevels }); };
+    q('pdel').onclick = () => { if (!confirm('Supprimer les groupes préparés pour cette classe ?')) return; delete DB.prepGroups[PK()]; save(); showSaved(); };
+    q('ped').onclick = () => editGroupsPanel('Groupes préparés · ' + c, { cls: c, list: () => P.teams, names: t => t.members.map(m => m.n),
+      take: (t, n) => t.members.splice(t.members.findIndex(m => m.n === n), 1)[0], put: (t, n, d) => t.members.push(d || { n, l: lvlOf(c, n) }),
+      make: name => ({ name: name.replace('Groupe', 'Équipe'), members: [] }), onChange: () => { P.date = Date.now(); save(); }, onClose: showSaved }); };
   const refresh = () => {
-    const c = cls();
+    const c = cls(); showSaved();
     if (q('free')) q('free').style.display = c ? 'none' : 'block';
     q('lvz').style.display = c ? 'block' : 'none';
     q('sum').innerHTML = c ? levelSummary(c) : '';
@@ -105,15 +121,19 @@ function mountComposer(host, { id, modes = ['random', 'hetero', 'homo'], allowFr
   if (q('cls')) q('cls').onchange = () => { q('box').innerHTML = ''; refresh(); };
   q('lv').onclick = () => levelEditor(q('box'), cls(), refresh);
   host.querySelectorAll(`#${id}-seg [data-m]`).forEach(b => b.onclick = () => { mode = b.dataset.m; refresh(); });
-  q('go').onclick = () => {
+  const compose = () => {
     const c = cls();
     const names = c ? studentsOf(c) : (q('ta')?.value || '').split(/\n|,/).map(s => s.trim()).filter(Boolean);
-    if (names.length < 2) return toast('Au moins 2 élèves');
+    if (names.length < 2) { toast('Au moins 2 élèves'); return null; }
     const v = Math.max(1, +q('v').value || 1), count = q('k').value === 'n' ? v : Math.ceil(names.length / v);
     const people = names.map(n => ({ n, l: c ? lvlOf(c, n) : 0 }));
-    const teams = composeTeams(people, count, mode, minPerLevel);
-    beep(1000, .1); onTeams(teams, { mode, withLevels: !!c && people.some(p => p.l) });
+    return { c, teams: composeTeams(people, count, mode, minPerLevel), o: { mode, withLevels: !!c && people.some(p => p.l) } };
   };
+  const keep = r => { if (prep && r.c) { DB.prepGroups[PK()] = { date: Date.now(), mode: r.o.mode, withLevels: r.o.withLevels, teams: JSON.parse(JSON.stringify(r.teams)) }; save(); } };
+  q('go').onclick = () => { const r = compose(); if (!r) return; keep(r); beep(1000, .1); onTeams(r.teams, r.o); };
+  if (q('prep')) q('prep').onclick = () => { const r = compose(); if (!r) return; if (!r.c) return toast('Choisissez une classe');
+    if (DB.prepGroups[PK()] && !confirm('Remplacer les groupes déjà préparés pour cette classe ?')) return;
+    keep(r); beep(900, .08); toast(`Groupes préparés pour ${r.c} ✔`); showSaved(); };
   refresh();
 }
 
