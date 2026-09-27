@@ -98,13 +98,21 @@ function mountComposer(host, { id, modes = ['random', 'hetero', 'homo'], allowFr
     ${prep ? `<button class="btn btn-ghost btn-block" style="margin-top:8px" id="${id}-prep">💾 Préparer pour plus tard (sans commencer)</button><div id="${id}-saved"></div>` : ''}`;
   const cls = () => q('cls')?.value || '';
   const PK = () => (DB.prepGroups = DB.prepGroups || {}, id + '|' + cls());
+  // toutes les classes déjà préparées pour cet outil (plusieurs classes à l'avance)
+  const allPrep = () => Object.keys(DB.prepGroups || {}).filter(k => k.startsWith(id + '|')).map(k => k.slice(id.length + 1)).filter(c => DB.classes.some(x => x.name === c));
+  const prepList = () => { const L = allPrep(); if (!L.length) return '';
+    return `<div class="card" style="margin-top:10px;padding:10px 12px"><b style="font-size:.9rem">📋 Classes préparées (${L.length})</b>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px">${L.map(c => `<button class="btn ${c === cls() ? 'btn-grad' : 'btn-ghost'}" style="flex:0 0 auto;padding:7px 12px;font-size:.85rem" data-pc="${esc(c)}">${esc(c)}</button>`).join('')}</div>
+      <p class="muted" style="margin:6px 0 0;font-size:.78rem">Choisissez une autre classe en haut puis « 💾 Préparer pour plus tard » pour en ajouter.</p></div>`; };
   const showSaved = () => { const box = q('saved'); if (!box) return; const c = cls(), P = c && DB.prepGroups[PK()];
-    if (!P) { box.innerHTML = c ? '<p class="muted" style="margin:8px 2px 0;font-size:.8rem">Astuce : préparez à l\'avance les groupes de vos prochaines classes, ils vous attendront ici.</p>' : ''; return; }
+    const wire = () => box.querySelectorAll('[data-pc]').forEach(b => b.onclick = () => { if (q('cls')) { q('cls').value = b.dataset.pc; q('cls').dispatchEvent(new Event('change')); } });
+    if (!P) { box.innerHTML = prepList() + (c ? '<p class="muted" style="margin:8px 2px 0;font-size:.8rem">Astuce : préparez à l\'avance les groupes de vos prochaines classes, ils vous attendront ici.</p>' : ''); wire(); return; }
     const d = new Date(P.date);
-    box.innerHTML = `<div class="card" style="margin-top:10px;border:2px solid var(--gold)"><b>📋 Groupes préparés pour ${esc(c)}</b>
+    box.innerHTML = prepList() + `<div class="card" style="margin-top:10px;border:2px solid var(--gold)"><b>📋 Groupes préparés pour ${esc(c)}</b>
       <div class="muted" style="font-size:.8rem">${P.teams.length} groupe(s) · le ${d.toLocaleDateString('fr-FR')} à ${d.toLocaleTimeString('fr-FR').slice(0, 5)}</div>
       <details style="margin-top:6px"><summary style="cursor:pointer;font-size:.85rem;font-weight:700">Voir les groupes</summary>${teamsHTML(P.teams, P.withLevels)}</details>
       <div class="row" style="margin-top:8px;gap:6px"><button class="btn btn-grad" id="${id}-use">▶ Utiliser ces groupes</button><button class="btn btn-ghost" style="flex:0 0 46px" id="${id}-ped">✏️</button><button class="btn btn-ghost" style="flex:0 0 46px" id="${id}-pdel">🗑</button></div></div>`;
+    wire();
     q('use').onclick = () => { beep(1000, .1); const T = JSON.parse(JSON.stringify(P.teams)); onTeams(T, { mode: P.mode, withLevels: P.withLevels }); };
     q('pdel').onclick = () => { if (!confirm('Supprimer les groupes préparés pour cette classe ?')) return; delete DB.prepGroups[PK()]; save(); showSaved(); };
     q('ped').onclick = () => editGroupsPanel('Groupes préparés · ' + c, { cls: c, list: () => P.teams, names: t => t.members.map(m => m.n),
@@ -118,7 +126,8 @@ function mountComposer(host, { id, modes = ['random', 'hetero', 'homo'], allowFr
     if (!c && mode !== 'random') mode = 'random';
     host.querySelectorAll(`#${id}-seg [data-m]`).forEach(b => { b.classList.toggle('on', b.dataset.m === mode); b.disabled = !c && b.dataset.m !== 'random'; });
   };
-  if (q('cls')) q('cls').onchange = () => { q('box').innerHTML = ''; refresh(); };
+  if (q('cls') && DB.lastClass && DB.classes.some(c => c.name === DB.lastClass)) q('cls').value = DB.lastClass;
+  if (q('cls')) q('cls').onchange = () => { q('box').innerHTML = ''; if (q('cls').value) DB.lastClass = q('cls').value; refresh(); };
   q('lv').onclick = () => levelEditor(q('box'), cls(), refresh);
   host.querySelectorAll(`#${id}-seg [data-m]`).forEach(b => b.onclick = () => { mode = b.dataset.m; refresh(); });
   const compose = () => {

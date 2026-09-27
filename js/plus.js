@@ -2,9 +2,10 @@
    EPS ONE — Onglet PLUS : mise à jour, partage,
    à propos, confidentialité/RGPD, nouvelle année scolaire
    ========================================================= */
-const APP_VERSION = '6.5';
+const APP_VERSION = '6.6';
 const APP_URL = 'https://steffdelaseuva-hue.github.io/eps-one/';
 const CHANGELOG = [
+  { v: '6.6', items: ['Groupes préparés : liste de toutes les classes préparées à l’avance, accès direct à chacune'] },
   { v: '6.5', items: ['Crosstraining / HYROX : bouton « 🗑 Retirer » bien visible sur chaque exercice, et gestion des exercices ajoutés à la liste'] },
   { v: '6.4', items: ['Groupes préparés à l’avance par classe (« 💾 Préparer pour plus tard ») dans Gestion de match, tournoi, poule, relais, duathlon, combiné, crosstraining et course d’orientation : on retrouve, modifie ou utilise les groupes de chaque classe'] },
   { v: '6.3', items: ['Plus : ligne Contact (e-mail)'] },
