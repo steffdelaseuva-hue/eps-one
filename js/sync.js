@@ -306,7 +306,14 @@ window.isEpsAdmin = () => isAdminUser(S.user);
 /* Panneau administrateur : valider les demandes */
 window.openAccessAdmin = () => openPanel('Accès des collègues', el => {
   const box = document.createElement('div'); el.appendChild(box);
-  if (!isAdminUser(S.user) || !fb) { box.innerHTML = '<div class="card empty">Réservé à l\'administrateur connecté.</div>'; return; }
+  // Au démarrage de l'app, la connexion Firebase peut prendre quelques secondes : on patiente au lieu d'échouer
+  if (!fb || !gateBooted || (!S.user && deviceOK())) {
+    box.innerHTML = '<div class="card empty">⏳ Connexion en cours…</div>'; let n = 0;
+    const w = setInterval(() => { if (!box.isConnected) return clearInterval(w);
+      if ((fb && gateBooted && S.user) || ++n > 40) { clearInterval(w); window.openAccessAdmin(); } }, 250);
+    return;
+  }
+  if (!isAdminUser(S.user)) { box.innerHTML = `<div class="card empty">Réservé à l'administrateur.<br><span class="muted" style="font-size:.85rem">${S.user ? 'Compte connecté : ' + esc(S.user.email) : 'Connectez-vous avec le compte administrateur (Plus → Stockage & synchronisation).'}</span></div>`; return; }
   const { collection, onSnapshot, doc, setDoc, deleteDoc } = fb.fs; let list = [];
   const LBL = { pending: ['⏳ En attente', 'var(--gold)'], approved: ['✅ Autorisé', '#1B9E5A'], refused: ['⛔ Refusé', 'var(--danger)'] };
   const draw = () => { const order = { pending: 0, approved: 1, refused: 2 }; list.sort((a, b) => (order[a.status] ?? 3) - (order[b.status] ?? 3) || (b.date || 0) - (a.date || 0));
@@ -324,7 +331,8 @@ window.openAccessAdmin = () => openPanel('Accès des collègues', el => {
       setDoc(doc(fb.db, 'access', x.id), { ...rest, sync: !x.sync, decided: Date.now() }).then(() => toast(!x.sync ? 'Synchronisation activée ✔' : 'Synchronisation désactivée')).catch(e => toast(e.message)); });
     box.querySelectorAll('[data-ko]').forEach(b => b.onclick = () => { if (confirm('Refuser / retirer l\'accès à ce compte ?')) set(b.dataset.ko, 'refused'); });
     box.querySelectorAll('[data-rm]').forEach(b => b.onclick = () => { if (confirm('Effacer cette demande de la liste ? (le compte pourra redemander un accès)')) deleteDoc(doc(fb.db, 'access', b.dataset.rm)).catch(e => toast(e.message)); }); };
-  const un = onSnapshot(collection(fb.db, 'access'), snap => { list = snap.docs.map(d => ({ id: d.id, ...d.data() })); draw(); }, e => { box.innerHTML = `<div class="card empty">Lecture impossible : ${esc(e.message)}<br>Les règles Firestore ont-elles été publiées ?</div>`; });
+  box.innerHTML = '<div class="card empty">⏳ Chargement des demandes…</div>';
+  const un = onSnapshot(collection(fb.db, 'access'), snap => { list = snap.docs.map(d => ({ id: d.id, ...d.data() })); draw(); }, e => { box.innerHTML = `<div class="card empty">Lecture impossible pour le moment${navigator.onLine ? '' : ' (pas de connexion internet)'}.<br><span class="muted" style="font-size:.8rem">${esc(e.message)}</span><br><br><button class="btn btn-grad" onclick="openAccessAdmin()">↻ Réessayer</button></div>`; });
   const obs = new MutationObserver(() => { if (!box.isConnected) { un(); obs.disconnect(); } }); obs.observe(document.body, { childList: true, subtree: true });
 });
 
