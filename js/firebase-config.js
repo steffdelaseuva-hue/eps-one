@@ -24,3 +24,8 @@ window.EPSONE_FIREBASE = {
   appId: "1:123456789:web:abc123"
 };
 */
+
+/* Google Drive (stockage sur le propre Drive de chaque utilisateur) :
+   ID client OAuth « Application Web » créé dans la console Google Cloud.
+   Tant que la valeur est vide, l'option Google Drive n'apparaît pas. */
+window.EPSONE_GDRIVE_CLIENT_ID = '917845842523-ju8i14ch33rdpbbj2tqcrd0lir40ftov.apps.googleusercontent.com';

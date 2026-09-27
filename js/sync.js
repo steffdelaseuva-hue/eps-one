@@ -266,9 +266,15 @@ function watchAccess(u) {
     });
   })();
 }
-const syncAllowed = () => S.access === 'admin' || (S.access === 'approved' && S.syncOK);
+const driveOn = () => { try { return localStorage.getItem('epsone_store') === 'gdrive'; } catch (e) { return false; } };
+const syncAllowed = () => !driveOn() && (S.access === 'admin' || (S.access === 'approved' && S.syncOK));
 async function resumeSync() { if (!S.user) return; setMode('cloud'); CK = CK || await loadKey(S.user.email); if (!CK) { S.needKey = true; refreshUI(); return; } try { await startSync(); } catch (e) {} refreshUI(); }
-const accessOK = () => S.access === 'admin' || S.access === 'approved' || (!S.user && deviceOK());
+// Google Drive : l'utilisateur stocke sur son propre cloud → pas de validation nécessaire (aucun quota consommé chez l'administrateur)
+const accessOK = () => driveOn() || S.access === 'admin' || S.access === 'approved' || (!S.user && deviceOK());
+const gdOffer = () => window.EPSONE_GDRIVE_CLIENT_ID ? `<div class="card" style="margin-top:12px"><h3>🟦 Ou utiliser mon Google Drive</h3>
+        <p class="muted" style="margin:4px 0 0">Accès immédiat, sans validation : vos données sont enregistrées sur <b>votre propre</b> Google Drive (dossier caché réservé à EPS ONE).</p>
+        <p class="muted" style="margin:6px 0 0;font-size:.82rem">⚠️ Assurez-vous que ce fournisseur est conforme à la réglementation de votre établissement.</p>
+        <button class="btn btn-grad btn-block" style="margin-top:10px" id="gt-gd">Se connecter avec Google</button></div>` : '';
 function gate() {
   let g = document.getElementById('eps-gate');
   if (!window.EPSONE_FIREBASE || accessOK()) { if (g) g.remove(); try { renderPlus(); } catch (e) {} return; }
@@ -278,17 +284,18 @@ function gate() {
   const head = `<div style="text-align:center;margin:10px 0 16px"><img src="icons/icone-v3-192.png" alt="" style="width:76px;height:76px;border-radius:18px"><h2 style="margin:10px 0 2px">EPS ONE</h2><div class="muted">Accès réservé</div></div>`;
   let body;
   if (!gateBooted) body = `<div class="card" style="text-align:center"><p class="muted" style="margin:0">Chargement…</p></div>`;
-  else if (!S.ready) body = `<div class="card"><h3>📶 Connexion nécessaire</h3><p class="muted">La première connexion à EPS ONE demande internet. Vérifiez la connexion puis réessayez.</p><button class="btn btn-grad btn-block" onclick="location.reload()">Réessayer</button></div>`;
+  else if (!S.ready) body = `<div class="card"><h3>📶 Connexion nécessaire</h3><p class="muted">La première connexion à EPS ONE demande internet. Vérifiez la connexion puis réessayez.</p><button class="btn btn-grad btn-block" onclick="location.reload()">Réessayer</button></div>${gdOffer()}`;
   else if (!S.user) body = `<div class="card"><h3>🔑 Connexion</h3>
       <p class="muted" style="margin:4px 0 0">EPS ONE est accessible sur invitation. Créez un compte : votre demande sera validée par l'administrateur.</p>
       <label>E-mail</label><input id="gt-mail" type="email" autocomplete="username" value="${esc(meta.mail || '')}">
       <label>Mot de passe (6 caractères minimum)</label><input id="gt-pass" type="password" autocomplete="current-password">${errP}
       <div class="row" style="margin-top:12px"><button class="btn btn-grad" id="gt-in">Se connecter</button><button class="btn btn-ghost" id="gt-new">Demander un accès</button></div>
-      <button class="link" style="margin-top:10px" id="gt-forgot">Mot de passe oublié ?</button></div>`;
+      <button class="link" style="margin-top:10px" id="gt-forgot">Mot de passe oublié ?</button></div>
+      ${gdOffer()}`;
   else if (S.access === 'refused') body = `<div class="card"><h3>⛔ Accès refusé</h3><p class="muted">Le compte <b>${esc(S.user.email)}</b> n'a pas accès à EPS ONE.</p><button class="btn btn-ghost btn-block" id="gt-out">Se déconnecter</button></div>`;
   else body = `<div class="card"><h3>⏳ Demande en attente</h3>
       <p style="line-height:1.45">Votre demande d'accès pour <b>${esc(S.user.email)}</b> a été envoyée. L'app s'ouvrira automatiquement dès que l'administrateur l'aura validée.</p>${S.access === 'error' ? '<p class="muted" style="font-size:.82rem">Vérification impossible pour le moment (connexion ?).</p>' : ''}
-      <button class="btn btn-ghost btn-block" id="gt-out">Se déconnecter</button></div>`;
+      <button class="btn btn-ghost btn-block" id="gt-out">Se déconnecter</button></div>${gdOffer()}`;
   g.innerHTML = `<div style="max-width:440px;width:100%">${head}${body}</div>`;
   const $ = q => g.querySelector(q);
   const run = async fn => { S.err = ''; try { await fn(); } catch (e) { S.err = ({ 'auth/invalid-credential': 'E-mail ou mot de passe incorrect.', 'auth/email-already-in-use': 'Un compte existe déjà avec cet e-mail : connectez-vous.', 'auth/weak-password': 'Mot de passe trop court (6 caractères minimum).', 'auth/invalid-email': 'E-mail invalide.', 'auth/network-request-failed': 'Pas de connexion internet.', 'auth/too-many-requests': 'Trop d\'essais : réessayez plus tard.' })[e.code] || e.message; } gate(); };
@@ -299,6 +306,7 @@ function gate() {
     $('#gt-in').onclick = () => login(false); $('#gt-new').onclick = () => login(true);
     $('#gt-forgot').onclick = () => run(async () => { const m = $('#gt-mail').value.trim(); if (!m) throw new Error('Indiquez votre e-mail.'); await fb.authM.sendPasswordResetEmail(fb.auth, m); toast('E-mail de réinitialisation envoyé'); });
   }
+  if ($('#gt-gd')) $('#gt-gd').onclick = () => window.gdConnect && window.gdConnect();
   if ($('#gt-out')) $('#gt-out').onclick = () => run(async () => { forgetKey(); await fb.authM.signOut(fb.auth); });
 }
 window.isEpsAdmin = () => isAdminUser(S.user);
@@ -360,21 +368,26 @@ document.addEventListener('visibilitychange', () => { if (!S.user) return; if (d
 window.addEventListener('pagehide', () => { if (S.user) pushChanged(); });
 
 /* ---------- Interface ---------- */
-const statusText = () => S.user && S.access === 'approved' && !S.syncOK ? 'Mode : stockage local (synchronisation non activée pour ce compte)' : S.user ? (S.needKey ? 'Mode : synchronisé · mot de passe requis' : S.mismatch ? 'Mode : synchronisé · clé à mettre à jour' : ({ sync: 'Mode : synchronisé · envoi…', error: 'Mode : synchronisé · erreur' })[S.status] || (meta.collect ? `Mode : tablette de collecte · ${pendingCount()} rubrique(s) à envoyer` : `Mode : synchronisé · ${S.user.email}`)) : 'Mode : stockage local (cet appareil uniquement)';
+const statusText = () => driveOn() ? 'Mode : Google Drive (mon propre cloud)' : S.user && S.access === 'approved' && !S.syncOK ? 'Mode : stockage local (synchronisation non activée pour ce compte)' : S.user ? (S.needKey ? 'Mode : synchronisé · mot de passe requis' : S.mismatch ? 'Mode : synchronisé · clé à mettre à jour' : ({ sync: 'Mode : synchronisé · envoi…', error: 'Mode : synchronisé · erreur' })[S.status] || (meta.collect ? `Mode : tablette de collecte · ${pendingCount()} rubrique(s) à envoyer` : `Mode : synchronisé · ${S.user.email}`)) : 'Mode : stockage local (cet appareil uniquement)';
 function refreshUI() {
   const sub = document.getElementById('sync-sub'); if (sub) sub.textContent = statusText();
   const box = document.getElementById('sync-panel'); if (box) drawPanel(box);
 }
-const MODES_TXT = `<div class="card" style="margin-top:12px"><h3>📱 Local ou ☁️ synchronisation ?</h3>
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
-    <div style="padding:10px;border-radius:12px;background:var(--grad-soft)"><b>📱 Stockage local</b><p style="margin:6px 0 0;font-size:.85rem;line-height:1.4">Les données restent sur la tablette utilisée. Plusieurs tablettes peuvent servir, mais leurs relevés restent séparés et ne se regroupent pas.</p></div>
-    <div style="padding:10px;border-radius:12px;background:var(--grad-soft)"><b>☁️ Synchronisation</b><p style="margin:6px 0 0;font-size:.85rem;line-height:1.4">Plusieurs tablettes connectées au même compte peuvent utiliser le même outil en même temps (2 terrains, plusieurs voies…). En fin de cours, tous les relevés se regroupent sur <b>sa propre tablette</b> (connexion internet nécessaire pour l'envoi). On retrouve aussi ses données sur l'iPhone, l'iPad…</p></div>
-  </div></div>`;
+const SYNC_INTRO = () => `<div class="card doc"><p style="margin:0;line-height:1.5">EPS ONE fonctionne <b>hors ligne</b> : par défaut, toutes vos données sont enregistrées <b>sur l'appareil</b> avec lequel vous travaillez. Personne d'autre n'y a accès.</p>
+  <p style="margin:10px 0 0;line-height:1.5">Les options de synchronisation ci-dessous sont <b>facultatives</b> et ne sont pas nécessaires pour utiliser EPS ONE. Si vous décidez d'en activer une, <b>assurez-vous que le fournisseur choisi est conforme à la réglementation de votre établissement</b>.</p></div>
+  <div class="card" style="margin-top:12px"><h3>Les modes de stockage</h3>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-top:8px">
+    <div style="padding:10px;border-radius:12px;background:var(--grad-soft)"><b>📱 Sur l'appareil</b> <span class="muted" style="font-size:.75rem">(par défaut)</span><p style="margin:6px 0 0;font-size:.85rem;line-height:1.4">Les données restent sur la tablette utilisée. Plusieurs tablettes peuvent servir, mais leurs relevés restent séparés et ne se regroupent pas.</p></div>
+    <div style="padding:10px;border-radius:12px;background:var(--grad-soft)"><b>☁️ Compte EPS ONE</b><p style="margin:6px 0 0;font-size:.85rem;line-height:1.4">Synchronisation par le serveur EPS ONE (Google Firebase, Europe), données chiffrées de bout en bout. Activée compte par compte par l'administrateur.</p></div>
+    ${window.EPSONE_GDRIVE_CLIENT_ID ? `<div style="padding:10px;border-radius:12px;background:var(--grad-soft)"><b>🟦 Google Drive</b><p style="margin:6px 0 0;font-size:.85rem;line-height:1.4">Synchronisation sur <b>votre propre</b> Google Drive, sans passer par le serveur EPS ONE.</p></div>` : ''}
+  </div>
+  <p class="muted" style="margin:8px 0 0;font-size:.82rem;line-height:1.4">Avec une synchronisation, plusieurs tablettes connectées au même compte peuvent utiliser le même outil en même temps (2 terrains, plusieurs voies…) ; en fin de cours, tous les relevés se regroupent sur votre propre tablette (connexion internet nécessaire pour l'envoi). Vous retrouvez aussi vos données sur l'iPhone, l'iPad…</p></div>`;
 const E2E_TXT = `<div class="card" style="margin-top:12px"><h3>🔒 Chiffrement de bout en bout</h3>
   <p style="margin:6px 0;font-size:.9rem;line-height:1.45">Vos données sont <b>chiffrées sur cet appareil avant l'envoi</b> (AES-256), avec une clé tirée de votre mot de passe. Firebase ne stocke que du contenu illisible : <b>personne d'autre — ni Google, ni l'administrateur du projet — ne peut les lire</b>.</p>
   <p class="muted" style="margin:0;font-size:.82rem">⚠️ Si vous oubliez votre mot de passe, les données en ligne deviennent illisibles. Celles de vos appareils sont conservées et pourront être renvoyées après la réinitialisation.</p></div>`;
 function drawPanel(el) {
   el.id = 'sync-panel';
+  if (driveOn()) { el.innerHTML = '<div class="card"><p class="muted" style="margin:0;font-size:.85rem">⏸ En pause : Google Drive est activé sur cet appareil.</p></div>'; return; }
   if (S.status === 'unconfigured') {
     el.innerHTML = `<div class="card doc"><h3>☁️ Synchronisation iPhone ↔ iPad</h3><p>La synchronisation n'est pas encore configurée.</p>
       <p class="muted">Il faut coller la configuration de votre projet Firebase dans le fichier <code>js/firebase-config.js</code>, puis republier l'app.</p></div>`; return;
@@ -385,7 +398,7 @@ function drawPanel(el) {
     el.innerHTML = `<div class="card" style="background:var(--grad-soft)"><h3>📱 Stockage local</h3>
         <p style="margin:6px 0;line-height:1.45">Votre compte <b>${esc(S.user.email)}</b> est validé : vous pouvez utiliser toute l'application. Vos données restent <b>sur cet appareil</b>.</p>
         <p class="muted" style="margin:0;font-size:.85rem">La synchronisation entre appareils est activée compte par compte par l'administrateur. Pensez à exporter régulièrement vos données (Plus → Exporter mes données).</p>
-        <button class="link" style="margin-top:10px" id="sy-lout">Se déconnecter</button></div>${MODES_TXT}`;
+        <button class="link" style="margin-top:10px" id="sy-lout">Se déconnecter</button></div>`;
     el.querySelector('#sy-lout').onclick = async () => { await fb.authM.signOut(fb.auth); refreshUI(); };
     return;
   }
@@ -408,7 +421,6 @@ function drawPanel(el) {
         <div class="row" style="margin-top:12px"><button class="btn btn-grad" id="sy-now">🔄 Synchroniser maintenant</button><button class="btn btn-ghost" id="sy-out">Revenir en stockage local</button></div>
         <label style="display:flex;gap:8px;align-items:flex-start;margin-top:14px;color:var(--text);font-weight:600"><input type="checkbox" id="sy-col" ${meta.collect ? 'checked' : ''} style="width:auto;margin-top:3px"><span>📥 Tablette de collecte (envoi en fin de séance)<br><span class="muted" style="font-weight:400;font-size:.82rem">Pour les tablettes prêtées pendant un cours : rien n'est envoyé pendant la séance. En fin de cours, touchez le bouton « 📤 Envoyer les relevés » (l'envoi se fait aussi quand la tablette se met en veille). Les relevés de toutes les tablettes sont fusionnés sur votre compte, presque sans consommer de quota.</span></span></label>
         ${meta.collect ? `<button class="btn btn-grad btn-block" style="margin-top:10px" id="sy-send">📤 Envoyer les relevés maintenant${pendingCount() ? ' (' + pendingCount() + ')' : ''}</button>` : ''}</div>
-      ${MODES_TXT}
       ${E2E_TXT}
       <div class="card" style="margin-top:12px"><h3>🗑 Supprimer mes données en ligne</h3>
         <p class="muted" style="margin:4px 0 10px">Efface toutes vos données stockées sur Firebase et arrête la synchronisation. Les données restent sur cet appareil.</p>
@@ -425,7 +437,7 @@ function drawPanel(el) {
         <label>Mot de passe (6 caractères minimum)</label><input id="sy-pass" type="password" autocomplete="current-password">${errP}
         <div class="row" style="margin-top:12px"><button class="btn btn-grad" id="sy-in">Se connecter</button><button class="btn btn-ghost" id="sy-new">Créer un compte</button></div>
         <button class="link" style="margin-top:10px" id="sy-forgot">Mot de passe oublié ?</button></div>
-      ${MODES_TXT}${E2E_TXT}`;
+      ${E2E_TXT}`;
   }
   const $ = s => el.querySelector(s);
   const run = async fn => { S.err = ''; try { await fn(); } catch (e) { S.err = ({ 'auth/invalid-credential': 'E-mail ou mot de passe incorrect.', 'auth/wrong-password': 'Mot de passe incorrect.', 'auth/user-not-found': 'Aucun compte avec cet e-mail.', 'auth/email-already-in-use': 'Un compte existe déjà avec cet e-mail : connectez-vous.', 'auth/weak-password': 'Mot de passe trop court (6 caractères minimum).', 'auth/invalid-email': 'E-mail invalide.', 'auth/network-request-failed': 'Pas de connexion internet.', 'auth/too-many-requests': 'Trop d\'essais : réessayez dans quelques minutes.' })[e.code] || e.message; } refreshUI(); };
@@ -468,7 +480,13 @@ function drawPanel(el) {
     $('#sy-forgot').onclick = () => run(async () => { const [m] = creds(); if (!m) throw new Error('Indiquez votre e-mail.'); await fb.authM.sendPasswordResetEmail(fb.auth, m); toast('E-mail de réinitialisation envoyé'); });
   }
 }
-window.openSync = () => openPanel('Synchronisation', el => { const d = document.createElement('div'); el.appendChild(d); drawPanel(d); });
+window.openSync = () => openPanel('Stockage & synchronisation', el => {
+  el.insertAdjacentHTML('beforeend', SYNC_INTRO() + '<div class="section-title"><h2>☁️ Compte EPS ONE</h2></div>');
+  const d = document.createElement('div'); el.appendChild(d); drawPanel(d);
+  if (window.gdRender && window.EPSONE_GDRIVE_CLIENT_ID) { el.insertAdjacentHTML('beforeend', '<div class="section-title"><h2>🟦 Google Drive</h2></div>'); const g = document.createElement('div'); el.appendChild(g); window.gdRender(g); } });
+// Outils partagés avec le module Google Drive
+window.EPS_SYNC_LIB = { merge3: (...a) => merge3(...a), mergeData: (...a) => mergeData(...a), outb: (...a) => outb(...a), withLocal: (...a) => withLocal(...a), hash: x => hash(x), syncKeys: () => syncKeys(), jeq: (a, b) => jeq(a, b),
+  accessOK: () => accessOK(), gate: () => gate(), stopFirebase: () => { unsub && unsub(); unsub = null; clearTimeout(pushTimer); pushTimer = null; }, resumeFirebase: () => { if (S.user && syncAllowed()) resumeSync(); }, refreshUI: () => refreshUI() };
 window.syncStatusText = statusText;
 
 /* ---------- Mode de stockage (par appareil) ---------- */
