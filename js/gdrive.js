@@ -152,8 +152,8 @@
     if ($('#gd-re')) $('#gd-re').onclick = () => sendNow();
     if ($('#gd-now')) $('#gd-now').onclick = () => sendNow();
     if ($('#gd-col')) $('#gd-col').onchange = e => { meta.collect = e.target.checked; saveMeta(); pill(); if (!meta.collect) push(); draw(); };
-    if ($('#gd-off')) $('#gd-off').onclick = () => { if (!confirm('Arrêter Google Drive sur cet appareil ?\nVos données restent sur cet appareil et sur votre Drive.\nSans compte EPS ONE autorisé, l\'écran « Accès réservé » réapparaîtra.')) return;
-      ls.set(STORE, null); try { tok && google.accounts.oauth2.revoke(tok.t); } catch (e) {} tok = null; ls.set(TOK, null); pill(); L() && L().resumeFirebase(); L() && L().refreshUI(); L() && L().gate(); draw(); toast('Google Drive arrêté'); };
+    if ($('#gd-off')) $('#gd-off').onclick = () => { if (!confirm('Arrêter Google Drive sur cet appareil ?\nVos données restent sur cet appareil et sur votre Drive.\nVous pourrez continuer sans synchronisation (données sur cet appareil).')) return;
+      ls.set(STORE, null); try { localStorage.setItem('epsone_free', '1'); } catch (e) {} try { tok && google.accounts.oauth2.revoke(tok.t); } catch (e) {} tok = null; ls.set(TOK, null); pill(); L() && L().resumeFirebase(); L() && L().refreshUI(); L() && L().gate(); draw(); toast('Google Drive arrêté'); };
   }
   // Connexion Google Drive (aussi utilisée par l'écran d'accès : pas besoin de validation par l'administrateur)
   async function connect() { G.err = ''; try { await requestToken('consent'); ls.set(STORE, 'gdrive'); L() && L().stopFirebase();

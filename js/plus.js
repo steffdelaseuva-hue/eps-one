@@ -2,9 +2,10 @@
    EPS ONE — Onglet PLUS : mise à jour, partage,
    à propos, confidentialité/RGPD, nouvelle année scolaire
    ========================================================= */
-const APP_VERSION = '7.2';
+const APP_VERSION = '7.3';
 const APP_URL = 'https://steffdelaseuva-hue.github.io/eps-one/';
 const CHANGELOG = [
+  { v: '7.3', items: ['Écran d\'accueil : « Continuer avec Google Drive » ou « Utiliser sur cet appareil » sans compte ; le compte EPS ONE passe par « J\'ai une invitation »'] },
   { v: '7.2', items: ['Page publique de confidentialité (confidentialite.html)'] },
   { v: '7.1', items: ['Option « Google Drive » activée dans Stockage & synchronisation'] },
   { v: '7.0', items: ['Accès immédiat sans validation pour les utilisateurs qui choisissent leur propre Google Drive ; le compte EPS ONE reste sur invitation'] },
@@ -189,7 +190,7 @@ function openPrivacy() {
         <h3>🔐 En résumé</h3>
         <ul><li><b>Deux modes au choix</b> : <b>stockage local</b> (par défaut, rien n'est envoyé en ligne) ou <b>compte e-mail</b> pour synchroniser ses appareils.</li>
           <li><b>Aucune publicité</b>, aucun cookie de suivi, aucune statistique de visite.</li>
-          <li><b>Accès</b> : une première connexion est nécessaire sur chaque appareil, soit avec un compte e-mail validé par l'administrateur, soit avec son propre Google Drive (lorsque cette option est proposée). L'adresse e-mail, l'état de la demande (en attente, autorisé, refusé) et l'activation ou non de la synchronisation sont enregistrés, non chiffrés, uniquement pour gérer les autorisations.</li>
+          <li><b>Accès</b> : sans compte en stockage local, avec son propre Google Drive, ou avec un compte EPS ONE sur invitation (validé par l'administrateur). L'adresse e-mail, l'état de la demande (en attente, autorisé, refusé) et l'activation ou non de la synchronisation sont enregistrés, non chiffrés, uniquement pour gérer les autorisations.</li>
           <li>Mode actuel sur cet appareil : <b>${window.EPSONE_SYNC && window.EPSONE_SYNC.user ? 'Synchronisé (' + esc(window.EPSONE_SYNC.user.email) + ')' : 'Stockage local'}</b>.</li></ul>
         <h3>📱 Mode « Stockage local »</h3>
         <p>Classes, listes d'élèves, évaluations, suivi, dispenses… sont enregistrés uniquement dans le navigateur de cet appareil (stockage local). Rien n'est envoyé sur un serveur, rien n'est partagé. Effacer les données de Safari/Chrome ou désinstaller l'app les supprime : pensez à exporter régulièrement une sauvegarde.</p>

@@ -270,32 +270,39 @@ const driveOn = () => { try { return localStorage.getItem('epsone_store') === 'g
 const syncAllowed = () => !driveOn() && (S.access === 'admin' || (S.access === 'approved' && S.syncOK));
 async function resumeSync() { if (!S.user) return; setMode('cloud'); CK = CK || await loadKey(S.user.email); if (!CK) { S.needKey = true; refreshUI(); return; } try { await startSync(); } catch (e) {} refreshUI(); }
 // Google Drive : l'utilisateur stocke sur son propre cloud → pas de validation nécessaire (aucun quota consommé chez l'administrateur)
-const accessOK = () => driveOn() || S.access === 'admin' || S.access === 'approved' || (!S.user && deviceOK());
-const gdOffer = () => window.EPSONE_GDRIVE_CLIENT_ID ? `<div class="card" style="margin-top:12px"><h3>🟦 Ou utiliser mon Google Drive</h3>
-        <p class="muted" style="margin:4px 0 0">Accès immédiat, sans validation : vos données sont enregistrées sur <b>votre propre</b> Google Drive (dossier caché réservé à EPS ONE).</p>
+// Stockage local sans compte : aucun accès à Firebase → pas de validation nécessaire
+const freeOn = () => { try { return localStorage.getItem('epsone_free') === '1'; } catch (e) { return false; } };
+const accessOK = () => freeOn() || driveOn() || S.access === 'admin' || S.access === 'approved' || (!S.user && deviceOK());
+const gdOffer = () => window.EPSONE_GDRIVE_CLIENT_ID ? `<div class="card" style="margin-top:12px"><h3>🟦 Avec mon Google Drive</h3>
+        <p class="muted" style="margin:4px 0 0">Accès immédiat. Vos données sont enregistrées sur <b>votre propre</b> Google Drive (dossier caché réservé à EPS ONE) et synchronisées entre vos appareils.</p>
         <p class="muted" style="margin:6px 0 0;font-size:.82rem">⚠️ Assurez-vous que ce fournisseur est conforme à la réglementation de votre établissement.</p>
-        <button class="btn btn-grad btn-block" style="margin-top:10px" id="gt-gd">Se connecter avec Google</button></div>` : '';
+        <button class="btn btn-grad btn-block" style="margin-top:10px" id="gt-gd">Continuer avec Google Drive</button></div>` : '';
+const freeOffer = () => `<div class="card" style="margin-top:12px"><h3>📱 Sans synchronisation</h3>
+        <p class="muted" style="margin:4px 0 0">Accès immédiat, sans compte. Vos données restent <b>uniquement sur cet appareil</b> : rien n'est envoyé en ligne.</p>
+        <p class="muted" style="margin:6px 0 0;font-size:.82rem">💾 Pensez à exporter régulièrement une sauvegarde (Plus → Sauvegardes).</p>
+        <button class="btn btn-grad btn-block" style="margin-top:10px" id="gt-free">Utiliser sur cet appareil</button></div>`;
+let gateInv = false;
 function gate() {
   let g = document.getElementById('eps-gate');
   if (!window.EPSONE_FIREBASE || accessOK()) { if (g) g.remove(); try { renderPlus(); } catch (e) {} return; }
   if (!g) { g = document.createElement('div'); g.id = 'eps-gate';
     g.style.cssText = 'position:fixed;inset:0;z-index:400;background:var(--bg,#F2F5FB);overflow:auto;padding:24px 16px;display:flex;justify-content:center;align-items:flex-start'; document.body.appendChild(g); }
   const errP = S.err ? `<p style="color:var(--danger);font-size:.85rem">${esc(S.err)}</p>` : '';
-  const head = `<div style="text-align:center;margin:10px 0 16px"><img src="icons/icone-v3-192.png" alt="" style="width:76px;height:76px;border-radius:18px"><h2 style="margin:10px 0 2px">EPS ONE</h2><div class="muted">Accès réservé</div></div>`;
+  const head = `<div style="text-align:center;margin:10px 0 16px"><img src="icons/icone-v3-192.png" alt="" style="width:76px;height:76px;border-radius:18px"><h2 style="margin:10px 0 2px">EPS ONE</h2><div class="muted">Choisissez comment utiliser l'app</div></div>`;
   let body;
   if (!gateBooted) body = `<div class="card" style="text-align:center"><p class="muted" style="margin:0">Chargement…</p></div>`;
-  else if (!S.ready) body = `<div class="card"><h3>📶 Connexion nécessaire</h3><p class="muted">La première connexion à EPS ONE demande internet. Vérifiez la connexion puis réessayez.</p><button class="btn btn-grad btn-block" onclick="location.reload()">Réessayer</button></div>${gdOffer()}`;
-  else if (!S.user) body = `<div class="card"><h3>🔑 Connexion</h3>
-      <p class="muted" style="margin:4px 0 0">EPS ONE est accessible sur invitation. Créez un compte : votre demande sera validée par l'administrateur.</p>
+  else if (!S.ready) body = `${freeOffer()}${gdOffer()}<div class="card" style="margin-top:12px"><h3>🔑 J'ai une invitation EPS ONE</h3><p class="muted">La connexion au compte EPS ONE demande internet. Vérifiez la connexion puis réessayez.</p><button class="btn btn-ghost btn-block" onclick="location.reload()">Réessayer</button></div>`;
+  else if (!S.user) body = `${gdOffer()}${freeOffer()}
+      ${!(gateInv || S.err) ? `<div style="text-align:center;margin:18px 0 6px"><button class="link" id="gt-inv">🔑 J'ai une invitation EPS ONE</button></div>` : `<div class="card" style="margin-top:12px"><h3>🔑 Invitation EPS ONE</h3>
+      <p class="muted" style="margin:4px 0 0">Compte synchronisé par le serveur EPS ONE, sur invitation. Créez un compte : votre demande sera validée par l'administrateur.</p>
       <label>E-mail</label><input id="gt-mail" type="email" autocomplete="username" value="${esc(meta.mail || '')}">
       <label>Mot de passe (6 caractères minimum)</label><input id="gt-pass" type="password" autocomplete="current-password">${errP}
       <div class="row" style="margin-top:12px"><button class="btn btn-grad" id="gt-in">Se connecter</button><button class="btn btn-ghost" id="gt-new">Demander un accès</button></div>
-      <button class="link" style="margin-top:10px" id="gt-forgot">Mot de passe oublié ?</button></div>
-      ${gdOffer()}`;
+      <button class="link" style="margin-top:10px" id="gt-forgot">Mot de passe oublié ?</button></div>`}`;
   else if (S.access === 'refused') body = `<div class="card"><h3>⛔ Accès refusé</h3><p class="muted">Le compte <b>${esc(S.user.email)}</b> n'a pas accès à EPS ONE.</p><button class="btn btn-ghost btn-block" id="gt-out">Se déconnecter</button></div>`;
   else body = `<div class="card"><h3>⏳ Demande en attente</h3>
       <p style="line-height:1.45">Votre demande d'accès pour <b>${esc(S.user.email)}</b> a été envoyée. L'app s'ouvrira automatiquement dès que l'administrateur l'aura validée.</p>${S.access === 'error' ? '<p class="muted" style="font-size:.82rem">Vérification impossible pour le moment (connexion ?).</p>' : ''}
-      <button class="btn btn-ghost btn-block" id="gt-out">Se déconnecter</button></div>${gdOffer()}`;
+      <button class="btn btn-ghost btn-block" id="gt-out">Se déconnecter</button></div>${gdOffer()}${freeOffer()}`;
   g.innerHTML = `<div style="max-width:440px;width:100%">${head}${body}</div>`;
   const $ = q => g.querySelector(q);
   const run = async fn => { S.err = ''; try { await fn(); } catch (e) { S.err = ({ 'auth/invalid-credential': 'E-mail ou mot de passe incorrect.', 'auth/email-already-in-use': 'Un compte existe déjà avec cet e-mail : connectez-vous.', 'auth/weak-password': 'Mot de passe trop court (6 caractères minimum).', 'auth/invalid-email': 'E-mail invalide.', 'auth/network-request-failed': 'Pas de connexion internet.', 'auth/too-many-requests': 'Trop d\'essais : réessayez plus tard.' })[e.code] || e.message; } gate(); };
@@ -306,6 +313,8 @@ function gate() {
     $('#gt-in').onclick = () => login(false); $('#gt-new').onclick = () => login(true);
     $('#gt-forgot').onclick = () => run(async () => { const m = $('#gt-mail').value.trim(); if (!m) throw new Error('Indiquez votre e-mail.'); await fb.authM.sendPasswordResetEmail(fb.auth, m); toast('E-mail de réinitialisation envoyé'); });
   }
+  if ($('#gt-inv')) $('#gt-inv').onclick = () => { gateInv = true; gate(); const m = g.querySelector('#gt-mail'); m && m.focus(); };
+  if ($('#gt-free')) $('#gt-free').onclick = () => { try { localStorage.setItem('epsone_free', '1'); } catch (e) {} gate(); toast('📱 Données enregistrées sur cet appareil'); };
   if ($('#gt-gd')) $('#gt-gd').onclick = () => window.gdConnect && window.gdConnect();
   if ($('#gt-out')) $('#gt-out').onclick = () => run(async () => { forgetKey(); await fb.authM.signOut(fb.auth); });
 }
@@ -378,7 +387,7 @@ const SYNC_INTRO = () => `<div class="card doc"><p style="margin:0;line-height:1
   <div class="card" style="margin-top:12px"><h3>Les modes de stockage</h3>
   <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-top:8px">
     <div style="padding:10px;border-radius:12px;background:var(--grad-soft)"><b>📱 Sur l'appareil</b> <span class="muted" style="font-size:.75rem">(par défaut)</span><p style="margin:6px 0 0;font-size:.85rem;line-height:1.4">Les données restent sur la tablette utilisée. Plusieurs tablettes peuvent servir, mais leurs relevés restent séparés et ne se regroupent pas.</p></div>
-    <div style="padding:10px;border-radius:12px;background:var(--grad-soft)"><b>☁️ Compte EPS ONE</b><p style="margin:6px 0 0;font-size:.85rem;line-height:1.4">Synchronisation par le serveur EPS ONE (Google Firebase, Europe), données chiffrées de bout en bout. Activée compte par compte par l'administrateur.</p></div>
+    <div style="padding:10px;border-radius:12px;background:var(--grad-soft)"><b>☁️ Compte EPS ONE</b> <span class="muted" style="font-size:.75rem">(sur invitation)</span><p style="margin:6px 0 0;font-size:.85rem;line-height:1.4">Synchronisation par le serveur EPS ONE (Google Firebase, Europe), données chiffrées de bout en bout. Activée compte par compte par l'administrateur.</p></div>
     ${window.EPSONE_GDRIVE_CLIENT_ID ? `<div style="padding:10px;border-radius:12px;background:var(--grad-soft)"><b>🟦 Google Drive</b><p style="margin:6px 0 0;font-size:.85rem;line-height:1.4">Synchronisation sur <b>votre propre</b> Google Drive, sans passer par le serveur EPS ONE.</p></div>` : ''}
   </div>
   <p class="muted" style="margin:8px 0 0;font-size:.82rem;line-height:1.4">Avec une synchronisation, plusieurs tablettes connectées au même compte peuvent utiliser le même outil en même temps (2 terrains, plusieurs voies…) ; en fin de cours, tous les relevés se regroupent sur votre propre tablette (connexion internet nécessaire pour l'envoi). Vous retrouvez aussi vos données sur l'iPhone, l'iPad…</p></div>`;
