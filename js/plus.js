@@ -2,9 +2,10 @@
    EPS ONE — Onglet PLUS : mise à jour, partage,
    à propos, confidentialité/RGPD, nouvelle année scolaire
    ========================================================= */
-const APP_VERSION = '8.8';
+const APP_VERSION = '8.9';
 const APP_URL = 'https://steffdelaseuva-hue.github.io/eps-one/';
 const CHANGELOG = [
+  { v: '8.9', items: ['Test VMA : voix plus fiable sur iPhone / iPad (déblocage au toucher, voix française, phrases qui ne sont plus avalées)', 'Bouton ♪ : test des bips et de la voix'] },
   { v: '8.8', items: ['Son des bips (bouton ♪) : bips par-dessus la musique, mode enceinte Bluetooth (évite la mise en veille), bouton de test'] },
   { v: '8.7', items: ['Tournois : les règles du match (durée ou points, bonus, statistiques, zones, observations) choisies par l\'enseignant s\'appliquent sur toutes les tablettes'] },
   { v: '8.6', items: ['Code enseignant à 4 chiffres pour quitter la vue élève (« 🔒 Mode enseignant ») — réglage dans Plus → Code enseignant'] },

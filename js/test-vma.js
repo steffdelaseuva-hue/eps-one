@@ -35,7 +35,7 @@ TOOL_IMPL.testvma = function (el) {
   let key = 'vameval', run = false, E = 0, t0 = 0, iv = null, pre = null;
   let nextBip = 0, bips = 0, stageSeen = 0, phase = '', lastMark = -1;
   let students = [];
-  const voice = t => { if (!el.querySelector('#vx')?.checked || !window.speechSynthesis) return; try { speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(t); u.lang = 'fr-FR'; u.rate = 1.05; speechSynthesis.speak(u); } catch (e) {} };
+  const voice = t => { if (!el.querySelector('#vx')?.checked || !window.speechSynthesis) return; say(t); };
   const kmh = v => v.toFixed(1).replace('.', ',');
   const cfg = () => { const p = P[key]; return { ...p, v0: +(el.querySelector('#v0')?.value || p.v0), inc: +(el.querySelector('#inc')?.value || p.inc), coef: +(el.querySelector('#cf')?.value || p.coef) }; };
   const speedAt = (stage, c) => c.v0 + stage * c.inc;

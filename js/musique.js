@@ -34,11 +34,11 @@ function openMusic() {
       <div class="card">
         <label style="display:flex;gap:10px;align-items:flex-start;color:var(--text);font-weight:700"><input type="checkbox" id="au-mix" ${audioPrefs().mix ? 'checked' : ''} style="width:auto;margin-top:3px"><span>🎵 Bips par-dessus la musique<br><span class="muted" style="font-weight:400;font-size:.82rem">La musique (Spotify, Apple Music…) continue pendant les bips au lieu d'être coupée. Sur iPhone / iPad, le mode silencieux doit être désactivé.</span></span></label>
         <label style="display:flex;gap:10px;align-items:flex-start;margin-top:12px;color:var(--text);font-weight:700"><input type="checkbox" id="au-bt" ${audioPrefs().bt ? 'checked' : ''} style="width:auto;margin-top:3px"><span>🔈 Enceinte Bluetooth<br><span class="muted" style="font-weight:400;font-size:.82rem">Garde l'enceinte éveillée (signal inaudible) pour qu'elle ne coupe pas les bips courts. À activer une fois l'enceinte connectée.</span></span></label>
-        <button class="btn btn-ghost btn-block" style="margin-top:12px" id="au-test">🔔 Tester un bip</button></div>`;
+        <p class="muted" style="margin:12px 0 0;font-size:.8rem">🗣 La voix du Test VMA suit le volume et le mode silencieux de l'appareil : désactivez le mode silencieux et montez le volume.</p><button class="btn btn-ghost btn-block" style="margin-top:12px" id="au-test">🔔 Tester les bips et la voix</button></div>`;
     const setA = (k, v) => { DB.tablette = DB.tablette || {}; DB.tablette.audio = { ...(DB.tablette.audio || {}), [k]: v }; save(); unlockAudio(); };
     el.querySelector('#au-mix').onchange = e => setA('mix', e.target.checked);
     el.querySelector('#au-bt').onchange = e => setA('bt', e.target.checked);
-    el.querySelector('#au-test').onclick = () => { unlockAudio(); [0, 400, 800].forEach((d, i) => setTimeout(() => beep(i === 2 ? 1300 : 880, .18), d)); };
+    el.querySelector('#au-test').onclick = () => { unlockAudio(); [0, 400, 800].forEach((d, i) => setTimeout(() => beep(i === 2 ? 1300 : 880, .18), d)); setTimeout(() => say('Palier 1, 8 kilomètres heure'), 1300); };
     el.querySelectorAll('[data-m]').forEach(b => b.onclick = () => openMusicApp(+b.dataset.m, el));
   });
 }

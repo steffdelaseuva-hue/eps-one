@@ -384,7 +384,16 @@ function audioCtx(){actx=actx||new (window.AudioContext||window.webkitAudioConte
 const audioPrefs=()=>(DB.tablette&&DB.tablette.audio)||{};
 function unlockAudio(){try{if(navigator.audioSession)navigator.audioSession.type=audioPrefs().mix?'transient':'playback';}catch(e){}
   try{const c=audioCtx(),b=c.createBuffer(1,1,22050),s=c.createBufferSource();s.buffer=b;s.connect(c.destination);s.start(0);}catch(e){}
-  keepAlive();}
+  keepAlive();sayUnlock();}
+/* Voix (synthèse vocale). Sur iPhone/iPad : la voix doit être « débloquée » par un toucher,
+   « cancel » juste avant « speak » peut avaler la phrase, et une voix française locale doit être choisie. */
+let sayOK=false,sayVoice=null;
+function sayPickVoice(){try{const V=speechSynthesis.getVoices().filter(v=>/^fr(-|_|$)/i.test(v.lang));sayVoice=V.find(v=>/fr[-_]FR/i.test(v.lang)&&v.localService)||V.find(v=>/fr[-_]FR/i.test(v.lang))||V[0]||null;}catch(e){}}
+if(window.speechSynthesis){sayPickVoice();try{speechSynthesis.addEventListener('voiceschanged',sayPickVoice);}catch(e){}}
+function sayUnlock(){if(sayOK||!window.speechSynthesis)return;try{const u=new SpeechSynthesisUtterance(' ');u.volume=0;u.lang='fr-FR';speechSynthesis.speak(u);sayOK=true;}catch(e){}}
+function say(t,rate=1.05){if(!window.speechSynthesis)return;try{
+  const go=()=>{const u=new SpeechSynthesisUtterance(t);u.lang='fr-FR';if(sayVoice)u.voice=sayVoice;u.rate=rate;u.volume=1;speechSynthesis.resume();speechSynthesis.speak(u);};
+  if(speechSynthesis.speaking||speechSynthesis.pending){speechSynthesis.cancel();setTimeout(go,80);}else go();}catch(e){}}
 /* Enceinte Bluetooth : un signal inaudible permanent évite que l'enceinte se mette en veille et « mange » les bips courts */
 let kaNode=null;
 function keepAlive(){const on=!!audioPrefs().bt;
