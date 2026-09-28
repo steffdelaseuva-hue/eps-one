@@ -266,17 +266,21 @@ function watchAccess(u) {
     });
   })();
 }
-const driveOn = () => { try { return localStorage.getItem('epsone_store') === 'gdrive'; } catch (e) { return false; } };
+const driveOn = () => { try { return ['gdrive', 'dropbox'].includes(localStorage.getItem('epsone_store')); } catch (e) { return false; } };
+const cloudName = () => (window.cloudActive && window.cloudActive() || {}).name || 'Mon cloud';
 const syncAllowed = () => !driveOn() && (S.access === 'admin' || (S.access === 'approved' && S.syncOK));
 async function resumeSync() { if (!S.user) return; setMode('cloud'); CK = CK || await loadKey(S.user.email); if (!CK) { S.needKey = true; refreshUI(); return; } try { await startSync(); } catch (e) {} refreshUI(); }
 // Google Drive : l'utilisateur stocke sur son propre cloud → pas de validation nécessaire (aucun quota consommé chez l'administrateur)
 // Stockage local sans compte : aucun accès à Firebase → pas de validation nécessaire
 const freeOn = () => { try { return localStorage.getItem('epsone_free') === '1'; } catch (e) { return false; } };
 const accessOK = () => freeOn() || driveOn() || S.access === 'admin' || S.access === 'approved' || (!S.user && deviceOK());
-const gdOffer = () => window.EPSONE_GDRIVE_CLIENT_ID ? `<div class="card" style="margin-top:12px"><h3>🟦 Avec mon Google Drive</h3>
-        <p class="muted" style="margin:4px 0 0">Accès immédiat. Vos données sont enregistrées sur <b>votre propre</b> Google Drive (dossier caché réservé à EPS ONE) et synchronisées entre vos appareils.</p>
-        <p class="muted" style="margin:6px 0 0;font-size:.82rem">⚠️ Assurez-vous que ce fournisseur est conforme à la réglementation de votre établissement.</p>
-        <button class="btn btn-grad btn-block" style="margin-top:10px" id="gt-gd">Continuer avec Google Drive</button></div>` : '';
+const gdOffer = () => { const L = window.EPS_CLOUDS ? window.EPS_CLOUDS() : []; if (!L.length) return '';
+  return `<div class="card" style="margin-top:12px"><h3>☁️ Avec mon cloud</h3>
+        <p class="muted" style="margin:4px 0 0">Accès immédiat. Vos données sont enregistrées sur <b>votre propre</b> cloud (${L.map(c => c.name).join(', ')}), dans un dossier réservé à EPS ONE, et synchronisées entre vos appareils.</p>
+        <p class="muted" style="margin:6px 0 0;font-size:.82rem">⚠️ Assurez-vous que le fournisseur choisi est conforme à la réglementation de votre établissement.</p>
+        ${gateCloud ? L.map(c => `<button class="btn btn-grad btn-block" data-cloud="${c.id}" style="margin-top:10px;display:flex;align-items:center;justify-content:center;gap:10px"><span style="display:inline-flex;background:#fff;border-radius:8px;padding:3px">${c.icon.replace('1.3em;height:1.3em', '26px;height:26px')}</span>${c.name}</button>`).join('')
+          : '<button class="btn btn-grad btn-block" style="margin-top:10px" id="gt-cloud">Continuer avec mon cloud</button>'}</div>`; };
+let gateCloud = false;
 const freeOffer = () => `<div class="card" style="margin-top:12px"><h3>📱 Sans synchronisation</h3>
         <p class="muted" style="margin:4px 0 0">Accès immédiat, sans compte. Vos données restent <b>uniquement sur cet appareil</b> : rien n'est envoyé en ligne.</p>
         <p class="muted" style="margin:6px 0 0;font-size:.82rem">💾 Pensez à exporter régulièrement une sauvegarde (Plus → Sauvegardes).</p>
@@ -315,7 +319,8 @@ function gate() {
   }
   if ($('#gt-inv')) $('#gt-inv').onclick = () => { gateInv = true; gate(); const m = g.querySelector('#gt-mail'); m && m.focus(); };
   if ($('#gt-free')) $('#gt-free').onclick = () => { try { localStorage.setItem('epsone_free', '1'); } catch (e) {} gate(); toast('📱 Données enregistrées sur cet appareil'); };
-  if ($('#gt-gd')) $('#gt-gd').onclick = () => window.gdConnect && window.gdConnect();
+  if ($('#gt-cloud')) $('#gt-cloud').onclick = () => { gateCloud = true; gate(); };
+  g.querySelectorAll('[data-cloud]').forEach(b => b.onclick = () => window.cloudConnect && window.cloudConnect(b.dataset.cloud));
   if ($('#gt-out')) $('#gt-out').onclick = () => run(async () => { forgetKey(); await fb.authM.signOut(fb.auth); });
 }
 window.isEpsAdmin = () => isAdminUser(S.user);
@@ -377,7 +382,7 @@ document.addEventListener('visibilitychange', () => { if (!S.user) return; if (d
 window.addEventListener('pagehide', () => { if (S.user) pushChanged(); });
 
 /* ---------- Interface ---------- */
-const statusText = () => driveOn() ? 'Mode : Google Drive (mon propre cloud)' : S.user && S.access === 'approved' && !S.syncOK ? 'Mode : stockage local (synchronisation non activée pour ce compte)' : S.user ? (S.needKey ? 'Mode : synchronisé · mot de passe requis' : S.mismatch ? 'Mode : synchronisé · clé à mettre à jour' : ({ sync: 'Mode : synchronisé · envoi…', error: 'Mode : synchronisé · erreur' })[S.status] || (meta.collect ? `Mode : tablette de collecte · ${pendingCount()} rubrique(s) à envoyer` : `Mode : synchronisé · ${S.user.email}`)) : 'Mode : stockage local (cet appareil uniquement)';
+const statusText = () => driveOn() ? `Mode : ${cloudName()} (mon propre cloud)` : S.user && S.access === 'approved' && !S.syncOK ? 'Mode : stockage local (synchronisation non activée pour ce compte)' : S.user ? (S.needKey ? 'Mode : synchronisé · mot de passe requis' : S.mismatch ? 'Mode : synchronisé · clé à mettre à jour' : ({ sync: 'Mode : synchronisé · envoi…', error: 'Mode : synchronisé · erreur' })[S.status] || (meta.collect ? `Mode : tablette de collecte · ${pendingCount()} rubrique(s) à envoyer` : `Mode : synchronisé · ${S.user.email}`)) : 'Mode : stockage local (cet appareil uniquement)';
 function refreshUI() {
   const sub = document.getElementById('sync-sub'); if (sub) sub.textContent = statusText();
   const box = document.getElementById('sync-panel'); if (box) drawPanel(box);
@@ -388,7 +393,7 @@ const SYNC_INTRO = () => `<div class="card doc"><p style="margin:0;line-height:1
   <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-top:8px">
     <div style="padding:10px;border-radius:12px;background:var(--grad-soft)"><b>📱 Sur l'appareil</b> <span class="muted" style="font-size:.75rem">(par défaut)</span><p style="margin:6px 0 0;font-size:.85rem;line-height:1.4">Les données restent sur la tablette utilisée. Plusieurs tablettes peuvent servir, mais leurs relevés restent séparés et ne se regroupent pas.</p></div>
     <div style="padding:10px;border-radius:12px;background:var(--grad-soft)"><b>☁️ Compte EPS ONE</b> <span class="muted" style="font-size:.75rem">(sur invitation)</span><p style="margin:6px 0 0;font-size:.85rem;line-height:1.4">Synchronisation par le serveur EPS ONE (Google Firebase, Europe), données chiffrées de bout en bout. Activée compte par compte par l'administrateur.</p></div>
-    ${window.EPSONE_GDRIVE_CLIENT_ID ? `<div style="padding:10px;border-radius:12px;background:var(--grad-soft)"><b>🟦 Google Drive</b><p style="margin:6px 0 0;font-size:.85rem;line-height:1.4">Synchronisation sur <b>votre propre</b> Google Drive, sans passer par le serveur EPS ONE.</p></div>` : ''}
+    ${window.EPS_CLOUDS && window.EPS_CLOUDS().length ? `<div style="padding:10px;border-radius:12px;background:var(--grad-soft)"><b>☁️ Mon cloud</b><p style="margin:6px 0 0;font-size:.85rem;line-height:1.4">Synchronisation sur <b>votre propre</b> ${window.EPS_CLOUDS().map(c => c.name).join(' ou ')}, sans passer par le serveur EPS ONE.</p></div>` : ''}
   </div>
   <p class="muted" style="margin:8px 0 0;font-size:.82rem;line-height:1.4">Avec une synchronisation, plusieurs tablettes connectées au même compte peuvent utiliser le même outil en même temps (2 terrains, plusieurs voies…) ; en fin de cours, tous les relevés se regroupent sur votre propre tablette (connexion internet nécessaire pour l'envoi). Vous retrouvez aussi vos données sur l'iPhone, l'iPad…</p></div>`;
 const E2E_TXT = `<div class="card" style="margin-top:12px"><h3>🔒 Chiffrement de bout en bout</h3>
@@ -396,7 +401,7 @@ const E2E_TXT = `<div class="card" style="margin-top:12px"><h3>🔒 Chiffrement 
   <p class="muted" style="margin:0;font-size:.82rem">⚠️ Si vous oubliez votre mot de passe, les données en ligne deviennent illisibles. Celles de vos appareils sont conservées et pourront être renvoyées après la réinitialisation.</p></div>`;
 function drawPanel(el) {
   el.id = 'sync-panel';
-  if (driveOn()) { el.innerHTML = '<div class="card"><p class="muted" style="margin:0;font-size:.85rem">⏸ En pause : Google Drive est activé sur cet appareil.</p></div>'; return; }
+  if (driveOn()) { el.innerHTML = `<div class="card"><p class="muted" style="margin:0;font-size:.85rem">⏸ En pause : ${cloudName()} est activé sur cet appareil.</p></div>`; return; }
   if (S.status === 'unconfigured') {
     el.innerHTML = `<div class="card doc"><h3>☁️ Synchronisation iPhone ↔ iPad</h3><p>La synchronisation n'est pas encore configurée.</p>
       <p class="muted">Il faut coller la configuration de votre projet Firebase dans le fichier <code>js/firebase-config.js</code>, puis republier l'app.</p></div>`; return;
@@ -492,7 +497,7 @@ function drawPanel(el) {
 window.openSync = () => openPanel('Stockage & synchronisation', el => {
   el.insertAdjacentHTML('beforeend', SYNC_INTRO() + '<div class="section-title"><h2>☁️ Compte EPS ONE</h2></div>');
   const d = document.createElement('div'); el.appendChild(d); drawPanel(d);
-  if (window.gdRender && window.EPSONE_GDRIVE_CLIENT_ID) { el.insertAdjacentHTML('beforeend', '<div class="section-title"><h2>🟦 Google Drive</h2></div>'); const g = document.createElement('div'); el.appendChild(g); window.gdRender(g); } });
+  if (window.cloudRender && window.EPS_CLOUDS && window.EPS_CLOUDS().length) { el.insertAdjacentHTML('beforeend', '<div class="section-title"><h2>☁️ Mon propre cloud</h2></div>'); const g = document.createElement('div'); el.appendChild(g); window.cloudRender(g); } });
 // Outils partagés avec le module Google Drive
 window.EPS_SYNC_LIB = { merge3: (...a) => merge3(...a), mergeData: (...a) => mergeData(...a), outb: (...a) => outb(...a), withLocal: (...a) => withLocal(...a), hash: x => hash(x), syncKeys: () => syncKeys(), jeq: (a, b) => jeq(a, b),
   accessOK: () => accessOK(), gate: () => gate(), stopFirebase: () => { unsub && unsub(); unsub = null; clearTimeout(pushTimer); pushTimer = null; }, resumeFirebase: () => { if (S.user && syncAllowed()) resumeSync(); }, refreshUI: () => refreshUI() };

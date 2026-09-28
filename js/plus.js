@@ -2,9 +2,12 @@
    EPS ONE — Onglet PLUS : mise à jour, partage,
    à propos, confidentialité/RGPD, nouvelle année scolaire
    ========================================================= */
-const APP_VERSION = '7.3';
+const APP_VERSION = '7.6';
 const APP_URL = 'https://steffdelaseuva-hue.github.io/eps-one/';
 const CHANGELOG = [
+  { v: '7.6', items: ['Logos Google Drive et Dropbox sur les boutons « Mon cloud »'] },
+  { v: '7.5', items: ['Option Dropbox activée dans « Mon cloud »'] },
+  { v: '7.4', items: ['Un seul bouton « ☁️ Continuer avec mon cloud » : Google Drive ou Dropbox (Dropbox activé dès que la clé est configurée)'] },
   { v: '7.3', items: ['Écran d\'accueil : « Continuer avec Google Drive » ou « Utiliser sur cet appareil » sans compte ; le compte EPS ONE passe par « J\'ai une invitation »'] },
   { v: '7.2', items: ['Page publique de confidentialité (confidentialite.html)'] },
   { v: '7.1', items: ['Option « Google Drive » activée dans Stockage & synchronisation'] },
@@ -190,7 +193,7 @@ function openPrivacy() {
         <h3>🔐 En résumé</h3>
         <ul><li><b>Deux modes au choix</b> : <b>stockage local</b> (par défaut, rien n'est envoyé en ligne) ou <b>compte e-mail</b> pour synchroniser ses appareils.</li>
           <li><b>Aucune publicité</b>, aucun cookie de suivi, aucune statistique de visite.</li>
-          <li><b>Accès</b> : sans compte en stockage local, avec son propre Google Drive, ou avec un compte EPS ONE sur invitation (validé par l'administrateur). L'adresse e-mail, l'état de la demande (en attente, autorisé, refusé) et l'activation ou non de la synchronisation sont enregistrés, non chiffrés, uniquement pour gérer les autorisations.</li>
+          <li><b>Accès</b> : sans compte en stockage local, avec son propre cloud (Google Drive, Dropbox), ou avec un compte EPS ONE sur invitation (validé par l'administrateur). L'adresse e-mail, l'état de la demande (en attente, autorisé, refusé) et l'activation ou non de la synchronisation sont enregistrés, non chiffrés, uniquement pour gérer les autorisations.</li>
           <li>Mode actuel sur cet appareil : <b>${window.EPSONE_SYNC && window.EPSONE_SYNC.user ? 'Synchronisé (' + esc(window.EPSONE_SYNC.user.email) + ')' : 'Stockage local'}</b>.</li></ul>
         <h3>📱 Mode « Stockage local »</h3>
         <p>Classes, listes d'élèves, évaluations, suivi, dispenses… sont enregistrés uniquement dans le navigateur de cet appareil (stockage local). Rien n'est envoyé sur un serveur, rien n'est partagé. Effacer les données de Safari/Chrome ou désinstaller l'app les supprime : pensez à exporter régulièrement une sauvegarde.</p>
@@ -199,7 +202,7 @@ function openPrivacy() {
           <li><b>Chiffrement de bout en bout</b> : les données sont chiffrées sur votre appareil avant l'envoi (AES-256), avec une clé tirée de votre mot de passe. Firebase ne stocke que du contenu illisible : <b>ni Google, ni l'administrateur du projet ne peuvent les lire</b>.</li>
           <li>Elles sont rattachées à votre compte : les règles de sécurité font que <b>seul votre compte peut les lire ou les modifier</b>.</li>
           <li>L'adresse e-mail sert uniquement à la connexion. Le mot de passe est géré par Firebase Authentication ; l'app ne le conserve pas, elle s'en sert seulement sur l'appareil pour créer la clé de chiffrement. En cas d'oubli, les données en ligne deviennent illisibles, mais celles de vos appareils sont conservées.</li>
-          <li><b>Option Google Drive</b> : si vous la choisissez, vos données sont enregistrées sur <b>votre propre Google Drive</b>, dans un dossier caché réservé à EPS ONE (l'app n'a accès à aucun autre fichier), et ne passent pas par le serveur d'EPS ONE. Elles sont alors soumises aux conditions de votre compte Google.</li>
+          <li><b>Option « Mon cloud » (Google Drive ou Dropbox)</b> : si vous la choisissez, vos données sont enregistrées sur <b>votre propre</b> Google Drive ou Dropbox, dans un dossier réservé à EPS ONE (l'app n'a accès à aucun autre fichier), et ne passent pas par le serveur d'EPS ONE. Elles sont alors soumises aux conditions de votre compte chez ce fournisseur.</li>
           <li>Vous pouvez à tout moment <b>supprimer toutes vos données en ligne</b> (Plus → Stockage & synchronisation) : la synchronisation s'arrête et les données restent seulement sur l'appareil.</li>
           <li><b>Conseil</b> : en mode synchronisé, préférez <b>prénom + initiale</b> pour les élèves. Pour toute question sur l'usage d'outils numériques avec des données d'élèves, votre établissement reste l'interlocuteur de référence.</li></ul>
         <h3>📷 Caméra</h3>

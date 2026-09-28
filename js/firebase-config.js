@@ -29,3 +29,8 @@ window.EPSONE_FIREBASE = {
    ID client OAuth « Application Web » créé dans la console Google Cloud.
    Tant que la valeur est vide, l'option Google Drive n'apparaît pas. */
 window.EPSONE_GDRIVE_CLIENT_ID = '917845842523-ju8i14ch33rdpbbj2tqcrd0lir40ftov.apps.googleusercontent.com';
+
+/* Dropbox (stockage sur le propre Dropbox de chaque utilisateur) :
+   « App key » de l'app créée sur dropbox.com/developers (accès « App folder »).
+   Tant que la valeur est vide, l'option Dropbox n'apparaît pas. */
+window.EPSONE_DROPBOX_APP_KEY = 'xhckig63xzdv984';
