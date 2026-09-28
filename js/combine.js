@@ -37,6 +37,14 @@ TOOL_IMPL.combine = function (el) {
   const resOf = (c, r) => { const d = courseDist(c, r), t = courseTime(c, r), L = essaisVals(r.lancers), S = essaisVals(r.sauts);
     return { d, t, v: t ? vit(d, t) : 0, lBest: L.length ? Math.max(...L) : 0, lSum: L.reduce((a, b) => a + b, 0), sBest: S.length ? Math.max(...S) : 0, sSum: S.reduce((a, b) => a + b, 0) }; };
   const lUnit = c => c.lMesure === 'distance' ? 'm' : c.lMesure === 'zones' ? 'zone' : 'pts';
+  const resTxt = (c, e, gName) => { const r = resOf(c, e);
+    return { valeur: c.cMode === 'distance' ? (r.t ? `${cmss(r.t)} au ${c.cDist} m (${n1(r.v)} km/h)` : 'course non terminée') : `${r.d} m en ${c.cDur} min (${n1(r.v)} km/h)`,
+      detail: [hasSaut(c) ? 'Triathlon' : 'Duathlon', gName, hasSaut(c) ? `saut ${r.sBest ? n1(r.sBest) + ' m' : '–'}` : '', `lancer ${r.lBest ? n1(r.lBest) + ' ' + lUnit(c) : '–'}`].filter(Boolean).join(' · ') }; };
+  // Affichage fusionné : les enregistrements des différentes tablettes (même jour, même classe, même épreuve) = UNE épreuve
+  const sig = s => { const c = s.cfg; return [new Date(s.date).toDateString(), s.classe, c.format, c.orga, c.cMode, c.cMode === 'distance' ? c.cDist : c.cDur, c.tour, c.plotOn ? c.plot : 0, c.lEssais, c.lMesure, c.lElan, hasSaut(c) ? c.sEssais + c.sElan : ''].join('|'); };
+  const merged = L => { const M = new Map();
+    L.forEach(s => { const k = sig(s), m = M.get(k) || M.set(k, { date: s.date, classe: s.classe, cfg: s.cfg, recs: [], groups: [] }).get(k); m.recs.push(s); m.groups.push(...s.groups); m.date = Math.min(m.date, s.date); });
+    return [...M.values()].map(m => (m.groups.sort((a, b) => a.name.localeCompare(b.name, 'fr', { numeric: true })), m)); };
 
   /* ================= 1. CONFIGURATION ================= */
   function config(box) {
@@ -111,8 +119,11 @@ TOOL_IMPL.combine = function (el) {
       // seuls les groupes / élèves ayant des résultats sont enregistrés (une tablette par groupe → pas de lignes vides)
       const done = S.groups.filter(g => g.eleves.some(hasData)); if (!done.length) return toast(grp ? 'Aucun groupe n\'a de résultat' : 'Aucun résultat saisi');
       if (S.only != null && dist && done.some(g => g.eleves.some(e => e.dep && !e.arr)) && !confirm('Tout le monde n\'est pas arrivé. Enregistrer quand même ?')) return;
-      const rec = { ...S, groups: done }; delete rec.only;
-      DB.combine.seances.push(rec); DB.combine.current = null; save(); clearInterval(iv); toast('Épreuve enregistrée ✔'); tab = 'bilan'; frame(); };
+      const rec = { ...S, id: S.id + '-' + Math.random().toString(36).slice(2, 6), groups: done }; delete rec.only;   // id unique par tablette (fusion de synchro par id)
+      DB.combine.seances.push(rec); DB.combine.current = null;
+      // synthèse « Résultats des élèves » : une ligne par élève ayant des résultats
+      done.forEach(g => g.eleves.filter(hasData).forEach(e => saveResult({ tool: 'combine', label: 'Combiné athlétique', classe: S.classe, eleve: e.nom, ...resTxt(c, e, grp ? g.name : '') })));
+      save(); clearInterval(iv); toast('Épreuve enregistrée ✔'); tab = 'bilan'; frame(); };
     // Vue « un seul groupe » : ce que voient les élèves sur leur tablette
     const drawGroup = () => {
       const gi = S.only, g = S.groups[gi], st = gStart(g), ck = gClock(g), on = !!st;
@@ -200,19 +211,23 @@ TOOL_IMPL.combine = function (el) {
     if (!L.length) { box.innerHTML = '<div class="card empty">Aucune épreuve enregistrée pour l\'instant.</div>'; return; }
     const classes = [...new Set(L.map(s => s.classe))]; let cls = classes.includes(DB.lastClass) ? DB.lastClass : classes[0];
     const draw = () => {
-      const ss = L.filter(s => s.classe === cls), A = {};
+      const ss = L.filter(s => s.classe === cls), M = merged(ss), A = {};
       ss.forEach(s => s.groups.forEach(g => g.eleves.forEach(e => { const r = resOf(s.cfg, e), a = A[e.nom] = A[e.nom] || { n: 0, d: 0, t: 0, s: 0, sb: 0, l: 0, lb: 0 };
         a.n++; a.d += r.d; a.t += r.t || 0; a.s += r.sSum; a.sb = Math.max(a.sb, r.sBest); a.l += r.lSum; a.lb = Math.max(a.lb, r.lBest); })));
       box.innerHTML = `<div class="card"><label style="margin-top:0">Classe</label><select id="bc">${classes.map(x => `<option ${x === cls ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select></div>
-        <div class="section-title"><h2>Cumuls par élève (${ss.length} épreuve${ss.length > 1 ? 's' : ''})</h2><button class="link" id="exp">Exporter CSV</button></div>
+        <div class="section-title"><h2>Cumuls par élève (${M.length} épreuve${M.length > 1 ? 's' : ''})</h2><button class="link" id="exp">Exporter CSV</button></div>
         <div class="card sheet-table"><table><tr><th>Élève</th><th>Épreuves</th><th>Course : distance</th><th>Course : temps</th><th>Vitesse moy.</th><th>Sauts : cumul</th><th>Meilleur saut</th><th>Lancers : cumul</th><th>Meilleur lancer</th></tr>
           ${Object.entries(A).sort((a, b) => a[0].localeCompare(b[0])).map(([n, a]) => `<tr><td><b>${esc(n)}</b></td><td>${a.n}</td><td>${a.d ? a.d + ' m' : '–'}</td><td>${cmss(a.t)}</td><td>${a.t && a.d ? n1(vit(a.d, a.t)) + ' km/h' : '–'}</td><td>${a.s ? n1(a.s) + ' m' : '–'}</td><td>${a.sb ? n1(a.sb) + ' m' : '–'}</td><td>${a.l ? n1(a.l) : '–'}</td><td>${a.lb ? n1(a.lb) : '–'}</td></tr>`).join('')}</table></div>
         <div class="section-title"><h2>Épreuves</h2></div>
-        <div class="card" style="padding:0">${ss.slice().reverse().map(s => { const i = L.indexOf(s);
-          return `<div class="list-item"><div style="flex:1"><b>${new Date(s.date).toLocaleDateString('fr-FR')} · ${s.cfg.format === 'triathlon' ? 'Triathlon' : 'Duathlon'}</b><div class="muted">${s.cfg.cMode === 'distance' ? s.cfg.cDist + ' m' : s.cfg.cDur + ' min'} · ${s.groups.length} ${s.cfg.orga === 'grp' ? 'groupes' : 'élèves'}</div></div><button class="btn btn-ghost" data-x="${i}">🗑</button></div>`; }).join('')}</div>`;
+        <div class="card" style="padding:0">${M.slice().reverse().map(m => { const c = m.cfg, grp = c.orga === 'grp', dist = c.cMode === 'distance', i = M.indexOf(m);
+          const R = m.groups.flatMap(g => g.eleves.map(e => ({ g, e, r: resOf(c, e) }))).sort((a, b) => (dist ? (a.r.t || 1e9) - (b.r.t || 1e9) : b.r.d - a.r.d) || (b.r.lBest - a.r.lBest));
+          return `<div class="list-item" style="flex-wrap:wrap"><div style="flex:1"><b>${new Date(m.date).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })} · ${esc(m.classe)} · ${m.groups.length} ${grp ? 'groupe' : 'élève'}${m.groups.length > 1 ? 's' : ''}${m.recs.length > 1 ? ` (${m.recs.length} tablettes)` : ''}</b><div class="muted">${hasSaut(c) ? 'Triathlon' : 'Duathlon'} · ${dist ? c.cDist + ' m' : c.cDur + ' min'}</div></div><button class="btn btn-ghost" data-x="${i}">🗑</button>
+            <details style="flex-basis:100%;margin-top:6px"><summary class="muted" style="cursor:pointer">Classement (${R.length} élève${R.length > 1 ? 's' : ''})</summary><div class="sheet-table" style="margin-top:6px"><table><tr><th>#</th><th>Élève</th>${grp ? '<th>Groupe</th>' : ''}<th>Course</th><th>Vitesse</th>${hasSaut(c) ? '<th>Meilleur saut</th>' : ''}<th>Meilleur lancer</th></tr>
+              ${R.map(({ g, e, r }, k) => `<tr><td>${k + 1}</td><td><b>${esc(e.nom)}</b></td>${grp ? `<td>${esc(g.name)}</td>` : ''}<td>${dist ? cmss(r.t) : r.d + ' m'}</td><td>${r.v ? n1(r.v) + ' km/h' : '–'}</td>${hasSaut(c) ? `<td>${r.sBest ? n1(r.sBest) + ' m' : '–'}</td>` : ''}<td>${r.lBest ? n1(r.lBest) + ' ' + lUnit(c) : '–'}</td></tr>`).join('')}</table></div></details></div>`; }).join('')}</div>`;
       const $ = s => box.querySelector(s);
       $('#bc').onchange = () => { cls = $('#bc').value; draw(); };
-      box.querySelectorAll('[data-x]').forEach(b => b.onclick = () => { if (confirm('Supprimer cette épreuve ?')) { L.splice(+b.dataset.x, 1); save(); bilan(box); } });
+      box.querySelectorAll('[data-x]').forEach(b => b.onclick = () => { const m = M[+b.dataset.x];
+        if (confirm(`Supprimer cette épreuve${m.recs.length > 1 ? ` (${m.recs.length} enregistrements de tablettes)` : ''} ?`)) { m.recs.forEach(r => { const k = L.indexOf(r); if (k >= 0) L.splice(k, 1); }); save(); bilan(box); } });
       $('#exp').onclick = () => download(`combine-athletique-${cls}.csv`, csv([['Date', 'Format', 'Groupe', 'Élève', 'Course (m)', 'Temps course', 'Vitesse (km/h)', 'Tours', 'Plots', 'Sauts', 'Meilleur saut', 'Cumul sauts', 'Lancers', 'Meilleur lancer', 'Cumul lancers'],
         ...ss.flatMap(s => s.groups.flatMap(g => g.eleves.map(e => { const r = resOf(s.cfg, e);
           return [new Date(s.date).toLocaleDateString('fr-FR'), s.cfg.format, s.cfg.orga === 'grp' ? g.name : '', e.nom, r.d, cmss(r.t), r.v ? n1(r.v) : '', e.tours, e.plots, e.sauts.join(' / '), r.sBest ? n1(r.sBest) : '', r.sSum ? n1(r.sSum) : '', e.lancers.join(' / '), r.lBest ? n1(r.lBest) : '', r.lSum ? n1(r.lSum) : '']; })))]));

@@ -222,7 +222,7 @@ TOOL_IMPL.co = function (el) {
       if (!tab1 && cur.runs.some(r => r.dep && !r.arr) && !confirm('Certains élèves ne sont pas arrivés. Enregistrer quand même ?')) return;
       // tablette d'une équipe : seule SA course est enregistrée (pas de lignes vides pour les autres)
       const rec = { ...cur, runs: tab1 ? [tab1] : cur.runs, parcoursSnap: JSON.parse(JSON.stringify(p)) }; delete rec.only;
-      DB.co.seances.push(rec); DB.co.current = null; save(); toast('Séance enregistrée ✔'); tabs(true); tab = 'bilan'; frame(); };
+      DB.co.seances.push(rec); DB.co.current = null; save(); coResults(rec); toast('Séance enregistrée ✔'); tabs(true); tab = 'bilan'; frame(); };
     const draw = () => {
       if (cur.only != null && cur.runs[cur.only]) return drawGroup();
       tabs(true);
@@ -273,6 +273,29 @@ TOOL_IMPL.co = function (el) {
     return `<div class="card sheet-table"><table><tr><th>#</th><th>Nom</th><th>Pts</th><th>Temps</th><th>+ Pén.</th><th>Total</th><th>RK</th>${p.denivOn ? '<th>RK effort</th>' : ''}<th>Vitesse</th></tr>
       ${done.map(({ r, x }, i) => `<tr><td>${i + 1}</td><td><b>${esc(r.name)}</b></td><td><b>${x.score}</b></td><td>${hms(x.temps)}</td><td>${x.penS ? '+' + hms(x.penS) : '–'}</td><td><b>${hms(x.total)}</b></td><td>${x.rk}</td>${p.denivOn ? `<td>${x.rkE}</td>` : ''}<td>${x.vit}</td></tr>`).join('')}</table>
       <p class="muted" style="font-size:.75rem;margin:6px 0 0">Classement : points (balises − pénalités), puis temps total (temps réalisé + pénalités). RK = rythme au kilomètre${p.denivOn ? ' ; RK effort = avec 100 m de D+ comptés comme 1 km' : ''}.</p></div>`;
+  }
+
+  /* Synthèse « Résultats des élèves » : une ligne par élève (de la classe) de chaque course enregistrée */
+  function coResults(s) {
+    const p = s.parcoursSnap, cls = s.classe || '', st = cls ? studentsOf(cls) : [];
+    if (!st.length || typeof saveResult !== 'function') return;
+    s.runs.filter(r => r.dep).forEach(r => { const x = result(r, p), grp = r.members.length > 1 || r.name !== r.members[0];
+      const valeur = `${x.score} pts${x.total != null ? ' · ' + hms(x.total) : ''}`;
+      const detail = [p.nom + (grp ? ` (${r.name})` : ''), `${r.found.length}/${p.balises.length} balises`, x.penS || x.penP ? `pén. ${[x.penS ? '+' + hms(x.penS) : '', x.penP ? '−' + x.penP + ' pt' : ''].filter(Boolean).join(' ')}` : '', r.arr ? x.statut : 'non arrivé'].filter(Boolean).join(' · ');
+      r.members.filter(m => st.includes(m)).forEach(m => saveResult({ tool: 'co', label: 'Course d\'orientation', classe: cls, eleve: m, valeur, detail })); });
+  }
+
+  /* Fusion d'affichage : séances enregistrées sur plusieurs tablettes (même jour + classe + parcours) = une seule séance.
+     Les enregistrements restent séparés dans DB.co.seances (sync par id sans risque). */
+  const dayKey = t => { const d = new Date(t); return d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate(); };
+  function coGroups(ss) {
+    const G = new Map();
+    ss.forEach(s => { const k = dayKey(s.date) + '|' + (s.classe || '') + '|' + (s.parcours || s.parcoursSnap.nom);
+      if (!G.has(k)) G.set(k, { recs: [], date: s.date }); const g = G.get(k); g.recs.push(s); g.date = Math.max(g.date, s.date); });
+    return [...G.values()].map(g => { const by = new Map(), rank = r => r.arr ? 2 : r.dep ? 1 : 0;
+      // une même équipe enregistrée par 2 tablettes (ex. tablette d'équipe + tablette enseignant) : on garde la plus complète
+      g.recs.forEach(s => s.runs.forEach(r => { const k = r.name + '|' + r.members.join(','), o = by.get(k); if (!o || rank(r) > rank(o.r)) by.set(k, { r, p: s.parcoursSnap }); }));
+      g.p = g.recs.reduce((a, s) => s.date >= a.date ? s : a).parcoursSnap; g.runs = [...by.values()]; return g; }).sort((a, b) => b.date - a.date);
   }
 
   function prepare(box) {
@@ -352,25 +375,27 @@ TOOL_IMPL.co = function (el) {
     const classes = [...new Set(S.map(s => s.classe || '—'))];
     let cls = classes[0];
     const draw = () => {
-      const ss = S.filter(s => (s.classe || '—') === cls);
+      const ss = S.filter(s => (s.classe || '—') === cls), gs = coGroups(ss);
       const agg = {};
-      ss.forEach(s => s.runs.forEach(r => { const x = result(r, s.parcoursSnap);
+      gs.forEach(g => g.runs.forEach(({ r, p: q }) => { const x = result(r, q);
         r.members.forEach(m => { const a = agg[m] = agg[m] || { n: 0, km: 0, t: 0, pts: 0, bal: 0 };
           if (!r.dep) return; a.n++; a.pts += x.score; a.bal += r.found.length; if (x.temps != null) { a.km += x.km; a.t += x.temps; } }); }));
       const rows = Object.entries(agg).sort((a, b) => a[0].localeCompare(b[0]));
       box.innerHTML = `<div class="card"><label>Classe</label><select id="bc">${classes.map(c => `<option ${c === cls ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select></div>
-        <div class="section-title"><h2>Cumul des séances (${ss.length})</h2><button class="link" id="exp">Exporter CSV</button></div>
+        <div class="section-title"><h2>Cumul des séances (${gs.length})</h2><button class="link" id="exp">Exporter CSV</button></div>
         <div class="card sheet-table"><table><tr><th>Élève</th><th>Séances</th><th>Distance</th><th>Temps</th><th>RK moyen</th><th>Balises</th><th>Points</th></tr>
           ${rows.map(([n, a]) => `<tr><td><b>${esc(n)}</b></td><td>${a.n}</td><td>${a.km.toFixed(2).replace('.', ',')} km</td><td>${hms(a.t)}</td><td>${mpk(a.t, a.km)}</td><td>${a.bal}</td><td><b>${a.pts}</b></td></tr>`).join('')}</table></div>
         <div class="section-title"><h2>Séances</h2></div>
-        <div class="card" style="padding:0">${ss.slice().reverse().map(s => { const i = S.indexOf(s), p = s.parcoursSnap, fin = s.runs.filter(r => r.arr).length;
-          return `<div class="list-item"><div style="flex:1"><b>${new Date(s.date).toLocaleDateString('fr-FR')} · ${esc(p.nom)}</b><div class="muted">${CO_TYPES[p.type][0]} · ${s.runs.length} ${s.runs[0]?.members.length > 1 ? 'groupes' : 'élèves'} · ${fin} arrivés</div></div><button class="btn btn-ghost" data-v="${i}">👁</button><button class="btn btn-ghost" data-x="${i}">🗑</button></div>`; }).join('')}</div>
+        <div class="card" style="padding:0">${gs.map((g, gi) => { const p = g.p, fin = g.runs.filter(({ r }) => r.arr).length, grp = g.runs.some(({ r }) => r.members.length > 1), n = g.runs.length;
+          return `<div class="list-item"><div style="flex:1"><b>${new Date(g.date).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })} · ${esc(p.nom)}${cls !== '—' ? ' · ' + esc(cls) : ''} · ${n} ${grp ? 'équipe' : 'élève'}${n > 1 ? 's' : ''}${g.recs.length > 1 ? ` (${g.recs.length} tablettes)` : ''}</b><div class="muted">${CO_TYPES[p.type][0]} · ${fin} arrivé${fin > 1 ? 's' : ''}</div></div><button class="btn btn-ghost" data-v="${gi}">👁</button><button class="btn btn-ghost" data-x="${gi}">🗑</button></div>`; }).join('')}</div>
         <div id="det"></div>`;
       const $ = s => box.querySelector(s);
       $('#bc').onchange = () => { cls = $('#bc').value; draw(); };
-      box.querySelectorAll('[data-x]').forEach(b => b.onclick = () => { if (confirm('Supprimer cette séance ?')) { S.splice(+b.dataset.x, 1); save(); bilan(box); } });
-      box.querySelectorAll('[data-v]').forEach(b => b.onclick = () => { const s = S[+b.dataset.v], p = s.parcoursSnap;
-        $('#det').innerHTML = `<div class="section-title"><h2>${new Date(s.date).toLocaleDateString('fr-FR')} — ${esc(p.nom)}</h2></div>${ranking(s.runs.map(r => ({ r, x: result(r, p) })), p)}`; $('#det').scrollIntoView({ behavior: 'smooth' }); });
+      box.querySelectorAll('[data-x]').forEach(b => b.onclick = () => { const g = gs[+b.dataset.x];
+        if (!confirm(g.recs.length > 1 ? `Supprimer cette séance ? (${g.recs.length} enregistrements de tablettes seront supprimés)` : 'Supprimer cette séance ?')) return;
+        g.recs.forEach(s => { const i = S.indexOf(s); if (i >= 0) S.splice(i, 1); }); save(); bilan(box); });
+      box.querySelectorAll('[data-v]').forEach(b => b.onclick = () => { const g = gs[+b.dataset.v], p = g.p;
+        $('#det').innerHTML = `<div class="section-title"><h2>${new Date(g.date).toLocaleDateString('fr-FR')} — ${esc(p.nom)}${g.recs.length > 1 ? ` <small class="muted">(${g.recs.length} tablettes)</small>` : ''}</h2></div>${ranking(g.runs.map(({ r, p: q }) => ({ r, x: result(r, q) })), p)}`; $('#det').scrollIntoView({ behavior: 'smooth' }); });
       $('#exp').onclick = () => download(`course-orientation-${cls}.csv`, csv([
         ['Date', 'Parcours', 'Type', 'Participant', 'Membres', 'Départ', 'Arrivée', 'Temps réalisé', 'Balises trouvées', 'Mauvaises balises', 'Oblig. manquantes', 'Points', 'Pénalités temps', 'Temps total', 'Distance (km)', 'RK', 'Vitesse', 'Statut'],
         ...ss.flatMap(s => s.runs.map(r => { const p = s.parcoursSnap, x = result(r, p);

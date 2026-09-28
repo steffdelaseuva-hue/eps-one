@@ -76,8 +76,13 @@ TOOL_IMPL.duathlon = function (el) {
       // seuls les groupes ayant des résultats sont enregistrés (une tablette par groupe → pas de lignes vides)
       const done = C.groups.filter(hasData); if (!done.length) return toast('Aucun groupe n\'a de résultat');
       if (C.only != null && done.some(g => g.etapes.some(E => E.dep && !E.arr)) && !confirm('Une étape n\'est pas terminée (pas d\'arrivée). Enregistrer quand même ?')) return;
-      const rec = { ...C, groups: done }; delete rec.only;
-      D.seances.push(rec); D.current = null; save(); clearInterval(iv); toast('Duathlon enregistré ✔'); tab = 'resultats'; frame(); };
+      const rec = { ...C, id: C.id + '-' + Math.random().toString(36).slice(2, 6), groups: done }; delete rec.only;   // id unique par tablette (fusion de synchro par id)
+      D.seances.push(rec); D.current = null;
+      // synthèse « Résultats des élèves » : une ligne par élève des groupes enregistrés
+      done.forEach(g => { const T = totalOf(c, g); g.members.forEach(n => { const P = [0, 1, 2].reduce((a, e) => { const m = g.etapes[e].m[n] || {}; a.pts += m.pts || 0; a.tours += m.tours || 0; return a; }, { pts: 0, tours: 0 });
+        saveResult({ tool: 'duathlon', label: 'Duathlon athlétique', classe: C.classe, eleve: n, valeur: T.temps != null ? `${dmss(T.temps)} (temps groupe)` : `${dmss(T.partiel)} (${T.done}/3 étapes)`,
+          detail: `${g.name} · groupe ${T.pts} pts · ${T.tours} tours · perso ${P.pts} pts · ${P.tours} tours${T.boucles ? ` · ${T.boucles} boucle(s)` : ''}${T.penS ? ` · +${T.penS} s` : ''}` }); }); });
+      save(); clearInterval(iv); toast('Duathlon enregistré ✔'); tab = 'resultats'; frame(); };
     const etT = E => E.dep ? ((E.arr || Date.now()) - E.dep) / 1000 : 0;
     // Vue « un seul groupe » : ce que voient les élèves sur leur tablette
     const drawGroup = () => {
@@ -156,13 +161,20 @@ TOOL_IMPL.duathlon = function (el) {
   }
 
   /* ---- Résultats enregistrés ---- */
+  // Affichage fusionné : les enregistrements des différentes tablettes (même jour, même classe, mêmes réglages) = UNE épreuve
+  const merged = S => { const M = new Map();
+    S.forEach(C => { const k = [new Date(C.date).toDateString(), C.classe, JSON.stringify(C.cfg)].join('|'), m = M.get(k) || M.set(k, { date: C.date, classe: C.classe, cfg: C.cfg, noms: [], recs: [], groups: [] }).get(k);
+      m.recs.push(C); m.groups.push(...C.groups); m.date = Math.min(m.date, C.date); if (!m.noms.includes(C.nom)) m.noms.push(C.nom); });
+    return [...M.values()].map(m => (m.groups.sort((a, b) => a.name.localeCompare(b.name, 'fr', { numeric: true })), m)); };
   function results(box) {
     const S = D.seances;
     if (!S.length) { box.innerHTML = '<div class="card empty">Aucun duathlon enregistré pour l\'instant.</div>'; return; }
-    box.innerHTML = `<div class="section-title" style="margin-top:0"><h2>Épreuves (${S.length})</h2><button class="link" id="exp">Exporter CSV</button></div>
-      ${S.slice().reverse().map(C => { const i = S.indexOf(C);
-        return `<div style="margin-top:12px"><div style="display:flex;justify-content:space-between;align-items:center"><div><b>${esc(C.nom)}</b><div class="muted">${new Date(C.date).toLocaleDateString('fr-FR')} · ${esc(C.classe)}</div></div><button class="btn btn-ghost" data-x="${i}">🗑</button></div>${table(C)}</div>`; }).join('')}`;
-    box.querySelectorAll('[data-x]').forEach(b => b.onclick = () => { if (confirm('Supprimer cette épreuve ?')) { S.splice(+b.dataset.x, 1); save(); results(box); } });
+    const M = merged(S);
+    box.innerHTML = `<div class="section-title" style="margin-top:0"><h2>Épreuves (${M.length})</h2><button class="link" id="exp">Exporter CSV</button></div>
+      ${M.slice().reverse().map(m => { const i = M.indexOf(m);
+        return `<div style="margin-top:12px"><div style="display:flex;justify-content:space-between;align-items:center"><div><b>${new Date(m.date).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })} · ${esc(m.classe)} · ${m.groups.length} groupe${m.groups.length > 1 ? 's' : ''}${m.recs.length > 1 ? ` (${m.recs.length} tablettes)` : ''}</b><div class="muted">${m.noms.map(esc).join(' / ')}</div></div><button class="btn btn-ghost" data-x="${i}">🗑</button></div>${table(m)}</div>`; }).join('')}`;
+    box.querySelectorAll('[data-x]').forEach(b => b.onclick = () => { const m = M[+b.dataset.x];
+      if (confirm(`Supprimer cette épreuve${m.recs.length > 1 ? ` (${m.recs.length} enregistrements de tablettes)` : ''} ?`)) { m.recs.forEach(r => { const k = S.indexOf(r); if (k >= 0) S.splice(k, 1); }); save(); results(box); } });
     box.querySelector('#exp').onclick = () => download(`duathlon-${new Date().toISOString().slice(0, 10)}.csv`, csv([
       ['Épreuve', 'Date', 'Classe', 'Groupe', 'Élève', 'Étape', 'Points lancers', 'Tours', 'Lancers non valides', 'Boucles de pénalité', 'Pénalités course', 'Temps étape (groupe)', 'Temps cumulé (groupe)'],
       ...S.flatMap(C => C.groups.flatMap(g => { const T = totalOf(C.cfg, g);

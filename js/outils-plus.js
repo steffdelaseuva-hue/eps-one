@@ -10,6 +10,7 @@ DB.journal   = DB.journal   || [];
 DB.grilles   = DB.grilles   || [];
 DB.suivi     = DB.suivi     || {};
 DB.debrief   = DB.debrief   || [];
+DB.relais    = DB.relais    || { courses: [] }; // courses de relais enregistrées (synchronisées ; la course en cours reste en mémoire)
 
 /* ---------- Styles propres à ces outils ---------- */
 document.head.insertAdjacentHTML('beforeend', `<style>
@@ -361,8 +362,11 @@ pyramide(el) {
 
 /* ---------- Relais ---------- */
 relais(el) {
-  // course gardée en mémoire ; l'équipe suivie par la tablette est propre à l'appareil (DB.tablette, jamais synchronisé)
-  let teams = [], t0 = null, raf = null;
+  // course en cours gardée en mémoire ; l'équipe suivie par la tablette est propre à l'appareil (DB.tablette, jamais synchronisé)
+  // seules les courses enregistrées vont dans DB.relais.courses (synchronisé, fusion par id)
+  if (!DB.relais || !Array.isArray(DB.relais.courses)) DB.relais = { courses: [] };
+  let teams = [], t0 = null, raf = null, cls = '', fromCls = false, saved = {}, resDone = new Set();
+  const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
   const TB = () => (DB.tablette = DB.tablette || {}), onlyT = () => { const n = TB().relais; return n != null ? teams.find(t => t.name === n) : null; };
   const setOnly = n => { TB().relais = n; save(); };
   if (!document.getElementById('gv-ath')) document.head.insertAdjacentHTML('beforeend', `<style id="gv-ath">
@@ -378,15 +382,56 @@ relais(el) {
     <div class="row"><div><label>Relayeurs / fractions par équipe</label><input id="lg" type="number" value="4" min="1" max="20"></div><div><label>Distance d'une fraction (m, optionnel)</label><input id="ds" type="number" placeholder="ex : 100"></div></div>
     <button class="btn btn-grad btn-block" style="margin-top:12px" id="gen">🔄 Préparer la course</button></div>
     <div id="race" style="display:none">
-      <div class="card"><div class="big clock" id="tm">00:00,00</div><div class="row"><button class="btn btn-grad" id="go">🔫 Départ</button><button class="btn btn-ghost" id="exp">📤 Résultats</button><button class="btn btn-ghost" id="new">↺ Nouvelle</button></div><div id="onw"></div></div>
+      <div class="card"><div class="big clock" id="tm">00:00,00</div><div class="row"><button class="btn btn-grad" id="go">🔫 Départ</button><button class="btn btn-ghost" id="exp">📤 Résultats</button><button class="btn btn-ghost" id="new">↺ Nouvelle</button></div>
+        <button class="btn btn-ghost btn-block" style="margin-top:8px" id="sv">💾 Enregistrer la course</button><div id="onw"></div></div>
       <div class="relay-grid" id="rg"></div></div>
-    <div id="gv" style="display:none"></div>`;
+    <div id="gv" style="display:none"></div>
+    <div id="hist"></div>`;
   const $ = s => el.querySelector(s); let legs = 4, dist = 0;
   const finished = () => teams.filter(t => t.splits.length === legs).sort((a, b) => a.total - b.total);
   const pass = t => { const now = performance.now() - t0, prev = t.splits.reduce((a, c) => a + c, 0);
     if (now - prev < 300) return; t.splits.push(now - prev); if (t.splits.length === legs) { t.total = now; beep(1200, .3); } else beep(900, .08); draw(); };
   const exportCsv = list => { const fin = finished(); download(`relais-${today()}.csv`, csv([['Rang', 'Équipe', 'Temps', ...Array.from({ length: legs }, (_, k) => 'Relais ' + (k + 1))],
     ...list.map(t => [fin.indexOf(t) + 1 || '', t.name, t.total ? fmt(t.total) : '', ...t.splits.map(s => fmt(s))])])); };
+  // Enregistrement : toute la course (vue enseignant) ou la seule équipe de la tablette
+  const rkTxt = r => r === 1 ? '1er' : r + 'e';
+  const legsOf = (t, k) => { const M = (t.members || []).length; return M && t.legs.length && legs % M === 0 ? t.legs.filter((s, j) => j % M === k).map(s => fmt(s)).join(' + ') : ''; };
+  const saveCourse = only => {
+    if (!t0) return toast('Donnez d\'abord le départ');
+    const list = only ? [only] : teams, fin = finished(), key = only ? 'T:' + only.name : '*';
+    const rec = { id: saved[key] || uid(), date: today(), at: Date.now(), classe: cls, legs, dist: dist || 0,
+      teams: list.map(t => ({ name: t.name, members: t.members || [], total: t.splits.length === legs ? Math.round(t.total) : 0, legs: t.splits.map(s => Math.round(s)) })) };
+    const C = DB.relais.courses, i = C.findIndex(x => x.id === rec.id); if (i >= 0) C[i] = rec; else C.push(rec); saved[key] = rec.id;
+    let n = 0;
+    if (cls) rec.teams.forEach(t => { if (!t.total || resDone.has(t.name)) return; resDone.add(t.name);
+      const rk = only ? 0 : fin.findIndex(x => x.name === t.name) + 1;
+      t.members.forEach((m, k) => { const lg = legsOf(t, k);
+        saveResult({ tool: 'relais', label: 'Relais', classe: cls, eleve: m, valeur: fmt(t.total), detail: [t.name, rk ? `rang ${rkTxt(rk)} / ${teams.length}` : '', lg ? `son relais : ${lg}` : ''].filter(Boolean).join(' · ') }); n++; }); });
+    if (!n) { save(); window.syncFlush && window.syncFlush(); }
+    beep(1000, .1); toast(`Course enregistrée ✔${n ? ` · ${n} résultat(s) élève` : ''}`); draw();
+  };
+  // Historique : courses du même jour, même classe, même nombre de relais = une seule course (affichage seulement)
+  const groupsOf = () => { const G = [];
+    DB.relais.courses.slice().sort((a, b) => (a.at || 0) - (b.at || 0)).forEach(c => { const g = c.classe && G.find(x => x.classe === c.classe && x.date === c.date && x.legs === c.legs);
+      if (g) g.recs.push(c); else G.push({ date: c.date, classe: c.classe, legs: c.legs, recs: [c] }); });
+    G.forEach(g => { const M = new Map(); g.recs.forEach(r => (r.teams || []).forEach(t => M.set(t.name, t))); // même équipe enregistrée 2 fois : la plus récente
+      g.dist = (g.recs.find(r => r.dist) || {}).dist || 0; g.teams = [...M.values()].sort((a, b) => (a.total || Infinity) - (b.total || Infinity) || b.legs.length - a.legs.length); });
+    return G.sort((a, b) => b.recs[b.recs.length - 1].at - a.recs[a.recs.length - 1].at); };
+  const groupCsv = g => download(`relais-${g.date}${g.classe ? '-' + g.classe.replace(/[^\w-]+/g, '_') : ''}.csv`, csv([['Rang', 'Équipe', 'Temps', 'Élèves', ...Array.from({ length: g.legs }, (_, k) => 'Relais ' + (k + 1))],
+    ...g.teams.map((t, i) => [t.total ? i + 1 : '', t.name, t.total ? fmt(t.total) : '', (t.members || []).join(', '), ...t.legs.map(s => fmt(s))])]));
+  const drawHist = () => { const G = groupsOf(), h = $('#hist');
+    h.innerHTML = G.length ? `<div class="section-title"><h2>Courses enregistrées</h2></div>` + G.map((g, gi) => `<div class="card" style="margin-top:10px">
+      <div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start"><div><b>${frDate(g.date)}${g.classe ? ' · ' + esc(g.classe) : ''}</b>
+        <div class="muted" style="font-size:.8rem">${g.legs} relais${g.dist ? ` × ${g.dist} m` : ''} · ${g.teams.length} équipe(s)${g.recs.length > 1 ? ` · ${g.recs.length} enregistrements fusionnés` : ''}</div></div>
+        <div style="display:flex;gap:6px;flex:0 0 auto"><button class="btn btn-ghost" style="padding:7px 10px" data-hx="${gi}">📤</button><button class="btn btn-ghost" style="padding:7px 10px" data-hd="${gi}">🗑</button></div></div>
+      ${g.teams.map((t, i) => `<div style="display:flex;justify-content:space-between;gap:8px;padding:7px 0;border-top:1px solid var(--line)"><div><b>${t.total ? (i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : i + 1 + 'e') + ' ' : ''}${esc(t.name)}</b>${(t.members || []).length ? `<div class="muted" style="font-size:.78rem">${esc(t.members.join(', '))}</div>` : ''}</div>
+        <span style="font-weight:800;font-variant-numeric:tabular-nums;white-space:nowrap">${t.total ? fmt(t.total) : `<span class="muted">${t.legs.length}/${g.legs} relais</span>`}</span></div>`).join('')}</div>`).join('') : '';
+    h.querySelectorAll('[data-hx]').forEach(b => b.onclick = () => groupCsv(G[b.dataset.hx]));
+    h.querySelectorAll('[data-hd]').forEach(b => b.onclick = () => { const g = G[b.dataset.hd], ids = new Set(g.recs.map(r => r.id));
+      if (!confirm(`Supprimer la course du ${frDate(g.date)}${g.classe ? ' (' + g.classe + ')' : ''} ?`)) return;
+      DB.relais.courses = DB.relais.courses.filter(r => !ids.has(r.id)); Object.keys(saved).forEach(k => ids.has(saved[k]) && delete saved[k]);
+      save(); window.syncFlush && window.syncFlush(); drawHist(); });
+  };
   // Vue « une seule équipe » : ce que voient les élèves sur leur tablette
   const drawTeam = t => {
     const done = t.splits.length === legs, n = t.splits.length;
@@ -398,17 +443,19 @@ relais(el) {
         ${done ? '<div style="margin-top:8px;font-weight:800">✅ Course terminée</div>' : ''}</div>
       ${n ? `<div class="card" style="margin-top:10px">${t.splits.map((s, k) => `<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--line);font-size:1.1rem"><b>Relayeur ${k + 1}</b><span style="font-weight:800;font-variant-numeric:tabular-nums">${fmt(s)}${dist ? ` <span class="muted" style="font-size:.85rem">(${(dist / (s / 1000) * 3.6).toFixed(1)} km/h)</span>` : ''}</span></div>`).join('')}</div>` : ''}
       ${n ? '<button class="btn btn-grad btn-block" style="margin-top:12px" id="gv-exp">📤 Résultats de l\'équipe</button>' : ''}
+      ${t0 ? `<button class="btn btn-ghost btn-block" style="margin-top:8px" id="gv-sv">💾 ${saved['T:' + t.name] ? 'Enregistrer à nouveau' : 'Enregistrer la course'}</button>` : ''}
       <div style="text-align:center;margin:18px 0 6px"><button class="link" id="gv-prof">🔒 Mode enseignant</button></div>`;
     if ($('#gv-go')) $('#gv-go').onclick = () => { if (t0) return; t0 = performance.now(); beep(1500, .35); draw(); };
     if ($('#gv-pass')) $('#gv-pass').onclick = () => pass(t);
     if ($('#gv-exp')) $('#gv-exp').onclick = () => exportCsv([t]);
+    if ($('#gv-sv')) $('#gv-sv').onclick = () => saveCourse(t);
     $('#gv-prof').onclick = () => { if (!confirm('Passer en mode enseignant (toutes les équipes, réglages) ?')) return; setOnly(null); draw(); };
   };
   const draw = () => {
     const ot = onlyT(); $('#race').style.display = ot ? 'none' : 'block'; $('#gv').style.display = ot ? 'block' : 'none';
     [...el.children].forEach(c => { if (!['setup', 'race', 'gv'].includes(c.id)) c.style.display = ot ? 'none' : ''; }); // carte « Composer les équipes » masquée aux élèves
     if (ot) return drawTeam(ot);
-    $('#gv').innerHTML = '';
+    $('#gv').innerHTML = ''; drawHist(); $('#sv').textContent = saved['*'] ? '💾 Enregistrer à nouveau' : '💾 Enregistrer la course';
     $('#onw').innerHTML = teams.length > 1 ? `<label>📱 Tablette d'une équipe (les élèves ne verront que leur équipe)</label><select id="only"><option value="">Toutes les équipes</option>${teams.map((t, i) => `<option value="${i}">${esc(t.name)}</option>`).join('')}</select>` : '';
     if ($('#only')) $('#only').onchange = ev => { if (ev.target.value === '') return; setOnly(teams[+ev.target.value].name); draw(); };
     const fin = finished();
@@ -423,11 +470,18 @@ relais(el) {
     teams.forEach((t, i) => { if (t.splits.length < legs) { const d = $(`[data-t="${i}"]`); if (d) d.textContent = fmt(now); } });
     const ot = onlyT(), g = $('#gvt'); if (ot && g && ot.splits.length < legs) g.textContent = fmt(now); };
   $('#gen').onclick = () => { const n = namesFrom('tl'); if (!n.length) return toast('Ajoutez des équipes'); legs = Math.max(1, +$('#lg').value || 1); dist = +$('#ds').value || 0;
-    teams = n.map(name => ({ name, splits: [], total: 0 })); t0 = null; setOnly(null); $('#setup').style.display = 'none'; $('#race').style.display = 'block'; $('#tm').textContent = '00:00,00'; draw(); };
+    // équipes issues du module « Composer les équipes » : on retrouve la classe et les élèves de chaque équipe
+    const c = fromCls ? (el.querySelector('#crelais-cls') || {}).value || '' : '', P = c && (DB.prepGroups || {})['crelais|' + c];
+    teams = n.map(name => { const g = P && P.teams.find(x => x.name === name); return { name, splits: [], total: 0, members: g ? g.members.map(m => m.n) : [] }; });
+    cls = teams.some(t => t.members.length) ? c : ''; saved = {}; resDone = new Set(); t0 = null; setOnly(null); $('#setup').style.display = 'none'; $('#race').style.display = 'block'; $('#tm').textContent = '00:00,00'; draw(); };
   $('#go').onclick = () => { if (t0) return; t0 = performance.now(); beep(1500, .35); draw(); };
   $('#new').onclick = () => { if (!t0 || confirm('Abandonner cette course ?')) { t0 = null; $('#setup').style.display = 'block'; $('#race').style.display = 'none'; } };
   $('#exp').onclick = () => exportCsv(teams);
-  tick(); return () => cancelAnimationFrame(raf);
+  $('#sv').onclick = () => saveCourse(null);
+  // la carte « Composer les équipes » (ajoutée par niveaux.js) remplit #tl : on note que les équipes viennent d'une classe
+  el.addEventListener('click', ev => { if (ev.target.closest('#crelais-go,#crelais-use')) fromCls = true; });
+  $('#tl').addEventListener('input', () => { fromCls = false; });
+  drawHist(); tick(); return () => cancelAnimationFrame(raf);
 },
 
 /* ---------- Journal de musculation ---------- */

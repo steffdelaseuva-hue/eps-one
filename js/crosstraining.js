@@ -5,11 +5,35 @@
    Résultats
    ========================================================= */
 DB.wod = DB.wod || { epreuves: [], seances: [], current: null };
+// Migration « passeport » : noms, niveaux des exercices déjà utilisés ; exercices ajoutés qui existent maintenant dans le passeport
+function wodMigrate() {
+  const W = DB.wod; if (W.passeport >= 2) return;
+  if (W.passeport === 1) { // v8.3 : niveaux ajoutés pour Squats (N1) et Gainage latéral (N3)
+    (W.epreuves || []).forEach(e => (e.blocs || []).forEach(b => (b.ex || []).forEach(x => { const m = exMeta(x.nom); if (m && ['Squats', 'Gainage latéral'].includes(m.nom)) x.niv = m.n; })));
+    W.passeport = 2; save(); return; }
+  (W.epreuves || []).forEach(e => (e.blocs || []).forEach(b => (b.ex || []).forEach(x => { const m = exMeta(x.nom); if (m && m.cat) { x.nom = m.nom; if (m.n) x.niv = m.n; } })));
+  W.customEx = (W.customEx || []).filter(c => !(exMeta(c) || {}).cat);
+  W.passeport = 2; save();
+}
 ICONS.wod = '<path d="M6.5 7v10M17.5 7v10M3.5 9.5v5M20.5 9.5v5M6.5 12h11"/><path d="M12 3.5l1.2 2.4 2.6.4-1.9 1.8.5 2.6L12 9.5l-2.4 1.2.5-2.6-1.9-1.8 2.6-.4z" stroke-width="1.4"/>';
 
 const WOD_FAM = ['Bas du corps — Explosivité', 'Haut du corps — Force', 'Cardio — Global', 'Résistance — Abdominaux / gainage'];
-const WOD_EX = ['Air squats', 'Fentes (lunges)', 'Box step', 'Box jump', 'Pompes adaptées', 'Pompes', 'Dips adaptés', 'Dips', 'Jumping jacks',
-  'Corde à sauter', 'Squats', 'Squats sautés', 'Burpees', 'Mountain climbers', 'Gainage planche', 'Gainage latéral', 'Levés de jambes axiaux', 'Levés de jambes latéraux'];
+// Passeport technique : exercices classés par famille et niveau [nom, famille (0-3), niveau (1-4 ou null), anciens noms]
+const WOD_CAT = [
+  ['Air squats', 0, 1], ['Fentes', 0, 2, ['Fentes (lunges)']], ['Squats ball', 0, 2], ['Box step up', 0, 3, ['Box step']], ['Squats sautés', 0, 4], ['Squats', 0, 1],
+  ['Pompes sur box', 1, 1, ['Pompes adaptées', 'Pompes box']], ['Pompes classiques', 1, 2, ['Pompes']], ['Dips avec pauses', 1, 3, ['Dips adaptés']], ['Développé haltères', 1, 3], ['Rowing kettlebell', 1, 3], ['Dips', 1, 4],
+  ['Jumping jacks', 2, 1], ['Corde à sauter', 2, 2], ['Farmer carry', 2, 2], ['Box jump', 2, 3], ['Wall ball', 2, 3], ['Burpees', 2, 4],
+  ['Mountain climbers', 3, 1], ['Gainage coudes', 3, 2, ['Gainage planche']], ['Levés de jambes (axe)', 3, 3, ['Levés de jambes axiaux']], ['Levés de jambes (côté)', 3, 4, ['Levés de jambes latéraux']], ['Gainage latéral', 3, 3],
+];
+const WOD_EX = WOD_CAT.map(x => x[0]);
+const WOD_COL = ['#1FA2E8', '#E53935', '#F4B400', '#43A047'];
+const exNorm = t => (t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, ' ').trim().split(' ').map(w => w.replace(/(s|x)$/, '')).join(' ');
+// famille / niveau d'un exercice : passeport, sinon réglage de l'enseignant (DB.wod.exMeta)
+function exMeta(nom) {
+  const k = exNorm(nom), c = WOD_CAT.find(x => exNorm(x[0]) === k || (x[3] || []).some(a => exNorm(a) === k));
+  if (c) return { nom: c[0], f: c[1], n: c[2], cat: true };
+  const m = (DB.wod.exMeta || {})[k]; return m ? { nom, f: m.f, n: m.n } : null;
+}
 const RUN_T = { tours: 'tours', m: 'mètres', ar: 'allers-retours' };
 const wid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
 const mmss = s => { if (s == null || isNaN(s)) return '–'; const neg = s < 0; s = Math.abs(Math.round(s)); return (neg ? '−' : '') + Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
@@ -38,6 +62,7 @@ document.head.insertAdjacentHTML('beforeend', `<style>
 </style>`);
 
 TOOL_IMPL.wod = function (el) {
+  wodMigrate();
   let tab = DB.wod.current ? 'seance' : 'epreuves';
   const E = id => DB.wod.epreuves.find(e => e.id === id);
   function frame() {
@@ -56,14 +81,21 @@ TOOL_IMPL.wod = function (el) {
     box.querySelectorAll('[data-e]').forEach(b => b.onclick = () => editEp(box, +b.dataset.e));
     box.querySelectorAll('[data-c]').forEach(b => b.onclick = () => { const c = JSON.parse(JSON.stringify(DB.wod.epreuves[+b.dataset.c])); c.id = wid(); c.nom += ' (copie)'; DB.wod.epreuves.push(c); save(); listEp(box); });
   }
-  const newBloc = (sport, i) => ({ famille: i % 4, series: sport === 'hyrox' ? 1 : 3, ex: [{ nom: WOD_EX[[0, 5, 12, 14][i % 4]], reps: 10, niv: 1 }],
+  const newBloc = (sport, i) => ({ famille: i % 4, series: sport === 'hyrox' ? 1 : 3, ex: [{ nom: ['Air squats', 'Pompes sur box', 'Jumping jacks', 'Mountain climbers'][i % 4], reps: 10, niv: 1 }],
     run: sport === 'hyrox', runType: 'm', runVal: sport === 'hyrox' ? 400 : 200 });
 
   function editEp(box, idx) {
     const e = idx != null ? JSON.parse(JSON.stringify(DB.wod.epreuves[idx])) : { id: wid(), nom: 'WOD 1', sport: 'cross', prevu: 12, cap: 15, blocs: [newBloc('cross', 0)] };
-    let custom = JSON.parse(JSON.stringify(DB.wod.customEx || []));
+    let custom = JSON.parse(JSON.stringify(DB.wod.customEx || [])), nf = null;
+    // liste « Ajouter un exercice » rangée par famille (famille du bloc en premier), du niveau 1 au niveau 4
+    const exList = () => [...WOD_CAT.map(x => ({ nom: x[0], f: x[1], n: x[2] })), ...custom.map(c => { const m = exMeta(c); return { nom: c, f: m ? m.f : null, n: m ? m.n : null }; })];
+    const exOptions = bi => { const L = exList(), fb = e.blocs[bi].famille, order = [fb, ...[0, 1, 2, 3].filter(f => f !== fb)];
+      const opt = x => `<option value="${esc(x.nom)}">${x.n ? 'N' + x.n + ' · ' : ''}${esc(x.nom)}</option>`, srt = (a, b) => (a.n || 9) - (b.n || 9) || a.nom.localeCompare(b.nom);
+      return order.map(f => `<optgroup label="Famille ${f + 1} · ${WOD_FAM[f]}">${L.filter(x => x.f === f).sort(srt).map(opt).join('')}</optgroup>`).join('')
+        + (L.some(x => x.f == null) ? `<optgroup label="Autres exercices">${L.filter(x => x.f == null).sort(srt).map(opt).join('')}</optgroup>` : ''); };
+    const tagOf = nom => { const m = exMeta(nom); return m && m.f != null ? `<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${WOD_COL[m.f]};margin-right:6px"></span>` : ''; };
     const draw = () => {
-      const allEx = [...WOD_EX, ...custom];
+      const allEx = exList().map(x => x.nom);
       box.innerHTML = `<div class="card"><h3>${idx != null ? 'Modifier' : 'Nouvelle'} épreuve</h3>
         <label>Nom</label><input id="nm" value="${esc(e.nom)}">
         <label>Sport</label><div class="seg"><button data-sp="cross" class="${e.sport === 'cross' ? 'on' : ''}">Crosstraining</button><button data-sp="hyrox" class="${e.sport === 'hyrox' ? 'on' : ''}">HYROX</button></div>
@@ -72,16 +104,19 @@ TOOL_IMPL.wod = function (el) {
           <label>Famille</label><select data-fam="${bi}">${WOD_FAM.map((f, k) => `<option value="${k}" ${b.famille === k ? 'selected' : ''}>${f}</option>`).join('')}</select>
           <label>Séries (nombre de tours du bloc)</label><input type="number" min="1" data-ser="${bi}" value="${b.series}">
           <label>Exercices · répétitions · niveau</label>
-          <div>${b.ex.map((x, xi) => `<div class="ex-row"><span class="nm">${esc(x.nom)}</span><button class="btn btn-danger" style="flex:0 0 auto;padding:6px 10px;font-size:.8rem" data-rmx="${bi}-${xi}" title="Retirer cet exercice">🗑 Retirer</button>
+          <div>${b.ex.map((x, xi) => `<div class="ex-row" style="border-left:5px solid ${(exMeta(x.nom) || {}).f != null ? WOD_COL[exMeta(x.nom).f] : 'transparent'};padding-left:8px"><span class="nm">${tagOf(x.nom)}${esc(x.nom)}${(exMeta(x.nom) || {}).n ? `<span class="muted" style="font-size:.72rem;font-weight:600"> · ${exMeta(x.nom).cat ? 'passeport' : 'niveau'} N${exMeta(x.nom).n}</span>` : ''}</span><button class="btn btn-danger" style="flex:0 0 auto;padding:6px 10px;font-size:.8rem" data-rmx="${bi}-${xi}" title="Retirer cet exercice">🗑 Retirer</button>
             <div style="display:flex;gap:6px;align-items:center;width:100%"><input type="number" min="0" data-reps="${bi}-${xi}" value="${x.reps}" title="répétitions (ou secondes pour le gainage)"><span class="muted" style="font-size:.75rem">rép.</span>
             <div class="nv">${[1, 2, 3, 4].map(n => `<button data-nv="${bi}-${xi}-${n}" class="${x.niv === n ? 'on' : ''}">N${n}</button>`).join('')}</div></div></div>`).join('') || '<div class="muted">Aucun exercice.</div>'}</div>
-          <div class="row" style="margin-top:8px"><select data-add="${bi}"><option value="">＋ Ajouter un exercice…</option>${allEx.map(x => `<option>${esc(x)}</option>`).join('')}<option value="__new">✎ Exercice non répertorié…</option></select></div>
+          <div class="row" style="margin-top:8px"><select data-add="${bi}"><option value="">＋ Ajouter un exercice…</option>${exOptions(bi)}<option value="__new">✎ Exercice non répertorié…</option></select></div>
+          ${nf && nf.bi === bi ? `<div class="card" style="margin-top:8px;background:var(--grad-soft)"><b>Nouvel exercice</b><label>Nom</label><input id="nf-nm" value="${esc(nf.nom || '')}">
+            <div class="row"><div><label>Famille</label><select id="nf-f">${WOD_FAM.map((f, k) => `<option value="${k}" ${k === nf.f ? 'selected' : ''}>${k + 1} · ${f}</option>`).join('')}</select></div><div><label>Niveau</label><select id="nf-n">${[1, 2, 3, 4].map(n => `<option value="${n}" ${n === nf.n ? 'selected' : ''}>N${n}</option>`).join('')}</select></div></div>
+            <div class="row" style="margin-top:8px"><button class="btn btn-grad" id="nf-ok">＋ Ajouter</button><button class="btn btn-ghost" id="nf-no">Annuler</button></div></div>` : ''}
           <label style="display:flex;gap:8px;align-items:center;margin-top:12px"><input type="checkbox" data-run="${bi}" ${b.run ? 'checked' : ''} style="width:auto"> Course / RUN dans ce bloc</label>
           ${b.run ? `<div class="row"><select data-rt="${bi}">${Object.entries(RUN_T).map(([k, v]) => `<option value="${k}" ${b.runType === k ? 'selected' : ''}>${v}</option>`).join('')}</select><input type="number" min="1" data-rv="${bi}" value="${b.runVal}"></div>` : ''}
         </div>`).join('')}
       <button class="btn btn-ghost btn-block" style="margin-top:10px" id="addb">＋ Ajouter un bloc</button>
       ${custom.length ? `<details class="card" style="margin-top:10px"><summary style="cursor:pointer;font-weight:800">✎ Mes exercices ajoutés (${custom.length})</summary><p class="muted" style="margin:6px 0;font-size:.8rem">Exercices créés avec « Exercice non répertorié ». Les retirer de la liste ne les enlève pas des blocs déjà composés.</p>
-        ${custom.map((x, k) => `<div class="ex-row"><span class="nm">${esc(x)}</span><button class="btn btn-ghost" style="flex:0 0 auto;padding:5px 10px" data-rmc="${k}">🗑</button></div>`).join('')}</details>` : ''}
+        ${custom.map((x, k) => { const m = exMeta(x) || {}; return `<div class="ex-row"><span class="nm">${tagOf(x)}${esc(x)}</span><select data-cf="${k}" style="flex:1 1 140px;padding:6px"><option value="">Famille ?</option>${WOD_FAM.map((f, j) => `<option value="${j}" ${m.f === j ? 'selected' : ''}>${j + 1} · ${f}</option>`).join('')}</select><select data-cn="${k}" style="flex:0 0 80px;padding:6px"><option value="">N ?</option>${[1, 2, 3, 4].map(n => `<option value="${n}" ${m.n === n ? 'selected' : ''}>N${n}</option>`).join('')}</select><button class="btn btn-ghost" style="flex:0 0 auto;padding:5px 10px" data-rmc="${k}">🗑</button></div>`; }).join('')}</details>` : ''}
       <p class="muted" style="margin:10px 2px">Répétitions : pour le gainage, indiquez des secondes.</p>
       <div class="row" style="margin-top:6px"><button class="btn btn-grad" id="sv">💾 Enregistrer</button><button class="btn btn-ghost" id="bk">Annuler</button>${idx != null ? '<button class="btn btn-danger" id="del">Supprimer</button>' : ''}</div>`;
       const $ = s => box.querySelector(s), all = s => box.querySelectorAll(s);
@@ -95,8 +130,17 @@ TOOL_IMPL.wod = function (el) {
       all('[data-nv]').forEach(b => b.onclick = () => { read(); const [bi, xi, n] = b.dataset.nv.split('-').map(Number); e.blocs[bi].ex[xi].niv = n; draw(); });
       all('[data-rmx]').forEach(b => b.onclick = () => { read(); const [bi, xi] = b.dataset.rmx.split('-').map(Number); e.blocs[bi].ex.splice(xi, 1); draw(); });
       all('[data-add]').forEach(s => s.onchange = () => { read(); let v = s.value; if (!v) return;
-        if (v === '__new') { v = (prompt('Nom du nouvel exercice :') || '').trim(); if (!v) return draw(); if (!allEx.includes(v)) custom.push(v); }
-        e.blocs[+s.dataset.add].ex.push({ nom: v, reps: 10, niv: 1 }); draw(); });
+        if (v === '__new') { nf = { bi: +s.dataset.add, f: e.blocs[+s.dataset.add].famille, n: 1 }; draw(); const i = box.querySelector('#nf-nm'); i && i.focus(); return; }
+        const m = exMeta(v); e.blocs[+s.dataset.add].ex.push({ nom: v, reps: 10, niv: (m && m.n) || 1 }); draw(); });
+      const setMeta = (nom, f, n) => { DB.wod.exMeta = DB.wod.exMeta || {}; const k = exNorm(nom), o = DB.wod.exMeta[k] || {}; if (f !== undefined) o.f = f; if (n !== undefined) o.n = n; DB.wod.exMeta[k] = o; save(); };
+      if ($('#nf-ok')) $('#nf-ok').onclick = () => { read(); const v = $('#nf-nm').value.trim(), f = +$('#nf-f').value, n = +$('#nf-n').value; if (!v) return toast('Indiquez le nom de l\'exercice');
+        const m = exMeta(v); if (m && m.cat) { e.blocs[nf.bi].ex.push({ nom: m.nom, reps: 10, niv: m.n || n }); toast(`« ${m.nom} » existe déjà dans le passeport`); }
+        else { if (!allEx.some(x => exNorm(x) === exNorm(v))) custom.push(v); DB.wod.customEx = custom.slice(); setMeta(v, f, n); e.blocs[nf.bi].ex.push({ nom: v, reps: 10, niv: n }); }
+        nf = null; draw(); };
+      if ($('#nf-no')) $('#nf-no').onclick = () => { read(); nf = null; draw(); };
+      all('[data-cf]').forEach(x => x.onchange = () => { read(); setMeta(custom[+x.dataset.cf], x.value === '' ? null : +x.value); draw(); });
+      all('[data-cn]').forEach(x => x.onchange = () => { read(); const nom = custom[+x.dataset.cn], n = x.value === '' ? null : +x.value; setMeta(nom, undefined, n);
+        if (n) e.blocs.forEach(b => b.ex.forEach(y => { if (exNorm(y.nom) === exNorm(nom)) y.niv = n; })); draw(); });
       all('[data-run]').forEach(c => c.onchange = () => { read(); e.blocs[+c.dataset.run].run = c.checked; draw(); });
       all('[data-rmc]').forEach(b => b.onclick = () => { read(); if (!confirm(`Retirer « ${custom[+b.dataset.rmc]} » de la liste des exercices ?`)) return; custom.splice(+b.dataset.rmc, 1); DB.wod.customEx = custom.slice(); save(); draw(); });
       all('[data-rmb]').forEach(b => b.onclick = () => { read(); if (e.blocs.length > 1) e.blocs.splice(+b.dataset.rmb, 1); draw(); });
@@ -118,7 +162,7 @@ TOOL_IMPL.wod = function (el) {
   const itemsOf = e => e.blocs.map((b, k) => { const L = [];
     for (let sr = 0; sr < (b.series || 1); sr++) {
       const run = b.run ? [{ id: `${k}-${sr}-r`, txt: `🏃 RUN ${b.runVal} ${RUN_T[b.runType] || ''}` }] : [];
-      const ex = b.ex.map((x, j) => ({ id: `${k}-${sr}-${j}`, txt: `${x.reps} ${x.nom}${/gainage/i.test(x.nom) ? ' (s)' : ''} · N${x.niv}` }));
+      const ex = b.ex.map((x, j) => ({ id: `${k}-${sr}-${j}`, col: (exMeta(x.nom) || {}).f != null ? WOD_COL[exMeta(x.nom).f] : null, txt: `${x.reps} ${x.nom}${/gainage/i.test(x.nom) ? ' (s)' : ''} · N${x.niv}` }));
       L.push({ sr, list: e.sport === 'hyrox' ? [...run, ...ex] : [...ex, ...run] }); }
     return L; });
   const progOf = (g, e) => { const all = itemsOf(e).flat().flatMap(x => x.list); return [all.filter(x => g.checks && g.checks[x.id]).length, all.length]; };
@@ -143,7 +187,7 @@ TOOL_IMPL.wod = function (el) {
         ${IT.map((ser, k) => { const b = e.blocs[k], done = !!g.splits[k];
           return `<div class="card" style="margin-top:10px${done ? ';border:2px solid #1B9E5A' : ''}"><div style="display:flex;justify-content:space-between;align-items:center"><b>Bloc ${k + 1}</b><span class="muted" style="font-size:.8rem">${done ? '✅ ' + mmss((g.splits[k] - g.dep) / 1000) : WOD_FAM[b.famille]}</span></div>
             ${ser.map(x => `${ser.length > 1 ? `<div class="muted" style="margin-top:8px;font-size:.8rem;font-weight:800">Série ${x.sr + 1} / ${ser.length}</div>` : ''}
-              ${x.list.map(it => `<button class="gv-it ${g.checks[it.id] ? 'on' : ''}" data-ck="${it.id}" ${run ? '' : 'disabled'}><span class="bx">${g.checks[it.id] ? '✓' : ''}</span><span class="t">${esc(it.txt)}</span></button>`).join('')}`).join('')}</div>`; }).join('')}
+              ${x.list.map(it => `<button class="gv-it ${g.checks[it.id] ? 'on' : ''}" data-ck="${it.id}" ${run ? '' : 'disabled'}${it.col ? ` style="border-left:8px solid ${it.col}"` : ''}><span class="bx">${g.checks[it.id] ? '✓' : ''}</span><span class="t">${esc(it.txt)}</span></button>`).join('')}`).join('')}</div>`; }).join('')}
         ${g.arr || g.capped ? '<button class="btn btn-grad btn-block" style="margin-top:12px" id="save">💾 Enregistrer le résultat</button>' : ''}
         <div style="text-align:center;margin:18px 0 6px"><button class="link" id="gv-prof">🔒 Mode enseignant</button></div>`;
       const $ = q => box.querySelector(q);
@@ -159,8 +203,14 @@ TOOL_IMPL.wod = function (el) {
     const saveSeance = () => { if (cur.groups.some(g => g.dep && !g.arr && !g.capped) && !confirm('Certains groupes n\'ont pas terminé. Enregistrer quand même ?')) return;
       // seuls les groupes partis sont enregistrés (une tablette par groupe → pas de lignes vides)
       const done = cur.groups.filter(g => g.dep); if (!done.length) return toast('Aucun groupe n\'est parti');
-      const rec = { ...cur, groups: done }; delete rec.only;
-      DB.wod.seances.push(rec); DB.wod.current = null; save(); clearInterval(iv); toast('Séance enregistrée ✔'); tab = 'resultats'; frame(); };
+      const rec = { ...cur, id: cur.id + Math.random().toString(36).slice(2, 5), groups: done }; delete rec.only;
+      DB.wod.seances.push(rec);
+      // synthèse « Résultats des élèves » : une ligne par élève
+      done.forEach(g => { const r = resOf(g, e); g.members.forEach(n => { if (!rec.classe || !studentsOf(rec.classe).includes(n)) return;
+        saveResult({ tool: 'wod', label: 'Crosstraining / HYROX', classe: rec.classe, eleve: n,
+          valeur: r.t != null ? mmss(r.t) + (r.cap ? ' (time cap)' : '') : 'non terminé',
+          detail: `${e.nom} · ${g.name}${g.members.length > 1 ? ' (' + g.members.join(', ') + ')' : ''} · écart ${r.ecart != null ? (r.ecart > 0 ? '+' : '') + mmss(r.ecart) : '–'} / ${e.prevu} min · blocs ${g.splits.filter(Boolean).length}/${e.blocs.length}` }); }); });
+      DB.wod.current = null; save(); clearInterval(iv); toast('Séance enregistrée ✔'); tab = 'resultats'; frame(); };
     const draw = () => {
       if (cur.only != null && cur.groups[cur.only]) return drawGroup();
       box.innerHTML = `<div class="card"><b>${esc(e.nom)}</b><div class="muted">${esc(cur.classe || '')} · ${summaryOf(e)}</div>
@@ -169,7 +219,7 @@ TOOL_IMPL.wod = function (el) {
           ${cur.groups.length > 1 ? `<label>📱 Tablette d'un groupe (les élèves ne verront que leur groupe)</label><select id="only"><option value="">Tous les groupes</option>${cur.groups.map((g, i) => `<option value="${i}" ${cur.only === i ? 'selected' : ''}>${esc(g.name)}</option>`).join('')}</select>` : ''}
           <div class="row" style="margin-top:8px"><button class="btn btn-grad" id="all">🚩 Départ ${cur.only != null ? 'du groupe' : 'groupé'}</button></div><button class="btn btn-ghost btn-block" style="margin-top:8px" id="edg">✏️ Modifier les groupes / participants (absent, blessé…)</button></div>
         <details class="card" style="margin-top:10px"><summary style="font-weight:800;cursor:pointer">📋 Rappel de l'épreuve</summary>${e.blocs.map((b, i) => `<div style="margin-top:8px"><b>Bloc ${i + 1}</b> <span class="muted">· ${WOD_FAM[b.famille]} · ${b.series} série${b.series > 1 ? 's' : ''}</span>
-          <div class="muted" style="font-size:.85rem">${b.ex.map(x => `${x.reps} ${esc(x.nom)} (N${x.niv})`).join(' · ')}${b.run ? ` · RUN ${b.runVal} ${RUN_T[b.runType]}` : ''}</div></div>`).join('')}</details>
+          <div class="muted" style="font-size:.85rem">${b.ex.map(x => `${(exMeta(x.nom) || {}).f != null ? `<span style="color:${WOD_COL[exMeta(x.nom).f]}">●</span> ` : ''}${x.reps} ${esc(x.nom)} (N${x.niv})`).join(' · ')}${b.run ? ` · RUN ${b.runVal} ${RUN_T[b.runType]}` : ''}</div></div>`).join('')}</details>
         ${cur.groups.map((g, i) => { if (cur.only != null && cur.only !== i) return ''; const r = resOf(g, e);
           return `<div class="run ${g.arr || g.capped ? 'fin' : g.dep ? 'go' : ''}"><div class="run-h"><b>${esc(g.name)}</b><span class="run-t" data-live="${i}">${r.t != null ? mmss(r.t) : g.dep ? '…' : '0:00'}</span></div>
             <div class="muted" style="font-size:.8rem">${g.members.map(esc).join(', ')}${g.checks && Object.keys(g.checks).length ? ` · ✔ ${progOf(g, e).join(' / ')} étapes` : ''}</div>
@@ -239,13 +289,19 @@ TOOL_IMPL.wod = function (el) {
   function resultats(box) {
     const S = DB.wod.seances;
     if (!S.length) { box.innerHTML = '<div class="card empty">Aucune séance enregistrée pour l\'instant.</div>'; return; }
-    box.innerHTML = `<div class="section-title" style="margin-top:0"><h2>Séances (${S.length})</h2><button class="link" id="exp">Exporter CSV</button></div>
-      ${S.slice().reverse().map(s => { const i = S.indexOf(s), e = s.snap;
-        const rows = s.groups.map(g => ({ g, r: resOf(g, e) })).sort((a, b) => (a.r.cap - b.r.cap) || ((a.r.t ?? 1e9) - (b.r.t ?? 1e9)));
-        return `<div class="card" style="margin-top:10px"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><div><b>${new Date(s.date).toLocaleDateString('fr-FR')} · ${esc(e.nom)}</b><div class="muted">${esc(s.classe || '')} · ${summaryOf(e)}</div></div><button class="btn btn-ghost" data-x="${i}">🗑</button></div>
+    // Regroupement à l'affichage : même jour + même classe + même épreuve = une seule séance (plusieurs tablettes)
+    const day = t => new Date(t).toLocaleDateString('fr-FR'), G = [];
+    S.forEach(s => { const k = [day(s.date), s.classe || '', s.snap.id || s.snap.nom].join('|'); let x = G.find(y => y.k === k); if (!x) G.push(x = { k, list: [] }); x.list.push(s); });
+    G.sort((a, b) => Math.max(...b.list.map(s => s.date)) - Math.max(...a.list.map(s => s.date)));
+    box.innerHTML = `<div class="section-title" style="margin-top:0"><h2>Séances (${G.length})</h2><button class="link" id="exp">Exporter CSV</button></div>
+      ${G.map((x, gi) => { const e = x.list[0].snap;
+        const rows = x.list.flatMap(s => s.groups.map(g => ({ g, r: resOf(g, s.snap) }))).sort((a, b) => (a.r.cap - b.r.cap) || ((a.r.t ?? 1e9) - (b.r.t ?? 1e9)));
+        return `<div class="card" style="margin-top:10px"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><div><b>${day(x.list[0].date)} · ${esc(e.nom)}</b><div class="muted">${esc(x.list[0].classe || '')} · ${summaryOf(e)}${x.list.length > 1 ? ` · ${rows.length} groupes (${x.list.length} tablettes)` : ''}</div></div><button class="btn btn-ghost" data-x="${gi}">🗑</button></div>
           <div class="sheet-table"><table><tr><th>#</th><th>Groupe / élève</th><th>Temps réalisé</th><th>Écart</th><th>Blocs</th></tr>
           ${rows.map(({ g, r }, k) => `<tr><td>${k + 1}</td><td><b>${esc(g.name)}</b><div class="muted" style="font-size:.75rem">${g.members.map(esc).join(', ')}</div></td><td>${r.t != null ? mmss(r.t) : '–'}${r.cap ? ' <span class="pill warn">cap</span>' : ''}</td><td>${r.ecart != null ? (r.ecart > 0 ? '+' : '') + mmss(r.ecart) : '–'}</td><td>${g.splits.filter(Boolean).length}/${e.blocs.length}</td></tr>`).join('')}</table></div></div>`; }).join('')}`;
-    box.querySelectorAll('[data-x]').forEach(b => b.onclick = () => { if (confirm('Supprimer cette séance ?')) { S.splice(+b.dataset.x, 1); save(); resultats(box); } });
+    box.querySelectorAll('[data-x]').forEach(b => b.onclick = () => { const L = G[+b.dataset.x].list;
+      if (!confirm(L.length > 1 ? `Supprimer cette séance ? (${L.length} enregistrements de tablettes)` : 'Supprimer cette séance ?')) return;
+      DB.wod.seances = S.filter(s => !L.includes(s)); save(); resultats(box); });
     box.querySelector('#exp').onclick = () => download(`crosstraining-hyrox-${new Date().toISOString().slice(0, 10)}.csv`, csv([
       ['Date', 'Classe', 'Épreuve', 'Sport', 'Temps prévu (min)', 'Time cap (min)', 'Groupe', 'Membres', 'Temps réalisé', 'Écart', 'Time cap atteint', ...Array.from({ length: Math.max(...S.map(s => s.snap.blocs.length)) }, (_, k) => 'Bloc ' + (k + 1))],
       ...S.flatMap(s => s.groups.map(g => { const e = s.snap, r = resOf(g, e);

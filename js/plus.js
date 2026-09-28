@@ -2,9 +2,12 @@
    EPS ONE — Onglet PLUS : mise à jour, partage,
    à propos, confidentialité/RGPD, nouvelle année scolaire
    ========================================================= */
-const APP_VERSION = '8.0';
+const APP_VERSION = '8.3';
 const APP_URL = 'https://steffdelaseuva-hue.github.io/eps-one/';
 const CHANGELOG = [
+  { v: '8.3', items: ['Passeport : Squats N1 (bas du corps), Gainage latéral N3 (abdominaux / gainage)'] },
+  { v: '8.2', items: ['Crosstraining / HYROX : exercices rangés par famille (passeport technique), niveau N1–N4 réglé automatiquement, couleurs des familles', 'Nouveaux exercices : Wall ball, Squats ball, Développé haltères, Farmer carry, Rowing kettlebell', 'Exercices ajoutés : choix de la famille et du niveau'] },
+  { v: '8.1', items: ['HYROX, Course d\'orientation, Combiné, Duathlon et Relais alimentent « Résultats des élèves »', 'Séances enregistrées sur plusieurs tablettes (même jour, même classe, même épreuve) regroupées en une seule séance', 'Relais : courses enregistrées et synchronisées'] },
   { v: '8.0', items: ['Vue « tablette d\'un groupe » étendue : Gestion de match (tablette observateurs), Combiné, Duathlon, Relais, Natation (Nager vite / Savoir nager), Escalade, Course d\'orientation · mode enseignant protégé · seuls les groupes avec des données sont enregistrés'] },
   { v: '7.9', items: ['Crosstraining / HYROX : vue élève sur la tablette du groupe (chrono en grand, étapes à cocher bloc par bloc, arrivée), mode enseignant protégé'] },
   { v: '7.8', items: ['Crosstraining / HYROX : choisir le groupe suivi sur chaque tablette ; seuls les groupes partis sont enregistrés'] },
