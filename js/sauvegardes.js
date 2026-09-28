@@ -64,15 +64,17 @@ TOOL_IMPL.resultats = function (el) {
   const draw = () => {
     const names = TOOL_NAMES(), st = studentsOf(cls);
     const rows = DB.resultats.map((r, i) => ({ ...r, i })).filter(r => r.classe === cls && (!who || r.eleve === who)).reverse();
-    el.innerHTML = `<div class="card"><div class="row"><div><label>Classe</label><select id="rc">${DB.classes.map(c => `<option ${c.name === cls ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</select></div>
+    el.innerHTML = `<div style="text-align:right;margin:-4px 2px 8px"><button class="link" id="coll">👥 Voir les résultats collectifs</button></div>
+      <div class="card"><div class="row"><div><label>Classe</label><select id="rc">${DB.classes.map(c => `<option ${c.name === cls ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</select></div>
         <div><label>Élève</label><select id="re"><option value="">Tous</option>${st.map(n => `<option ${n === who ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select></div></div></div>
       <div class="section-title"><h2>Résultats enregistrés (${rows.length})</h2><button class="link" id="exp">Exporter CSV</button></div>
       <div class="card sheet-table">${rows.length ? `<table><tr><th>Date</th><th>Élève</th><th>Outil</th><th>Résultat</th><th>Détail</th><th></th></tr>
         ${rows.map(r => `<tr><td>${new Date(r.date).toLocaleDateString('fr-FR')}</td><td><b>${esc(r.eleve)}</b></td><td>${esc(names[r.tool] || r.tool)}</td><td><b>${esc(r.valeur)}</b></td><td class="muted">${esc(r.detail || '')}</td><td><button class="btn btn-ghost" style="padding:4px 8px" data-x="${r.i}">✕</button></td></tr>`).join('')}</table>`
-        : '<div class="empty">Aucun résultat. Utilisez la carte « 💾 Enregistrer » en bas des outils (chronomètre, multi-chrono, Test VMA, 1RM…).</div>'}</div>`;
+        : '<div class="empty">Aucun résultat. Utilisez la carte « 💾 Enregistrer » en bas des outils (chronomètre, multi-chrono, Test VMA, 1RM…).<br><br>Les résultats d\'équipes (tournois, matchs, relais, groupes HYROX, CO, duathlon…) sont dans <button class="link" data-coll>👥 Résultats collectifs</button>.</div>'}</div>`;
     const $ = s => el.querySelector(s);
     $('#rc').onchange = () => { cls = $('#rc').value; DB.lastClass = cls; who = ''; save(); draw(); };
     $('#re').onchange = () => { who = $('#re').value; draw(); };
+    el.querySelectorAll('#coll,[data-coll]').forEach(b => b.onclick = () => openTool('collectifs'));
     el.querySelectorAll('[data-x]').forEach(b => b.onclick = () => { if (confirm('Supprimer ce résultat ?')) { DB.resultats.splice(+b.dataset.x, 1); save(); draw(); } });
     $('#exp').onclick = () => { if (!rows.length) return toast('Rien à exporter');
       download(`resultats-${cls}${who ? '-' + who : ''}.csv`, csv([['Date', 'Classe', 'Élève', 'Outil', 'Résultat', 'Détail'], ...rows.slice().reverse().map(r => [new Date(r.date).toLocaleDateString('fr-FR'), r.classe, r.eleve, names[r.tool] || r.tool, r.valeur, r.detail || ''])])); };
