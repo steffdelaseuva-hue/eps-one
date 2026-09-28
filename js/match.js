@@ -107,13 +107,23 @@ document.head.insertAdjacentHTML('beforeend', `<style>
 .mt-team{cursor:pointer}
 .mt-team .pls{display:flex;flex-wrap:wrap;gap:5px}
 .roster{font-size:.75rem;color:var(--muted);text-align:center;margin-top:4px}
+.mo-clock{font-size:clamp(3.4rem,18vw,6.5rem);font-weight:900;text-align:center;font-variant-numeric:tabular-nums;line-height:1.05;padding:6px 0}
+.mo-vs{display:flex;gap:8px;align-items:center;justify-content:center;font-weight:900;font-size:1.15rem}
+.mo-vs span{padding:6px 12px;border-radius:12px;color:#fff;max-width:42%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mo-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px;margin-top:12px}
+.mo-grid select{padding:10px;font-weight:800;font-size:1.05rem}
+.mo-row{display:flex;gap:8px;margin-top:8px}
+.mo-row button{border-radius:14px;font-weight:800;min-height:62px}
+.mo-row .m{flex:0 0 62px;font-size:1.7rem;border:2px solid var(--line);background:var(--card);color:var(--text)}
+.mo-row .p{flex:1;display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 16px;font-size:1.12rem;border:none;background:var(--grad);color:#fff;text-align:left}
+.mo-row .p b{font-size:1.8rem;font-variant-numeric:tabular-nums}
 .win{text-align:center;font-size:1.3rem;font-weight:900;padding:14px;border-radius:16px;background:var(--grad);color:#fff}
 </style>`);
 
 const RLA_BOX = '<details class="card" style="margin-top:12px"><summary style="font-weight:800;cursor:pointer">🏉 Ligne d\'avantage : recueil individuel (recule / avance / bloque)</summary><div id="rla-host" style="margin-top:10px"></div></details>';
 
 TOOL_IMPL.match = function (el) {
-  let S = { sport: 'handball', a: 'Équipe A', b: 'Équipe B', type: 'temps', dur: 10, target: 21, ecart: true, bonus: [1, 2, 5], stats: true, zones: false, nz: 4, ia: 0, ib: 1, obsOn: false, obsN: 2 };
+  let S = { sport: 'handball', a: 'Équipe A', b: 'Équipe B', type: 'temps', dur: 10, target: 21, ecart: true, bonus: [1, 2, 5], stats: true, zones: false, nz: 4, ia: 0, ib: 1, obsOn: false, obsN: 2, role: (DB.tablette && DB.tablette.match && DB.tablette.match.role) || 'table' };
   let selPl = null;
   let M = null, iv = null;
   const SP = () => SPORTS[S.sport];
@@ -137,13 +147,15 @@ TOOL_IMPL.match = function (el) {
         ${sp.zones ? `<label style="display:flex;gap:8px;align-items:center;margin-top:10px"><input type="checkbox" id="zo" ${S.zones ? 'checked' : ''} style="width:auto"> Zones visées (progression du ballon sur le terrain)</label>
           <div id="nzw" style="display:${S.zones ? 'block' : 'none'}"><label>Nombre de zones dans la longueur</label><div class="tog" id="nz">${[3, 4, 5].map(n => `<button data-n="${n}" class="${S.nz === n ? 'on' : ''}">${n} zones</button>`).join('')}</div></div>` : ''}
         <label style="display:flex;gap:8px;align-items:center;margin-top:14px"><input type="checkbox" id="ob" ${S.obsOn ? 'checked' : ''} style="width:auto"> Observations individuelles : ${obsCrit(S.sport).map(c => c[1].toLowerCase()).join(', ')}</label>
-        <div id="obw" style="display:${S.obsOn ? 'block' : 'none'}"><label>Nombre de joueurs observés</label><div class="tog" id="obn">${[2, 3, 4].map(n => `<button data-on="${n}" class="${S.obsN === n ? 'on' : ''}">${n} joueurs</button>`).join('')}</div></div>
+        <div id="obw" style="display:${S.obsOn ? 'block' : 'none'}"><label>Nombre de joueurs observés</label><div class="tog" id="obn">${[2, 3, 4].map(n => `<button data-on="${n}" class="${S.obsN === n ? 'on' : ''}">${n} joueurs</button>`).join('')}</div>
+          <label>Rôle de cette tablette</label><div class="tog" id="ro"><button data-ro="table" class="${S.role !== 'obs' ? 'on' : ''}">🏁 Table de marque (complet)</button><button data-ro="obs" class="${S.role === 'obs' ? 'on' : ''}">👁 Observateurs (élèves)</button></div>
+          <p class="muted" style="font-size:.78rem;margin:6px 0 0">📱 Observateurs : les élèves ne voient que le chrono et les fiches des joueurs observés (réglage propre à cet appareil).</p></div>
       </div>
       ${S.sport === 'rugby' ? RLA_BOX : ''}
       <button class="btn btn-grad btn-block" style="margin-top:14px;padding:16px;font-size:1.05rem" id="go">▶ Lancer le match</button>
       <div class="section-title"><h2>Historique des matchs</h2>${DB.matchs.length ? '<button class="link" id="hx">Exporter CSV</button>' : ''}</div>
       <div class="card" style="padding:0">${DB.matchs.length ? DB.matchs.slice().reverse().slice(0, 15).map((m, j) => { const i = DB.matchs.length - 1 - j;
-        return `<div class="list-item"><div style="flex:1"><b>${esc(m.a)} ${m.sa} – ${m.sb} ${esc(m.b)}</b><div class="muted">${esc(SPORTS[m.sport]?.name || m.sport)} · ${new Date(m.date).toLocaleDateString('fr-FR')} ${new Date(m.date).toLocaleTimeString('fr-FR').slice(0, 5)}</div></div><button class="btn btn-ghost" data-v="${i}">👁</button><button class="btn btn-ghost" data-x="${i}">🗑</button></div>`; }).join('') : '<div class="empty">Aucun match enregistré.</div>'}</div>`;
+        return `<div class="list-item"><div style="flex:1"><b>${m.obsOnly ? `👁 Observations · ${esc(m.a)} vs ${esc(m.b)}` : `${esc(m.a)} ${m.sa} – ${m.sb} ${esc(m.b)}`}</b><div class="muted">${esc(SPORTS[m.sport]?.name || m.sport)} · ${new Date(m.date).toLocaleDateString('fr-FR')} ${new Date(m.date).toLocaleTimeString('fr-FR').slice(0, 5)}</div></div><button class="btn btn-ghost" data-v="${i}">👁</button><button class="btn btn-ghost" data-x="${i}">🗑</button></div>`; }).join('') : '<div class="empty">Aucun match enregistré.</div>'}</div>`;
     const $ = s => el.querySelector(s);
     const keep = () => { S.a = $('#na').value.trim() || 'Équipe A'; S.b = $('#nb').value.trim() || 'Équipe B';
       if ($('#du')) S.dur = Math.max(1, +$('#du').value || 1); if ($('#tg')) S.target = Math.max(1, +$('#tg').value || 1); if ($('#ec')) S.ecart = $('#ec').checked;
@@ -155,6 +167,8 @@ TOOL_IMPL.match = function (el) {
     if ($('#zo')) $('#zo').onchange = () => $('#nzw').style.display = $('#zo').checked ? 'block' : 'none';
     $('#ob').onchange = () => $('#obw').style.display = $('#ob').checked ? 'block' : 'none';
     el.querySelectorAll('[data-on]').forEach(b => b.onclick = () => { S.obsN = +b.dataset.on; el.querySelectorAll('[data-on]').forEach(x => x.classList.toggle('on', x === b)); });
+    el.querySelectorAll('[data-ro]').forEach(b => b.onclick = () => { S.role = b.dataset.ro; DB.tablette = DB.tablette || {}; DB.tablette.match = { ...(DB.tablette.match || {}), role: S.role }; save();
+      el.querySelectorAll('[data-ro]').forEach(x => x.classList.toggle('on', x === b)); });
     $('#go').onclick = () => { keep(); start(); };
     wireTeams();
     mountRLA();
@@ -235,8 +249,9 @@ TOOL_IMPL.match = function (el) {
   const scoreOf = t => M.ev.filter(x => x.team === t && (x.kind === 'score' || x.kind === 'bonus')).reduce((a, x) => a + x.pts, 0);
   const now = () => M.acc + (M.run ? performance.now() - M.t0 : 0);
 
-  function start() {
+  function start(full) {
     M = { ev: [], acc: 0, t0: 0, run: false, poss: 0, over: false, pa: T() ? [...membersOf(S.ia)] : [], pb: T() ? [...membersOf(S.ib)] : [] };
+    if (S.obsOn && S.role === 'obs' && !full) return startObs();
     const sp = SP(), c = courtSVG(S.sport), zonesOn = sp.zones && S.zones;
     const vbW = +c.vb.split(' ')[2], vbH = +c.vb.split(' ')[3];
     const bands = zonesOn ? Array.from({ length: S.nz }, (_, z) => { const w = vbW / S.nz;
@@ -280,6 +295,55 @@ TOOL_IMPL.match = function (el) {
     iv = setInterval(tick, 200); paint(); paintZones();
     mountRLA(); drawObs();
   }
+  /* ----- Tablette « observateurs » : chrono + fiches des joueurs observés uniquement ----- */
+  const obsPool = () => [...M.pa.map(n => [n, 0]), ...M.pb.map(n => [n, 1])];
+  function startObs() {
+    M.obsView = true; clearInterval(iv);
+    if (!M.obs) { const pool = obsPool(); M.obs = Array.from({ length: S.obsN }, (_, i) => ({ name: pool[i] ? pool[i][0] : '', team: pool[i] ? pool[i][1] : 0, c: {} })); }
+    const sp = SP();
+    el.innerHTML = `<div class="card" style="text-align:center"><div class="mo-vs"><span style="background:#B8912A">${esc(S.a)}</span><span class="muted" style="color:var(--muted);padding:0">vs</span><span style="background:#1E5BD8">${esc(S.b)}</span></div>
+        <div class="muted" style="font-size:.78rem;font-weight:800;margin-top:8px">${S.type === 'temps' ? 'TEMPS RESTANT' : 'TEMPS DE JEU'} · ${esc(sp.name)}</div>
+        <div class="mo-clock" id="ck">${S.type === 'temps' ? fmt(S.dur * 60000, false) : '00:00'}</div>
+        <button class="btn btn-grad btn-block" style="font-size:1.2rem;padding:16px" id="go">▶ Démarrer</button></div>
+      <div id="obs-host"></div>
+      <button class="btn btn-danger btn-block" style="margin-top:14px;font-size:1.1rem;padding:15px" id="end">🏁 Fin — enregistrer les observations</button>
+      <div style="text-align:center;margin:18px 0 6px"><button class="link" id="gv-prof">🔒 Mode enseignant</button></div>`;
+    const $ = q => el.querySelector(q);
+    const goTxt = () => { $('#go').textContent = M.run ? '⏸ Pause' : M.acc ? (S.type === 'temps' && M.acc >= S.dur * 60000 ? '⏱ Temps écoulé' : '▶ Reprendre') : '▶ Démarrer'; };
+    M.goTxt = goTxt;
+    $('#go').onclick = () => { if (S.type === 'temps' && M.acc >= S.dur * 60000) return; if (M.run) { M.acc = now(); M.run = false; } else { M.t0 = performance.now(); M.run = true; beep(1300, .3); } goTxt(); };
+    $('#end').onclick = () => { if (confirm('Terminer et enregistrer les observations ?')) saveObs(); };
+    $('#gv-prof').onclick = () => { if (!confirm('Passer en mode enseignant (score, statistiques, réglages) ?')) return;
+      const saved = M; saved.acc = now(); const wasRun = saved.run; start(true);
+      Object.assign(M, { acc: saved.acc, pa: saved.pa, pb: saved.pb, obs: saved.obs });
+      if (wasRun) { M.t0 = performance.now(); M.run = true; el.querySelector('#go').textContent = 'Pause'; } else if (M.acc) el.querySelector('#go').textContent = '▶ Reprendre';
+      drawObs(); tick(); };
+    goTxt(); drawObsBig(); iv = setInterval(tick, 200); tick();
+  }
+  function drawObsBig() {
+    const h = el.querySelector('#obs-host'); if (!h || !M) return;
+    const C = obsCrit(S.sport), pool = obsPool();
+    h.innerHTML = `<div class="mo-grid">${M.obs.map((o, i) => `<div class="card" style="padding:12px;border-top:6px solid ${o.team ? '#1E5BD8' : '#B8912A'}">
+        ${pool.length ? `<select data-op="${i}">${pool.map(([n, t]) => `<option value="${t}|${esc(n)}" ${n === o.name ? 'selected' : ''}>${esc(n)} (${esc(t ? S.b : S.a)})</option>`).join('')}</select>`
+          : `<input data-oi="${i}" value="${esc(o.name)}" placeholder="Joueur ${i + 1}" style="padding:10px;font-weight:800;font-size:1.05rem">`}
+        ${C.map(([k, l]) => `<div class="mo-row"><button class="m" data-om="${i}|${k}" aria-label="Retirer">−</button>
+          <button class="p" data-oa="${i}|${k}"><span>${k === 'tir' ? 'Tir raté' : esc(l)}</span><b>${k === 'tir' ? (o.c.tir || 0) - (o.c.but || 0) : o.c[k] || 0}</b></button></div>`).join('')}
+        ${o.c.tir ? `<div class="muted" style="font-size:.85rem;margin-top:8px;font-weight:700">Réussite ${Math.round((o.c.but || 0) / o.c.tir * 100)} %</div>` : ''}</div>`).join('')}</div>`;
+    h.querySelectorAll('[data-op]').forEach(x => x.onchange = () => { const [t, n] = x.value.split('|'); Object.assign(M.obs[+x.dataset.op], { name: n, team: +t }); drawObsBig(); });
+    h.querySelectorAll('[data-oi]').forEach(x => x.onchange = () => { M.obs[+x.dataset.oi].name = x.value.trim(); });
+    h.querySelectorAll('[data-oa]').forEach(b => b.onclick = () => { const [i, k] = b.dataset.oa.split('|'), c = M.obs[+i].c; c[k] = (c[k] || 0) + 1; if (k === 'but') c.tir = (c.tir || 0) + 1; beep(1000, .03, .15); drawObsBig(); });
+    h.querySelectorAll('[data-om]').forEach(b => b.onclick = () => { const [i, k] = b.dataset.om.split('|'), c = M.obs[+i].c; if (k === 'tir' && (c.tir || 0) <= (c.but || 0)) return; c[k] = Math.max(0, (c[k] || 0) - 1); if (k === 'but') c.tir = Math.max(0, (c.tir || 0) - 1); drawObsBig(); });
+  }
+  const saveObsResults = m => (m.obs || []).forEach(o => { if (DB.classes.some(c => studentsOf(c.name).includes(o.name))) saveResult({ tool: 'match', label: 'Match · ' + (SPORTS[m.sport]?.name || ''), classe: (DB.classes.find(c => studentsOf(c.name).includes(o.name)) || {}).name || '', eleve: o.name,
+    valeur: m.obsOnly ? `Observé (${o.team ? m.b : m.a})` : `${m.sa}–${m.sb} (${o.team ? m.b : m.a})`, detail: obsLine(o, m.sport) }); });
+  function saveObs() {
+    // seuls les joueurs réellement observés (au moins une action) sont enregistrés
+    const obs = (M.obs || []).filter(o => o.name && Object.values(o.c).some(v => v > 0));
+    if (!obs.length) return toast('Aucune observation saisie');
+    M.acc = now(); M.run = false; M.over = true; clearInterval(iv);
+    const m = { date: Date.now(), sport: S.sport, a: S.a, b: S.b, sa: 0, sb: 0, duree: Math.round(M.acc / 1000), nz: 0, pa: M.pa, pb: M.pb, obs, obsOnly: true, coll: false, stats: stats([], 0), ev: [] };
+    DB.matchs.push(m); saveObsResults(m); save(); beep(1000, .3); toast('Observations enregistrées ✔'); setup();
+  }
   function paintZones() {
     if (!el.querySelector('[data-zl]')) return;
     const st = stats(M.ev, S.nz);
@@ -298,7 +362,8 @@ TOOL_IMPL.match = function (el) {
     if (!M || !el.querySelector('#ck')) return;
     const t = now();
     if (S.type === 'temps') { const left = S.dur * 60000 - t; el.querySelector('#ck').textContent = fmt(Math.max(0, left) + 999, false);
-      if (left <= 0 && !M.over) { M.acc = S.dur * 60000; M.run = false; el.querySelector('#ck').textContent = '00:00'; [0, 350, 700].forEach(d => setTimeout(() => beep(700, .5), d)); finish(); } }
+      if (left <= 0 && M.obsView && M.run) { M.acc = S.dur * 60000; M.run = false; el.querySelector('#ck').textContent = '00:00'; [0, 350, 700].forEach(d => setTimeout(() => beep(700, .5), d)); M.goTxt(); return; }
+      if (left <= 0 && !M.over && !M.obsView) { M.acc = S.dur * 60000; M.run = false; el.querySelector('#ck').textContent = '00:00'; [0, 350, 700].forEach(d => setTimeout(() => beep(700, .5), d)); finish(); } }
     else el.querySelector('#ck').textContent = fmt(t, false);
   }
   function check() {
@@ -315,34 +380,33 @@ TOOL_IMPL.match = function (el) {
 
   /* ===== 3. Bilan ===== */
   function summary(m, fromHistory) {
-    const win = m.sa === m.sb ? 'Match nul' : `🏆 Victoire : ${esc(m.sa > m.sb ? m.a : m.b)}`, sp = SPORTS[m.sport];
+    const win = m.obsOnly ? `👁 Observations · ${esc(m.a)} vs ${esc(m.b)}` : m.sa === m.sb ? 'Match nul' : `🏆 Victoire : ${esc(m.sa > m.sb ? m.a : m.b)}`, sp = SPORTS[m.sport];
     const row = (l, f) => `<tr><td>${l}</td><td><b>${f(m.stats[0], 0)}</b></td><td><b>${f(m.stats[1], 1)}</b></td></tr>`;
     el.innerHTML = `<div class="win">${win}</div>
-      <div class="sb" style="margin-top:12px"><div class="tm a"><span>${esc(m.a)}</span><b>${m.sa}</b></div><div class="ck"><b>–</b><div class="muted" style="font-size:.75rem">${fmt(m.duree * 1000, false)}</div></div><div class="tm b"><span>${esc(m.b)}</span><b>${m.sb}</b></div></div>
+      ${m.obsOnly ? `<div class="muted" style="text-align:center;margin-top:8px">${esc(sp?.name || '')} · ${new Date(m.date).toLocaleDateString('fr-FR')} · durée ${fmt(m.duree * 1000, false)}</div>` : `<div class="sb" style="margin-top:12px"><div class="tm a"><span>${esc(m.a)}</span><b>${m.sa}</b></div><div class="ck"><b>–</b><div class="muted" style="font-size:.75rem">${fmt(m.duree * 1000, false)}</div></div><div class="tm b"><span>${esc(m.b)}</span><b>${m.sb}</b></div></div>`}
       ${(m.pa || []).length || (m.pb || []).length ? `<div class="roster" style="margin-top:8px"><b style="color:#B8912A">${esc(m.a)}</b> : ${(m.pa || []).map(esc).join(', ') || '—'}<br><b style="color:#1E5BD8">${esc(m.b)}</b> : ${(m.pb || []).map(esc).join(', ') || '—'}</div>` : ''}
-      <div class="section-title"><h2>Statistiques · ${esc(sp?.name || '')}</h2></div>
+      ${m.obsOnly ? '' : `<div class="section-title"><h2>Statistiques · ${esc(sp?.name || '')}</h2></div>
       <div class="card" style="overflow:auto"><table><tr><th></th><th>${esc(m.a)}</th><th>${esc(m.b)}</th></tr>
         ${row('Score', (s, t) => t ? m.sb : m.sa)}
         ${row('dont points bonus', s => s.bonus)}
         ${m.coll ? row(`${sp.shot}s marqués`, s => s.marques) + row('Tirs tentés', s => s.tirs) + row('Réussite', s => s.tirs ? Math.round(s.marques / s.tirs * 100) + ' %' : '–') + row('Passes décisives', s => s.passes) + row('Pertes de balle', s => s.pertes) : ''}
         ${m.nz ? Array.from({ length: m.nz }, (_, z) => row(`Zone ${z + 1} atteinte`, s => s.zones[z])).join('') : ''}
         ${m.sport === 'escrime' ? TOUCH_ZONES.map((z, i) => row(`Touches ${z.toLowerCase()}`, s => (s.touches || [])[i] || 0)).join('') : ''}
-      </table>${m.nz ? `<p class="muted" style="margin:8px 0 0;font-size:.8rem">Zone 1 = camp de l'équipe, zone ${m.nz} = près du but adverse.</p>` : ''}</div>
+      </table>${m.nz ? `<p class="muted" style="margin:8px 0 0;font-size:.8rem">Zone 1 = camp de l'équipe, zone ${m.nz} = près du but adverse.</p>` : ''}</div>`}
       ${(m.obs || []).length ? `<div class="section-title"><h2>Observations individuelles</h2></div><div class="card sheet-table"><table><tr><th>Joueur</th>${obsCrit(m.sport).map(c => `<th>${c[1]}</th>`).join('')}${SPORTS[m.sport]?.coll ? '<th>Réussite</th>' : ''}</tr>
         ${m.obs.map(o => `<tr><td><b>${esc(o.name)}</b><div class="muted" style="font-size:.72rem">${esc(o.team ? m.b : m.a)}</div></td>${obsCrit(m.sport).map(([k]) => `<td>${o.c[k] || 0}</td>`).join('')}${SPORTS[m.sport]?.coll ? `<td>${o.c.tir ? Math.round((o.c.but || 0) / o.c.tir * 100) + ' %' : '–'}</td>` : ''}</tr>`).join('')}</table></div>` : ''}
-      <div class="section-title"><h2>Déroulé du match</h2></div>
-      <div class="card" style="max-height:260px;overflow:auto;padding:4px 12px">${m.ev.length ? m.ev.map(e => `<div class="muted" style="padding:4px 0;border-bottom:1px solid var(--line)"><b style="color:var(--text)">${fmt(e.t * 1000, false)}</b> · ${esc(e.team ? m.b : m.a)} · ${esc(e.label)}</div>`).join('') : '<div class="empty">Aucune action.</div>'}</div>
+      ${m.obsOnly ? '' : `<div class="section-title"><h2>Déroulé du match</h2></div>
+      <div class="card" style="max-height:260px;overflow:auto;padding:4px 12px">${m.ev.length ? m.ev.map(e => `<div class="muted" style="padding:4px 0;border-bottom:1px solid var(--line)"><b style="color:var(--text)">${fmt(e.t * 1000, false)}</b> · ${esc(e.team ? m.b : m.a)} · ${esc(e.label)}</div>`).join('') : '<div class="empty">Aucune action.</div>'}</div>`}
       <div class="row" style="margin-top:14px">${fromHistory ? '<button class="btn btn-ghost" id="bk">← Retour</button>' : '<button class="btn btn-grad" id="sv">💾 Enregistrer le match</button><button class="btn btn-ghost" id="rs">↶ Reprendre</button>'}<button class="btn btn-ghost" id="ex">📤 CSV</button></div>
       ${fromHistory ? '' : '<button class="btn btn-ghost btn-block" style="margin-top:10px" id="nw">Nouveau match sans enregistrer</button>'}`;
     const $ = s => el.querySelector(s);
     $('#ex').onclick = () => download(`match-${m.a}-${m.b}.csv`.replace(/[^\w.-]+/g, '-'), csv([['Temps', 'Équipe', 'Action', 'Points'], ...m.ev.map(e => [fmt(e.t * 1000, false), e.team ? m.b : m.a, e.label, e.pts || '']), ...((m.obs || []).length ? [[], ['Joueur observé', 'Équipe', ...obsCrit(m.sport).map(c => c[1])], ...m.obs.map(o => [o.name, o.team ? m.b : m.a, ...obsCrit(m.sport).map(([k]) => o.c[k] || 0)])] : [])]));
     if (fromHistory) { $('#bk').onclick = setup; return; }
-    $('#sv').onclick = () => { DB.matchs.push(m);
-      (m.obs || []).forEach(o => { if (DB.classes.some(c => studentsOf(c.name).includes(o.name))) saveResult({ tool: 'match', label: 'Match · ' + (SPORTS[m.sport]?.name || ''), classe: (DB.classes.find(c => studentsOf(c.name).includes(o.name)) || {}).name || '', eleve: o.name, valeur: `${m.sa}–${m.sb} (${o.team ? m.b : m.a})`, detail: obsLine(o, m.sport) }); });
+    $('#sv').onclick = () => { DB.matchs.push(m); saveObsResults(m);
       save(); toast('Match enregistré ✔'); setup(); };
     $('#nw').onclick = () => { if (confirm('Quitter sans enregistrer ?')) setup(); };
     $('#rs').onclick = () => { // revenir au match (ex. fin par erreur)
-      const saved = M; start(); M.ev = saved.ev; M.acc = saved.acc; M.pa = saved.pa; M.pb = saved.pb; M.obs = saved.obs; drawObs(); M.poss = saved.poss; M.over = false; paint(); tick(); };
+      const saved = M; start(true); M.ev = saved.ev; M.acc = saved.acc; M.pa = saved.pa; M.pb = saved.pb; M.obs = saved.obs; drawObs(); M.poss = saved.poss; M.over = false; paint(); tick(); };
   }
 
   setup();

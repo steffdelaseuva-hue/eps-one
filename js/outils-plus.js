@@ -361,36 +361,72 @@ pyramide(el) {
 
 /* ---------- Relais ---------- */
 relais(el) {
+  // course gardée en mémoire ; l'équipe suivie par la tablette est propre à l'appareil (DB.tablette, jamais synchronisé)
   let teams = [], t0 = null, raf = null;
+  const TB = () => (DB.tablette = DB.tablette || {}), onlyT = () => { const n = TB().relais; return n != null ? teams.find(t => t.name === n) : null; };
+  const setOnly = n => { TB().relais = n; save(); };
+  if (!document.getElementById('gv-ath')) document.head.insertAdjacentHTML('beforeend', `<style id="gv-ath">
+.gv-cnt{display:flex;align-items:center;gap:10px;margin-top:10px}
+.gv-cnt .l{flex:1;font-weight:800;text-align:left}
+.gv-cnt .btn{min-width:64px;min-height:56px;font-size:1.45rem;padding:0 12px}
+.gv-cnt b{min-width:46px;text-align:center;font-size:1.8rem;font-variant-numeric:tabular-nums}
+.gv-in{width:84px;padding:12px 6px;text-align:center;font-size:1.3rem;font-weight:800}
+.gv-big{font-size:1.2rem;padding:16px;margin-top:12px}
+</style>`);
   el.innerHTML = `<div class="card" id="setup">
     <label>Équipes (une par ligne)</label><textarea id="tl" style="min-height:100px">Équipe 1\nÉquipe 2\nÉquipe 3\nÉquipe 4</textarea>
     <div class="row"><div><label>Relayeurs / fractions par équipe</label><input id="lg" type="number" value="4" min="1" max="20"></div><div><label>Distance d'une fraction (m, optionnel)</label><input id="ds" type="number" placeholder="ex : 100"></div></div>
     <button class="btn btn-grad btn-block" style="margin-top:12px" id="gen">🔄 Préparer la course</button></div>
     <div id="race" style="display:none">
-      <div class="card"><div class="big clock" id="tm">00:00,00</div><div class="row"><button class="btn btn-grad" id="go">🔫 Départ</button><button class="btn btn-ghost" id="exp">📤 Résultats</button><button class="btn btn-ghost" id="new">↺ Nouvelle</button></div></div>
-      <div class="relay-grid" id="rg"></div></div>`;
+      <div class="card"><div class="big clock" id="tm">00:00,00</div><div class="row"><button class="btn btn-grad" id="go">🔫 Départ</button><button class="btn btn-ghost" id="exp">📤 Résultats</button><button class="btn btn-ghost" id="new">↺ Nouvelle</button></div><div id="onw"></div></div>
+      <div class="relay-grid" id="rg"></div></div>
+    <div id="gv" style="display:none"></div>`;
   const $ = s => el.querySelector(s); let legs = 4, dist = 0;
   const finished = () => teams.filter(t => t.splits.length === legs).sort((a, b) => a.total - b.total);
+  const pass = t => { const now = performance.now() - t0, prev = t.splits.reduce((a, c) => a + c, 0);
+    if (now - prev < 300) return; t.splits.push(now - prev); if (t.splits.length === legs) { t.total = now; beep(1200, .3); } else beep(900, .08); draw(); };
+  const exportCsv = list => { const fin = finished(); download(`relais-${today()}.csv`, csv([['Rang', 'Équipe', 'Temps', ...Array.from({ length: legs }, (_, k) => 'Relais ' + (k + 1))],
+    ...list.map(t => [fin.indexOf(t) + 1 || '', t.name, t.total ? fmt(t.total) : '', ...t.splits.map(s => fmt(s))])])); };
+  // Vue « une seule équipe » : ce que voient les élèves sur leur tablette
+  const drawTeam = t => {
+    const done = t.splits.length === legs, n = t.splits.length;
+    $('#gv').innerHTML = `<div class="card" style="text-align:center"><div style="font-weight:900;font-size:1.3rem">${esc(t.name)}</div><div class="muted">${legs} relayeur${legs > 1 ? 's' : ''}${dist ? ` · ${dist} m par fraction` : ''}</div>
+        <div class="gv-clock" id="gvt" style="color:${done ? '#1B9E5A' : 'inherit'}">${done ? fmt(t.total) : t0 ? fmt(performance.now() - t0) : '00:00,00'}</div>
+        <div style="display:flex;gap:6px;justify-content:center;margin:6px 0">${Array.from({ length: legs }, (_, k) => `<span style="flex:0 1 44px;height:12px;border-radius:99px;background:${k < n ? '#1B9E5A' : k === n && t0 ? 'var(--blue)' : 'var(--line)'}"></span>`).join('')}</div>
+        ${!t0 ? '<button class="btn btn-grad btn-block gv-big" id="gv-go">🔫 Départ</button>' : ''}
+        ${t0 && !done ? `<button class="btn ${n === legs - 1 ? 'btn-danger' : 'btn-grad'} btn-block" id="gv-pass" style="margin-top:12px;font-size:1.5rem;padding:26px 16px">${n === legs - 1 ? '🏁 Arrivée' : `➡️ Passage ${n + 1} / ${legs}`}</button><div class="muted" style="margin-top:6px">Relayeur ${n + 1} en course</div>` : ''}
+        ${done ? '<div style="margin-top:8px;font-weight:800">✅ Course terminée</div>' : ''}</div>
+      ${n ? `<div class="card" style="margin-top:10px">${t.splits.map((s, k) => `<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--line);font-size:1.1rem"><b>Relayeur ${k + 1}</b><span style="font-weight:800;font-variant-numeric:tabular-nums">${fmt(s)}${dist ? ` <span class="muted" style="font-size:.85rem">(${(dist / (s / 1000) * 3.6).toFixed(1)} km/h)</span>` : ''}</span></div>`).join('')}</div>` : ''}
+      ${n ? '<button class="btn btn-grad btn-block" style="margin-top:12px" id="gv-exp">📤 Résultats de l\'équipe</button>' : ''}
+      <div style="text-align:center;margin:18px 0 6px"><button class="link" id="gv-prof">🔒 Mode enseignant</button></div>`;
+    if ($('#gv-go')) $('#gv-go').onclick = () => { if (t0) return; t0 = performance.now(); beep(1500, .35); draw(); };
+    if ($('#gv-pass')) $('#gv-pass').onclick = () => pass(t);
+    if ($('#gv-exp')) $('#gv-exp').onclick = () => exportCsv([t]);
+    $('#gv-prof').onclick = () => { if (!confirm('Passer en mode enseignant (toutes les équipes, réglages) ?')) return; setOnly(null); draw(); };
+  };
   const draw = () => {
+    const ot = onlyT(); $('#race').style.display = ot ? 'none' : 'block'; $('#gv').style.display = ot ? 'block' : 'none';
+    [...el.children].forEach(c => { if (!['setup', 'race', 'gv'].includes(c.id)) c.style.display = ot ? 'none' : ''; }); // carte « Composer les équipes » masquée aux élèves
+    if (ot) return drawTeam(ot);
+    $('#gv').innerHTML = '';
+    $('#onw').innerHTML = teams.length > 1 ? `<label>📱 Tablette d'une équipe (les élèves ne verront que leur équipe)</label><select id="only"><option value="">Toutes les équipes</option>${teams.map((t, i) => `<option value="${i}">${esc(t.name)}</option>`).join('')}</select>` : '';
+    if ($('#only')) $('#only').onchange = ev => { if (ev.target.value === '') return; setOnly(teams[+ev.target.value].name); draw(); };
     const fin = finished();
     $('#rg').innerHTML = teams.map((t, i) => { const done = t.splits.length === legs, rk = fin.indexOf(t) + 1;
       return `<div class="relay ${done ? 'done' : ''}"><b>${esc(t.name)}</b> ${done ? `<span class="rk">${rk === 1 ? '🥇' : rk === 2 ? '🥈' : rk === 3 ? '🥉' : rk + 'e'}</span>` : ''}
       <div class="t" data-t="${i}">${done ? fmt(t.total) : '00:00,00'}</div>
       <div class="legs">${t.splits.map((s, k) => `R${k + 1} ${fmt(s)}${dist ? ` (${(dist / (s / 1000) * 3.6).toFixed(1)} km/h)` : ''}`).join(' · ')}</div>
       <button class="btn ${done ? 'btn-ghost' : 'btn-grad'} btn-block" style="margin-top:8px" data-i="${i}" ${done || !t0 ? 'disabled' : ''}>${done ? 'Arrivée ✔' : t.splits.length === legs - 1 ? '🏁 Arrivée' : `➡️ Passage ${t.splits.length + 1}/${legs}`}</button></div>`; }).join('');
-    $('#rg').querySelectorAll('[data-i]').forEach(b => b.onclick = () => {
-      const t = teams[b.dataset.i], now = performance.now() - t0, prev = t.splits.reduce((a, c) => a + c, 0);
-      if (now - prev < 300) return; t.splits.push(now - prev); if (t.splits.length === legs) { t.total = now; beep(1200, .3); } else beep(900, .08); draw();
-    });
+    $('#rg').querySelectorAll('[data-i]').forEach(b => b.onclick = () => pass(teams[b.dataset.i]));
   };
   const tick = () => { raf = requestAnimationFrame(tick); if (!t0) return; const now = performance.now() - t0; $('#tm').textContent = fmt(now);
-    teams.forEach((t, i) => { if (t.splits.length < legs) { const d = $(`[data-t="${i}"]`); if (d) d.textContent = fmt(now); } }); };
+    teams.forEach((t, i) => { if (t.splits.length < legs) { const d = $(`[data-t="${i}"]`); if (d) d.textContent = fmt(now); } });
+    const ot = onlyT(), g = $('#gvt'); if (ot && g && ot.splits.length < legs) g.textContent = fmt(now); };
   $('#gen').onclick = () => { const n = namesFrom('tl'); if (!n.length) return toast('Ajoutez des équipes'); legs = Math.max(1, +$('#lg').value || 1); dist = +$('#ds').value || 0;
-    teams = n.map(name => ({ name, splits: [], total: 0 })); t0 = null; $('#setup').style.display = 'none'; $('#race').style.display = 'block'; $('#tm').textContent = '00:00,00'; draw(); };
+    teams = n.map(name => ({ name, splits: [], total: 0 })); t0 = null; setOnly(null); $('#setup').style.display = 'none'; $('#race').style.display = 'block'; $('#tm').textContent = '00:00,00'; draw(); };
   $('#go').onclick = () => { if (t0) return; t0 = performance.now(); beep(1500, .35); draw(); };
   $('#new').onclick = () => { if (!t0 || confirm('Abandonner cette course ?')) { t0 = null; $('#setup').style.display = 'block'; $('#race').style.display = 'none'; } };
-  $('#exp').onclick = () => { const fin = finished(); download(`relais-${today()}.csv`, csv([['Rang', 'Équipe', 'Temps', ...Array.from({ length: legs }, (_, k) => 'Relais ' + (k + 1))],
-    ...teams.map(t => [fin.indexOf(t) + 1 || '', t.name, t.total ? fmt(t.total) : '', ...t.splits.map(s => fmt(s))])])); };
+  $('#exp').onclick = () => exportCsv(teams);
   tick(); return () => cancelAnimationFrame(raf);
 },
 

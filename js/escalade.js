@@ -43,8 +43,12 @@ TOOL_IMPL.escalade = function (el) {
   const DC = [{ t0: 0, acc: 0, run: false }, { t0: 0, acc: 0, run: false }];
   const dsec = k => DC[k].acc + (DC[k].run ? (performance.now() - DC[k].t0) / 1000 : 0);
 
+  // Tablette d'une cordée : réglage propre à l'appareil (DB.tablette n'est jamais synchronisé)
+  const tabOf = () => { const t = (DB.tablette || {}).escalade; return t && E.voies.length && teamsOf(t.cls).some(x => x.name === t.eq) ? t : null; };
+
   function frame() {
     if (sub) { try { sub(); } catch (e) {} sub = null; }
+    if (tabOf()) return tablette(el);
     el.innerHTML = `<div class="co-tabs" style="flex-wrap:wrap">${[['voies', '🧗 Voies'], ['equipes', '👥 Équipes'], ['passage', '📋 Passage'], ['defis', '⚔️ Défis'], ['video', '🎥 Vidéo'], ['resultats', '📊 Résultats']].map(([k, l]) => `<button data-tab="${k}" class="${tab === k ? 'on' : ''}" style="flex:1 1 30%">${l}</button>`).join('')}</div><div id="e-body"></div>`;
     el.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => { tab = b.dataset.tab; frame(); });
     const box = el.querySelector('#e-body');
@@ -136,7 +140,8 @@ TOOL_IMPL.escalade = function (el) {
           <div><label>Élève</label><select id="st">${st.map((n, k) => `<option value="${k}" ${k === P.si ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select></div></div>
         <label>Voie</label><select id="vo">${E.voies.map(w => `<option value="${w.id}" ${w.id === P.voie ? 'selected' : ''}>${esc(w.cot)} — ${esc(w.nom)}</option>`).join('')}</select>
         ${img ? `<img src="${img}" id="vimg" style="width:100%;max-height:220px;object-fit:contain;border-radius:12px;background:#000;margin-top:8px;cursor:zoom-in">` : ''}
-        <label>Mode de grimpe</label><div class="seg" id="md">${Object.entries(ESC_MODES).map(([k, l]) => `<button data-md="${k}" class="${P.mode === k ? 'on' : ''}">${l}</button>`).join('')}</div></div>
+        <label>Mode de grimpe</label><div class="seg" id="md">${Object.entries(ESC_MODES).map(([k, l]) => `<button data-md="${k}" class="${P.mode === k ? 'on' : ''}">${l}</button>`).join('')}</div>
+        ${TM.length ? `<label>📱 Tablette d'une équipe / cordée (les élèves ne verront que leur cordée)</label><select id="only"><option value="">Toutes</option>${TM.map(t => `<option>${esc(t.name)}</option>`).join('')}</select>` : ''}</div>
       <div class="card" style="margin-top:12px"><h3>Observables</h3>
         <label>Temps de grimpe</label>
         <div class="big clock" id="tm" style="font-size:clamp(2.4rem,12vw,4rem);padding:4px 0">${escTime(sec())}</div>
@@ -152,6 +157,8 @@ TOOL_IMPL.escalade = function (el) {
     if ($('#eqf')) $('#eqf').onchange = e => { P.eq = e.target.value; P.si = 0; passage(box); };
     $('#vo').onchange = e => { P.voie = e.target.value; E.lastVoie = P.voie; save(); passage(box); };
     if ($('#vimg')) $('#vimg').onclick = () => zoom(V.id);
+    if ($('#only')) $('#only').onchange = e => { if (!e.target.value) return;
+      DB.tablette = DB.tablette || {}; DB.tablette.escalade = { cls: P.cls, eq: e.target.value }; P.gw = ''; save(); frame(); };
     all('[data-md]').forEach(b => b.onclick = () => { P.mode = b.dataset.md; E.lastMode = P.mode; save(); all('[data-md]').forEach(x => x.classList.toggle('on', x === b)); });
     all('[data-fl]').forEach(b => b.onclick = () => { P.flu = +b.dataset.fl; all('[data-fl]').forEach(x => x.classList.toggle('on', x === b)); });
     all('[data-p]').forEach(b => b.onclick = () => { P[b.dataset.p]++; $('#n-' + b.dataset.p).textContent = P[b.dataset.p]; beep(1100, .03, .15); });
@@ -169,6 +176,59 @@ TOOL_IMPL.escalade = function (el) {
       passage(box); };
     const last = E.passages.filter(p => p.classe === P.cls).slice(-6).reverse();
     $('#last').innerHTML = last.length ? rowsTable(last, false) : '<div class="empty">Aucun passage pour cette classe.</div>';
+  }
+  /* ---------- 📱 Tablette d'une cordée : ce que voient les élèves ---------- */
+  const isToday = t => new Date(t).toDateString() === new Date().toDateString();
+  function tablette(box) {
+    const T = tabOf(), cls = P.cls = T.cls, team = teamsOf(cls).find(x => x.name === T.eq), M = team.members;
+    if (!E.voies.some(w => w.id === P.voie)) P.voie = E.voies[0].id;
+    if (!M.includes(P.gw)) P.gw = M[0] || '';
+    const V = E.voies.find(w => w.id === P.voie), img = DB[escImgKey(V.id)];
+    const mine = E.passages.filter(p => p.classe === cls && M.includes(p.eleve) && isToday(p.date)), doneBy = id => [...new Set(mine.filter(p => p.voie === id).map(p => p.eleve))];
+    const gi = M.indexOf(P.gw), rot = k => M[(gi + k) % M.length];
+    const counter = (k, label) => `<label>${label}</label><div class="row" style="align-items:center"><button class="btn btn-ghost" style="flex:0 0 70px;font-size:1.5rem;padding:14px 0" data-m="${k}">−</button><div style="flex:0 0 80px;text-align:center;font-size:2.4rem;font-weight:900" id="n-${k}">${P[k]}</div><button class="btn btn-grad" style="flex:1;font-size:1.3rem;padding:18px" data-p="${k}">＋1</button></div>`;
+    box.innerHTML = `<div class="esc-tab"><div class="card" style="text-align:center"><div style="font-weight:900;font-size:1.3rem">🧗 ${esc(team.name)}</div><div class="muted">${M.map(esc).join(', ')} · ${esc(cls)}</div>
+        <div class="muted" style="font-size:.85rem;margin-top:4px">${mine.length} passage${mine.length > 1 ? 's' : ''} enregistré${mine.length > 1 ? 's' : ''} aujourd'hui par la cordée</div></div>
+      <div class="card" style="margin-top:10px"><b>1. Qui grimpe ?</b>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin-top:8px">${M.map(n => `<button class="btn ${n === P.gw ? 'btn-grad' : 'btn-ghost'}" style="font-size:1.15rem;padding:14px 8px;flex-direction:column;gap:2px" data-gw="${esc(n)}">${esc(n)}<div style="font-size:.75rem;font-weight:600;opacity:.8">${mine.filter(p => p.eleve === n).length} voie(s) aujourd'hui</div></button>`).join('')}</div>
+        ${M.length > 1 ? `<div class="muted" style="margin-top:8px;font-size:.9rem">🪢 Assureur : <b>${esc(rot(1))}</b>${M.length > 2 ? ` · Contre-assureur : <b>${esc(rot(2))}</b>` : ''}</div>` : ''}</div>
+      <div class="card" style="margin-top:10px"><b>2. Quelle voie ?</b> <span class="muted" style="font-size:.8rem">✓ = déjà réussie par ${esc(P.gw)} aujourd'hui</span>
+        ${E.voies.map(w => { const d = doneBy(w.id), me = d.includes(P.gw), s = w.id === P.voie;
+          return `<button class="gv-it ${me ? 'on' : ''}" data-vo="${w.id}" style="${s ? 'border-color:#2F6BD8;box-shadow:inset 0 0 0 2px #2F6BD8' : ''}"><span class="bx">${me ? '✓' : ''}</span><span style="flex:1;min-width:0">${escBadge(w.cot)} <span>${esc(w.nom)}</span>${d.length ? `<div class="muted" style="font-size:.78rem;font-weight:600;margin-top:3px">Réussie par ${d.map(esc).join(', ')}</div>` : ''}</span>${s ? '<span style="font-size:1.4rem">👈</span>' : ''}</button>`; }).join('')}
+        ${img ? `<img src="${img}" id="vimg" style="width:100%;max-height:240px;object-fit:contain;border-radius:12px;background:#000;margin-top:10px;cursor:zoom-in">` : ''}
+        <label>Mode de grimpe</label><div class="seg" id="md">${Object.entries(ESC_MODES).map(([k, l]) => `<button data-md="${k}" class="${P.mode === k ? 'on' : ''}" style="padding:14px 6px;font-size:1.05rem">${l}</button>`).join('')}</div></div>
+      <div class="card" style="margin-top:10px;text-align:center"><b>3. Temps de grimpe de ${esc(P.gw)}</b>
+        <div class="gv-clock" id="tm">${escTime(sec())}</div>
+        <div class="row"><button class="btn ${P.run ? 'btn-danger' : 'btn-grad'}" style="font-size:1.2rem;padding:16px" id="go">${P.run ? '⏹ Arrivée' : P.acc ? '▶ Reprendre' : '▶ Départ'}</button><button class="btn btn-ghost" style="flex:0 0 70px;font-size:1.2rem" id="rz">↺</button></div></div>
+      <div class="card" style="margin-top:10px"><b>4. Observables</b>
+        ${counter('pieds', 'Nombre de poses de pieds')}
+        ${counter('pme', 'Nombre de PME')}
+        <label>Fluidité des déplacements</label><div class="seg" id="fl">${[1, 2, 3, 4].map(k => `<button data-fl="${k}" class="${P.flu === k ? 'on' : ''}" style="padding:14px 4px">${k} · ${ESC_FLU[k]}</button>`).join('')}</div></div>
+      <button class="btn btn-grad btn-block" style="margin-top:12px;font-size:1.2rem;padding:18px" id="sv">💾 Enregistrer : ${esc(P.gw || '—')} · ${esc(V.cot)}</button>
+      ${mine.length ? `<div class="section-title"><h2>Passages de la cordée aujourd'hui</h2></div><div class="card sheet-table">${rowsTable(mine.slice().reverse(), false)}</div>` : ''}
+      <div style="text-align:center;margin:18px 0 6px"><button class="link" id="gv-prof">🔒 Mode enseignant</button></div></div>`;
+    const $ = s => box.querySelector(s), all = s => box.querySelectorAll(s);
+    all('[data-gw]').forEach(b => b.onclick = () => { P.gw = b.dataset.gw; tablette(box); });
+    all('[data-vo]').forEach(b => b.onclick = () => { P.voie = E.lastVoie = b.dataset.vo; save(); tablette(box); });
+    if ($('#vimg')) $('#vimg').onclick = () => zoom(V.id);
+    all('[data-md]').forEach(b => b.onclick = () => { P.mode = E.lastMode = b.dataset.md; save(); all('[data-md]').forEach(x => x.classList.toggle('on', x === b)); });
+    all('[data-fl]').forEach(b => b.onclick = () => { P.flu = +b.dataset.fl; all('[data-fl]').forEach(x => x.classList.toggle('on', x === b)); });
+    all('[data-p]').forEach(b => b.onclick = () => { P[b.dataset.p]++; $('#n-' + b.dataset.p).textContent = P[b.dataset.p]; beep(1100, .03, .15); });
+    all('[data-m]').forEach(b => b.onclick = () => { P[b.dataset.m] = Math.max(0, P[b.dataset.m] - 1); $('#n-' + b.dataset.m).textContent = P[b.dataset.m]; });
+    $('#go').onclick = () => { if (P.run) { P.acc = sec(); P.run = false; beep(900, .2); } else { P.t0 = performance.now(); P.run = true; beep(1300, .3); }
+      $('#go').textContent = P.run ? '⏹ Arrivée' : '▶ Reprendre'; $('#go').className = 'btn ' + (P.run ? 'btn-danger' : 'btn-grad'); };
+    $('#rz').onclick = () => { P.run = false; P.acc = 0; $('#tm').textContent = escTime(0); $('#go').textContent = '▶ Départ'; $('#go').className = 'btn btn-grad'; };
+    // chaque tablette n'enregistre que les passages réellement faits par SA cordée
+    $('#sv').onclick = () => { const n = P.gw; if (!n) return toast('Cordée vide');
+      const t = Math.round(sec() * 10) / 10;
+      if (!t && !P.pieds && !P.pme && !P.flu && !confirm(`Aucun observable saisi pour ${n}. Enregistrer quand même la voie ${V.cot} ?`)) return;
+      const r = { id: Date.now().toString(36), date: Date.now(), classe: cls, eleve: n, voie: V.id, voieNom: V.nom, cot: V.cot, mode: P.mode, temps: t || null, pieds: P.pieds, pme: P.pme, flu: P.flu || null };
+      E.passages.push(r);
+      saveResult({ tool: 'escalade', label: 'Escalade', classe: cls, eleve: n, valeur: `${V.cot} ${ESC_MODES[P.mode].toLowerCase()}`, detail: detailOf(r) });
+      toast(`${n} : ${V.cot} ✔`); beep(1000, .15);
+      Object.assign(P, { pieds: 0, pme: 0, flu: 0, run: false, acc: 0, gw: rot(1) || n });
+      tablette(box); box.scrollIntoView?.({ block: 'start' }); };
+    $('#gv-prof').onclick = () => { if (!confirm('Passer en mode enseignant (toutes les cordées, réglages) ?')) return; delete DB.tablette.escalade; save(); tab = 'passage'; frame(); };
   }
   const detailOf = r => [r.temps != null ? 'temps ' + escTime(r.temps) : '', `${r.pieds} poses de pieds`, `${r.pme} PME`, r.flu ? 'fluidité ' + r.flu + '/4' : ''].filter(Boolean).join(' · ');
   const rowsTable = (rows, del) => `<table><tr><th>Élève</th><th>Date</th><th>Voie</th><th>Mode</th><th>Temps</th><th>Pieds</th><th>PME</th><th>Fluidité</th>${del ? '<th></th>' : ''}</tr>
@@ -284,7 +344,7 @@ TOOL_IMPL.escalade = function (el) {
   }
 
   frame();
-  iv = setInterval(() => { const t = el.querySelector('#tm'); if (t && P.run && tab === 'passage') t.textContent = escTime(sec());
+  iv = setInterval(() => { const t = el.querySelector('#tm'); if (t && P.run && (tab === 'passage' || tabOf())) t.textContent = escTime(sec());
     if (tab === 'defis') [0, 1].forEach(k => { const e = el.querySelector('#dt' + k); if (e && DC[k].run) e.textContent = escTime(dsec(k)); }); }, 100);
   return () => { clearInterval(iv); if (sub) { try { sub(); } catch (e) {} } };
 };

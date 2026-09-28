@@ -214,6 +214,8 @@
       if (r.status === 401) { if (retry && tok?.r) { tok.exp = 0; return api(url, opt, false); } tok = null; saveTok(); throw new Error('Reconnexion à Dropbox nécessaire'); }
       return r;
     }
+    // Message d'erreur détaillé renvoyé par Dropbox (aide au diagnostic)
+    const fail = async (r, step) => { let t = ''; try { t = (await r.text()).replace(/\s+/g, ' ').slice(0, 220); } catch (e) {} throw new Error(`Dropbox (${step}) : erreur ${r.status}${t ? ' · ' + t : ''}`); };
     const arg = o => JSON.stringify(o).replace(/[\u007f-￿]/g, c => '\\u' + c.charCodeAt(0).toString(16).padStart(4, '0'));
     const E = makeCloud({
       id: 'dropbox', name: 'Dropbox', icon: '<img src="icons/dropbox.png" alt="" style="width:1.3em;height:1.3em;vertical-align:-.28em;border-radius:5px;background:#fff">', metaK: 'epsone_dbx_meta', baseK: 'epsone_dbx_base',
@@ -223,15 +225,15 @@
       list: async () => {
         let out = [], r = await api(API + '/2/files/list_folder', { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path: '', limit: 2000 }) });
         if (r.status === 409) return [];
-        if (!r.ok) throw new Error('Dropbox : erreur ' + r.status);
+        if (!r.ok) await fail(r, 'liste');
         let j = await r.json(); out = out.concat(j.entries);
-        while (j.has_more) { r = await api(API + '/2/files/list_folder/continue', { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cursor: j.cursor }) }); if (!r.ok) throw new Error('Dropbox : erreur ' + r.status); j = await r.json(); out = out.concat(j.entries); }
+        while (j.has_more) { r = await api(API + '/2/files/list_folder/continue', { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cursor: j.cursor }) }); if (!r.ok) await fail(r, 'liste'); j = await r.json(); out = out.concat(j.entries); }
         return out.filter(e => e['.tag'] === 'file' && /^epsone_.*\.json$/.test(e.name)).map(e => ({ id: e.id, key: KEY(e.name), mt: e.rev }));
       },
-      read: async id => { const r = await api(CONT + '/2/files/download', { headers: { 'Dropbox-API-Arg': arg({ path: id }) } }); if (!r.ok) throw new Error('Dropbox : erreur ' + r.status); return JSON.parse(await r.text()); },
+      read: async id => { const r = await api(CONT + '/2/files/download', { headers: { 'Dropbox-API-Arg': arg({ path: id }) } }); if (!r.ok) await fail(r, 'lecture'); return JSON.parse(await r.text()); },
       write: async (k, id, obj) => {
         const r = await api(CONT + '/2/files/upload', { headers: { 'Content-Type': 'application/octet-stream', 'Dropbox-API-Arg': arg({ path: '/' + FN(k), mode: 'overwrite', mute: true }) }, body: JSON.stringify(obj) });
-        if (!r.ok) throw new Error('Dropbox : erreur ' + r.status);
+        if (!r.ok) await fail(r, 'envoi');
         const j = await r.json(); return { id: j.id, mt: j.rev };
       },
       revoke: () => { const t = tok?.t; tok = null; saveTok(); if (t) fetch(API + '/2/auth/token/revoke', { method: 'POST', headers: { Authorization: 'Bearer ' + t } }).catch(() => {}); },

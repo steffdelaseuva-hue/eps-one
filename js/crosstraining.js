@@ -28,6 +28,13 @@ document.head.insertAdjacentHTML('beforeend', `<style>
 .splits{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
 .splits button{padding:8px 10px;border-radius:10px;border:1.5px solid var(--line);background:var(--card);font-weight:800;font-size:.8rem}
 .splits button.on{background:#1B9E5A;color:#fff;border-color:transparent}
+.gv-clock{font-size:clamp(3.4rem,18vw,6.5rem);font-weight:900;text-align:center;font-variant-numeric:tabular-nums;line-height:1.05;padding:6px 0}
+.gv-it{display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:14px 12px;margin-top:8px;border-radius:14px;border:2px solid var(--line);background:var(--card);font-weight:800;font-size:1.02rem;color:var(--text)}
+.gv-it .bx{flex:0 0 30px;height:30px;border-radius:9px;border:2.5px solid var(--line);display:flex;align-items:center;justify-content:center;font-size:1.1rem;color:#fff}
+.gv-it.on{background:rgba(27,158,90,.1);border-color:#1B9E5A}
+.gv-it.on .bx{background:#1B9E5A;border-color:#1B9E5A}
+.gv-it.on span.t{text-decoration:line-through;opacity:.65}
+.gv-it:disabled{opacity:.55}
 </style>`);
 
 TOOL_IMPL.wod = function (el) {
@@ -107,27 +114,72 @@ TOOL_IMPL.wod = function (el) {
   const resOf = (g, e) => { const t = g.dep && g.arr ? (g.arr - g.dep) / 1000 : null;
     return { t, ecart: t != null ? t - e.prevu * 60 : null, cap: g.capped || (t != null && t > e.cap * 60) }; };
 
+  // Liste des étapes à cocher : pour chaque bloc, chaque série, (RUN) + exercices
+  const itemsOf = e => e.blocs.map((b, k) => { const L = [];
+    for (let sr = 0; sr < (b.series || 1); sr++) {
+      const run = b.run ? [{ id: `${k}-${sr}-r`, txt: `🏃 RUN ${b.runVal} ${RUN_T[b.runType] || ''}` }] : [];
+      const ex = b.ex.map((x, j) => ({ id: `${k}-${sr}-${j}`, txt: `${x.reps} ${x.nom}${/gainage/i.test(x.nom) ? ' (s)' : ''} · N${x.niv}` }));
+      L.push({ sr, list: e.sport === 'hyrox' ? [...run, ...ex] : [...ex, ...run] }); }
+    return L; });
+  const progOf = (g, e) => { const all = itemsOf(e).flat().flatMap(x => x.list); return [all.filter(x => g.checks && g.checks[x.id]).length, all.length]; };
+
   function seance(box) {
     const cur = DB.wod.current;
     if (!cur) return prepare(box);
     const e = cur.snap;
     let iv;
+    // Vue « un seul groupe » : ce que voient les élèves sur leur tablette
+    const drawGroup = () => {
+      const i = cur.only, g = cur.groups[i]; g.checks = g.checks || {};
+      const r = resOf(g, e), [n, tot] = progOf(g, e), run = g.dep && !g.arr && !g.capped, IT = itemsOf(e);
+      box.innerHTML = `<div class="card" style="text-align:center"><div style="font-weight:900;font-size:1.3rem">${esc(g.name)}</div><div class="muted">${g.members.map(esc).join(', ')}</div>
+          <div class="gv-clock" data-live="${i}" style="color:${g.arr || g.capped ? '#1B9E5A' : 'inherit'}">${r.t != null ? mmss(r.t) : g.dep ? mmss((Date.now() - g.dep) / 1000) : '0:00'}</div>
+          <div class="muted" id="capinfo"></div>
+          <div style="height:10px;border-radius:99px;background:var(--line);overflow:hidden;margin:10px 0 4px"><div style="height:100%;width:${tot ? n / tot * 100 : 0}%;background:#1B9E5A"></div></div>
+          <div class="muted" style="font-size:.85rem">${n} / ${tot} étapes réalisées · ${esc(e.nom)}</div>
+          ${!g.dep ? '<button class="btn btn-grad btn-block" style="margin-top:12px;font-size:1.2rem;padding:16px" id="gv-go">▶ Départ</button>' : ''}
+          ${run ? `<button class="btn ${n === tot ? 'btn-grad' : 'btn-danger'} btn-block" style="margin-top:12px;font-size:1.15rem;padding:14px" id="gv-fin">🏁 Arrivée${n === tot ? ' — tout est fait !' : ''}</button>` : ''}
+          ${g.arr || g.capped ? `<div style="margin-top:10px;font-weight:800">${r.cap ? '⏱ Time cap atteint' : '✅ Épreuve terminée'} · écart ${r.ecart > 0 ? '+' : ''}${mmss(r.ecart)} / ${e.prevu} min</div>` : ''}</div>
+        ${IT.map((ser, k) => { const b = e.blocs[k], done = !!g.splits[k];
+          return `<div class="card" style="margin-top:10px${done ? ';border:2px solid #1B9E5A' : ''}"><div style="display:flex;justify-content:space-between;align-items:center"><b>Bloc ${k + 1}</b><span class="muted" style="font-size:.8rem">${done ? '✅ ' + mmss((g.splits[k] - g.dep) / 1000) : WOD_FAM[b.famille]}</span></div>
+            ${ser.map(x => `${ser.length > 1 ? `<div class="muted" style="margin-top:8px;font-size:.8rem;font-weight:800">Série ${x.sr + 1} / ${ser.length}</div>` : ''}
+              ${x.list.map(it => `<button class="gv-it ${g.checks[it.id] ? 'on' : ''}" data-ck="${it.id}" ${run ? '' : 'disabled'}><span class="bx">${g.checks[it.id] ? '✓' : ''}</span><span class="t">${esc(it.txt)}</span></button>`).join('')}`).join('')}</div>`; }).join('')}
+        ${g.arr || g.capped ? '<button class="btn btn-grad btn-block" style="margin-top:12px" id="save">💾 Enregistrer le résultat</button>' : ''}
+        <div style="text-align:center;margin:18px 0 6px"><button class="link" id="gv-prof">🔒 Mode enseignant</button></div>`;
+      const $ = q => box.querySelector(q);
+      if ($('#gv-go')) $('#gv-go').onclick = () => { g.dep = Date.now(); cur.start = cur.start || g.dep; beep(1300, .45); save(); drawGroup(); };
+      if ($('#gv-fin')) $('#gv-fin').onclick = () => { if (n < tot && !confirm('Toutes les étapes ne sont pas cochées. Valider l\'arrivée ?')) return; g.arr = Date.now(); beep(1000, .3); save(); drawGroup(); };
+      box.querySelectorAll('[data-ck]').forEach(b => b.onclick = () => { const id = b.dataset.ck, k = +id.split('-')[0];
+        if (g.checks[id]) delete g.checks[id]; else { g.checks[id] = Date.now(); beep(900, .06); }
+        const blk = IT[k].flatMap(x => x.list); g.splits[k] = blk.every(x => g.checks[x.id]) ? Math.max(...blk.map(x => g.checks[x.id])) : null;
+        save(); drawGroup(); });
+      $('#gv-prof').onclick = () => { if (!confirm('Passer en mode enseignant (tous les groupes, réglages) ?')) return; cur.only = null; save(); draw(); };
+      if ($('#save')) $('#save').onclick = saveSeance;
+    };
+    const saveSeance = () => { if (cur.groups.some(g => g.dep && !g.arr && !g.capped) && !confirm('Certains groupes n\'ont pas terminé. Enregistrer quand même ?')) return;
+      // seuls les groupes partis sont enregistrés (une tablette par groupe → pas de lignes vides)
+      const done = cur.groups.filter(g => g.dep); if (!done.length) return toast('Aucun groupe n\'est parti');
+      const rec = { ...cur, groups: done }; delete rec.only;
+      DB.wod.seances.push(rec); DB.wod.current = null; save(); clearInterval(iv); toast('Séance enregistrée ✔'); tab = 'resultats'; frame(); };
     const draw = () => {
+      if (cur.only != null && cur.groups[cur.only]) return drawGroup();
       box.innerHTML = `<div class="card"><b>${esc(e.nom)}</b><div class="muted">${esc(cur.classe || '')} · ${summaryOf(e)}</div>
           <div class="big clock" id="gclk" style="font-size:clamp(2.4rem,12vw,4rem);padding:4px 0">0:00</div>
           <div class="muted" style="text-align:center" id="capinfo"></div>
-          <div class="row" style="margin-top:8px"><button class="btn btn-grad" id="all">🚩 Départ groupé</button></div><button class="btn btn-ghost btn-block" style="margin-top:8px" id="edg">✏️ Modifier les groupes / participants (absent, blessé…)</button></div>
+          ${cur.groups.length > 1 ? `<label>📱 Tablette d'un groupe (les élèves ne verront que leur groupe)</label><select id="only"><option value="">Tous les groupes</option>${cur.groups.map((g, i) => `<option value="${i}" ${cur.only === i ? 'selected' : ''}>${esc(g.name)}</option>`).join('')}</select>` : ''}
+          <div class="row" style="margin-top:8px"><button class="btn btn-grad" id="all">🚩 Départ ${cur.only != null ? 'du groupe' : 'groupé'}</button></div><button class="btn btn-ghost btn-block" style="margin-top:8px" id="edg">✏️ Modifier les groupes / participants (absent, blessé…)</button></div>
         <details class="card" style="margin-top:10px"><summary style="font-weight:800;cursor:pointer">📋 Rappel de l'épreuve</summary>${e.blocs.map((b, i) => `<div style="margin-top:8px"><b>Bloc ${i + 1}</b> <span class="muted">· ${WOD_FAM[b.famille]} · ${b.series} série${b.series > 1 ? 's' : ''}</span>
           <div class="muted" style="font-size:.85rem">${b.ex.map(x => `${x.reps} ${esc(x.nom)} (N${x.niv})`).join(' · ')}${b.run ? ` · RUN ${b.runVal} ${RUN_T[b.runType]}` : ''}</div></div>`).join('')}</details>
-        ${cur.groups.map((g, i) => { const r = resOf(g, e);
+        ${cur.groups.map((g, i) => { if (cur.only != null && cur.only !== i) return ''; const r = resOf(g, e);
           return `<div class="run ${g.arr || g.capped ? 'fin' : g.dep ? 'go' : ''}"><div class="run-h"><b>${esc(g.name)}</b><span class="run-t" data-live="${i}">${r.t != null ? mmss(r.t) : g.dep ? '…' : '0:00'}</span></div>
-            <div class="muted" style="font-size:.8rem">${g.members.map(esc).join(', ')}</div>
+            <div class="muted" style="font-size:.8rem">${g.members.map(esc).join(', ')}${g.checks && Object.keys(g.checks).length ? ` · ✔ ${progOf(g, e).join(' / ')} étapes` : ''}</div>
             <div class="splits">${e.blocs.map((b, k) => `<button data-sp="${i}-${k}" class="${g.splits[k] ? 'on' : ''}" ${g.dep && !g.arr && !g.capped ? '' : 'disabled'}>Bloc ${k + 1}${g.splits[k] ? ' · ' + mmss((g.splits[k] - g.dep) / 1000) : ''}</button>`).join('')}</div>
             <div class="row" style="margin-top:8px">${g.dep ? '' : `<button class="btn btn-grad" data-go="${i}">▶ Départ</button>`}${g.dep && !g.arr && !g.capped ? `<button class="btn btn-danger" data-fin="${i}">🏁 Arrivée</button>` : ''}${g.arr || g.capped ? `<button class="btn btn-ghost" data-undo="${i}">↺ Annuler l'arrivée</button>` : ''}</div>
             ${r.t != null ? `<div style="margin-top:6px;font-size:.88rem">Temps réalisé <b>${mmss(r.t)}</b> · écart <b style="color:${r.ecart > 0 ? 'var(--danger)' : 'var(--ok)'}">${r.ecart > 0 ? '+' : ''}${mmss(r.ecart)}</b> par rapport aux ${e.prevu} min ${r.cap ? '· <span class="pill warn">time cap</span>' : ''}</div>` : ''}</div>`; }).join('')}
         <div class="row" style="margin-top:12px"><button class="btn btn-grad" id="save">💾 Terminer et enregistrer</button><button class="btn btn-ghost" id="cancel">Abandonner</button></div>`;
       const $ = s => box.querySelector(s), all = s => box.querySelectorAll(s), keep = () => save();
-      $('#all').onclick = () => { const t = Date.now(); cur.groups.forEach(g => { if (!g.dep) g.dep = t; }); cur.start = cur.start || t; beep(1300, .45); keep(); draw(); };
+      if ($('#only')) $('#only').onchange = ev => { cur.only = ev.target.value === '' ? null : +ev.target.value; keep(); draw(); };
+      $('#all').onclick = () => { const t = Date.now(); cur.groups.forEach((g, i) => { if (!g.dep && (cur.only == null || cur.only === i)) g.dep = t; }); cur.start = cur.start || t; beep(1300, .45); keep(); draw(); };
       $('#edg').onclick = () => { const indiv = cur.groups.every(g => g.members.length === 1 && g.name === g.members[0]);
         editGroupsPanel(indiv ? 'Participants' : 'Groupes de la séance', { cls: cur.classe, indiv, list: () => cur.groups, names: g => g.members,
           take: (g, n) => { g.members.splice(g.members.indexOf(n), 1); return indiv ? { dep: g.dep, arr: g.arr, capped: g.capped, splits: g.splits } : null; },
@@ -137,15 +189,15 @@ TOOL_IMPL.wod = function (el) {
       all('[data-fin]').forEach(b => b.onclick = () => { const g = cur.groups[+b.dataset.fin]; g.arr = Date.now(); beep(1000, .3); keep(); draw(); });
       all('[data-undo]').forEach(b => b.onclick = () => { const g = cur.groups[+b.dataset.undo]; g.arr = null; g.capped = false; keep(); draw(); });
       all('[data-sp]').forEach(b => b.onclick = () => { const [i, k] = b.dataset.sp.split('-').map(Number), g = cur.groups[i]; g.splits[k] = g.splits[k] ? null : Date.now(); beep(900, .06); keep(); draw(); });
-      $('#save').onclick = () => { if (cur.groups.some(g => g.dep && !g.arr && !g.capped) && !confirm('Certains groupes n\'ont pas terminé. Enregistrer quand même ?')) return;
-        DB.wod.seances.push(cur); DB.wod.current = null; save(); clearInterval(iv); toast('Séance enregistrée ✔'); tab = 'resultats'; frame(); };
+      $('#save').onclick = saveSeance;
       $('#cancel').onclick = () => { if (confirm('Abandonner la séance ?')) { DB.wod.current = null; save(); clearInterval(iv); prepare(box); } };
     };
     const tick = () => {
       if (!box.isConnected || !DB.wod.current) return clearInterval(iv);
       const now = Date.now(), capMs = e.cap * 60000;
       const gc = box.querySelector('#gclk'); if (gc) gc.textContent = cur.start ? mmss((now - cur.start) / 1000) : '0:00';
-      const ci = box.querySelector('#capinfo'); if (ci) ci.textContent = cur.start ? `Time cap dans ${mmss(Math.max(0, (cur.start + capMs - now) / 1000))}` : `Time cap : ${e.cap} min`;
+      const t0 = cur.only != null && cur.groups[cur.only] ? cur.groups[cur.only].dep : cur.start, gOnly = cur.only != null && cur.groups[cur.only];
+      const ci = box.querySelector('#capinfo'); if (ci) ci.textContent = gOnly && (gOnly.arr || gOnly.capped) ? '' : t0 ? `Time cap dans ${mmss(Math.max(0, (t0 + capMs - now) / 1000))}` : `Time cap : ${e.cap} min`;
       let changed = false;
       cur.groups.forEach((g, i) => {
         if (g.dep && !g.arr && !g.capped && now - g.dep >= capMs) { g.capped = true; g.arr = g.dep + capMs; changed = true; }

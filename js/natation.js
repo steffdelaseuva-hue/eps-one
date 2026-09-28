@@ -164,20 +164,134 @@ function natationSavoir(el) {
   draw();
 }
 
+/* ---------- Vue tablette d'un groupe ----------
+   Le groupe suivi est propre à l'appareil (DB.tablette.natation, jamais synchronisé) :
+   { cls, label, noms: [élèves], on: vue tablette active, d: distance }. */
+const natTab = () => { const t = DB.tablette?.natation; return t && t.on && t.cls && t.noms?.length ? t : null; };
+const natCls = () => DB.classes.some(c => c.name === DB.lastClass) ? DB.lastClass : (DB.classes[0] || {}).name || '';
+const natTabSet = o => { DB.tablette = DB.tablette || {}; DB.tablette.natation = { ...(DB.tablette.natation || {}), ...o }; save(); };
+const natProf = (el, back) => { el.insertAdjacentHTML('beforeend', '<div style="text-align:center;margin:18px 0 6px"><button class="link" id="gv-prof">🔒 Mode enseignant</button></div>');
+  el.querySelector('#gv-prof').onclick = () => { if (!confirm('Passer en mode enseignant (toute la classe, réglages) ?')) return; DB.tablette.natation.on = false; save(); back(); }; };
+
+// Choix « 📱 Cette tablette suit : » (vue enseignant). lanes > 1 : une ligne = élèves n° k, k + lanes, k + 2×lanes…
+function natTabPicker(host, lanes, go) {
+  const cls = natCls(); if (!cls) { host.innerHTML = ''; return; }
+  const st = studentsOf(cls), T = DB.tablette?.natation, laneOf = k => st.filter((_, i) => i % lanes === k);
+  const pick = () => {
+    host.innerHTML = `<label>📱 Cette tablette suit :</label><select id="tp"><option value="">Toute la classe (vue enseignant)</option>
+      ${lanes > 1 ? Array.from({ length: lanes }, (_, k) => laneOf(k)).map((g, k) => g.length ? `<option value="L${k}">Ligne ${k + 1} · ${g.map(esc).join(', ')}</option>` : '').join('') : ''}
+      ${T && T.cls === cls && T.noms?.length ? `<option value="grp">${esc(T.label)} · ${T.noms.map(esc).join(', ')}</option>` : ''}
+      <option value="new">➕ Choisir les élèves de mon groupe…</option></select>
+      <p class="muted" style="font-size:.75rem;margin:4px 0 0">Les élèves ne verront que leur groupe (grand chrono, gros boutons). Retour par « 🔒 Mode enseignant ».</p>`;
+    host.querySelector('#tp').onchange = e => { const v = e.target.value; if (!v) return;
+      if (v === 'new') return edit();
+      if (v === 'grp') natTabSet({ on: true });
+      else { const k = +v.slice(1); natTabSet({ cls, label: `Ligne ${k + 1}`, noms: laneOf(k), on: true }); }
+      go(); };
+  };
+  const edit = () => { const sel = new Set(T && T.cls === cls && !/^Ligne /.test(T.label) ? T.noms : []);
+    const dr = () => { host.innerHTML = `<label>📱 Mon groupe (${esc(cls)}) — touchez les élèves</label>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:0 8px">${st.map((x, k) => `<button class="gv-it ${sel.has(x) ? 'on' : ''}" data-tg="${k}" style="padding:12px 10px"><span class="bx">${sel.has(x) ? '✓' : ''}</span>${esc(x)}</button>`).join('')}</div>
+        <label>Nom du groupe</label><input id="tn" value="${esc(T && T.cls === cls && T.label && !/^Ligne /.test(T.label) ? T.label : 'Mon groupe')}">
+        <div class="row" style="margin-top:10px"><button class="btn btn-grad" id="tok">📱 Vue tablette (${sel.size})</button><button class="btn btn-ghost" id="tno" style="flex:0 0 auto">Annuler</button></div>`;
+      host.querySelectorAll('[data-tg]').forEach(b => b.onclick = () => { const n = st[+b.dataset.tg]; sel.has(n) ? sel.delete(n) : sel.add(n); const v = host.querySelector('#tn').value; dr(); host.querySelector('#tn').value = v; });
+      host.querySelector('#tno').onclick = pick;
+      host.querySelector('#tok').onclick = () => { if (!sel.size) return toast('Choisissez au moins un élève');
+        natTabSet({ cls, label: host.querySelector('#tn').value.trim() || 'Mon groupe', noms: st.filter(x => sel.has(x)), on: true }); go(); }; };
+    dr(); };
+  pick();
+}
+
+// Nager vite — tablette : un nageur à la fois parmi ceux du groupe (ou de la ligne)
+function natationTabVite(el, T, back) {
+  const st = T.noms, day = new Date().toDateString();
+  let cur = 0, d = T.d || 25, t0 = 0, acc = 0, run = false, c = 0, iv;
+  const sec = () => acc + (run ? (performance.now() - t0) / 1000 : 0);
+  const mine = () => DB.natation.filter(r => r.classe === T.cls && st.includes(r.eleve) && new Date(r.date).toDateString() === day);
+  const ixTxt = () => { const t = sec(); return d === 25 ? `Indice de nage : <b style="color:var(--text)">${natI(natIndice(d, t, c))}</b>` : c && t ? `${(d / c).toFixed(2).replace('.', ',')} m par coup de bras` : '&nbsp;'; };
+  const draw = () => {
+    const R = mine(), n = st[cur];
+    el.innerHTML = `<div class="card" style="text-align:center"><div style="font-weight:900;font-size:1.3rem">📱 ${esc(T.label)}</div><div class="muted">${esc(T.cls)} · ${R.length ? new Set(R.map(r => r.eleve)).size : 0} / ${st.length} nageur(s) passé(s) aujourd'hui</div>
+        <div class="seg" style="margin-top:10px">${[25, 50, 100, 200].map(v => `<button data-d="${v}" class="${v === d ? 'on' : ''}" ${run || acc ? 'disabled' : ''}>${v} m</button>`).join('')}</div>
+        <div style="font-weight:900;font-size:1.7rem;margin-top:14px">🏊 ${esc(n)}</div>
+        <div class="gv-clock" id="tv-t" style="color:${!run && acc ? '#1B9E5A' : 'inherit'}">${fmt(sec() * 1000)}</div>
+        <div class="row"><button class="btn ${run ? 'btn-danger' : 'btn-grad'}" style="font-size:1.3rem;padding:20px 6px" id="tv-go">${run ? '⏹ Arrivée' : acc ? '▶ Reprendre' : '▶ Départ'}</button><button class="btn btn-ghost" style="flex:0 0 76px;font-size:1.4rem" id="tv-rz">↺</button></div>
+        <div class="muted" style="font-size:.78rem;font-weight:800;margin-top:16px">COUPS DE BRAS</div>
+        <div class="row" style="align-items:stretch;margin-top:4px"><button class="btn btn-ghost" style="flex:0 0 76px;font-size:1.9rem" id="tv-cm">−</button><button class="btn btn-grad" style="font-size:2.8rem;font-weight:900;padding:22px 4px" id="tv-cp">${c}</button></div>
+        <div class="muted" style="margin-top:8px" id="tv-ix">${ixTxt()}</div>
+        ${!run && acc ? `<button class="btn btn-grad btn-block" style="margin-top:12px;font-size:1.2rem;padding:16px" id="tv-sv">💾 Enregistrer ${esc(n)}</button>` : ''}</div>
+      <div class="card" style="margin-top:10px"><b>Nageurs du groupe</b><div class="muted" style="font-size:.8rem">Touchez un nom pour choisir le nageur suivant.</div>
+        ${st.map((x, k) => { const rr = R.filter(r => r.eleve === x && r.d === d).pop();
+          return `<button class="gv-it ${rr ? 'on' : ''}" data-sw="${k}" ${run ? 'disabled' : ''} style="${k === cur ? 'box-shadow:0 0 0 3px var(--blue)' : ''}"><span class="bx">${rr ? '✓' : ''}</span><span style="flex:1">${esc(x)}${k === cur ? ' 🏊' : ''}</span>${rr ? `<span class="muted" style="font-size:.85rem;font-weight:700">${fmt(rr.t * 1000)} · ${rr.c || '–'} coups${d === 25 ? ` · indice ${natI(natIndice(rr.d, rr.t, rr.c))}` : ''}</span>` : ''}</button>`; }).join('')}</div>`;
+    natProf(el, back);
+    const $ = s => el.querySelector(s);
+    el.querySelectorAll('[data-d]').forEach(b => b.onclick = () => { d = T.d = +b.dataset.d; save(); draw(); });
+    $('#tv-go').onclick = () => { if (run) { acc = sec(); run = false; beep(1000, .3); } else { t0 = performance.now(); run = true; beep(1300, .45); } draw(); };
+    $('#tv-rz').onclick = () => { if ((run || acc || c) && !confirm('Remettre le chrono et les coups de bras à zéro ?')) return; run = false; acc = 0; c = 0; draw(); };
+    $('#tv-cp').onclick = () => { c++; $('#tv-cp').textContent = c; $('#tv-ix').innerHTML = ixTxt(); beep(1100, .03, .15); };
+    $('#tv-cm').onclick = () => { c = Math.max(0, c - 1); $('#tv-cp').textContent = c; $('#tv-ix').innerHTML = ixTxt(); };
+    el.querySelectorAll('[data-sw]').forEach(b => b.onclick = () => { if (run) return; if ((acc || c) && !confirm('Le résultat en cours n\'est pas enregistré. Changer de nageur ?')) return; cur = +b.dataset.sw; acc = 0; c = 0; draw(); });
+    if ($('#tv-sv')) $('#tv-sv').onclick = () => { const t = Math.round(sec() * 100) / 100; if (!t) return toast('Aucun temps à enregistrer');
+      DB.natation.push({ date: Date.now(), classe: T.cls, eleve: n, d, t, c }); save(); toast(`${n} : enregistré ✔`);
+      const done = new Set(mine().filter(r => r.d === d).map(r => r.eleve)), nx = st.findIndex((x, k) => k > cur && !done.has(x));
+      cur = nx >= 0 ? nx : Math.max(0, st.findIndex(x => !done.has(x))); acc = 0; c = 0; draw(); };
+  };
+  draw();
+  iv = setInterval(() => { if (!run) return; const e = el.querySelector('#tv-t'); if (e) e.textContent = fmt(sec() * 1000); const x = el.querySelector('#tv-ix'); if (x) x.innerHTML = ixTxt(); }, 60);
+  return () => clearInterval(iv);
+}
+
+// Savoir nager — tablette : seuls les élèves du groupe, gros boutons ✔ / ✗
+function natationTabSavoir(el, T, back) {
+  const cls = T.cls, st = T.noms; let si = 0;
+  const get = n => DB.asns[cls]?.[n], ok = r => !!r && r.r.every(v => v === 1), nOk = r => r ? r.r.filter(v => v === 1).length : 0;
+  const draw = () => {
+    const n = st[si], R = get(n) || { r: ASNS.map(() => null) }, nb = st.filter(x => ok(get(x))).length;
+    el.innerHTML = `<div class="card" style="text-align:center"><div style="font-weight:900;font-size:1.3rem">📱 ${esc(T.label)}</div><div class="muted">${esc(cls)} · ${nb} / ${st.length} savoir-nager validé(s)</div></div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:0 8px">${st.map((x, k) => { const r = get(x);
+        return `<button class="gv-it ${ok(r) ? 'on' : ''}" data-st="${k}" style="padding:12px 10px;${k === si ? 'box-shadow:0 0 0 3px var(--blue)' : ''}"><span class="bx">${ok(r) ? '🏅' : ''}</span><span style="flex:1">${esc(x)}</span><span class="muted" style="font-size:.8rem">${nOk(r)}/${ASNS.length}</span></button>`; }).join('')}</div>
+      <div class="card" style="margin-top:12px"><h3 style="font-size:1.35rem">${esc(n)}</h3>
+        ${ASNS.map((l, i) => `<div class="gv-it" style="cursor:default;${R.r[i] === 1 ? 'border-color:#1B9E5A;background:rgba(27,158,90,.1)' : R.r[i] === 0 ? 'border-color:var(--danger)' : ''}"><span style="flex:1">${i + 1}. ${l}</span>
+          <button class="btn ${R.r[i] === 1 ? 'btn-grad' : 'btn-ghost'}" style="flex:0 0 64px;padding:16px 0;font-size:1.4rem" data-ok="${i}">✔</button><button class="btn ${R.r[i] === 0 ? 'btn-danger' : 'btn-ghost'}" style="flex:0 0 64px;padding:16px 0;font-size:1.4rem" data-ko="${i}">✗</button></div>`).join('')}
+        <div class="${ok(R) ? 'win' : 'card'}" style="margin-top:12px;text-align:center;font-size:1.1rem">${ok(R) ? '🏅 Savoir-nager validé' : `${nOk(R)}/${ASNS.length} épreuves validées`}</div>
+        ${st.length > 1 ? `<div class="row" style="margin-top:10px"><button class="btn btn-ghost" style="padding:16px" id="pv">← Précédent</button><button class="btn btn-grad" style="padding:16px" id="nx">Suivant →</button></div>` : ''}</div>`;
+    natProf(el, back);
+    const $ = s => el.querySelector(s);
+    // l'enregistrement n'est créé qu'au premier appui : pas de fiche vide pour les élèves non évalués
+    const set = (i, v) => { DB.asns[cls] = DB.asns[cls] || {}; const r = DB.asns[cls][n] = DB.asns[cls][n] || { r: ASNS.map(() => null) }, was = ok(r);
+      r.r[i] = r.r[i] === v ? null : v; r.d = Date.now(); if (v === 1 && r.r[i] === 1) beep(900, .06);
+      if (!was && ok(r)) { saveResult({ tool: 'natation', label: 'Savoir-nager', classe: cls, eleve: n, valeur: 'Savoir-nager validé', detail: 'Toutes les épreuves du test' }); toast(`🏅 ${n} : savoir-nager validé`); } else save(); draw(); };
+    el.querySelectorAll('[data-ok]').forEach(b => b.onclick = () => set(+b.dataset.ok, 1));
+    el.querySelectorAll('[data-ko]').forEach(b => b.onclick = () => set(+b.dataset.ko, 0));
+    el.querySelectorAll('[data-st]').forEach(b => b.onclick = () => { si = +b.dataset.st; draw(); });
+    if ($('#pv')) $('#pv').onclick = () => { si = (si - 1 + st.length) % st.length; draw(); };
+    if ($('#nx')) $('#nx').onclick = () => { si = (si + 1) % st.length; draw(); };
+  };
+  draw();
+}
+
 TOOL_IMPL.natation = function (el) {
   let mode = DB.natMode || 'vite', stop = null;
   const frame = () => {
     if (stop) { try { stop(); } catch (e) {} stop = null; }
     el.innerHTML = `<div class="co-tabs">${[['vite', '⏱ Nager vite'], ['savoir', '🏅 Savoir nager']].map(([k, l]) => `<button data-nm="${k}" class="${mode === k ? 'on' : ''}">${l}</button>`).join('')}</div><div id="nat-b"></div>`;
     el.querySelectorAll('[data-nm]').forEach(b => b.onclick = () => { mode = DB.natMode = b.dataset.nm; save(); frame(); });
-    const box = el.querySelector('#nat-b');
+    const box = el.querySelector('#nat-b'), T = natTab();
+    if (T) { stop = mode === 'vite' ? natationTabVite(box, T, frame) : natationTabSavoir(box, T, frame); return; }   // tablette d'un groupe
+    // le choix du groupe suit la classe sélectionnée dans la vue enseignant
+    box.addEventListener('change', e => { const h = box.querySelector('#nat-tp'); if (h && ['cl', 'mc', 'sc'].includes(e.target.id)) natTabPicker(h, mode === 'vite' ? DB.natLanes || 1 : 1, frame); });
     if (mode === 'vite') {
       const L = DB.natLanes || 1;
-      box.innerHTML = `<div class="card" style="margin-bottom:12px"><label style="margin-top:0">Nageurs chronométrés en même temps</label><div class="seg">${[1, 2, 3, 4].map(n => `<button data-ln="${n}" class="${L === n ? 'on' : ''}">${n}</button>`).join('')}</div></div><div id="nat-v"></div>`;
+      box.innerHTML = `<div class="card" style="margin-bottom:12px"><label style="margin-top:0">Nageurs chronométrés en même temps</label><div class="seg">${[1, 2, 3, 4].map(n => `<button data-ln="${n}" class="${L === n ? 'on' : ''}">${n}</button>`).join('')}</div><div id="nat-tp"></div></div><div id="nat-v"></div>`;
       box.querySelectorAll('[data-ln]').forEach(b => b.onclick = () => { DB.natLanes = +b.dataset.ln; save(); frame(); });
+      natTabPicker(box.querySelector('#nat-tp'), L, frame);
       const vb = box.querySelector('#nat-v');
       stop = L > 1 ? natationMulti(vb, L) : natationVite(vb);
-    } else stop = natationSavoir(box);
+    } else {
+      box.innerHTML = DB.classes.length ? '<div class="card" style="margin-bottom:12px" id="nat-tp"></div><div id="nat-s"></div>' : '<div id="nat-s"></div>';
+      if (DB.classes.length) natTabPicker(box.querySelector('#nat-tp'), 1, frame);
+      stop = natationSavoir(box.querySelector('#nat-s'));
+    }
   };
   frame();
   return () => { if (stop) stop(); };

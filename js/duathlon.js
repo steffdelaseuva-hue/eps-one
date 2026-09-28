@@ -5,6 +5,15 @@
    ========================================================= */
 DB.duathlon = DB.duathlon || { seances: [], current: null };
 ICONS.duathlon = '<circle cx="7" cy="5" r="2"/><path d="M6 8 4 13l3 1 1 6M6 8l4 3 3-1"/><path d="M14.5 14.5 21 8"/><circle cx="19" cy="17" r="2.5"/>';
+// Vue « tablette d'un groupe » (athlétisme) : gros compteurs et champs tactiles
+if (!document.getElementById('gv-ath')) document.head.insertAdjacentHTML('beforeend', `<style id="gv-ath">
+.gv-cnt{display:flex;align-items:center;gap:10px;margin-top:10px}
+.gv-cnt .l{flex:1;font-weight:800;text-align:left}
+.gv-cnt .btn{min-width:64px;min-height:56px;font-size:1.45rem;padding:0 12px}
+.gv-cnt b{min-width:46px;text-align:center;font-size:1.8rem;font-variant-numeric:tabular-nums}
+.gv-in{width:84px;padding:12px 6px;text-align:center;font-size:1.3rem;font-weight:800}
+.gv-big{font-size:1.2rem;padding:16px;margin-top:12px}
+</style>`);
 const dmss = s => { if (s == null || isNaN(s)) return '–'; s = Math.round(s); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
 
 TOOL_IMPL.duathlon = function (el) {
@@ -62,11 +71,55 @@ TOOL_IMPL.duathlon = function (el) {
   /* ---- Épreuve en direct ---- */
   function live(box) {
     const C = D.current, c = C.cfg;
+    const hasData = g => g.etapes.some(E => E.dep || Object.values(E.m).some(m => m.pts || m.tours || m.inval || m.penC));
+    const saveSeance = () => {
+      // seuls les groupes ayant des résultats sont enregistrés (une tablette par groupe → pas de lignes vides)
+      const done = C.groups.filter(hasData); if (!done.length) return toast('Aucun groupe n\'a de résultat');
+      if (C.only != null && done.some(g => g.etapes.some(E => E.dep && !E.arr)) && !confirm('Une étape n\'est pas terminée (pas d\'arrivée). Enregistrer quand même ?')) return;
+      const rec = { ...C, groups: done }; delete rec.only;
+      D.seances.push(rec); D.current = null; save(); clearInterval(iv); toast('Duathlon enregistré ✔'); tab = 'resultats'; frame(); };
+    const etT = E => E.dep ? ((E.arr || Date.now()) - E.dep) / 1000 : 0;
+    // Vue « un seul groupe » : ce que voient les élèves sur leur tablette
+    const drawGroup = () => {
+      const gi = C.only, g = C.groups[gi], e = C.etape, E = g.etapes[e], s = stepOf(c, g, e), T = totalOf(c, g);
+      const L = [['pts', '🎯 Points lancers'], ['tours', '🏃 Tours'], ...(c.optL ? [['inval', '❌ Lancers non valides']] : []), ...(c.optC ? [['penC', '⚠️ Pénalités course']] : [])];
+      box.innerHTML = `<div class="card" style="text-align:center"><div style="font-weight:900;font-size:1.3rem">${esc(g.name)}</div><div class="muted">${g.members.map(esc).join(', ')}</div>
+          <div class="seg" style="margin-top:10px">${[0, 1, 2].map(k => `<button data-e="${k}" class="${k === e ? 'on' : ''}" style="padding:12px 4px">Étape ${k + 1}${g.etapes[k].arr ? ' ✅' : ''}</button>`).join('')}</div>
+          <div class="gv-clock" data-live="${gi}" style="color:${E.arr ? '#1B9E5A' : 'inherit'}">${dmss(etT(E))}</div>
+          ${!E.dep ? `<button class="btn btn-grad btn-block gv-big" data-go="${gi}">▶ Départ — étape ${e + 1}</button>` : ''}
+          ${E.dep && !E.arr ? `<button class="btn btn-danger btn-block gv-big" data-fin="${gi}">🏁 Arrivée — étape ${e + 1}</button>` : ''}
+          ${E.arr ? `<div style="margin-top:8px;font-weight:800">✅ Étape ${e + 1} : ${dmss(s.total)}${s.penS ? ` (dont ${s.penS} s de pénalité)` : ''} <button class="link" data-undo="${gi}">↺ annuler</button></div>` : ''}
+          ${c.optL && s.boucles ? `<div style="margin-top:8px;font-weight:800;color:var(--danger)">🔁 ${s.boucles} petite(s) boucle(s) de pénalité</div>` : ''}</div>
+        ${g.members.map((n, mi) => { const m = mem(g, e, n);
+          return `<div class="card" style="margin-top:10px"><b style="font-size:1.2rem">${esc(n)}</b>
+            ${L.map(([k, l]) => `<div class="gv-cnt"><span class="l">${l}</span><button class="btn btn-ghost" data-dec="${gi}|${mi}|${k}">−</button><b>${m[k]}</b><button class="btn ${k === 'pts' || k === 'tours' ? 'btn-grad' : 'btn-ghost'}" data-inc="${gi}|${mi}|${k}">+</button></div>`).join('')}</div>`; }).join('')}
+        <div class="card" style="margin-top:10px;text-align:center"><b>Groupe · étape ${e + 1}</b> : ${s.pts} pts · ${s.tours} tours${c.optL ? ` · ${s.inval} lancer(s) ✗` : ''}
+          <div class="muted" style="margin-top:4px">Cumul ${T.done}/3 étapes : <b style="color:var(--text)">${dmss(T.partiel)}</b> · ${T.pts} pts · ${T.tours} tours</div></div>
+        ${hasData(g) ? '<button class="btn btn-grad btn-block" style="margin-top:12px" id="save">💾 Enregistrer les résultats du groupe</button>' : ''}
+        <div style="text-align:center;margin:18px 0 6px"><button class="link" id="gv-prof">🔒 Mode enseignant</button></div>`;
+      bind();
+      box.querySelector('#gv-prof').onclick = () => { if (!confirm('Passer en mode enseignant (tous les groupes, réglages) ?')) return; C.only = null; save(); draw(); };
+    };
+    // actions communes aux deux vues
+    const bind = () => {
+      const $ = s => box.querySelector(s), all = s => box.querySelectorAll(s), keep = () => save(), e = C.etape, redraw = () => (C.only != null && C.groups[C.only] ? drawGroup() : draw());
+      all('[data-e]').forEach(b => b.onclick = () => { C.etape = +b.dataset.e; keep(); redraw(); });
+      all('[data-go]').forEach(b => b.onclick = () => { C.groups[+b.dataset.go].etapes[e].dep = Date.now(); beep(1300, .3); keep(); redraw(); });
+      all('[data-fin]').forEach(b => b.onclick = () => { C.groups[+b.dataset.fin].etapes[e].arr = Date.now(); beep(1000, .3); keep(); redraw(); });
+      all('[data-undo]').forEach(b => b.onclick = () => { C.groups[+b.dataset.undo].etapes[e].arr = null; keep(); redraw(); });
+      const upd = (key, d) => { const [gi, mi, k] = key.split('|'), g = C.groups[+gi]; const m = g.etapes[e].m[g.members[+mi]]; m[k] = Math.max(0, m[k] + d); if (d > 0 && C.only != null) beep(900, .05); keep(); redraw(); };
+      all('[data-inc]').forEach(b => b.onclick = () => upd(b.dataset.inc, 1));
+      all('[data-dec]').forEach(b => b.onclick = () => upd(b.dataset.dec, -1));
+      all('[data-pts]').forEach(i => i.onchange = () => { const [gi, mi] = i.dataset.pts.split('|'), g = C.groups[+gi]; g.etapes[e].m[g.members[+mi]].pts = Math.max(0, +i.value || 0); keep(); redraw(); });
+      if ($('#save')) $('#save').onclick = saveSeance;
+    };
     const draw = () => {
+      if (C.only != null && C.groups[C.only]) return drawGroup();
       const e = C.etape;
       box.innerHTML = `<div class="card"><b>${esc(C.nom)}</b><div class="muted">${esc(C.classe)} · ${C.groups.length} groupes${c.optL ? ` · ${c.boucles} boucle(s) par lancer non valide` : ''}${c.optC ? ` · pénalité course ${c.secC} s` : ''}</div>
           <label>Étape</label><div class="seg" id="et">${[0, 1, 2].map(k => `<button data-e="${k}" class="${k === e ? 'on' : ''}">Étape ${k + 1}</button>`).join('')}</div>
-          <button class="btn btn-grad btn-block" style="margin-top:10px" id="all">🚩 Départ groupé — étape ${e + 1}</button><button class="btn btn-ghost btn-block" style="margin-top:8px" id="edg">✏️ Modifier les groupes / participants (absent, blessé…)</button></div>
+          <button class="btn btn-grad btn-block" style="margin-top:10px" id="all">🚩 Départ groupé — étape ${e + 1}</button><button class="btn btn-ghost btn-block" style="margin-top:8px" id="edg">✏️ Modifier les groupes / participants (absent, blessé…)</button>
+          ${C.groups.length > 1 ? `<label>📱 Tablette d'un groupe (les élèves ne verront que leur groupe)</label><select id="only"><option value="">Tous les groupes</option>${C.groups.map((g, i) => `<option value="${i}">${esc(g.name)}</option>`).join('')}</select>` : ''}</div>
         ${C.groups.map((g, gi) => { const E = g.etapes[e], s = stepOf(c, g, e), T = totalOf(c, g);
           return `<div class="run ${E.arr ? 'fin' : E.dep ? 'go' : ''}"><div class="run-h"><b>${esc(g.name)}</b><span class="run-t" data-live="${gi}">${s.temps != null ? dmss(s.temps) : E.dep ? '…' : '0:00'}</span></div>
             <div class="row" style="margin-top:6px">${E.dep ? '' : `<button class="btn btn-grad" data-go="${gi}">▶ Départ</button>`}${E.dep && !E.arr ? `<button class="btn btn-danger" data-fin="${gi}">🏁 Arrivée</button>` : ''}${E.arr ? `<button class="btn btn-ghost" data-undo="${gi}">↺ Annuler l'arrivée</button>` : ''}</div>
@@ -77,21 +130,14 @@ TOOL_IMPL.duathlon = function (el) {
             <div class="muted" style="font-size:.82rem;margin-top:6px">Étape ${e + 1} : ${s.total != null ? `<b style="color:var(--text)">${dmss(s.total)}</b>${s.penS ? ` (dont ${s.penS} s de pénalité)` : ''}` : '—'} · Cumul ${T.done}/3 étapes : <b style="color:var(--text)">${dmss(T.partiel)}</b> · ${T.pts} pts · ${T.tours} tours</div></div>`; }).join('')}
         <div class="section-title"><h2>Classement provisoire</h2></div>${table(C)}
         <div class="row" style="margin-top:12px"><button class="btn btn-grad" id="save">💾 Terminer et enregistrer</button><button class="btn btn-ghost" id="cancel">Abandonner</button></div>`;
-      const $ = s => box.querySelector(s), all = s => box.querySelectorAll(s), keep = () => save();
-      all('[data-e]').forEach(b => b.onclick = () => { C.etape = +b.dataset.e; keep(); draw(); });
+      const $ = s => box.querySelector(s), keep = () => save();
       $('#all').onclick = () => { const t = Date.now(); C.groups.forEach(g => { if (!g.etapes[e].dep) g.etapes[e].dep = t; }); beep(1300, .45); keep(); draw(); };
       $('#edg').onclick = () => editGroupsPanel('Groupes du duathlon', { cls: C.classe, list: () => C.groups, names: g => g.members,
         take: (g, n) => { g.members.splice(g.members.indexOf(n), 1); const d = g.etapes.map(E => E.m[n]); g.etapes.forEach(E => delete E.m[n]); return d; },
         put: (g, n, d) => { g.members.push(n); g.etapes.forEach((E, k) => E.m[n] = (d && d[k]) || { pts: 0, tours: 0, inval: 0, penC: 0 }); },
         make: name => ({ name, members: [], etapes: [0, 1, 2].map(() => ({ dep: null, arr: null, m: {} })) }), onChange: keep, onClose: draw });
-      all('[data-go]').forEach(b => b.onclick = () => { C.groups[+b.dataset.go].etapes[e].dep = Date.now(); beep(1300, .3); keep(); draw(); });
-      all('[data-fin]').forEach(b => b.onclick = () => { C.groups[+b.dataset.fin].etapes[e].arr = Date.now(); beep(1000, .3); keep(); draw(); });
-      all('[data-undo]').forEach(b => b.onclick = () => { C.groups[+b.dataset.undo].etapes[e].arr = null; keep(); draw(); });
-      const upd = (key, d) => { const [gi, mi, k] = key.split('|'), g = C.groups[+gi]; const m = g.etapes[e].m[g.members[+mi]]; m[k] = Math.max(0, m[k] + d); keep(); draw(); };
-      all('[data-inc]').forEach(b => b.onclick = () => upd(b.dataset.inc, 1));
-      all('[data-dec]').forEach(b => b.onclick = () => upd(b.dataset.dec, -1));
-      all('[data-pts]').forEach(i => i.onchange = () => { const [gi, mi] = i.dataset.pts.split('|'), g = C.groups[+gi]; g.etapes[e].m[g.members[+mi]].pts = Math.max(0, +i.value || 0); keep(); draw(); });
-      $('#save').onclick = () => { D.seances.push(C); D.current = null; save(); clearInterval(iv); toast('Duathlon enregistré ✔'); tab = 'resultats'; frame(); };
+      if ($('#only')) $('#only').onchange = ev => { C.only = ev.target.value === '' ? null : +ev.target.value; keep(); draw(); };
+      bind();
       $('#cancel').onclick = () => { if (confirm('Abandonner cette épreuve ?')) { D.current = null; save(); clearInterval(iv); prepare(box); } };
     };
     const tick = () => { if (!box.isConnected || !D.current) return clearInterval(iv);

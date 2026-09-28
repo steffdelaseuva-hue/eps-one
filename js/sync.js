@@ -84,7 +84,7 @@ function merge3(base, loc, rem) {
 /* Données propres à chaque appareil (jamais synchronisées) : séances EN COURS, équipes du match
    en cours, réglages d'affichage… Ainsi plusieurs tablettes peuvent utiliser le même outil en même
    temps (2 terrains, plusieurs voies…) ; seuls les résultats ENREGISTRÉS sont fusionnés. */
-const LOCAL_TOP = new Set(['recent', 'lastClass', 'natLanes', 'natMode', 'acroFiltre', 'matchTeams']);
+const LOCAL_TOP = new Set(['recent', 'lastClass', 'natLanes', 'natMode', 'acroFiltre', 'matchTeams', 'tablette']); // tablette : réglages propres à chaque appareil (groupe suivi…)
 const LOCAL_SUB = { co: ['current'], duathlon: ['current', 'lastCfg'], combine: ['current'], wod: ['current'], escalade: ['defi', 'lastVoie', 'lastMode', 'filt'] };
 const syncKeys = () => Object.keys(DB).filter(k => !LOCAL_TOP.has(k));
 function outb(k, v = DB[k]) {                                   // version envoyée (sans l'état local)

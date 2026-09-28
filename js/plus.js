@@ -2,9 +2,13 @@
    EPS ONE — Onglet PLUS : mise à jour, partage,
    à propos, confidentialité/RGPD, nouvelle année scolaire
    ========================================================= */
-const APP_VERSION = '7.6';
+const APP_VERSION = '8.0';
 const APP_URL = 'https://steffdelaseuva-hue.github.io/eps-one/';
 const CHANGELOG = [
+  { v: '8.0', items: ['Vue « tablette d\'un groupe » étendue : Gestion de match (tablette observateurs), Combiné, Duathlon, Relais, Natation (Nager vite / Savoir nager), Escalade, Course d\'orientation · mode enseignant protégé · seuls les groupes avec des données sont enregistrés'] },
+  { v: '7.9', items: ['Crosstraining / HYROX : vue élève sur la tablette du groupe (chrono en grand, étapes à cocher bloc par bloc, arrivée), mode enseignant protégé'] },
+  { v: '7.8', items: ['Crosstraining / HYROX : choisir le groupe suivi sur chaque tablette ; seuls les groupes partis sont enregistrés'] },
+  { v: '7.7', items: ['Dropbox : message d\'erreur détaillé'] },
   { v: '7.6', items: ['Logos Google Drive et Dropbox sur les boutons « Mon cloud »'] },
   { v: '7.5', items: ['Option Dropbox activée dans « Mon cloud »'] },
   { v: '7.4', items: ['Un seul bouton « ☁️ Continuer avec mon cloud » : Google Drive ou Dropbox (Dropbox activé dès que la clé est configurée)'] },

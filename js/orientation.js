@@ -184,11 +184,53 @@ TOOL_IMPL.co = function (el) {
     if (!cur) return prepare(box);
     const p = P(cur.parcours); if (!p) { DB.co.current = null; save(); return prepare(box); }
     let raf;
+    const tabs = on => { const t = el.querySelector('.co-tabs'); if (t) t.style.display = on ? '' : 'none'; };
+    // Vue « une seule équipe » : ce que voient les élèves sur leur tablette (cur.only reste sur l'appareil)
+    const drawGroup = () => {
+      const i = cur.only, r = cur.runs[i], x = result(r, p), run = r.dep && !r.arr, tot = p.balises.length, n = r.found.length;
+      const missOb = p.balises.filter(b => b.ob && !r.found.includes(b.num)).length;
+      tabs(false);
+      box.innerHTML = `<div class="card" style="text-align:center"><div style="font-weight:900;font-size:1.3rem">🧭 ${esc(r.name)}</div>${r.members.length > 1 || r.name !== r.members[0] ? `<div class="muted">${r.members.map(esc).join(', ')}</div>` : ''}
+          <div class="gv-clock" data-live="${i}" style="color:${r.arr ? '#1B9E5A' : 'inherit'}">${r.dep ? hms(((r.arr || Date.now()) - r.dep) / 1000) : '0:00'}</div>
+          <div class="muted">${esc(p.nom)} · ${CO_TYPES[p.type][0]}${p.alloue ? ` · temps attribué ${p.alloue} min ± ${p.ecart}` : ''}</div>
+          <div style="height:10px;border-radius:99px;background:var(--line);overflow:hidden;margin:10px 0 4px"><div style="height:100%;width:${tot ? n / tot * 100 : 0}%;background:#1B9E5A"></div></div>
+          <div class="muted" style="font-size:.85rem">${n} / ${tot} balises trouvées · <b style="color:var(--text)">${x.score} pts</b>${missOb ? ` · ${missOb} obligatoire${missOb > 1 ? 's' : ''} à trouver` : ''}${r.wrong ? ` · ${r.wrong} mauvaise${r.wrong > 1 ? 's' : ''} balise${r.wrong > 1 ? 's' : ''}` : ''}</div>
+          ${!r.dep ? `<button class="btn btn-grad btn-block" style="margin-top:12px;font-size:1.2rem;padding:16px" id="gv-go">▶ Départ${r.plan ? ' à ' + clock(r.plan).slice(0, 5) : ''}</button>` : ''}
+          ${run ? `<button class="btn ${missOb ? 'btn-danger' : 'btn-grad'} btn-block" style="margin-top:12px;font-size:1.15rem;padding:14px" id="gv-fin">🏁 Arrivée${!missOb ? ' — toutes les obligatoires sont trouvées !' : ''}</button>` : ''}
+          ${r.arr ? `<div style="margin-top:10px;font-weight:800">✅ Course terminée · ${x.score} pts${x.temps != null ? ` · RK ${x.rk}` : ''}${x.penS ? ` · pénalités +${hms(x.penS)}` : ''}${x.statut ? ' · ' + x.statut : ''}</div>` : ''}</div>
+        <div class="card" style="margin-top:10px"><div style="display:flex;justify-content:space-between;align-items:center"><b>Balises</b><span class="muted" style="font-size:.8rem">${run ? p.balises.some(b => isPat(b.code)) ? 'Touchez une balise trouvée puis le symbole de sa pince' : 'Touchez une balise dès qu\'elle est trouvée' : !r.dep ? 'Appuyez sur ▶ Départ pour commencer' : ''}</span></div>
+          ${p.balises.map(b => { const on = r.found.includes(b.num);
+            return `<button class="gv-it ${on ? 'on' : ''}" data-bal="${b.num}" ${run ? '' : 'disabled'}><span class="bx">${on ? '✓' : ''}</span><span class="t" style="flex:1">Balise ${b.num}</span><span class="muted" style="font-size:.8rem;font-weight:700">N${b.niv} · ${p.pts[b.niv - 1] || 0} pt${(p.pts[b.niv - 1] || 0) > 1 ? 's' : ''}${b.ob ? ' · <b style="color:var(--danger)">obligatoire</b>' : ''}</span>${on && isPat(b.code) ? patSVG(b.code, 34) : ''}</button>`; }).join('')}</div>
+        ${r.arr ? '<button class="btn btn-grad btn-block" style="margin-top:12px;font-size:1.1rem;padding:16px" id="save">💾 Enregistrer notre course</button>' : ''}
+        <div style="text-align:center;margin:18px 0 6px"><button class="link" id="gv-prof">🔒 Mode enseignant</button></div>`;
+      const $ = s => box.querySelector(s);
+      if ($('#gv-go')) $('#gv-go').onclick = () => { r.dep = Date.now(); beep(1300, .45); save(); drawGroup(); };
+      if ($('#gv-fin')) $('#gv-fin').onclick = () => { if (missOb && !confirm(`Il reste ${missOb} balise(s) obligatoire(s) à trouver. Valider l'arrivée ?`)) return; r.arr = Date.now(); beep(1000, .3); save(); drawGroup(); };
+      const mark = num => { r.found = [...r.found, num]; beep(900, .06); save(); drawGroup(); };
+      box.querySelectorAll('[data-bal]').forEach(bt => bt.onclick = () => { const num = +bt.dataset.bal, b = p.balises.find(y => y.num === num);
+        if (r.found.includes(num)) { if (confirm(`Décocher la balise ${num} ?`)) { r.found = r.found.filter(y => y !== num); save(); drawGroup(); } return; }
+        if (!isPat(b.code)) return mark(num);
+        // validation par le symbole de la pince : un mauvais symbole compte comme une mauvaise balise
+        const opts = [...new Set(p.balises.map(y => y.code).filter(isPat))].sort();
+        patPicker({ title: `Balise ${num} : quel symbole a laissé la pince ?`, options: opts, draw: false, onPick: c => {
+          if (c === b.code) return mark(num);
+          r.wrong++; beep(300, .35); save(); toast('✗ Ce n\'est pas le symbole de cette balise (mauvaise balise)'); drawGroup(); } }); });
+      $('#gv-prof').onclick = () => { if (!confirm('Passer en mode enseignant (toutes les équipes, réglages) ?')) return; cur.only = null; save(); draw(); };
+      if ($('#save')) $('#save').onclick = saveSeance;
+    };
+    const saveSeance = () => { const tab1 = cur.only != null && cur.runs[cur.only];
+      if (!tab1 && cur.runs.some(r => r.dep && !r.arr) && !confirm('Certains élèves ne sont pas arrivés. Enregistrer quand même ?')) return;
+      // tablette d'une équipe : seule SA course est enregistrée (pas de lignes vides pour les autres)
+      const rec = { ...cur, runs: tab1 ? [tab1] : cur.runs, parcoursSnap: JSON.parse(JSON.stringify(p)) }; delete rec.only;
+      DB.co.seances.push(rec); DB.co.current = null; save(); toast('Séance enregistrée ✔'); tabs(true); tab = 'bilan'; frame(); };
     const draw = () => {
+      if (cur.only != null && cur.runs[cur.only]) return drawGroup();
+      tabs(true);
       const rs = cur.runs.map(r => ({ r, x: result(r, p) }));
       box.innerHTML = `<div class="card"><div style="display:flex;justify-content:space-between;gap:8px;align-items:center"><div><b>${esc(p.nom)}</b><div class="muted">${esc(cur.classe || '')} · ${CO_TYPES[p.type][0]} · ${p.balises.length} balises${p.alloue ? ` · ${p.alloue} min ± ${p.ecart}` : ''}</div></div><div class="run-t" id="now">${clock(Date.now())}</div></div>
           <div class="row" style="margin-top:10px"><button class="btn btn-grad" id="all">🚩 Départ groupé</button><button class="btn btn-ghost btn-block" style="margin-top:8px" id="edg">✏️ Modifier les groupes / participants (absent, blessé…)</button><div style="display:flex;gap:6px;align-items:center;flex:1.3"><input id="gap" type="number" value="${cur.gap || 60}" style="width:70px;padding:8px"><button class="btn btn-ghost" id="stag" style="padding:9px 8px;font-size:.8rem">Départs échelonnés (s)</button></div></div>
-          <p class="muted" style="margin:8px 0 0;font-size:.8rem">Balises : touchez un numéro trouvé (souligné rouge = obligatoire).</p></div>
+          <p class="muted" style="margin:8px 0 0;font-size:.8rem">Balises : touchez un numéro trouvé (souligné rouge = obligatoire).</p>
+          ${cur.runs.length > 1 ? `<label>📱 Tablette d'une équipe (les élèves ne verront que leur équipe)</label><select id="only"><option value="">Toutes</option>${cur.runs.map((r, i) => `<option value="${i}">${esc(r.name)}</option>`).join('')}</select>` : ''}</div>
         ${rs.map(({ r, x }, i) => `<div class="run ${r.arr ? 'fin' : r.dep ? 'go' : ''}"><div class="run-h"><b>${esc(r.name)}</b><span class="run-t" data-live="${i}">${r.dep ? hms(((r.arr || Date.now()) - r.dep) / 1000) : '0:00'}</span></div>
             ${r.members.length > 1 || r.name !== r.members[0] ? `<div class="muted" style="font-size:.8rem">${r.members.map(esc).join(', ')}</div>` : ''}
             <div class="co-times"><div><label style="margin:0 0 3px">Départ</label>${r.dep ? `<input type="time" step="1" data-dep="${i}" value="${new Date(r.dep).toTimeString().slice(0, 8)}">` : `<button class="btn btn-grad btn-block" data-go="${i}">▶ Départ${r.plan ? ' ' + clock(r.plan).slice(0, 5) : ''}</button>`}</div>
@@ -214,8 +256,8 @@ TOOL_IMPL.co = function (el) {
       box.querySelectorAll('[data-b]').forEach(b => b.onclick = () => { const r = cur.runs[+b.dataset.b], n = +b.dataset.n; r.found = r.found.includes(n) ? r.found.filter(x => x !== n) : [...r.found, n]; keep(); draw(); });
       box.querySelectorAll('[data-wp]').forEach(b => b.onclick = () => { cur.runs[+b.dataset.wp].wrong++; keep(); draw(); });
       box.querySelectorAll('[data-wm]').forEach(b => b.onclick = () => { const r = cur.runs[+b.dataset.wm]; r.wrong = Math.max(0, r.wrong - 1); keep(); draw(); });
-      $('#save').onclick = () => { if (cur.runs.some(r => r.dep && !r.arr) && !confirm('Certains élèves ne sont pas arrivés. Enregistrer quand même ?')) return;
-        DB.co.seances.push({ ...cur, parcoursSnap: JSON.parse(JSON.stringify(p)) }); DB.co.current = null; save(); toast('Séance enregistrée ✔'); tab = 'bilan'; frame(); };
+      if ($('#only')) $('#only').onchange = ev => { if (ev.target.value === '') return; cur.only = +ev.target.value; keep(); draw(); };
+      $('#save').onclick = saveSeance;
       $('#cancel').onclick = () => { if (confirm('Abandonner cette séance ? Les temps saisis seront perdus.')) { DB.co.current = null; save(); draw2(); } };
     };
     const draw2 = () => { cancelAnimationFrame(raf); prepare(box); };
