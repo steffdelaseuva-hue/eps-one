@@ -2,9 +2,10 @@
    EPS ONE — Onglet PLUS : mise à jour, partage,
    à propos, confidentialité/RGPD, nouvelle année scolaire
    ========================================================= */
-const APP_VERSION = '9.3';
+const APP_VERSION = '9.4';
 const APP_URL = 'https://steffdelaseuva-hue.github.io/eps-one/';
 const CHANGELOG = [
+  { v: '9.4', items: ['« Chronos EPS » devient « Multi chrono (12 élèves) » aux couleurs d\'EPS ONE (dossards or et bleu, nouvelle icône)', '« Multi-chrono » devient « Multi chrono (6 élèves) »'] },
   { v: '9.3', items: ['Nouvel outil « Résultats collectifs » (Évaluation & suivi) : tournois (championnat, élimination, pyramide, ATP), matchs, HYROX, CO, Combiné, Duathlon, Relais', '« Questions débrief » retiré du menu'] },
   { v: '9.2', items: ['Gestion de match : nouveau format « 🎾 Défi ATP » (classement individuel aux points, défis jusqu\'à 6 places au-dessus, barème selon l\'écart, arbitrage +0,5, confirmation avant enregistrement)'] },
   { v: '9.1', items: ['Accueil et « À propos » : nouveau descriptif de l\'application'] },

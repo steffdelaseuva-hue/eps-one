@@ -3,17 +3,18 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>Chronos EPS</title>
-<meta name="theme-color" content="#0E1B2E">
+<title>Multi chrono (12 élèves)</title>
+<meta name="theme-color" content="#071A3A">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Chronos EPS">
+<meta name="apple-mobile-web-app-title" content="Multi chrono">
 <style>
   :root {
-    --floor: #0E1B2E; --card: #172A45; --idle: #132338; --line: #29466E;
-    --text: #F1F5F9; --dim: #7C93B3;
-    --go: #22C55E; --pause: #F59E0B; --lap: #3B82F6; --reset: #475569; --danger: #DC2626;
+    --floor: #071A3A; --card: #0F1E3F; --idle: #0C1934; --line: #1F3363;
+    --text: #EAF0FF; --dim: #9AA8C7;
+    --go: #2F6BD8; --pause: #C9A227; --lap: #5A8DE6; --reset: #3A4C74; --danger: #C0392B;
+    --grad: linear-gradient(135deg,#EBD27E 0%,#C9A227 20%,#9C7A1E 38%,#2F6BD8 70%,#0B2A5B 100%);
     --g: 6px;
   }
   * { box-sizing: border-box; margin: 0; }
@@ -60,7 +61,7 @@
   .head { display: flex; align-items: center; gap: 2cqw; font-size: min(9cqh, 6.5cqw); text-align: left; }
   .badge {
     flex: none; width: 2.2em; height: 2.2em; border-radius: 50%; background: var(--bib);
-    display: grid; place-items: center; color: #0B1220; font-weight: 900; font-size: 1.15em;
+    display: grid; place-items: center; color: var(--bibtxt, #0B1220); font-weight: 900; font-size: 1.15em;
   }
   .name { flex: 1; min-width: 0; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .laps { color: var(--dim); font-weight: 700; }
@@ -89,9 +90,9 @@
   .rst.holding::after { transform: scaleX(1); transition: transform .6s linear; }
 
   /* Chrono central */
-  .master { grid-area: m; background: #0A1628; border-radius: 14px; border: 3px solid var(--line); padding: 10px; }
-  .master[data-st="run"] { border-color: var(--go); background: #0A1628; }
-  .master[data-st="pause"] { border-color: var(--pause); background: #0A1628; }
+  .master { grid-area: m; background: #06142E; border-radius: 14px; border: 3px solid var(--line); padding: 10px; }
+  .master[data-st="run"] { border-color: var(--go); background: #06142E; }
+  .master[data-st="pause"] { border-color: var(--pause); background: #06142E; }
   .master .head { justify-content: center; font-size: min(5.5cqh, 3cqw); color: var(--dim); font-weight: 700; }
   .master .time { font-size: min(24cqh, 14cqw); }
   .master .sub { font-size: min(5.5cqh, 3cqw); }
@@ -102,10 +103,10 @@
   .group-label { color: var(--dim); font-weight: 600; font-size: min(4.8cqh, 2.7cqw); }
   .group .btns { height: 11cqh; }
   .group .btns button { font-size: min(5.2cqh, 3cqw); }
-  .b-all  { background: #15803D; flex: 1.4 !important; }
-  .b-stop { background: #B45309; }
+  .b-all  { background: var(--grad); flex: 1.4 !important; }
+  .b-stop { background: #9C7A1E; }
   .b-raz  { background: var(--danger); }
-  .b-exp  { background: #334155; }
+  .b-exp  { background: #1F3363; }
 
   /* Fiche détaillée */
   #modal { position: fixed; inset: 0; background: rgba(3,8,18,.75); display: none; place-items: center; padding: 20px; z-index: 10; }
@@ -133,12 +134,12 @@
   .lap-row span { flex: 1; }
   .lap-row span:first-child { flex: .6; }
   .lap-row .cumul { color: var(--dim); }
-  .best { color: var(--go); } .worst { color: #F87171; }
+  .best { color: #6FD39B; } .worst { color: #F87171; }
   .empty { color: var(--dim); text-align: center; margin-top: 20px; padding: 0 20px; font-size: 15px; }
 
   #toast {
     position: fixed; left: 50%; bottom: 30px; transform: translateX(-50%);
-    background: #334155; padding: 10px 18px; border-radius: 10px; font-weight: 700;
+    background: #1F3363; padding: 10px 18px; border-radius: 10px; font-weight: 700;
     opacity: 0; pointer-events: none; transition: opacity .25s; z-index: 20;
   }
   #toast.show { opacity: 1; }
@@ -167,9 +168,11 @@
 // Réglages
 // ─────────────────────────────────────────────────────────────
 const N = 12, MASTER = 0, KEY = 'chronos-eps-v1';
+// Dossards aux couleurs d'EPS ONE : or et bleu en alternance (du clair au foncé)
 const BIBS = ['#FFFFFF',
-  '#EF4444','#F97316','#FACC15','#84CC16','#22C55E','#14B8A6',
-  '#06B6D4','#3B82F6','#818CF8','#C084FC','#F472B6','#E2E8F0'];
+  '#F3E3A8','#BFD3F7','#E6C76E','#8DB0F0','#D4AF37','#5A8DE6',
+  '#B8912A','#2F6BD8','#9C7A1E','#1E4FB0','#7A5F17','#123A85'];
+const BIBTXT = c => { const n = parseInt(c.slice(1), 16), l = (0.299 * (n >> 16) + 0.587 * (n >> 8 & 255) + 0.114 * (n & 255)); return l > 150 ? '#0B1220' : '#FFFFFF'; };
 
 // ─────────────────────────────────────────────────────────────
 // Logique chrono (horloge système : aucune dérive, survit au rechargement)
@@ -259,7 +262,7 @@ let html = `
   </div>`;
 for (let id = 1; id <= N; id++) {
   html += `
-  <div class="card" data-id="${id}" data-st="idle" style="grid-area:c${id};--bib:${BIBS[id]}">
+  <div class="card" data-id="${id}" data-st="idle" style="grid-area:c${id};--bib:${BIBS[id]};--bibtxt:${BIBTXT(BIBS[id])}">
     <button class="head" data-open><span class="badge">${id}</span><span class="name"></span><span class="laps"></span></button>
     <div class="time num">00:00.00</div>
     <div class="sub num"></div>
@@ -290,7 +293,7 @@ function update(force) {
     setText(v, 'time', v.time, fmt(t));
     const last = c.laps[c.laps.length - 1];
     setText(v, 'sub', v.sub,
-      st === 'pause' ? `En pause depuis ${fmt(now - c.pauseStartedAt)}`
+      st === 'pause' ? (now - c.pauseStartedAt > 3600000 ? 'En pause' : `En pause depuis ${fmt(now - c.pauseStartedAt)}`)
       : last ? (c.id === MASTER ? `Tour ${c.laps.length} : ${fmt(last.split)}` : `Dernier tour ${fmt(last.split)}`)
       : c.id === MASTER ? 'Touchez le temps pour voir le détail' : '\u00A0');
     setText(v, 'name', v.name, labelOf(c));
@@ -346,7 +349,7 @@ function openModal(id) {
   const c = S[id], m = id === MASTER;
   const badge = document.getElementById('mBadge');
   badge.style.display = m ? 'none' : 'grid';
-  badge.style.background = BIBS[id]; badge.textContent = id;
+  badge.style.background = BIBS[id]; badge.style.color = BIBTXT(BIBS[id]); badge.textContent = id;
   document.getElementById('mTitle').style.display = m ? 'block' : 'none';
   document.getElementById('mTitle').textContent = 'Chrono central';
   nameInput.style.display = m ? 'none' : 'block';
@@ -391,7 +394,7 @@ function toast(msg) {
 }
 async function exportResults() {
   const n = Date.now(), d = new Date();
-  let txt = `Chronos EPS – ${d.toLocaleDateString('fr-FR')} ${d.toLocaleTimeString('fr-FR').slice(0, 5)}\n\n`;
+  let txt = `Multi chrono (12 élèves) – ${d.toLocaleDateString('fr-FR')} ${d.toLocaleTimeString('fr-FR').slice(0, 5)}\n\n`;
   S.forEach(c => {
     const t = elapsed(c, n);
     if (t === 0 && !c.laps.length) return;
@@ -402,7 +405,7 @@ async function exportResults() {
     c.laps.forEach((l, i) => txt += `   Tour ${i + 1} : ${fmt(l.split)}   (cumul ${fmt(l.total)})\n`);
   });
   try {
-    if (navigator.share) return await navigator.share({ title: 'Chronos EPS', text: txt });
+    if (navigator.share) return await navigator.share({ title: 'Multi chrono (12 élèves)', text: txt });
     await navigator.clipboard.writeText(txt); toast('Résultats copiés');
   } catch (e) {
     if (e.name === 'AbortError') return;

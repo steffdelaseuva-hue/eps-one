@@ -99,7 +99,7 @@ chronos12(el) {
       ${DB.classes.length ? `<select id="cc"><option value="">Charger les prénoms d'une classe…</option>${DB.classes.map((c, i) => `<option value="${i}">${esc(c.name)}</option>`).join('')}</select>` : '<span class="muted" style="flex:1">Astuce : créez une classe pour charger les prénoms.</span>'}
       <button class="btn btn-ghost" id="full">⛶ Plein écran</button>
     </div>
-    <iframe class="chronos-frame" id="fr" src="outils/chronos-eps.html" title="Chronos EPS"></iframe>`;
+    <iframe class="chronos-frame" id="fr" src="outils/chronos-eps.html" title="Multi chrono (12 élèves)"></iframe>`;
   const fr = el.querySelector('#fr');
   const sel = el.querySelector('#cc');
   if (sel) sel.onchange = () => {
