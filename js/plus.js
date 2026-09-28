@@ -2,9 +2,11 @@
    EPS ONE — Onglet PLUS : mise à jour, partage,
    à propos, confidentialité/RGPD, nouvelle année scolaire
    ========================================================= */
-const APP_VERSION = '9.0';
+const APP_VERSION = '9.2';
 const APP_URL = 'https://steffdelaseuva-hue.github.io/eps-one/';
 const CHANGELOG = [
+  { v: '9.2', items: ['Gestion de match : nouveau format « 🎾 Défi ATP » (classement individuel aux points, défis jusqu\'à 6 places au-dessus, barème selon l\'écart, arbitrage +0,5, confirmation avant enregistrement)'] },
+  { v: '9.1', items: ['Accueil et « À propos » : nouveau descriptif de l\'application'] },
   { v: '9.0', items: ['Tournois : envoi immédiat du match enregistré et mise à jour automatique du classement / tableau / pyramide sur les autres tablettes'] },
   { v: '8.9', items: ['Test VMA : voix plus fiable sur iPhone / iPad (déblocage au toucher, voix française, phrases qui ne sont plus avalées)', 'Bouton ♪ : test des bips et de la voix'] },
   { v: '8.8', items: ['Son des bips (bouton ♪) : bips par-dessus la musique, mode enceinte Bluetooth (évite la mise en veille), bouton de test'] },
@@ -182,7 +184,7 @@ function openAbout() {
         <h2>EPS ONE</h2><p style="margin:6px auto 0">by <b>Steff64</b> · version ${APP_VERSION}</p></div>
       <div class="card doc" style="margin-top:14px">
         <h3>🎯 L'objectif</h3>
-        <p>Réunir dans une seule application les outils numériques utiles en cours d'EPS : chronométrer, minuter, former des équipes, gérer un tournoi, évaluer et suivre les élèves, sur tablette, téléphone ou ordinateur.</p>
+        <p>Réunir dans une seule application les outils numériques utiles en cours d'EPS, classés par champs d'apprentissage : gestion de séance par les élèves et le prof, gestion de match en synchronisation live multi-tablettes (résultats envoyés sur la tablette du prof en direct et/ou en fin de séance), multi-chronos, tirages au sort, équipes, calculs VMA, évaluation et suivi des élèves, sur tablette, téléphone ou ordinateur.</p>
         <h3>🧰 Ce qu'elle contient</h3>
         <p>${TOOLS.length} outils répartis en ${CATS.length} domaines : ${CATS.map(c => c.name).join(' · ')}.</p>
         <h3>📲 Installer l'app</h3>

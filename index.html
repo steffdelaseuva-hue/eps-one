@@ -7,6 +7,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>EPS ONE</title>
+<meta name="description" content="EPS ONE : gestion de séance par les élèves et le prof, gestion de match en synchronisation live multi-tablettes, multi-chronos, tirages au sort, équipes, calculs VMA. Outils classés par champs d'apprentissage, pensés pour la tablette et le téléphone.">
 <meta name="apple-mobile-web-app-title" content="EPS ONE">
 <script src="js/icons.js"></script>
 <link rel="manifest" href="manifest.webmanifest">
@@ -67,6 +68,9 @@ main{max-width:1100px;margin:0 auto;padding:16px}
 .hero::after{content:"";position:absolute;right:-60px;top:-60px;width:220px;height:220px;border-radius:50%;background:rgba(255,255,255,.12)}
 .hero h2{font-size:1.55rem;font-weight:900;line-height:1.15;position:relative;text-shadow:0 1px 3px rgba(0,0,0,.25)}
 .hero p{margin:8px 0 16px;opacity:.95;font-size:.95rem;position:relative;max-width:520px}
+.hero-list{list-style:none;margin:10px 0 0;padding:0;position:relative;max-width:560px;font-size:.95rem}
+.hero-list li{position:relative;padding-left:22px;margin:5px 0;line-height:1.35;opacity:.97}
+.hero-list li::before{content:'✓';position:absolute;left:0;font-weight:900}
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:12px 18px;border-radius:14px;font-weight:800;font-size:.95rem;transition:transform .08s}
 .btn:active{transform:scale(.97)}
 .btn-white{background:#fff;color:var(--navy);box-shadow:0 4px 12px rgba(0,0,0,.15)}
@@ -191,7 +195,13 @@ th{color:var(--muted);font-size:.78rem;text-transform:uppercase}
   <section class="view active" id="view-accueil">
     <div class="hero">
       <h2>Tous vos outils EPS,<br>au même endroit.</h2>
-      <p>Chronos, timers, tirages au sort, équipes, table de marque, calculs VMA… Pensé pour la tablette et le téléphone, en plein cours.</p>
+      <ul class="hero-list">
+        <li>Gestion de séance par les élèves et le prof</li>
+        <li>Gestion de match en synchronisation live multi-tablettes : résultats envoyés sur la tablette du prof en direct et/ou en fin de séance</li>
+        <li>Multi-chronos, tirages au sort, équipes, calculs VMA…</li>
+        <li>Outils classés par champs d'apprentissage</li>
+      </ul>
+      <p>Pensé pour la tablette et le téléphone, en plein cours.</p>
       <div style="display:flex;flex-wrap:wrap;gap:10px;position:relative">
         <button class="btn btn-white" onclick="go('outils')">Ouvrir les OUTILS →</button>
         <button class="btn btn-white" onclick="openImportClasses()">📥 Importer vos classes</button>

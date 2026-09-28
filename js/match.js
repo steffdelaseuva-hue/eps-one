@@ -28,8 +28,42 @@ function tStand(t, g) {
 /* ---------- Formats de tournoi ---------- */
 const TFMT = { poule: { i: '🔁', n: 'Championnat (poule)', d: 'Tout le monde se rencontre · classement aux points · une poule par niveau (« Niveau 1 · … »)' },
   elim: { i: '🏅', n: 'Élimination directe', d: 'Tableau à élimination · exempts qualifiés d\'office · le vainqueur passe au tour suivant' },
-  pyramide: { i: '🔺', n: 'Pyramide des victoires', d: 'On défie une équipe de la ligne juste au-dessus (ou de sa ligne) · victoire = on prend sa place' } };
+  pyramide: { i: '🔺', n: 'Pyramide des victoires', d: 'On défie une équipe de la ligne juste au-dessus (ou de sa ligne) · victoire = on prend sa place' },
+  atp: { i: '🎾', n: 'Défi ATP (individuel)', d: 'Classement individuel aux points · on défie un des 6 joueurs juste au-dessus · battre mieux classé rapporte plus · arbitrage +0,5' } };
 const tFmt = t => TFMT[t.format] ? t.format : 'poule';
+const RACKET = ['badminton', 'tennis', 'shortennis', 'tt'];
+const fmtOrder = sport => RACKET.includes(sport) ? ['atp', 'poule', 'elim', 'pyramide'] : ['poule', 'elim', 'pyramide', 'atp'];
+/* Défi ATP : barème selon l'écart (points du gagnant − points du perdant, avant le match) */
+const atpGain = e => e < -10 ? 6 : e < -5 ? 5 : e < 0 ? 4 : e < 5 ? 3 : e < 10 ? 2 : 1;
+const ATP_BAR = [['−11 ou moins', 6], ['−10 à −6', 5], ['−5 à −1', 4], ['0 à 4', 3], ['5 à 9', 2], ['10 ou plus', 1]];
+const fmtP = x => { const r = Math.round(x * 10) / 10; return (Number.isInteger(r) ? '' + r : r.toFixed(1)).replace('.', ','); };
+const sgnP = x => x > 0 ? '+' + fmtP(x) : x < 0 ? '−' + fmtP(-x) : '=';
+/* Classement ATP rejoué à partir de tous les défis enregistrés, dans l'ordre chronologique (chaque match utilise les points d'avant) */
+function tAtp(t) {
+  const st = {}, log = [];
+  t.teams.forEach(x => { st[x.name] = { n: x.name, pts: +t.start || 0, v: 0, d: 0, nul: 0, arb: 0, last: null }; });
+  const rank = () => Object.values(st).sort((a, b) => b.pts - a.pts || b.v - a.v || a.n.localeCompare(b.n));
+  DB.matchs.filter(m => m.tid === t.id && m.defi && !m.obsOnly).sort((x, y) => (x.date || 0) - (y.date || 0)).forEach(m => {
+    const c = m.defi.challenger, d = m.defi.defie, C = st[c], D = st[d]; if (!C || !D || c === d) return;
+    const cs = m.a === c ? +m.sa || 0 : +m.sb || 0, ds = m.a === c ? +m.sb || 0 : +m.sa || 0, R = rank();
+    const l = { m, c, d, cs, ds, from: R.indexOf(C) + 1, to: R.indexOf(D) + 1, w: null, g: 0, arb: null };
+    if (cs !== ds) { const [W, L] = cs > ds ? [C, D] : [D, C]; l.w = W.n; l.l = L.n; l.g = atpGain(W.pts - L.pts); W.pts += l.g; L.pts -= l.g; W.v++; L.d++; W.last = l.g; L.last = -l.g; }
+    else { C.nul++; D.nul++; C.last = D.last = 0; }
+    const A = m.arbitre && m.arbitre !== c && m.arbitre !== d && st[m.arbitre]; if (A) { A.pts += .5; A.arb++; A.last = .5; l.arb = A.n; }
+    log.push(l);
+  });
+  return { ranks: rank(), st, log };
+}
+const atpTargets = (ranks, i) => i > 0 ? ranks.slice(Math.max(0, i - 6), i) : [];   // les 6 joueurs classés juste au-dessus
+/* Texte de la fenêtre de confirmation avant d'enregistrer un défi ATP */
+function atpMsg(t, m) {
+  const { st } = tAtp(t), c = m.defi.challenger, d = m.defi.defie, cs = m.a === c ? +m.sa || 0 : +m.sb || 0, ds = m.a === c ? +m.sb || 0 : +m.sa || 0;
+  const arb = m.arbitre && m.arbitre !== c && m.arbitre !== d && st[m.arbitre] ? ` · Arbitre ${m.arbitre} : +0,5` : '';
+  if (!st[c] || !st[d]) return `Enregistrer ce match ?`;
+  if (cs === ds) return `Enregistrer ce défi ?\n\nMatch nul ${cs}–${ds} : aucun point échangé${arb}`;
+  const [W, L] = cs > ds ? [c, d] : [d, c], g = atpGain(st[W].pts - st[L].pts);
+  return `Enregistrer ce défi ?\n\nVainqueur ${W} : +${g} pts · Perdant ${L} : −${g} pts${arb}`;
+}
 /* Championnat : poules par niveau (équipes « Niveau n · … ») ; une équipe seule dans son niveau rejoint le niveau le plus proche */
 const tLvlOf = n => { const x = /^Niveau\s*(\d+)/i.exec(n || ''); return x ? 'Poule niveau ' + x[1] : ''; };
 function tPoules(names) {
@@ -79,6 +113,7 @@ function tProgress(t) {
   const f = tFmt(t);
   if (f === 'elim') { const E = tElim(t), fin = E[E.length - 1][0], n = E.flat().filter(x => !x.bye && x.w != null).length; return `${n}/${Math.max(0, t.teams.length - 1)} matchs joués${fin && fin.w != null ? ' · 🏆 ' + fin.w : ''}`; }
   if (f === 'pyramide') { const n = tPyr(t).log.length; return `${n} défi${n > 1 ? 's' : ''} joué${n > 1 ? 's' : ''}`; }
+  if (f === 'atp') { const { ranks, log } = tAtp(t), n = log.length; return `${n} défi${n > 1 ? 's' : ''} joué${n > 1 ? 's' : ''}${ranks[0] ? ' · en tête : ' + ranks[0].n : ''}`; }
   const res = tResults(t); return `${t.rencontres.filter(r => res[r.id]).length}/${t.rencontres.length} matchs joués`;
 }
 ICONS.match = '<rect x="2.5" y="5" width="19" height="14" rx="1.5"/><path d="M12 5v14"/><circle cx="12" cy="12" r="2.8"/><path d="M2.5 9.5h2.5v5H2.5M21.5 9.5H19v5h2.5"/>';
@@ -220,6 +255,22 @@ document.head.insertAdjacentHTML('beforeend', `<style>
 .tn-pyr .pc small{display:block;color:var(--muted);font-size:.72rem}
 .tn-pyr .pr:first-child .pc{background:linear-gradient(160deg,#D4AF37,#9C7A1E);color:#fff;border-color:transparent}.tn-pyr .pr:first-child .pc small{color:#fff}
 .tn-pyr .pc.c{outline:3px solid #B8912A}.tn-pyr .pc.d{outline:3px solid #1E5BD8}
+.tn-fmt.rec{border-color:#B8912A;box-shadow:0 0 0 2px #F4E7BE}
+.atp-g{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px;margin-top:8px}
+.atp-p{display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:12px 14px;border-radius:14px;border:2px solid var(--line);background:var(--card);color:var(--text);text-align:left;cursor:pointer;min-height:66px}
+.atp-p b{font-size:1.08rem}.atp-p small{color:var(--muted);font-size:.78rem;font-weight:800}
+.atp-p em{font-style:normal;font-size:.82rem;font-weight:700;margin-top:4px;color:var(--muted)}
+.atp-p.on{background:var(--grad);color:#fff;border-color:transparent}.atp-p.on small,.atp-p.on em{color:rgba(255,255,255,.92)}
+.atp-up{color:#1E9E5A;font-weight:900}.atp-dn{color:#D64545;font-weight:900}
+.atp-p.on .atp-up,.atp-p.on .atp-dn{color:#fff}
+.atp-st{display:flex;align-items:center;gap:10px;font-weight:900;font-size:1.08rem;margin:14px 0 2px}
+.atp-st:first-child{margin-top:0}
+.atp-st i{font-style:normal;display:inline-grid;place-items:center;flex:0 0 30px;height:30px;border-radius:50%;background:var(--grad);color:#fff;font-size:.95rem}
+.atp-sel{display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:14px;background:var(--grad-soft);font-weight:800;margin-top:6px}
+.atp-sel span{flex:1}
+.atp-ck{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}.atp-ck .pl-chip{padding:10px 14px;font-size:.95rem}
+.atp-ck .pl-chip:not(.sel){opacity:.55;text-decoration:line-through}
+.atp-tb td,.atp-tb th{text-align:center}.atp-tb td:nth-child(2),.atp-tb th:nth-child(2){text-align:left}
 .win{text-align:center;font-size:1.3rem;font-weight:900;padding:14px;border-radius:16px;background:var(--grad);color:#fff}
 </style>`);
 
@@ -239,15 +290,16 @@ TOOL_IMPL.match = function (el) {
     const recent = TR().filter(x => x.date >= Date.now() - 7 * 864e5).sort((x, y) => y.date - x.date);
     el.innerHTML = `${lt ? `<div class="card" style="margin-bottom:12px;border:2px solid #B8912A"><h3>🏆 ${esc(lt.nom)}</h3>
         <div class="mo-vs" style="margin:6px 0"><span style="background:#B8912A">${esc(S.a)}</span><span class="muted" style="color:var(--muted);padding:0">vs</span><span style="background:#1E5BD8">${esc(S.b)}</span></div>
-        <div class="muted" style="text-align:center;font-size:.85rem">${S.defi ? `🔺 Défi de la pyramide · ${esc(S.defi.challenger)} défie ${esc(S.defi.defie)} · compte pour le classement` : lr ? `${tFmt(lt) === 'elim' ? `🏅 ${elimName(lt, lr.round)} · le vainqueur se qualifie` : `Rencontre du tour ${lr.round}${lr.g ? ' · ' + esc(lr.g) : ''} · compte pour le classement`}` : 'Match amical · hors classement'} · ${esc(SPORTS[lt.sport]?.name || '')}</div>
+        <div class="muted" style="text-align:center;font-size:.85rem">${S.defi ? tFmt(lt) === 'atp' ? `🎾 Défi ATP · ${esc(S.defi.challenger)} défie ${esc(S.defi.defie)}${S.arb ? ' · arbitre : ' + esc(S.arb) : ''} · compte pour le classement` : `🔺 Défi de la pyramide · ${esc(S.defi.challenger)} défie ${esc(S.defi.defie)} · compte pour le classement` : lr ? `${tFmt(lt) === 'elim' ? `🏅 ${elimName(lt, lr.round)} · le vainqueur se qualifie` : `Rencontre du tour ${lr.round}${lr.g ? ' · ' + esc(lr.g) : ''} · compte pour le classement`}` : 'Match amical · hors classement'} · ${esc(SPORTS[lt.sport]?.name || '')}</div>
         <button class="btn btn-grad btn-block" style="margin-top:10px;padding:16px;font-size:1.1rem" id="go2">▶ Lancer le match</button>
         <div class="row" style="margin-top:8px"><button class="btn btn-ghost" id="tl-bk">← Retour au tournoi</button><button class="btn btn-ghost" id="tl-x">✕ Délier du tournoi</button></div></div>` : ''}
-      ${recent.length ? `<div class="card" style="margin-bottom:12px"><h3>🏆 Tournois en cours</h3>${recent.map(x => `<button class="tn-it" data-tv="${x.id}"><span style="font-size:1.6rem" title="${TFMT[tFmt(x)].n}">${TFMT[tFmt(x)].i}</span><span style="flex:1"><b>${esc(x.nom)}</b><div class="muted" style="font-size:.8rem">${TFMT[tFmt(x)].n} · ${esc(SPORTS[x.sport]?.name || x.sport)}${x.classe ? ' · ' + esc(x.classe) : ''} · ${x.teams.length} équipes · ${esc(tProgress(x))} · ${new Date(x.date).toLocaleDateString('fr-FR')}</div></span><span style="font-size:1.3rem">›</span></button>`).join('')}</div>` : ''}
+      ${recent.length ? `<div class="card" style="margin-bottom:12px"><h3>🏆 Tournois en cours</h3>${recent.map(x => `<button class="tn-it" data-tv="${x.id}"><span style="font-size:1.6rem" title="${TFMT[tFmt(x)].n}">${TFMT[tFmt(x)].i}</span><span style="flex:1"><b>${esc(x.nom)}</b><div class="muted" style="font-size:.8rem">${TFMT[tFmt(x)].n} · ${esc(SPORTS[x.sport]?.name || x.sport)}${x.classe ? ' · ' + esc(x.classe) : ''} · ${x.teams.length} ${tFmt(x) === 'atp' ? 'joueurs' : 'équipes'} · ${esc(tProgress(x))} · ${new Date(x.date).toLocaleDateString('fr-FR')}</div></span><span style="font-size:1.3rem">›</span></button>`).join('')}</div>` : ''}
       <div class="card"><h3>Sport</h3><div class="tog" id="sp">${Object.entries(SPORTS).map(([k, x]) => `<button data-s="${k}" class="${k === S.sport ? 'on' : ''}">${x.name}</button>`).join('')}</div></div>
       <div class="court" style="margin-top:12px;background:${courtSVG(S.sport).bg}"><svg viewBox="${courtSVG(S.sport).vb}">${courtSVG(S.sport).svg}</svg></div>
       <div class="card" style="margin-top:12px"><h3>Équipes</h3>
         <details id="mt-d" ${DB.classes.length && !DB.matchTeams ? 'open' : ''}><summary style="font-weight:800;cursor:pointer">👥 Constituer les équipes avec les élèves d'une classe</summary><div id="mt-host" style="margin-top:6px"></div></details>
         ${teamsBlock()}
+        ${RACKET.includes(S.sport) || DB.classes.length ? `<button class="btn ${RACKET.includes(S.sport) ? 'btn-grad' : 'btn-ghost'} btn-block" style="margin-top:10px;padding:13px" id="atp-new">🎾 Créer un Défi ATP (classement individuel des élèves, partagé avec les tablettes)</button>` : ''}
         <div class="row"><div><label>Nom équipe A</label><input id="na" value="${esc(S.a)}"></div><div><label>Nom équipe B</label><input id="nb" value="${esc(S.b)}"></div></div></div>
       <div class="card" style="margin-top:12px"><h3>Règles du match</h3>
         <div class="tog" id="ty"><button data-t="temps" class="${S.type === 'temps' ? 'on' : ''}">⏱ Match au temps</button><button data-t="points" class="${S.type === 'points' ? 'on' : ''}">🎯 Match au point</button></div>
@@ -285,6 +337,7 @@ TOOL_IMPL.match = function (el) {
     if ($('#tl-x')) $('#tl-x').onclick = () => { keep(); unlinkT(); setup(); };
     if ($('#tl-bk')) $('#tl-bk').onclick = () => { keep(); tview(S.tid); };
     el.querySelectorAll('[data-tv]').forEach(b => b.onclick = () => { keep(); tview(b.dataset.tv); });
+    if ($('#atp-new')) $('#atp-new').onclick = () => { keep(); unlinkT(); createAtp({ cls: T() ? T().cls : '' }); };
     wireTeams();
     mountRLA();
     el.querySelectorAll('[data-x]').forEach(b => b.onclick = () => { if (confirm('Supprimer ce match de l\'historique ?')) { DB.matchs.splice(+b.dataset.x, 1); save(); setup(); } });
@@ -360,9 +413,10 @@ TOOL_IMPL.match = function (el) {
 
   /* ===== Tournoi partagé entre les tablettes (DB.tournois, synchronisé) ===== */
   /* Formats : championnat (poules par niveau), élimination directe, pyramide des victoires */
-  const unlinkT = () => { S.tid = S.rid = null; S.pa = S.pb = null; S.defi = null; };
-  const tlink = () => { const t = S.tid && TR().find(x => x.id === S.tid); return t ? { tid: t.id, rid: S.rid || null, tn: t.nom, ...(S.defi ? { defi: { ...S.defi } } : {}) } : {}; };
+  const unlinkT = () => { S.tid = S.rid = null; S.pa = S.pb = null; S.defi = null; S.arb = null; };
+  const tlink = () => { const t = S.tid && TR().find(x => x.id === S.tid); return t ? { tid: t.id, rid: S.rid || null, tn: t.nom, ...(S.defi ? { defi: { ...S.defi } } : {}), ...(S.defi && S.arb ? { arbitre: S.arb } : {}) } : {}; };
   const afterSave = m => { unlinkT(); if (m.tid && TR().some(x => x.id === m.tid)) tview(m.tid); else setup(); };
+  const curRegles = () => ({ type: S.type, dur: S.dur, target: S.target, ecart: S.ecart, bonus: [...S.bonus], stats: S.stats, zones: S.zones, nz: S.nz, obsOn: S.obsOn, obsN: S.obsN });
   function createT(tm) {
     const seen = {}, teams = tm.teams.filter(x => x.name || x.members.length).map((x, i) => { let n = (x.name || '').trim() || 'Équipe ' + (i + 1); if (seen[n]) n += ' (' + (++seen[n]) + ')'; else seen[n] = 1; return { name: n, members: [...x.members] }; });
     if (teams.length < 2) return toast('Au moins 2 équipes');
@@ -382,19 +436,20 @@ TOOL_IMPL.match = function (el) {
       el.innerHTML = `<button class="btn btn-ghost" id="c-bk">← Annuler</button>
         <div class="card" style="margin-top:10px;border-top:6px solid #B8912A"><h3>🏆 Nouveau tournoi · ${esc(SP().name)}</h3>
           <label>Nom du tournoi (visible sur toutes les tablettes)</label><input id="c-nom" value="${esc(C.nom)}" style="font-weight:800;font-size:1.05rem">
-          <label>Format du tournoi</label><div class="tn-fmts">${Object.entries(TFMT).map(([k, f]) => `<button class="tn-fmt ${C.format === k ? 'on' : ''}" data-fmt="${k}"><span class="i">${f.i}</span><b>${f.n}</b><small>${f.d}</small></button>`).join('')}</div>
+          <label>Format du tournoi</label><div class="tn-fmts">${fmtOrder(S.sport).map(k => { const f = TFMT[k], rec = k === 'atp' && RACKET.includes(S.sport);
+            return `<button class="tn-fmt ${C.format === k ? 'on' : ''} ${rec ? 'rec' : ''}" data-fmt="${k}"><span class="i">${f.i}</span><b>${f.n}${rec ? '<span class="tn-tag">conseillé raquettes</span>' : ''}</b><small>${f.d}${k === 'atp' ? ' · participants : les élèves de la classe' : ''}</small></button>`; }).join('')}</div>
           ${opts}</div>
         ${C.format === 'poule' && gk.length > 1 ? gk.map(g => `<div class="card" style="margin-top:12px;padding:10px 14px"><h3 style="margin:0">${esc(g || 'Autres équipes')} · ${G[g].length} équipes</h3>${list(G[g])}</div>`).join('')
           : `<div class="card" style="margin-top:12px;padding:10px 14px"><h3 style="margin:0">Équipes · ${teams.length}</h3>${list(names)}</div>`}
         <button class="btn btn-grad btn-block" id="c-ok" style="margin-top:14px;padding:17px;font-size:1.15rem">✔ Créer le tournoi</button>`;
       $('#c-bk').onclick = setup;
-      el.querySelectorAll('[data-fmt]').forEach(b => b.onclick = () => { keepC(); C.format = b.dataset.fmt; draw(); });
+      el.querySelectorAll('[data-fmt]').forEach(b => b.onclick = () => { keepC(); if (b.dataset.fmt === 'atp') return createAtp({ cls: tm.cls, txt: tm.cls ? '' : teams.flatMap(x => x.members).join('\n'), back: () => createT(tm) }); C.format = b.dataset.fmt; draw(); });
       if ($('#c-mx')) $('#c-mx').onchange = () => { keepC(); draw(); };
       $('#c-ok').onclick = () => { keepC(); create(size); };
     };
     const create = size => {
       const tn = { id: tuid(), date: Date.now(), nom: C.nom.trim() || def, classe: tm.cls || '', sport: S.sport, format: C.format, teams, rencontres: [],
-        regles: { type: S.type, dur: S.dur, target: S.target, ecart: S.ecart, bonus: [...S.bonus], stats: S.stats, zones: S.zones, nz: S.nz, obsOn: S.obsOn, obsN: S.obsN } };
+        regles: curRegles() };
       let msg;
       if (C.format === 'poule') {
         gk.forEach(g => { G[g].forEach(n => { if (g) teams.find(x => x.name === n).g = g; }); tn.rencontres.push(...roundRobin(G[g]).map(r => g ? { ...r, g } : r)); });
@@ -409,11 +464,48 @@ TOOL_IMPL.match = function (el) {
     };
     draw(); window.scrollTo(0, 0);
   }
-  function playT(t, a, b, rid, defi) {
+  /* ----- Défi ATP : création (élèves d'une classe, absents décochés) ----- */
+  function createAtp(o = {}) {
+    clearInterval(iv); M = null; S.view = null;
+    const C = { cls: DB.classes.some(c => c.name === o.cls) ? o.cls : o.txt ? '' : (DB.classes[0] || {}).name || '', off: new Set(), start: 100, cf: true, txt: o.txt || '' };
+    const def = () => `Défi ATP ${C.cls ? C.cls + ' · ' : '· '}${SP().name}`;
+    C.nom = def();
+    const $ = q => el.querySelector(q);
+    const all = () => C.cls ? [...new Set(studentsOf(C.cls))] : [];
+    const players = () => C.cls ? all().filter(n => !C.off.has(n)) : [...new Set(C.txt.split('\n').map(x => x.trim()).filter(Boolean))];
+    const keepC = () => { C.nom = $('#a-nom').value; C.start = +$('#a-st').value || 0; C.cf = $('#a-cf').checked; if ($('#a-txt')) C.txt = $('#a-txt').value; };
+    const draw = () => {
+      const st = all(), n = players().length;
+      el.innerHTML = `<button class="btn btn-ghost" id="a-bk">← Annuler</button>
+        <div class="card" style="margin-top:10px;border-top:6px solid #B8912A"><h3>🎾 Nouveau Défi ATP · ${esc(SP().name)}</h3>
+          <p class="muted" style="font-size:.85rem;margin:0 0 4px">Classement individuel aux points, partagé avec les tablettes. On défie un des <b>6 joueurs classés juste au-dessus</b> ; battre mieux classé que soi rapporte plus (barème selon l'écart de points). Arbitrer un match : +0,5 pt.</p>
+          <label>Nom (visible sur toutes les tablettes)</label><input id="a-nom" value="${esc(C.nom)}" style="font-weight:800;font-size:1.05rem">
+          <div class="row"><div><label>Points de départ (chaque joueur)</label><input id="a-st" type="number" min="0" value="${C.start}" style="font-weight:800;font-size:1.05rem"></div></div>
+          <label style="display:flex;gap:8px;align-items:center;margin-top:12px"><input type="checkbox" id="a-cf" ${C.cf ? 'checked' : ''} style="width:auto"> Fenêtre de confirmation avant d'enregistrer un résultat</label></div>
+        <div class="card" style="margin-top:12px"><h3>Élèves participants <span class="muted" style="font-size:.9rem;margin-left:6px">${n}${C.cls ? ' / ' + st.length : ''}</span></h3>
+          ${DB.classes.length ? `<label>Classe</label><select id="a-cls" style="padding:12px;font-weight:800;font-size:1.05rem">${DB.classes.map(c => `<option value="${esc(c.name)}" ${c.name === C.cls ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}<option value="" ${C.cls ? '' : 'selected'}>✏️ Saisir les noms…</option></select>` : ''}
+          ${C.cls ? `<p class="muted" style="font-size:.82rem;margin:8px 0 0">Touchez un élève <b>absent</b> pour le décocher (il pourra être ajouté plus tard par l'enseignant).</p>
+            <div class="atp-ck">${st.map((x, i) => `<button class="pl-chip ${C.off.has(x) ? '' : 'sel'}" data-ab="${i}">${C.off.has(x) ? '' : '✓ '}${esc(x)}</button>`).join('')}</div>
+            <div class="row" style="margin-top:10px"><button class="btn btn-ghost" id="a-all">✓ Tous présents</button><button class="btn btn-ghost" id="a-none">Tout décocher</button></div>`
+          : `<label>Un élève par ligne</label><textarea id="a-txt" rows="8" style="width:100%;font-size:1rem">${esc(C.txt)}</textarea>`}</div>
+        <button class="btn btn-grad btn-block" id="a-ok" style="margin-top:14px;padding:17px;font-size:1.15rem">✔ Créer le Défi ATP</button>`;
+      $('#a-bk').onclick = () => (o.back || setup)();
+      if ($('#a-cls')) $('#a-cls').onchange = () => { keepC(); const wasDef = C.nom === def(); C.cls = $('#a-cls').value; C.off = new Set(); if (wasDef) C.nom = def(); draw(); };
+      el.querySelectorAll('[data-ab]').forEach(b => b.onclick = () => { keepC(); const x = st[+b.dataset.ab]; C.off.has(x) ? C.off.delete(x) : C.off.add(x); draw(); });
+      if ($('#a-all')) $('#a-all').onclick = () => { keepC(); C.off = new Set(); draw(); };
+      if ($('#a-none')) $('#a-none').onclick = () => { keepC(); C.off = new Set(st); draw(); };
+      $('#a-ok').onclick = () => { keepC(); const ps = players(); if (ps.length < 2) return toast('Au moins 2 élèves présents');
+        const tn = { id: tuid(), date: Date.now(), nom: C.nom.trim() || def(), classe: C.cls || '', sport: S.sport, format: 'atp', teams: ps.map(x => ({ name: x, members: [x] })), rencontres: [],
+          start: C.start, confirm: C.cf, regles: curRegles() };
+        TR().push(tn); S.atp = null; save(); beep(1200, .15); toast(`Défi ATP créé ✔ ${ps.length} joueurs · ${fmtP(C.start)} pts chacun`); tview(tn.id); };
+    };
+    draw(); window.scrollTo(0, 0);
+  }
+  function playT(t, a, b, rid, defi, arb) {
     if (SPORTS[t.sport] && t.sport !== S.sport) { const sp = SPORTS[t.sport]; S.sport = t.sport; S.type = sp.type; if (sp.dur) S.dur = sp.dur; if (sp.target) S.target = sp.target; S.ecart = !!sp.ecart; if (!sp.zones) S.zones = false; }
     if (t.regles) Object.assign(S, JSON.parse(JSON.stringify(t.regles)));   // règles fixées par l'enseignant à la création
     const ta = t.teams.find(x => x.name === a), tb = t.teams.find(x => x.name === b);
-    Object.assign(S, { a, b, pa: [...(ta ? ta.members : [])], pb: [...(tb ? tb.members : [])], tid: t.id, rid: rid || null, defi: defi || null });
+    Object.assign(S, { a, b, pa: [...(ta ? ta.members : [])], pb: [...(tb ? tb.members : [])], tid: t.id, rid: rid || null, defi: defi || null, arb: arb || null });
     setup(); window.scrollTo(0, 0); beep(1000, .08);
   }
   const scoreBtn = (id, sc) => `<button class="tn-sc" data-tm="${esc(id)}" title="Voir le match">${sc[0]} – ${sc[1]}</button>`;
@@ -506,24 +598,86 @@ TOOL_IMPL.match = function (el) {
         ...log.map(l => [new Date(l.m.date).toLocaleString('fr-FR'), l.c, l.d, l.cs, l.ds, l.up ? `monte de #${l.from} à #${l.to}` : l.won ? 'victoire (déjà mieux classé)' : l.cs === l.ds ? 'nul · pas de changement' : 'défaite · pas de changement'])])) };
   }
 
+  /* ----- Défi ATP (classement individuel aux points) ----- */
+  function vAtp(t) {
+    const { ranks, st, log } = tAtp(t);
+    const A = S.atp && S.atp.tid === t.id ? S.atp : (S.atp = { tid: t.id, c: null, d: null, arb: '' });
+    if (A.c && !st[A.c]) A.c = null;
+    const ci = A.c ? ranks.findIndex(r => r.n === A.c) : -1, tg = atpTargets(ranks, ci);
+    if (A.d && !tg.some(r => r.n === A.d)) A.d = null;
+    if (A.arb && (!st[A.arb] || A.arb === A.c || A.arb === A.d)) A.arb = '';
+    const rk = n => ranks.findIndex(r => r.n === n) + 1;
+    const pv = r => { const me = st[A.c].pts; return [atpGain(me - r.pts), atpGain(r.pts - me)]; };   // [gain si victoire, perte si défaite] pour le challenger
+    const evo = x => x == null ? '' : x > 0 ? `<span class="atp-up">${sgnP(x)}</span>` : x < 0 ? `<span class="atp-dn">${sgnP(x)}</span>` : '<span class="muted">=</span>';
+    const when = d => `${new Date(d).toLocaleDateString('fr-FR')} ${new Date(d).toLocaleTimeString('fr-FR').slice(0, 5)}`;
+    const flow = !A.c ? `<div class="atp-st"><i>1</i>Qui défie ?</div><p class="muted" style="font-size:.82rem;margin:0">Touchez ton nom.</p>
+        <div class="atp-g">${ranks.map((r, i) => `<button class="atp-p" data-ac="${esc(r.n)}"><small>#${i + 1} · ${fmtP(r.pts)} pts</small><b>${esc(r.n)}</b></button>`).join('')}</div>`
+      : `<div class="atp-st"><i>1</i>Qui défie ?</div><div class="atp-sel"><span>#${ci + 1} ${esc(A.c)} · ${fmtP(st[A.c].pts)} pts</span><button class="btn btn-ghost" data-ax="c">Changer</button></div>
+        <div class="atp-st"><i>2</i>Qui est défié ?</div>
+        ${ci === 0 ? `<div class="empty" style="font-weight:700">🥇 ${esc(A.c)} est n°1 : il ne peut défier personne. Ce sont les autres qui le défient !</div>`
+          : !A.d ? `<p class="muted" style="font-size:.82rem;margin:0">Tu peux défier un des ${tg.length} joueur${tg.length > 1 ? 's' : ''} classé${tg.length > 1 ? 's' : ''} juste au-dessus de toi.</p>
+            <div class="atp-g">${tg.map(r => { const [w, l] = pv(r); return `<button class="atp-p" data-ad="${esc(r.n)}"><small>#${rk(r.n)} · ${fmtP(r.pts)} pts</small><b>${esc(r.n)}</b><em>si tu gagnes <span class="atp-up">+${w}</span> · si tu perds <span class="atp-dn">−${l}</span></em></button>`; }).join('')}</div>`
+          : (() => { const r = st[A.d], [w, l] = pv(r); return `<div class="atp-sel"><span>#${rk(A.d)} ${esc(A.d)} · ${fmtP(r.pts)} pts<br><small class="muted">si ${esc(A.c)} gagne <span class="atp-up">+${w}</span> · s'il perd <span class="atp-dn">−${l}</span></small></span><button class="btn btn-ghost" data-ax="d">Changer</button></div>
+            <div class="atp-st"><i>3</i>Arbitre <span class="muted" style="font-weight:600;font-size:.85rem">(facultatif · +0,5 pt)</span></div>
+            <select id="a-arb" style="padding:12px;font-weight:800;font-size:1.05rem"><option value="">— Pas d'arbitre —</option>${ranks.filter(x => x.n !== A.c && x.n !== A.d).map(x => `<option value="${esc(x.n)}" ${x.n === A.arb ? 'selected' : ''}>${esc(x.n)}</option>`).join('')}</select>
+            <button class="btn btn-grad btn-block tn-go" style="margin-top:12px;padding:18px!important;font-size:1.2rem!important" id="a-go">▶ Jouer le défi</button>`; })()}`;
+    const inCls = t.classe ? [...new Set(studentsOf(t.classe))].filter(n => !st[n]) : [];
+    const html = `<div class="section-title"><h2>Classement</h2></div>
+      <div class="card" style="overflow:auto"><table class="atp-tb"><tr><th>#</th><th>Élève</th><th>Points</th><th>V</th><th>D</th><th title="Arbitrages">Arb.</th><th>Dernier</th></tr>
+        ${ranks.map((r, i) => `<tr${i === 0 && log.length ? ' style="background:var(--grad-soft)"' : ''}><td>${i === 0 && log.length ? '🥇' : i + 1}</td><td><b>${esc(r.n)}</b></td><td><b>${fmtP(r.pts)}</b></td><td>${r.v}</td><td>${r.d}</td><td>${r.arb}</td><td>${evo(r.last)}</td></tr>`).join('')}</table></div>
+      <details class="card" style="margin-top:12px"><summary style="font-weight:800;cursor:pointer">📋 Barème</summary>
+        <p class="muted" style="font-size:.85rem;margin:8px 0">Écart = points du <b>gagnant</b> − points du <b>perdant</b>, avant le match.</p>
+        <table class="atp-tb"><tr><th>Écart</th><th>Gagnant</th><th>Perdant</th></tr>${ATP_BAR.map(([e, g]) => `<tr><td style="text-align:left"><b>${e}</b></td><td class="atp-up">+${g}</td><td class="atp-dn">−${g}</td></tr>`).join('')}</table>
+        <p class="muted" style="font-size:.85rem;margin:8px 0 0">Exemple : un joueur à 103 pts bat un joueur à 97 pts → écart 6 → gagnant <b>+2</b> / perdant <b>−2</b>.<br>Battre un joueur mieux classé rapporte plus ; perdre contre un joueur bien moins classé coûte plus. Match nul : aucun point échangé. Arbitre : +0,5 pt. On peut défier un des 6 joueurs classés juste au-dessus de soi (le n°1 ne défie personne).</p></details>
+      <div class="section-title"><h2>🎾 Lancer un défi</h2></div>
+      <div class="card" style="border:2px solid #B8912A">${flow}</div>
+      <div class="section-title"><h2>Historique des défis</h2></div>
+      <div class="card" style="padding:0">${log.length ? log.slice().reverse().map(l => `<div class="list-item"><div style="flex:1"><b>${esc(l.c)}</b> <span class="muted">(#${l.from})</span> défie <b>${esc(l.d)}</b> <span class="muted">(#${l.to})</span>
+        <div class="muted" style="font-size:.82rem">${when(l.m.date)} · ${l.w ? `${esc(l.w)} gagne · <span class="atp-up">${esc(l.w)} +${l.g}</span> / <span class="atp-dn">${esc(l.l)} −${l.g}</span>` : 'Match nul · aucun point échangé'}${l.arb ? ` · arbitre ${esc(l.arb)} <span class="atp-up">+0,5</span>` : ''}</div></div>${scoreBtn(l.m.id, [l.cs, l.ds])}</div>`).join('') : '<div class="empty">Aucun défi joué.</div>'}</div>`;
+    const prof = `<label>Points de départ</label><div class="row"><div><input id="a-st" type="number" min="0" value="${+t.start || 0}"></div><div><button class="btn btn-ghost btn-block" id="a-st-ok">✔ Appliquer (classement recalculé)</button></div></div>
+      <label style="display:flex;gap:8px;align-items:center;margin-top:12px"><input type="checkbox" id="a-cf" ${t.confirm !== false ? 'checked' : ''} style="width:auto"> Fenêtre de confirmation avant d'enregistrer un résultat</label>
+      <label>Ajouter un élève arrivé en retard (commence avec les points de départ)</label>
+      <div class="row">${inCls.length ? `<div><select id="a-add-s"><option value="">— Élève de ${esc(t.classe)} —</option>${inCls.map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join('')}</select></div>` : ''}<div><input id="a-add" placeholder="ou saisir un nom"></div><div><button class="btn btn-ghost btn-block" id="a-add-ok">➕ Ajouter</button></div></div>`;
+    return { info: `Départ ${fmtP(+t.start || 0)} pts · ${log.length} défi${log.length > 1 ? 's' : ''} joué${log.length > 1 ? 's' : ''}${log.length && ranks[0] ? ' · en tête : ' + esc(ranks[0].n) : ''}`, html, prof, csvLbl: 'Exporter le classement et les défis (CSV)',
+      wire: () => {
+        const $ = q => el.querySelector(q), re = () => { const y = window.scrollY; tview(t.id); window.scrollTo(0, y); };
+        el.querySelectorAll('[data-ac]').forEach(b => b.onclick = () => { A.c = b.dataset.ac; A.d = null; A.arb = ''; beep(900, .04); re(); });
+        el.querySelectorAll('[data-ad]').forEach(b => b.onclick = () => { A.d = b.dataset.ad; beep(900, .04); re(); });
+        el.querySelectorAll('[data-ax]').forEach(b => b.onclick = () => { if (b.dataset.ax === 'c') A.c = null; A.d = null; A.arb = ''; re(); });
+        if ($('#a-arb')) $('#a-arb').onchange = () => { A.arb = $('#a-arb').value; };
+        if ($('#a-go')) $('#a-go').onclick = () => { const c = A.c, d = A.d, arb = $('#a-arb').value, R = tAtp(t).ranks, i = R.findIndex(r => r.n === c);
+          if (!atpTargets(R, i).some(r => r.n === d)) { toast('Défi impossible : on ne peut défier qu\'un des 6 joueurs classés juste au-dessus'); A.d = null; return re(); }
+          S.atp = null; playT(t, c, d, null, { challenger: c, defie: d }, arb && arb !== c && arb !== d ? arb : null); };
+        $('#a-st-ok').onclick = () => { const v = +$('#a-st').value; if (!isFinite(v) || v < 0) return toast('Valeur invalide'); t.start = v; save(); toast(`Points de départ : ${fmtP(v)} ✔`); tview(t.id); };
+        $('#a-cf').onchange = () => { t.confirm = $('#a-cf').checked; save(); toast(t.confirm ? 'Confirmation activée' : 'Confirmation désactivée'); };
+        $('#a-add-ok').onclick = () => { const n = (($('#a-add-s') || {}).value || $('#a-add').value || '').trim(); if (!n) return toast('Choisissez ou saisissez un élève');
+          if (t.teams.some(x => x.name === n)) return toast('Déjà dans le classement'); t.teams.push({ name: n, members: [n] }); save(); toast(`${n} ajouté(e) ✔`); tview(t.id); };
+      },
+      csv: () => download(csvName('defi-atp', t), csv([['Rang', 'Élève', 'Points', 'Victoires', 'Nuls', 'Défaites', 'Arbitrages', 'Dernière évolution'],
+        ...ranks.map((r, i) => [i + 1, r.n, fmtP(r.pts), r.v, r.nul, r.d, r.arb, r.last == null ? '' : sgnP(r.last)]),
+        [], ['Date', 'Challenger', 'Rang challenger', 'Défié', 'Rang défié', 'Score challenger', 'Score défié', 'Vainqueur', 'Points échangés', 'Arbitre'],
+        ...log.map(l => [new Date(l.m.date).toLocaleString('fr-FR'), l.c, l.from, l.d, l.to, l.cs, l.ds, l.w || 'nul', l.g, l.arb ? l.arb + ' (+0,5)' : ''])])) };
+  }
+
   function tview(id) {
     clearInterval(iv); M = null;
     const t = TR().find(x => x.id === id); if (!t) { toast('Tournoi introuvable'); return setup(); }
     S.view = id;
-    const f = tFmt(t), V = f === 'elim' ? vElim(t) : f === 'pyramide' ? vPyr(t) : vPoule(t);
+    const f = tFmt(t), V = f === 'elim' ? vElim(t) : f === 'pyramide' ? vPyr(t) : f === 'atp' ? vAtp(t) : vPoule(t), who = f === 'atp' ? 'Joueur' : 'Mon équipe';
     const amic = DB.matchs.filter(m => m.tid === t.id && !m.rid && !m.defi && !m.obsOnly).length;
     const opt = sel => t.teams.map((x, i) => `<option value="${i}" ${i === sel ? 'selected' : ''}>${esc(x.name)}</option>`).join('');
     el.innerHTML = `<span data-tvroot="${esc(t.id)}" hidden></span><button class="btn btn-ghost" id="t-bk">← Gestion de match</button>
       <div class="card" style="margin-top:10px;border-top:6px solid #B8912A"><h3>${TFMT[f].i} ${esc(t.nom)}</h3>
-        <div class="muted" style="font-size:.85rem">${TFMT[f].n} · ${esc(SPORTS[t.sport]?.name || t.sport)}${t.classe ? ' · ' + esc(t.classe) : ''} · ${new Date(t.date).toLocaleDateString('fr-FR')} · ${t.teams.length} équipes${amic ? ` · ${amic} match${amic > 1 ? 's' : ''} amica${amic > 1 ? 'ux' : 'l'}` : ''}</div>
+        <div class="muted" style="font-size:.85rem">${TFMT[f].n} · ${esc(SPORTS[t.sport]?.name || t.sport)}${t.classe ? ' · ' + esc(t.classe) : ''} · ${new Date(t.date).toLocaleDateString('fr-FR')} · ${t.teams.length} ${f === 'atp' ? 'joueurs' : 'équipes'}${amic ? ` · ${amic} match${amic > 1 ? 's' : ''} amica${amic > 1 ? 'ux' : 'l'}` : ''}</div>
         <div class="muted" style="font-size:.78rem;margin-top:4px">${V.info}</div>${t.regles ? `<div class="muted" style="font-size:.78rem;margin-top:2px">⚙️ ${t.regles.type === 'temps' ? `Match au temps · ${t.regles.dur} min` : `Match en ${t.regles.target} points${t.regles.ecart ? ' (2 pts d\'écart)' : ''}`}${t.regles.bonus.length ? ' · bonus ' + t.regles.bonus.map(v => '+' + v).join(' ') : ' · sans bonus'}${t.regles.obsOn ? ` · observations ${t.regles.obsN} joueurs` : ''}</div>` : ''}</div>
       ${V.html}
       <div class="section-title"><h2>Match libre</h2></div>
       <div class="card"><p class="muted" style="margin:0 0 6px;font-size:.85rem">Match amical ou supplémentaire : lié au tournoi mais <b>non compté</b> ${f === 'elim' ? 'dans le tableau' : f === 'pyramide' ? 'dans la pyramide' : 'dans le classement'}.</p>
-        <div class="row"><div><label>Mon équipe</label><select id="t-fa" style="padding:12px;font-weight:800;font-size:1.05rem">${opt(0)}</select></div><div><label>Adversaire</label><select id="t-fb" style="padding:12px;font-weight:800;font-size:1.05rem">${opt(1)}</select></div></div>
+        <div class="row"><div><label>${who}</label><select id="t-fa" style="padding:12px;font-weight:800;font-size:1.05rem">${opt(0)}</select></div><div><label>Adversaire</label><select id="t-fb" style="padding:12px;font-weight:800;font-size:1.05rem">${opt(1)}</select></div></div>
         <button class="btn btn-grad btn-block tn-go" style="margin-top:10px" id="t-fr">▶ Jouer</button></div>
       <details class="card" style="margin-top:14px"><summary data-prof style="font-weight:800;cursor:pointer">🔒 Enseignant</summary>
-        <div class="row" style="margin-top:10px"><button class="btn btn-ghost" id="t-csv">📤 ${V.csvLbl}</button><button class="btn btn-danger" id="t-del">🗑 Supprimer le tournoi</button></div>
+        ${V.prof ? `<div style="margin-top:6px">${V.prof}</div>` : ''}
+        <div class="row" style="margin-top:14px"><button class="btn btn-ghost" id="t-csv">📤 ${V.csvLbl}</button><button class="btn btn-danger" id="t-del">🗑 Supprimer le tournoi</button></div>
         <p class="muted" style="font-size:.78rem;margin:6px 0 0">Les matchs déjà enregistrés restent dans l'historique.</p></details>`;
     const $ = q => el.querySelector(q);
     $('#t-bk').onclick = setup;
@@ -699,7 +853,9 @@ TOOL_IMPL.match = function (el) {
     const $ = s => el.querySelector(s);
     $('#ex').onclick = () => download(`match-${m.a}-${m.b}.csv`.replace(/[^\w.-]+/g, '-'), csv([['Temps', 'Équipe', 'Action', 'Points'], ...m.ev.map(e => [fmt(e.t * 1000, false), e.team ? m.b : m.a, e.label, e.pts || '']), ...((m.obs || []).length ? [[], ['Joueur observé', 'Équipe', ...obsCrit(m.sport).map(c => c[1])], ...m.obs.map(o => [o.name, o.team ? m.b : m.a, ...obsCrit(m.sport).map(([k]) => o.c[k] || 0)])] : [])]));
     if (fromHistory) { $('#bk').onclick = () => { const v = S.view; v ? tview(v) : setup(); }; return; }
-    $('#sv').onclick = () => { DB.matchs.push(m); saveObsResults(m);
+    $('#sv').onclick = () => { const lt = m.tid && m.defi && !m.obsOnly && TR().find(x => x.id === m.tid);
+      if (lt && tFmt(lt) === 'atp' && lt.confirm !== false && !confirm(atpMsg(lt, m))) return;
+      DB.matchs.push(m); saveObsResults(m);
       save(); window.syncFlush && window.syncFlush(); toast('Match enregistré ✔'); afterSave(m); };
     $('#nw').onclick = () => { if (confirm('Quitter sans enregistrer ?')) setup(); };
     $('#rs').onclick = () => { // revenir au match (ex. fin par erreur)
