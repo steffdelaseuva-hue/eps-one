@@ -2,9 +2,11 @@
    EPS ONE — Onglet PLUS : mise à jour, partage,
    à propos, confidentialité/RGPD, nouvelle année scolaire
    ========================================================= */
-const APP_VERSION = '8.3';
+const APP_VERSION = '8.5';
 const APP_URL = 'https://steffdelaseuva-hue.github.io/eps-one/';
 const CHANGELOG = [
+  { v: '8.5', items: ['Championnat (poules par niveau), Élimination directe et Pyramide des victoires intégrés à Gestion de match (tous les sports, partagés entre les tablettes)', 'Anciens outils Championnat / Tournoi / Pyramide retirés du menu'] },
+  { v: '8.4', items: ['Gestion de match : tournois partagés entre les tablettes (championnat aller simple, classement automatique)', 'Chaque tablette choisit sa rencontre ou « Mon équipe » + « Adversaire »'] },
   { v: '8.3', items: ['Passeport : Squats N1 (bas du corps), Gainage latéral N3 (abdominaux / gainage)'] },
   { v: '8.2', items: ['Crosstraining / HYROX : exercices rangés par famille (passeport technique), niveau N1–N4 réglé automatiquement, couleurs des familles', 'Nouveaux exercices : Wall ball, Squats ball, Développé haltères, Farmer carry, Rowing kettlebell', 'Exercices ajoutés : choix de la famille et du niveau'] },
   { v: '8.1', items: ['HYROX, Course d\'orientation, Combiné, Duathlon et Relais alimentent « Résultats des élèves »', 'Séances enregistrées sur plusieurs tablettes (même jour, même classe, même épreuve) regroupées en une seule séance', 'Relais : courses enregistrées et synchronisées'] },
