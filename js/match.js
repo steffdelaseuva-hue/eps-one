@@ -351,7 +351,10 @@ TOOL_IMPL.match = function (el) {
     $('#mt-ed').onclick = () => { S.a = $('#na').value; S.b = $('#nb').value; editGroupsPanel('Équipes', { cls: t.cls, list: () => DB.matchTeams.teams, names: x => x.members,
       take: (x, n) => { x.members.splice(x.members.indexOf(n), 1); }, put: (x, n) => x.members.push(n), make: name => ({ name: name.replace('Groupe', 'Équipe'), members: [] }),
       onChange: save, onClose: () => { if (!DB.matchTeams.teams.length) { DB.matchTeams = null; S.a = 'Équipe A'; S.b = 'Équipe B'; } else { const L = DB.matchTeams.teams.length; if (S.ia >= L) S.ia = 0; if (S.ib >= L) S.ib = Math.min(1, L - 1); } save(); setup(); } }); };
-    if ($('#mt-tn')) $('#mt-tn').onclick = () => { S.a = $('#na').value; S.b = $('#nb').value; createT(t); };
+    if ($('#mt-tn')) $('#mt-tn').onclick = () => { S.a = $('#na').value; S.b = $('#nb').value;
+      // règles du match saisies à l'écran → elles seront appliquées sur toutes les tablettes
+      if ($('#du')) S.dur = Math.max(1, +$('#du').value || 1); if ($('#tg')) S.target = Math.max(1, +$('#tg').value || 1); if ($('#ec')) S.ecart = $('#ec').checked;
+      if ($('#st')) S.stats = $('#st').checked; if ($('#zo')) S.zones = $('#zo').checked; if ($('#ob')) S.obsOn = $('#ob').checked; createT(t); };
     $('#mt-clr').onclick = () => { if (!confirm('Effacer la composition des équipes ?')) return; DB.matchTeams = null; selPl = null; S.a = 'Équipe A'; S.b = 'Équipe B'; save(); setup(); };
   }
 
@@ -390,7 +393,8 @@ TOOL_IMPL.match = function (el) {
       $('#c-ok').onclick = () => { keepC(); create(size); };
     };
     const create = size => {
-      const tn = { id: tuid(), date: Date.now(), nom: C.nom.trim() || def, classe: tm.cls || '', sport: S.sport, format: C.format, teams, rencontres: [] };
+      const tn = { id: tuid(), date: Date.now(), nom: C.nom.trim() || def, classe: tm.cls || '', sport: S.sport, format: C.format, teams, rencontres: [],
+        regles: { type: S.type, dur: S.dur, target: S.target, ecart: S.ecart, bonus: [...S.bonus], stats: S.stats, zones: S.zones, nz: S.nz, obsOn: S.obsOn, obsN: S.obsN } };
       let msg;
       if (C.format === 'poule') {
         gk.forEach(g => { G[g].forEach(n => { if (g) teams.find(x => x.name === n).g = g; }); tn.rencontres.push(...roundRobin(G[g]).map(r => g ? { ...r, g } : r)); });
@@ -407,6 +411,7 @@ TOOL_IMPL.match = function (el) {
   }
   function playT(t, a, b, rid, defi) {
     if (SPORTS[t.sport] && t.sport !== S.sport) { const sp = SPORTS[t.sport]; S.sport = t.sport; S.type = sp.type; if (sp.dur) S.dur = sp.dur; if (sp.target) S.target = sp.target; S.ecart = !!sp.ecart; if (!sp.zones) S.zones = false; }
+    if (t.regles) Object.assign(S, JSON.parse(JSON.stringify(t.regles)));   // règles fixées par l'enseignant à la création
     const ta = t.teams.find(x => x.name === a), tb = t.teams.find(x => x.name === b);
     Object.assign(S, { a, b, pa: [...(ta ? ta.members : [])], pb: [...(tb ? tb.members : [])], tid: t.id, rid: rid || null, defi: defi || null });
     setup(); window.scrollTo(0, 0); beep(1000, .08);
@@ -511,13 +516,13 @@ TOOL_IMPL.match = function (el) {
     el.innerHTML = `<button class="btn btn-ghost" id="t-bk">← Gestion de match</button>
       <div class="card" style="margin-top:10px;border-top:6px solid #B8912A"><h3>${TFMT[f].i} ${esc(t.nom)}</h3>
         <div class="muted" style="font-size:.85rem">${TFMT[f].n} · ${esc(SPORTS[t.sport]?.name || t.sport)}${t.classe ? ' · ' + esc(t.classe) : ''} · ${new Date(t.date).toLocaleDateString('fr-FR')} · ${t.teams.length} équipes${amic ? ` · ${amic} match${amic > 1 ? 's' : ''} amica${amic > 1 ? 'ux' : 'l'}` : ''}</div>
-        <div class="muted" style="font-size:.78rem;margin-top:4px">${V.info}</div></div>
+        <div class="muted" style="font-size:.78rem;margin-top:4px">${V.info}</div>${t.regles ? `<div class="muted" style="font-size:.78rem;margin-top:2px">⚙️ ${t.regles.type === 'temps' ? `Match au temps · ${t.regles.dur} min` : `Match en ${t.regles.target} points${t.regles.ecart ? ' (2 pts d\'écart)' : ''}`}${t.regles.bonus.length ? ' · bonus ' + t.regles.bonus.map(v => '+' + v).join(' ') : ' · sans bonus'}${t.regles.obsOn ? ` · observations ${t.regles.obsN} joueurs` : ''}</div>` : ''}</div>
       ${V.html}
       <div class="section-title"><h2>Match libre</h2></div>
       <div class="card"><p class="muted" style="margin:0 0 6px;font-size:.85rem">Match amical ou supplémentaire : lié au tournoi mais <b>non compté</b> ${f === 'elim' ? 'dans le tableau' : f === 'pyramide' ? 'dans la pyramide' : 'dans le classement'}.</p>
         <div class="row"><div><label>Mon équipe</label><select id="t-fa" style="padding:12px;font-weight:800;font-size:1.05rem">${opt(0)}</select></div><div><label>Adversaire</label><select id="t-fb" style="padding:12px;font-weight:800;font-size:1.05rem">${opt(1)}</select></div></div>
         <button class="btn btn-grad btn-block tn-go" style="margin-top:10px" id="t-fr">▶ Jouer</button></div>
-      <details class="card" style="margin-top:14px"><summary style="font-weight:800;cursor:pointer">🔒 Enseignant</summary>
+      <details class="card" style="margin-top:14px"><summary data-prof style="font-weight:800;cursor:pointer">🔒 Enseignant</summary>
         <div class="row" style="margin-top:10px"><button class="btn btn-ghost" id="t-csv">📤 ${V.csvLbl}</button><button class="btn btn-danger" id="t-del">🗑 Supprimer le tournoi</button></div>
         <p class="muted" style="font-size:.78rem;margin:6px 0 0">Les matchs déjà enregistrés restent dans l'historique.</p></details>`;
     const $ = q => el.querySelector(q);

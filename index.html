@@ -380,8 +380,16 @@ function releaseWake(){try{wake?.release();wake=null}catch(e){}}
    par un toucher, et la courbe de volume doit partir de l'instant présent. */
 let actx=null;
 function audioCtx(){actx=actx||new (window.AudioContext||window.webkitAudioContext)();if(actx.state!=='running')actx.resume().catch(()=>{});return actx;}
-function unlockAudio(){try{if(navigator.audioSession)navigator.audioSession.type='playback';}catch(e){}
-  try{const c=audioCtx(),b=c.createBuffer(1,1,22050),s=c.createBufferSource();s.buffer=b;s.connect(c.destination);s.start(0);}catch(e){}}
+/* Réglages son (propres à l'appareil) : mix = bips par-dessus la musique ; bt = garder l'enceinte Bluetooth éveillée */
+const audioPrefs=()=>(DB.tablette&&DB.tablette.audio)||{};
+function unlockAudio(){try{if(navigator.audioSession)navigator.audioSession.type=audioPrefs().mix?'transient':'playback';}catch(e){}
+  try{const c=audioCtx(),b=c.createBuffer(1,1,22050),s=c.createBufferSource();s.buffer=b;s.connect(c.destination);s.start(0);}catch(e){}
+  keepAlive();}
+/* Enceinte Bluetooth : un signal inaudible permanent évite que l'enceinte se mette en veille et « mange » les bips courts */
+let kaNode=null;
+function keepAlive(){const on=!!audioPrefs().bt;
+  if(on&&!kaNode){try{const c=audioCtx(),o=c.createOscillator(),g=c.createGain();o.frequency.value=50;g.gain.value=.002;o.connect(g);g.connect(c.destination);o.start();kaNode=o;}catch(e){}}
+  else if(!on&&kaNode){try{kaNode.stop();}catch(e){}kaNode=null;}}
 ['touchend','pointerdown','click','keydown'].forEach(ev=>document.addEventListener(ev,unlockAudio,{passive:true,capture:true}));
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&actx)actx.resume().catch(()=>{});});
 function beep(freq=880,dur=.15,vol=.4){
@@ -675,6 +683,7 @@ if('serviceWorker' in navigator && location.protocol==='https:') navigator.servi
 <script type="module" src="js/sync.js"></script>
 <script src="js/qr.js"></script>
 <script src="js/plus.js"></script>
+<script src="js/profpin.js"></script>
 <script src="js/musique.js"></script>
 </body>
 </html>

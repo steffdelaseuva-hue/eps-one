@@ -175,6 +175,7 @@ TOOL_IMPL.wod = function (el) {
     // Vue « un seul groupe » : ce que voient les élèves sur leur tablette
     const drawGroup = () => {
       const i = cur.only, g = cur.groups[i]; g.checks = g.checks || {};
+      const tb = box.parentElement && box.parentElement.querySelector('.co-tabs'); if (tb) tb.style.display = 'none';   // élèves : pas d'accès aux onglets
       const r = resOf(g, e), [n, tot] = progOf(g, e), run = g.dep && !g.arr && !g.capped, IT = itemsOf(e);
       box.innerHTML = `<div class="card" style="text-align:center"><div style="font-weight:900;font-size:1.3rem">${esc(g.name)}</div><div class="muted">${g.members.map(esc).join(', ')}</div>
           <div class="gv-clock" data-live="${i}" style="color:${g.arr || g.capped ? '#1B9E5A' : 'inherit'}">${r.t != null ? mmss(r.t) : g.dep ? mmss((Date.now() - g.dep) / 1000) : '0:00'}</div>
@@ -213,6 +214,7 @@ TOOL_IMPL.wod = function (el) {
       DB.wod.current = null; save(); clearInterval(iv); toast('Séance enregistrée ✔'); tab = 'resultats'; frame(); };
     const draw = () => {
       if (cur.only != null && cur.groups[cur.only]) return drawGroup();
+      { const tb = box.parentElement && box.parentElement.querySelector('.co-tabs'); if (tb) tb.style.display = ''; }
       box.innerHTML = `<div class="card"><b>${esc(e.nom)}</b><div class="muted">${esc(cur.classe || '')} · ${summaryOf(e)}</div>
           <div class="big clock" id="gclk" style="font-size:clamp(2.4rem,12vw,4rem);padding:4px 0">0:00</div>
           <div class="muted" style="text-align:center" id="capinfo"></div>

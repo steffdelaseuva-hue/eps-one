@@ -2,9 +2,12 @@
    EPS ONE — Onglet PLUS : mise à jour, partage,
    à propos, confidentialité/RGPD, nouvelle année scolaire
    ========================================================= */
-const APP_VERSION = '8.5';
+const APP_VERSION = '8.8';
 const APP_URL = 'https://steffdelaseuva-hue.github.io/eps-one/';
 const CHANGELOG = [
+  { v: '8.8', items: ['Son des bips (bouton ♪) : bips par-dessus la musique, mode enceinte Bluetooth (évite la mise en veille), bouton de test'] },
+  { v: '8.7', items: ['Tournois : les règles du match (durée ou points, bonus, statistiques, zones, observations) choisies par l\'enseignant s\'appliquent sur toutes les tablettes'] },
+  { v: '8.6', items: ['Code enseignant à 4 chiffres pour quitter la vue élève (« 🔒 Mode enseignant ») — réglage dans Plus → Code enseignant'] },
   { v: '8.5', items: ['Championnat (poules par niveau), Élimination directe et Pyramide des victoires intégrés à Gestion de match (tous les sports, partagés entre les tablettes)', 'Anciens outils Championnat / Tournoi / Pyramide retirés du menu'] },
   { v: '8.4', items: ['Gestion de match : tournois partagés entre les tablettes (championnat aller simple, classement automatique)', 'Chaque tablette choisit sa rencontre ou « Mon équipe » + « Adversaire »'] },
   { v: '8.3', items: ['Passeport : Squats N1 (bas du corps), Gainage latéral N3 (abdominaux / gainage)'] },
@@ -318,6 +321,7 @@ function renderPlus() {
     <div class="menu-sec">Données & partage</div>
     <div class="card" style="padding:0">
       ${item('update', 'grad', 'Stockage & synchronisation', `<span id="sync-sub">${window.syncStatusText ? window.syncStatusText() : 'Mode : stockage local'}</span>`, 'openSync()')}
+      ${item('lock', 'navy', 'Code enseignant', DB.profPin ? 'Code défini · protège le mode enseignant des tablettes' : 'Protéger le mode enseignant des tablettes élèves', 'openProfPin()')}
       ${window.isEpsAdmin && window.isEpsAdmin() ? item('lock', 'gold', 'Accès des collègues', 'Valider ou retirer les accès à EPS ONE', 'openAccessAdmin()') : ''}
       ${item('save', 'blue', 'Exporter mes données', 'Fichier de sauvegarde JSON', 'exportData()')}
       ${item('restore', 'blue', 'Importer une sauvegarde', 'Restaurer depuis un fichier JSON', "document.getElementById('imp').click()")}
