@@ -18,7 +18,7 @@ document.head.insertAdjacentHTML('beforeend', `<style>
 .chronos-bar{display:flex;gap:8px;align-items:center;padding:8px 10px;background:var(--card);border-bottom:1px solid var(--line);flex-wrap:wrap}
 .chronos-bar select{flex:1;min-width:140px;padding:8px}
 .chronos-bar .btn{padding:9px 12px;font-size:.85rem}
-.chronos-frame{flex:1;border:0;width:100%;background:#0E1B2E}
+.chronos-frame{flex:1;border:0;width:100%;background:var(--bg)}
 .cam-wrap{position:relative;background:#000;border-radius:16px;overflow:hidden;aspect-ratio:16/9;display:grid;place-items:center}
 .cam-wrap canvas{width:100%;height:100%;object-fit:contain;display:block}
 .cam-overlay{position:absolute;left:10px;top:10px;background:rgba(0,0,0,.6);color:#fff;padding:6px 10px;border-radius:10px;font-weight:800;font-variant-numeric:tabular-nums}

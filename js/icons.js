@@ -56,8 +56,8 @@ const ICONS = {
   play:     '<rect x="2.5" y="5" width="19" height="14" rx="3.5"/><path d="M10 9v6l5-3z"/>',
   rocket:   '<path d="M12 3c3 2 4.5 5.5 4 9.5l-2 2.5h-4l-2-2.5C7.5 8.5 9 5 12 3z"/><circle cx="12" cy="9" r="1.5"/><path d="M8.5 13 5.5 16l1 3 3-2M15.5 13l3 3-1 3-3-2M12 17v4"/>',
 };
+ICONS.chronos12 = '<circle cx="12" cy="13.5" r="8"/><path d="M10 2.8h4M12 2.8v2.7M18.2 6.6l1.2-1.2M12 13.5V10.6M12 13.5l2.2 1.3"/><circle cx="12.00" cy="8.20" r=".85" fill="#D4AF37" stroke="none"/><circle cx="14.65" cy="8.91" r=".85" fill="#2F6BD8" stroke="none"/><circle cx="16.59" cy="10.85" r=".85" fill="#2F6BD8" stroke="none"/><circle cx="17.30" cy="13.50" r=".85" fill="#D4AF37" stroke="none"/><circle cx="16.59" cy="16.15" r=".85" fill="#2F6BD8" stroke="none"/><circle cx="14.65" cy="18.09" r=".85" fill="#2F6BD8" stroke="none"/><circle cx="12.00" cy="18.80" r=".85" fill="#D4AF37" stroke="none"/><circle cx="9.35" cy="18.09" r=".85" fill="#2F6BD8" stroke="none"/><circle cx="7.41" cy="16.15" r=".85" fill="#2F6BD8" stroke="none"/><circle cx="6.70" cy="13.50" r=".85" fill="#D4AF37" stroke="none"/><circle cx="7.41" cy="10.85" r=".85" fill="#2F6BD8" stroke="none"/><circle cx="9.35" cy="8.91" r=".85" fill="#2F6BD8" stroke="none"/>';
 function ico(name, cls = '') {
-  if (name === 'chronos12') return `<img src="icons/chronos-eps.png" alt="" class="ico-img ${cls}">`;
   return `<svg class="ico ${cls}" viewBox="0 0 24 24" fill="none" stroke="url(#icoGrad)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[name] || ICONS.star}</svg>`;
 }
 /* Dégradé partagé par toutes les icônes */
