@@ -41,7 +41,7 @@
         if (!L().jeq(out, local)) changed = true;
       }
       saveMeta(); saveBase();
-      if (changed) { applying = true; window.save(); applying = false; try { if (!document.getElementById('screen').classList.contains('open')) renderHome(); } catch (e) {} toast(`🔄 Données ${P.name} synchronisées`); }
+      if (changed) { applying = true; window.save(); applying = false; try { if (!document.getElementById('screen').classList.contains('open')) renderHome(); } catch (e) {} toast(`🔄 Données ${P.name} synchronisées`); window.dispatchEvent(new Event('eps-remote')); }
       return changed;
     }
 

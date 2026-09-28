@@ -120,7 +120,7 @@ async function pushChanged() {
     S.status = 'ok'; S.err = ''; S.last = meta.last = Date.now();
   } catch (e) { S.status = 'error'; S.err = e.message; }
   pushing = false; saveBase(); saveMeta(); drawSendPill();
-  if (changedLocal) { _save(); try { if (!document.getElementById('screen').classList.contains('open')) renderHome(); } catch (e) {} }
+  if (changedLocal) { _save(); try { if (!document.getElementById('screen').classList.contains('open')) renderHome(); } catch (e) {} window.dispatchEvent(new Event('eps-remote')); }
   refreshUI();
 }
 // Envois groupés : au plus un envoi toutes les 10 s pendant que l'on saisit (économise le quota Firebase)
@@ -168,7 +168,7 @@ async function applySnap(docs) {
   if (syncKeys().some(k => meta.keys[k]?.h === 'x')) schedulePush();
   if (changed) { _save(); S.last = meta.last = Date.now(); S.status = 'ok'; refreshUI();
     try { if (!document.getElementById('screen').classList.contains('open')) renderHome(); } catch (e) {}
-    toast('🔄 Données synchronisées'); }
+    toast('🔄 Données synchronisées'); window.dispatchEvent(new Event('eps-remote')); }
 }
 function listen() {
   const { collection, onSnapshot } = fb.fs;

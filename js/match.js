@@ -513,7 +513,7 @@ TOOL_IMPL.match = function (el) {
     const f = tFmt(t), V = f === 'elim' ? vElim(t) : f === 'pyramide' ? vPyr(t) : vPoule(t);
     const amic = DB.matchs.filter(m => m.tid === t.id && !m.rid && !m.defi && !m.obsOnly).length;
     const opt = sel => t.teams.map((x, i) => `<option value="${i}" ${i === sel ? 'selected' : ''}>${esc(x.name)}</option>`).join('');
-    el.innerHTML = `<button class="btn btn-ghost" id="t-bk">← Gestion de match</button>
+    el.innerHTML = `<span data-tvroot="${esc(t.id)}" hidden></span><button class="btn btn-ghost" id="t-bk">← Gestion de match</button>
       <div class="card" style="margin-top:10px;border-top:6px solid #B8912A"><h3>${TFMT[f].i} ${esc(t.nom)}</h3>
         <div class="muted" style="font-size:.85rem">${TFMT[f].n} · ${esc(SPORTS[t.sport]?.name || t.sport)}${t.classe ? ' · ' + esc(t.classe) : ''} · ${new Date(t.date).toLocaleDateString('fr-FR')} · ${t.teams.length} équipes${amic ? ` · ${amic} match${amic > 1 ? 's' : ''} amica${amic > 1 ? 'ux' : 'l'}` : ''}</div>
         <div class="muted" style="font-size:.78rem;margin-top:4px">${V.info}</div>${t.regles ? `<div class="muted" style="font-size:.78rem;margin-top:2px">⚙️ ${t.regles.type === 'temps' ? `Match au temps · ${t.regles.dur} min` : `Match en ${t.regles.target} points${t.regles.ecart ? ' (2 pts d\'écart)' : ''}`}${t.regles.bonus.length ? ' · bonus ' + t.regles.bonus.map(v => '+' + v).join(' ') : ' · sans bonus'}${t.regles.obsOn ? ` · observations ${t.regles.obsN} joueurs` : ''}</div>` : ''}</div>
@@ -639,7 +639,7 @@ TOOL_IMPL.match = function (el) {
     if (!obs.length) return toast('Aucune observation saisie');
     M.acc = now(); M.run = false; M.over = true; clearInterval(iv);
     const m = { id: tuid(), ...tlink(), date: Date.now(), sport: S.sport, a: S.a, b: S.b, sa: 0, sb: 0, duree: Math.round(M.acc / 1000), nz: 0, pa: M.pa, pb: M.pb, obs, obsOnly: true, coll: false, stats: stats([], 0), ev: [] };
-    DB.matchs.push(m); saveObsResults(m); save(); beep(1000, .3); toast('Observations enregistrées ✔'); afterSave(m);
+    DB.matchs.push(m); saveObsResults(m); save(); window.syncFlush && window.syncFlush(); beep(1000, .3); toast('Observations enregistrées ✔'); afterSave(m);
   }
   function paintZones() {
     if (!el.querySelector('[data-zl]')) return;
@@ -700,12 +700,15 @@ TOOL_IMPL.match = function (el) {
     $('#ex').onclick = () => download(`match-${m.a}-${m.b}.csv`.replace(/[^\w.-]+/g, '-'), csv([['Temps', 'Équipe', 'Action', 'Points'], ...m.ev.map(e => [fmt(e.t * 1000, false), e.team ? m.b : m.a, e.label, e.pts || '']), ...((m.obs || []).length ? [[], ['Joueur observé', 'Équipe', ...obsCrit(m.sport).map(c => c[1])], ...m.obs.map(o => [o.name, o.team ? m.b : m.a, ...obsCrit(m.sport).map(([k]) => o.c[k] || 0)])] : [])]));
     if (fromHistory) { $('#bk').onclick = () => { const v = S.view; v ? tview(v) : setup(); }; return; }
     $('#sv').onclick = () => { DB.matchs.push(m); saveObsResults(m);
-      save(); toast('Match enregistré ✔'); afterSave(m); };
+      save(); window.syncFlush && window.syncFlush(); toast('Match enregistré ✔'); afterSave(m); };
     $('#nw').onclick = () => { if (confirm('Quitter sans enregistrer ?')) setup(); };
     $('#rs').onclick = () => { // revenir au match (ex. fin par erreur)
       const saved = M; start(true); M.ev = saved.ev; M.acc = saved.acc; M.pa = saved.pa; M.pb = saved.pb; M.obs = saved.obs; drawObs(); M.poss = saved.poss; M.over = false; paint(); tick(); };
   }
 
   setup();
-  return () => clearInterval(iv);
+  // Tournoi affiché : se met à jour tout seul quand une autre tablette enregistre un match
+  const onRemote = () => { const r = el.isConnected && el.querySelector('[data-tvroot]'); if (!r || document.getElementById('pin-ov')) return; const y = window.scrollY; tview(r.dataset.tvroot); window.scrollTo(0, y); };
+  window.addEventListener('eps-remote', onRemote);
+  return () => { clearInterval(iv); window.removeEventListener('eps-remote', onRemote); };
 };
