@@ -59,6 +59,7 @@ if (!document.getElementById('cx-css')) document.head.insertAdjacentHTML('before
 .cx-start .nm{flex:1;min-width:0;font-weight:800;line-height:1.2}
 .cx-start .nm small{display:block;color:var(--muted);font-weight:600;font-size:.74rem}
 .cx-start .clk{font-variant-numeric:tabular-nums;font-weight:900;font-size:1.25rem}
+.cx-stop{background:var(--grad-soft);border:1.5px solid var(--line);color:var(--text);padding:9px 11px;border-radius:12px;font-weight:800;flex:0 0 auto}
 .cx-go{background:var(--danger);color:#fff;padding:12px 14px;border-radius:14px;font-weight:900;flex:0 0 auto}
 .cx-gsel{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
 .cx-gsel button{padding:9px 12px;border-radius:12px;border:2px solid var(--line);background:var(--grad-soft);font-weight:800;font-size:.82rem}
@@ -98,7 +99,7 @@ if (!document.getElementById('cx-css')) document.head.insertAdjacentHTML('before
   const LV = ['6', '5', '4', '3'], LVN = { 6: '6e', 5: '5e', 4: '4e', 3: '3e' };
   const SXN = { F: 'Filles', G: 'Garçons', X: 'Mixte' };
   const COLORS = ['#D6457A', '#1E5BD8', '#C0392B', '#0B5FA5', '#1B9E5A', '#C9A227', '#7A4FD6', '#E07A1F', '#0FA3B1', '#5B6782'];
-  const MAXC = 10, MAXCL = 16, MAXST = 35;
+  const MAXC = 10, MAXCL = 24, MAXST = 35;
   const tm = ms => ms == null ? '–' : fmt(ms, false);
   const hms = t => t ? new Date(t).toLocaleTimeString('fr-FR') : '';
   const km = v => v ? v.toFixed(1).replace('.', ',') : '–';
@@ -164,6 +165,11 @@ if (!document.getElementById('cx-css')) document.head.insertAdjacentHTML('before
     }).sort((a, b) => a.score - b.score || b.n - a.n).map((r, i) => ({ ...r, rk: i + 1 }));
   }
 
+  /* Remise à zéro d'une course : départ annulé + passages de ses coureurs effacés */
+  function resetCourse(E, c) {
+    const K = compute(E), bibs = new Set(K.S.filter(s => K.cOf.get(s.k) === c && s.b).map(s => +s.b));
+    E.arr = E.arr.filter(a => !(bibs.has(+a.b) && a.t >= c.start)); c.start = null;
+  }
   /* ---------- Enregistrement d'un passage (caméra ou pavé) ---------- */
   const seen = new Map();   // dossard -> dernier scan caméra (anti-doublon 20 s, propre à la tablette)
   function record(E, bib, src, now = Date.now()) {
@@ -313,7 +319,8 @@ tr:nth-child(-n+4) td{font-weight:700}`,
         <details class="card cx-prof"><summary data-prof>🔒 Enseignant</summary>
           <h3 style="margin:12px 0 4px">Heures de départ</h3><p class="muted" style="margin:0 0 6px;font-size:.8rem">Pour corriger un départ donné trop tôt ou trop tard.</p>
           ${E.courses.map((c, i) => `<div class="cx-start" style="--cc:${col(E, c)}"><span class="cx-dot"></span><div class="nm">${esc(c.name)}</div><input type="time" step="1" style="width:130px" data-st="${i}" value="${c.start ? new Date(c.start).toTimeString().slice(0, 8) : ''}"><button class="btn btn-ghost" style="flex:0 0 auto;padding:9px" data-stclr="${i}" aria-label="Effacer le départ">✕</button></div>`).join('')}
-          <button class="btn btn-ghost btn-block" style="margin-top:12px" id="cx-rarr">↺ Effacer toutes les arrivées (${E.arr.length})</button>
+          <button class="btn btn-ghost btn-block" style="margin-top:12px" id="cx-rz">↺ Remettre le cross à zéro (tous les départs + arrivées)</button>
+          <button class="btn btn-ghost btn-block" style="margin-top:8px" id="cx-rarr">↺ Effacer seulement les arrivées (${E.arr.length})</button>
           <button class="btn btn-danger btn-block" style="margin-top:8px" id="cx-delev">🗑 Supprimer ce cross</button></details>`;
       const $ = s => box.querySelector(s);
       $('#cx-name').onchange = e => { E.name = e.target.value.trim() || E.name; commit(); again(); };
@@ -334,18 +341,20 @@ tr:nth-child(-n+4) td{font-weight:700}`,
       box.querySelectorAll('[data-st]').forEach(inp => inp.onchange = () => { const c = E.courses[+inp.dataset.st]; if (!inp.value) return;
         const [h, m, s] = inp.value.split(':').map(Number), d = c.start ? new Date(c.start) : new Date(); d.setHours(h, m, s || 0, 0); c.start = d.getTime(); commit(); toast(`Départ « ${c.name} » : ${hms(c.start)}`); });
       box.querySelectorAll('[data-stclr]').forEach(b => b.onclick = () => { const c = E.courses[+b.dataset.stclr]; if (!c.start || !confirm(`Annuler le départ de « ${c.name} » ?`)) return; c.start = null; commit(); again(); });
+      $('#cx-rz').onclick = () => { if (!confirm('Remettre ce cross à zéro ?\nTous les départs et toutes les arrivées sont effacés. Les courses, inscriptions et dossards sont conservés.')) return; E.arr = []; E.courses.forEach(c => { c.start = null; }); commit(); toast('↺ Cross remis à zéro'); again(); };
       $('#cx-rarr').onclick = () => { if (!E.arr.length || !confirm('Effacer toutes les arrivées de ce cross ?')) return; E.arr = []; commit(); again(); };
       $('#cx-delev').onclick = () => { if (!confirm(`Supprimer définitivement « ${E.name} » ?`)) return; DB.cross.events = X().events.filter(e => e.id !== E.id); setCur(''); commit(); frame(); };
     }
 
     /* ---------- 👥 Inscriptions ---------- */
     function inscr(box, E) {
-      if (!DB.classes.length) { box.innerHTML = noClassMsg; return; }
-      const K = compute(E);
+      if (!DB.classes.length && !otherClasses().length) { box.innerHTML = noClassMsg; return; }
+      const K = compute(E), mine = new Set(DB.classes.map(c => c.name)), allN = [...new Set([...DB.classes, ...otherClasses()].map(c => c.name))];
       if (!E.classes.includes(insCls)) insCls = sortCls(E, E.classes)[0] || '';
       const S = K.S, noSx = S.filter(s => !s.st && !K.cOf.get(s.k)).length;
-      box.innerHTML = `<div class="card"><b>Classes participantes (${E.classes.length}/${MAXCL})</b><p class="muted" style="margin:4px 0 0;font-size:.8rem">Niveau déduit du 1er chiffre du nom de la classe (modifiable). ${MAXST} élèves max par classe.</p>
-          <div class="cx-cls">${sortCls(E, DB.classes.map(c => c.name)).map(c => `<button data-tc="${esc(c)}" class="${E.classes.includes(c) ? 'on' : ''}">${esc(c)}<small>${lvOf(E, c) ? LVN[lvOf(E, c)] : '?'}</small></button>`).join('')}</div>
+      box.innerHTML = `<div class="card"><b>Classes participantes (${E.classes.length}/${MAXCL})</b><p class="muted" style="margin:4px 0 0;font-size:.8rem">Niveau déduit du 1er chiffre du nom de la classe (modifiable). ${MAXST} élèves max par classe. Toutes les classes : 🏃 vos classes EPS et 🏫 les autres classes du collège (Mes classes).</p>
+          <div class="cx-cls">${sortCls(E, allN).map(c => `<button data-tc="${esc(c)}" class="${E.classes.includes(c) ? 'on' : ''}">${mine.has(c) ? '🏃 ' : ''}${esc(c)}<small>${lvOf(E, c) ? LVN[lvOf(E, c)] : '?'}</small></button>`).join('')}</div>
+          ${allN.length > 1 ? `<div class="row" style="margin-top:8px"><button class="btn btn-ghost" id="cx-tall">Tout cocher</button><button class="btn btn-ghost" id="cx-tnone">Tout décocher</button></div>` : ''}
           ${E.classes.length ? `<div class="cx-cls" style="margin-top:12px">${sortCls(E, E.classes).map(c => `<label style="margin:0;display:flex;gap:6px;align-items:center;font-size:.82rem">${esc(c)}<select data-lvc="${esc(c)}" style="width:auto;padding:6px 8px">${['', ...LV].map(l => `<option value="${l}" ${lvOf(E, c) === l ? 'selected' : ''}>${l ? LVN[l] : '—'}</option>`).join('')}</select></label>`).join('')}</div>` : ''}</div>
         ${E.classes.length ? `<div class="card" style="margin-top:12px"><b>Répartition</b>
           <div class="sheet-table"><table><tr><th>Course</th><th>Coureurs</th></tr>${K.courses.map(x => `<tr><td><span class="cx-dot" style="--cc:${col(E, x.c)}"></span> ${esc(x.c.name)}</td><td><b>${x.n}</b></td></tr>`).join('')}
@@ -354,6 +363,8 @@ tr:nth-child(-n+4) td{font-weight:700}`,
         <div class="section-title"><h2>Élèves par classe</h2></div>
         <div class="cx-cls" style="margin-top:0">${sortCls(E, E.classes).map(c => { const n = S.filter(s => s.cls === c && !s.st && !s.sx && !s.c).length; return `<button data-ic="${esc(c)}" class="${c === insCls ? 'on' : ''}">${esc(c)}${n ? `<small>${n} ?</small>` : '<small>✓</small>'}</button>`; }).join('')}</div>
         <div class="card" style="margin-top:10px" id="cx-ins"></div>` : '<div class="card empty" style="margin-top:12px">Touchez les classes qui participent au cross.</div>'}`;
+      if (box.querySelector('#cx-tall')) box.querySelector('#cx-tall').onclick = () => { const L = sortCls(E, allN); E.classes = L.slice(0, MAXCL); if (L.length > MAXCL) toast(`${MAXCL} classes maximum`); if (!E.classes.includes(insCls)) insCls = E.classes[0] || ''; commit(); again(); };
+      if (box.querySelector('#cx-tnone')) box.querySelector('#cx-tnone').onclick = () => { if (!confirm('Retirer toutes les classes de ce cross ? (les réglages des élèves sont conservés)')) return; E.classes = []; commit(); again(); };
       box.querySelectorAll('[data-tc]').forEach(b => b.onclick = () => { const c = b.dataset.tc;
         if (E.classes.includes(c)) E.classes = E.classes.filter(x => x !== c); else { if (E.classes.length >= MAXCL) return toast(`${MAXCL} classes maximum`); E.classes.push(c); insCls = c; }
         E.classes = sortCls(E, E.classes); commit(); again(); });
@@ -409,7 +420,7 @@ tr:nth-child(-n+4) td{font-weight:700}`,
           <div class="seg"><button data-bm="classe" class="${E.bibMode !== 'suite' ? 'on' : ''}">Par classe<br><small>101-135, 201-235…</small></button><button data-bm="suite" class="${E.bibMode === 'suite' ? 'on' : ''}">À la suite<br><small>1, 2, 3…</small></button></div>
           <button class="btn btn-grad btn-block" style="margin-top:10px" id="cx-ab">🔢 Attribuer les dossards manquants${miss ? ` (${miss})` : ''}</button>
           ${dup.length ? `<div class="cx-warn">⚠️ Numéros en double : ${dup.join(', ')}</div>` : ''}
-          <details class="cx-prof" style="margin-top:10px"><summary data-prof>🔒 Enseignant</summary><button class="btn btn-ghost btn-block" style="margin-top:10px" id="cx-rb">↺ Tout renuméroter</button></details></div>
+          <details class="cx-prof" style="margin-top:10px"><summary data-prof>🔒 Enseignant</summary><button class="btn btn-ghost btn-block" style="margin-top:10px" id="cx-rb">↺ Tout renuméroter</button><button class="btn btn-ghost btn-block" style="margin-top:8px" id="cx-bz">🗑 Effacer tous les numéros de dossard</button></details></div>
         <div class="card" style="margin-top:12px"><b>🖨 Impression</b><p class="muted" style="margin:4px 0 0;font-size:.8rem">4 dossards par page A4 (format A6, traits de coupe), avec le QR code à scanner à l'arrivée.</p>
           <div class="cx-cls">${sortCls(E, E.classes).map(c => `<button data-pc="${esc(c)}" class="${gsel.has(c) ? 'on' : ''}">${esc(c)}</button>`).join('')}</div>
           <label class="cx-chk"><input type="checkbox" id="cx-abs"> Inclure les absents et dispensés</label>
@@ -419,6 +430,7 @@ tr:nth-child(-n+4) td{font-weight:700}`,
       const $ = s => box.querySelector(s);
       box.querySelectorAll('[data-bm]').forEach(b => b.onclick = () => { E.bibMode = b.dataset.bm; commit(); again(); });
       $('#cx-ab').onclick = () => { assignBibs(E, false); toast('Dossards attribués ✔'); again(); };
+      $('#cx-bz').onclick = () => { if (!confirm('Effacer tous les numéros de dossard ?\nLes passages déjà enregistrés sont aussi effacés.')) return; Object.keys(E.el).forEach(k => setEl(E, k, { b: '' })); E.arr = []; commit(); toast('Numéros de dossard effacés'); again(); };
       $('#cx-rb').onclick = () => { if (!confirm('Renuméroter tous les dossards ? Les dossards déjà imprimés ne correspondront plus.')) return; assignBibs(E, true); again(); };
       box.querySelectorAll('[data-pc]').forEach(b => b.onclick = () => { const c = b.dataset.pc; gsel.has(c) ? gsel.delete(c) : gsel.add(c); b.classList.toggle('on'); });
       box.querySelectorAll('[data-bk]').forEach(inp => inp.onchange = () => { const v = +inp.value || '', k = inp.dataset.bk;
@@ -447,10 +459,13 @@ tr:nth-child(-n+4) td{font-weight:700}`,
         const K = compute(E), ns = E.courses.filter(c => !c.start);
         [...gstart].forEach(id => { if (!ns.some(c => c.id === id)) gstart.delete(id); });
         $('#cx-starts').innerHTML = `${E.courses.map((c, i) => { const x = K.courses[i]; return `<div class="cx-start" style="--cc:${col(E, c)}"><span class="cx-dot"></span><div class="nm">${esc(c.name)}<small>${x.n} coureur${x.n > 1 ? 's' : ''} · ${c.mode === 'temps' ? c.dur + ' min' : c.dist + ' m'}${c.start ? ` · ${x.R.length} arrivé${x.R.length > 1 ? 's' : ''}` : ''}</small></div>
-            ${c.start ? `<span class="clk" data-clk="${i}"></span>` : `<button class="cx-go" data-go="${i}">🔫 Départ</button>`}</div>`; }).join('')}
+            ${c.start ? `<span class="clk" data-clk="${i}"></span><button class="cx-stop" data-prof data-stop="${i}" aria-label="Arrêter et remettre à zéro">⏹ Stop</button>` : `<button class="cx-go" data-go="${i}">🔫 Départ</button>`}</div>`; }).join('')}
           ${ns.length > 1 ? `<div style="margin-top:10px"><b>Départ groupé</b> <span class="muted" style="font-size:.78rem">· touchez les courses à lancer ensemble</span><div class="cx-gsel">${ns.map(c => `<button data-gs="${c.id}" class="${gstart.has(c.id) ? 'on' : ''}">${esc(c.name)}</button>`).join('')}</div><button class="btn btn-danger btn-block" id="cx-gg">🔫 Départ groupé (${[...gstart].length})</button></div>` : ''}`;
         const go = L => { const t = Date.now(); L.forEach(c => { c.start = t; }); commit(); beep(1500, .5, .5); toast('🔫 Départ : ' + L.map(c => c.name).join(', ')); gstart.clear(); drawStarts(); };
         box.querySelectorAll('[data-go]').forEach(b => b.onclick = () => go([E.courses[+b.dataset.go]]));
+        box.querySelectorAll('[data-stop]').forEach(b => b.onclick = () => { const c = E.courses[+b.dataset.stop]; if (!c || !c.start) return;
+          if (!confirm(`Arrêter « ${c.name} » et la remettre à zéro ?\nLe départ est annulé et les passages de cette course sont effacés.`)) return;
+          resetCourse(E, c); commit(); toast(`⏹ « ${c.name} » remise à zéro`); drawStarts(); drawLast(); });
         box.querySelectorAll('[data-gs]').forEach(b => b.onclick = () => { const id = b.dataset.gs; gstart.has(id) ? gstart.delete(id) : gstart.add(id); drawStarts(); });
         if ($('#cx-gg')) $('#cx-gg').onclick = () => { const L = E.courses.filter(c => gstart.has(c.id) && !c.start); if (!L.length) return toast('Choisissez les courses à lancer'); go(L); };
         tick();

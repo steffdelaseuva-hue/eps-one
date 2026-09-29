@@ -2,9 +2,11 @@
    EPS ONE — Onglet PLUS : mise à jour, partage,
    à propos, confidentialité/RGPD, nouvelle année scolaire
    ========================================================= */
-const APP_VERSION = '10.3';
+const APP_VERSION = '10.5';
 const APP_URL = 'https://steffdelaseuva-hue.github.io/eps-one/';
 const CHANGELOG = [
+  { v: '10.5', items: ['Mes classes : deux catégories, « 🏃 Mes classes EPS » (tous les outils) et « 🏫 Autres classes du collège » (seulement pour le Cross)','Cross : toutes les classes proposées, bouton « Tout cocher », jusqu\'à 24 classes'] },
+  { v: '10.4', items: ['Cross : bouton « ⏹ Stop » pour arrêter et remettre à zéro une course lancée','Cross : remise à zéro complète (départs + arrivées) et effacement de tous les numéros de dossard'] },
   { v: '10.3', items: ['Cross : sélection multiple d\'élèves pour les passer d\'un coup en course loisir, adaptée ou autre'] },
   { v: '10.2', items: ['Nouvel outil Cross du collège : courses (6 à 10), dossards QR-codes, scan à l\'arrivée, classements par course, niveau, classes, adaptée et loisir','Duathlon : VMA des élèves (saisie ou récupérée), potentiel VMA du groupe et coefficient de maîtrise sur la distance réglée'] },
   { v: '10.1', items: ['Duathlon : objectifs affichés sous les boutons Étape 1 / 2 / 3'] },
@@ -292,6 +294,7 @@ function openNewYear(back) {
       if (!confirm(`Démarrer l'année ${ny} ?\nLes éléments cochés seront définitivement effacés de cet appareil.`)) return;
       if (opt('classes')) {
         DB.classes = opt('keepNames') ? DB.classes.map(c => ({ name: c.name, students: [] })) : [];
+        DB.classesAll = opt('keepNames') ? (DB.classesAll || []).map(c => ({ name: c.name, students: [] })) : [];
         try { const S = JSON.parse(localStorage.getItem('chronos-eps-v1')); if (Array.isArray(S)) { S.forEach(c => c.name = ''); localStorage.setItem('chronos-eps-v1', JSON.stringify(S)); } } catch (e) {}
       }
       if (opt('grilles')) DB.grilles = []; else if (opt('evals')) DB.grilles.forEach(g => g.evals = {});

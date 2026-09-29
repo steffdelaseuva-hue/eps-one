@@ -75,7 +75,9 @@ const csv = rows => rows.map(r => r.map(v => { v = String(v ?? ''); return /[;"\
 function classNameSelect(id, withAll) {
   return `<select id="${id}">${withAll ? '<option value="">Toutes les classes</option>' : ''}${DB.classes.map(c => `<option value="${esc(c.name)}">${esc(c.name)}</option>`).join('')}</select>`;
 }
-const studentsOf = name => (DB.classes.find(c => c.name === name) || { students: [] }).students;
+const studentsOf = name => (DB.classes.find(c => c.name === name) || (DB.classesAll || []).find(c => c.name === name) || { students: [] }).students;
+/* « Autres classes du collège » (hors EPS) : rangées dans DB.classesAll, visibles seulement dans Mes classes et le Cross */
+const otherClasses = () => (DB.classesAll = DB.classesAll || []);
 const noClassMsg = '<div class="card empty">Créez d\'abord une classe dans l\'outil <b>🗂 Mes classes</b>.<br><br><button class="btn btn-grad" onclick="closeTool();openTool(\'classes\')">Ouvrir Mes classes</button></div>';
 
 /* Caméra : flux + capture JPEG en mémoire tournante */

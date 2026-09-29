@@ -100,7 +100,8 @@ async function readClassFile(file) {
 }
 
 /* ---------- Écran d'import ---------- */
-function openClassImport(el, sheets, fileName, back) {
+function openClassImport(el, sheets, fileName, back, dest0) {
+  let dest = dest0 || 'eps';
   const norm = s => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
   const guess = (hdr, keys, not = []) => hdr.findIndex(h => { const x = norm(h); return keys.some(k => x.includes(k)) && !not.some(k => x.includes(k)); });
   let si = 0;
@@ -119,6 +120,8 @@ function openClassImport(el, sheets, fileName, back) {
         <div class="row"><div><label>Colonne NOM</label><select id="cn">${opt(cNom)}</select></div><div><label>Colonne Prénom</label><select id="cp">${opt(cPre, true)}</select></div></div>
         <label>Colonne Classe (si le fichier contient plusieurs classes)</label><select id="cc">${opt(cCla, true)}</select>
         <div id="cnw"><label>Nom de la classe</label><input id="cname" value="${esc(sheets.length > 1 ? sh.name : fileName.replace(/\.[^.]+$/, ''))}"></div>
+        <label>Ranger dans</label><div class="seg" id="dst"><button data-dst="eps" class="${dest === 'eps' ? 'on' : ''}">🏃 Mes classes EPS</button><button data-dst="all" class="${dest === 'all' ? 'on' : ''}">🏫 Autres classes du collège</button></div>
+        <p class="muted" style="margin:4px 0 0;font-size:.78rem">Les « autres classes » ne servent qu'au Cross : elles n'apparaissent pas dans les outils.</p>
         <label style="display:flex;gap:8px;align-items:center;margin-top:10px"><input type="checkbox" id="mg" checked style="width:auto"> Si la classe existe déjà : ajouter seulement les nouveaux élèves</label></div>
       <div class="section-title"><h2>Aperçu</h2></div><div class="card" id="pv"></div>
       <div class="row" style="margin-top:12px"><button class="btn btn-grad" id="ok">✔ Importer</button><button class="btn btn-ghost" id="ko">Annuler</button></div>`;
@@ -142,16 +145,17 @@ function openClassImport(el, sheets, fileName, back) {
       return out;
     };
     const preview = () => { const out = build();
-      $('#pv').innerHTML = out.size ? [...out].map(([k, v]) => `<div class="list-item" style="padding:8px 0"><div><b>${esc(k)}</b> — ${v.length} élèves${DB.classes.some(x => x.name === k) ? ' <span class="pill">existe déjà</span>' : ''}<div class="muted">${v.slice(0, 4).map(esc).join(', ')}${v.length > 4 ? '…' : ''}</div></div></div>`).join('') : '<div class="empty">Aucun élève trouvé : vérifiez les colonnes choisies.</div>'; };
+      $('#pv').innerHTML = out.size ? [...out].map(([k, v]) => `<div class="list-item" style="padding:8px 0"><div><b>${esc(k)}</b> — ${v.length} élèves${DB.classes.some(x => x.name === k) ? ' <span class="pill">existe déjà · EPS</span>' : otherClasses().some(x => x.name === k) ? ' <span class="pill">existe déjà · autres</span>' : ''}<div class="muted">${v.slice(0, 4).map(esc).join(', ')}${v.length > 4 ? '…' : ''}</div></div></div>`).join('') : '<div class="empty">Aucun élève trouvé : vérifiez les colonnes choisies.</div>'; };
     ['#hd', '#cn', '#cp', '#cc', '#per', '#cname', '#mg'].forEach(s => { const e = $(s); if (e) e.oninput = e.onchange = preview; });
+    el.querySelectorAll('[data-dst]').forEach(b => b.onclick = () => { dest = b.dataset.dst; el.querySelectorAll('[data-dst]').forEach(x => x.classList.toggle('on', x === b)); });
     if ($('#sh')) $('#sh').onchange = () => { si = +$('#sh').value; draw(); };
     $('#ko').onclick = back;
     $('#ok').onclick = () => {
       const out = build(); if (!out.size) return toast('Aucun élève à importer');
       let nc = 0, ne = 0;
       out.forEach((names, cls) => {
-        const ex = DB.classes.find(x => x.name === cls);
-        if (!ex) { DB.classes.push({ name: cls, students: names }); nc++; ne += names.length; }
+        const ex = DB.classes.find(x => x.name === cls) || otherClasses().find(x => x.name === cls);
+        if (!ex) { (dest === 'all' ? otherClasses() : DB.classes).push({ name: cls, students: names }); nc++; ne += names.length; }
         else if ($('#mg').checked) { const add = names.filter(x => !ex.students.includes(x)); ex.students.push(...add); ne += add.length; }
         else { ex.students = names; ne += names.length; }
       });
@@ -165,32 +169,49 @@ function openClassImport(el, sheets, fileName, back) {
 /* ---------- Outil « Mes classes » (remplace la version d'origine) ---------- */
 TOOL_IMPL.classes = function (el) {
   const draw = () => {
+    const O = otherClasses();
+    const item = (c, i, kind) => `<div class="list-item"><div style="flex:1;min-width:0"><b>${esc(c.name)}</b><div class="muted">${c.students.length} élèves</div></div><div class="row" style="flex:0 0 auto;gap:6px;flex-wrap:nowrap">${kind === 'eps' ? `<button class="btn btn-grad" style="padding:9px 11px;white-space:nowrap;font-size:.85rem" data-a="${i}" title="Ajouter un élève">＋ Élève</button>` : ''}<button class="btn btn-ghost" style="padding:9px 10px;white-space:nowrap;font-size:.8rem" data-mv="${kind}:${i}" title="${kind === 'eps' ? 'Déplacer vers Autres classes' : 'Déplacer vers Mes classes EPS'}">${kind === 'eps' ? '→ 🏫' : '→ 🏃 EPS'}</button><button class="btn btn-ghost" style="padding:9px 10px" data-e="${kind}:${i}">✏️</button><button class="btn btn-ghost" style="padding:9px 10px" data-d="${kind}:${i}">🗑</button></div></div>`;
     el.innerHTML = `<div class="card" style="display:flex;align-items:center;gap:12px;background:var(--grad-soft)"><div style="flex:1"><div class="muted">Année scolaire</div><b style="font-size:1.15rem;white-space:nowrap">${esc(DB.annee || '')}</b></div><button class="btn btn-grad" style="flex:0 0 auto;font-size:.85rem;padding:10px 12px" id="ny">🗓 Nouvelle année</button></div>
-      <div class="card" style="margin-top:12px"><h3>Importer mes classes</h3><p class="muted" style="margin:4px 0 10px">Fichier CSV ou Excel (.xlsx) : export Pronote, ENT ou tableur. Une ou plusieurs classes à la fois. Fichier Numbers : l'app vous indique comment l'exporter en Excel.</p>
-        <button class="btn btn-grad btn-block" id="imp">📥 Importer un fichier CSV / Excel</button><input type="file" id="f" accept=".csv,.txt,.xlsx,.xls,.numbers,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" hidden></div>
+      <div class="card" style="margin-top:12px"><h3>Importer des classes</h3><p class="muted" style="margin:4px 0 10px">Fichier CSV ou Excel (.xlsx) : export Pronote, ENT ou tableur. Une ou plusieurs classes à la fois. Fichier Numbers : l'app vous indique comment l'exporter en Excel.</p>
+        <div class="row"><button class="btn btn-grad" id="imp">📥 Mes classes EPS</button><button class="btn btn-ghost" id="imp2">📥 Autres classes du collège</button></div><input type="file" id="f" accept=".csv,.txt,.xlsx,.xls,.numbers,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" hidden></div>
       <div class="card" style="margin-top:12px"><h3>Nouvelle classe</h3><label>Nom</label><input id="cn" placeholder="ex : 6E1">
       <label>Élèves (un par ligne, ou collés depuis un tableur)</label><textarea id="cl" placeholder="DUPONT Léa&#10;MARTIN Hugo"></textarea>
+      <label>Ranger dans</label><div class="seg" id="ndst"><button data-nd="eps" class="on">🏃 Mes classes EPS</button><button data-nd="all">🏫 Autres classes</button></div>
       <button class="btn btn-grad btn-block" style="margin-top:10px" id="add">＋ Enregistrer la classe</button></div>
-      <div class="section-title"><h2>Mes classes (${DB.classes.length})</h2></div>
-      <div class="card" style="padding:0">${DB.classes.length ? DB.classes.map((c, i) => `<div class="list-item"><div style="flex:1;min-width:0"><b>${esc(c.name)}</b><div class="muted">${c.students.length} élèves</div></div><div class="row" style="flex:0 0 auto;gap:6px"><button class="btn btn-grad" style="padding:9px 11px;white-space:nowrap;font-size:.85rem" data-a="${i}" title="Ajouter un élève">＋ Élève</button><button class="btn btn-ghost" style="padding:9px 10px" data-e="${i}">✏️</button><button class="btn btn-ghost" style="padding:9px 10px" data-d="${i}">🗑</button></div></div>`).join('') : '<div class="empty">Aucune classe enregistrée.</div>'}</div>`;
-    const $ = s => el.querySelector(s);
+      <div class="section-title"><h2>🏃 Mes classes EPS (${DB.classes.length})</h2></div>
+      <p class="muted" style="margin:-4px 4px 8px;font-size:.8rem">Classes proposées dans tous les outils.</p>
+      <div class="card" style="padding:0">${DB.classes.length ? DB.classes.map((c, i) => item(c, i, 'eps')).join('') : '<div class="empty">Aucune classe enregistrée.</div>'}</div>
+      <div class="section-title"><h2>🏫 Autres classes du collège (${O.length})</h2></div>
+      <p class="muted" style="margin:-4px 4px 8px;font-size:.8rem">Classes des collègues, utilisées uniquement pour le Cross (qui voit toutes les classes). Elles n'encombrent pas vos autres outils.</p>
+      <div class="card" style="padding:0">${O.length ? O.map((c, i) => item(c, i, 'all')).join('') : '<div class="empty">Aucune pour l\'instant. Importez le fichier de toutes les classes avec « 📥 Autres classes du collège ».</div>'}</div>
+      ${O.length ? '<button class="btn btn-ghost btn-block" style="margin-top:10px" id="delall">🗑 Supprimer toutes les autres classes</button>' : ''}`;
+    const $ = s => el.querySelector(s), L = k => k === 'all' ? otherClasses() : DB.classes;
+    let dest = 'eps', nd = 'eps';
     $('#ny').onclick = () => openNewYear('classes');
-    $('#imp').onclick = () => $('#f').click();
+    $('#imp').onclick = () => { dest = 'eps'; $('#f').click(); };
+    $('#imp2').onclick = () => { dest = 'all'; $('#f').click(); };
     $('#f').onchange = async () => {
       const inp = $('#f'), file = inp.files[0]; if (!file) return; inp.value = '';
-      try { const sheets = await readClassFile(file); if (!sheets.length) throw new Error('Aucune donnée trouvée dans ce fichier.'); openClassImport(el, sheets, file.name, draw); }
+      try { const sheets = await readClassFile(file); if (!sheets.length) throw new Error('Aucune donnée trouvée dans ce fichier.'); openClassImport(el, sheets, file.name, draw, dest); }
       catch (e) { alert(e.message || 'Fichier illisible'); }
     };
+    el.querySelectorAll('[data-nd]').forEach(b => b.onclick = () => { nd = b.dataset.nd; el.querySelectorAll('[data-nd]').forEach(x => x.classList.toggle('on', x === b)); });
     $('#add').onclick = () => { const name = $('#cn').value.trim(), st = namesFrom('cl');
       if (!name || !st.length) return toast('Nom et élèves requis');
-      const ex = DB.classes.findIndex(c => c.name === name); if (ex >= 0) DB.classes[ex].students = st; else DB.classes.push({ name, students: st });
+      const ex = DB.classes.find(c => c.name === name) || otherClasses().find(c => c.name === name);
+      if (ex) ex.students = st; else L(nd).push({ name, students: st });
       save(); toast('Classe enregistrée ✔'); draw(); };
     el.querySelectorAll('[data-a]').forEach(b => b.onclick = () => {
       const c = DB.classes[b.dataset.a], n = (prompt(`Nouvel élève en ${c.name} (NOM Prénom) :`) || '').trim().replace(/\s+/g, ' ');
       if (!n) return; if (c.students.includes(n)) return toast('Cet élève est déjà dans la classe');
       c.students.push(n); save(); toast(`${n} ajouté·e en ${c.name} ✔`); draw(); });
-    el.querySelectorAll('[data-d]').forEach(b => b.onclick = () => { if (confirm('Supprimer cette classe ?')) { DB.classes.splice(b.dataset.d, 1); save(); draw(); } });
-    el.querySelectorAll('[data-e]').forEach(b => b.onclick = () => { const c = DB.classes[b.dataset.e]; $('#cn').value = c.name; $('#cl').value = c.students.join('\n'); $('#cn').scrollIntoView({ behavior: 'smooth' }); });
+    const ref = v => { const [k, i] = v.split(':'); return { k, i: +i, A: L(k) }; };
+    el.querySelectorAll('[data-mv]').forEach(b => b.onclick = () => { const { k, i, A } = ref(b.dataset.mv), c = A.splice(i, 1)[0]; L(k === 'eps' ? 'all' : 'eps').push(c);
+      save(); toast(`${c.name} → ${k === 'eps' ? 'Autres classes' : 'Mes classes EPS'}`); draw(); });
+    el.querySelectorAll('[data-d]').forEach(b => b.onclick = () => { if (confirm('Supprimer cette classe ?')) { const { i, A } = ref(b.dataset.d); A.splice(i, 1); save(); draw(); } });
+    el.querySelectorAll('[data-e]').forEach(b => b.onclick = () => { const { k, i, A } = ref(b.dataset.e), c = A[i]; $('#cn').value = c.name; $('#cl').value = c.students.join('\n');
+      nd = k; el.querySelectorAll('[data-nd]').forEach(x => x.classList.toggle('on', x.dataset.nd === k)); $('#cn').scrollIntoView({ behavior: 'smooth' }); });
+    if ($('#delall')) $('#delall').onclick = () => { if (!confirm(`Supprimer les ${otherClasses().length} autres classes du collège ?\nVos classes EPS sont conservées.`)) return; DB.classesAll = []; save(); draw(); };
   };
   draw();
 };
