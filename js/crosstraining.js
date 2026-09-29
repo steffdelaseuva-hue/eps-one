@@ -63,7 +63,7 @@ document.head.insertAdjacentHTML('beforeend', `<style>
 
 TOOL_IMPL.wod = function (el) {
   wodMigrate();
-  let tab = DB.wod.current ? 'seance' : 'epreuves';
+  let tab = DB.wod.current || partToday('wod').length ? 'seance' : 'epreuves';
   const E = id => DB.wod.epreuves.find(e => e.id === id);
   function frame() {
     el.innerHTML = `<div class="co-tabs">${[['epreuves', '🏋️ Épreuves'], ['seance', '⏱ Séance'], ['resultats', '📊 Résultats']].map(([k, l]) => `<button data-tab="${k}" class="${tab === k ? 'on' : ''}">${l}</button>`).join('')}</div><div id="w-body"></div>`;
@@ -167,6 +167,16 @@ TOOL_IMPL.wod = function (el) {
     return L; });
   const progOf = (g, e) => { const all = itemsOf(e).flat().flatMap(x => x.list); return [all.filter(x => g.checks && g.checks[x.id]).length, all.length]; };
 
+  /* ---- Séance partagée avec les autres tablettes (modèle sans résultats) ---- */
+  const pub = (cur, create) => { if (cur.joined) return; const e = cur.snap, indiv = cur.groups.every(g => g.members.length === 1 && g.name === g.members[0]);
+    partPublish('wod', cur.id, { nom: e.nom, classe: cur.classe || '', ng: cur.groups.length, indiv, ep: summaryOf(e),
+      tpl: { classe: cur.classe || '', snap: e, groups: cur.groups.map(g => ({ name: g.name, members: g.members })) } }, create); };
+  const join = (box, p) => { const T = p.tpl, e = T.snap;
+    DB.wod.current = { id: p.id, date: Date.now(), classe: T.classe, snap: JSON.parse(JSON.stringify(e)), start: null, joined: true,
+      groups: T.groups.map(g => ({ name: g.name, members: [...g.members], dep: null, arr: null, capped: false, splits: e.blocs.map(() => null) })) };
+    save(); const cur = DB.wod.current;
+    partPickGroup(box, cur.groups, i => { if (!DB.wod.current) return prepare(box); cur.only = i; save(); seance(box); }, !!p.indiv); };
+
   function seance(box) {
     const cur = DB.wod.current;
     if (!cur) return prepare(box);
@@ -204,7 +214,7 @@ TOOL_IMPL.wod = function (el) {
     const saveSeance = () => { if (cur.groups.some(g => g.dep && !g.arr && !g.capped) && !confirm('Certains groupes n\'ont pas terminé. Enregistrer quand même ?')) return;
       // seuls les groupes partis sont enregistrés (une tablette par groupe → pas de lignes vides)
       const done = cur.groups.filter(g => g.dep); if (!done.length) return toast('Aucun groupe n\'est parti');
-      const rec = { ...cur, id: cur.id + Math.random().toString(36).slice(2, 5), groups: done }; delete rec.only;
+      const rec = { ...cur, id: cur.id + Math.random().toString(36).slice(2, 5), groups: done }; delete rec.only; delete rec.joined;
       DB.wod.seances.push(rec);
       // synthèse « Résultats des élèves » : une ligne par élève
       done.forEach(g => { const r = resOf(g, e); g.members.forEach(n => { if (!rec.classe || !studentsOf(rec.classe).includes(n)) return;
@@ -236,13 +246,13 @@ TOOL_IMPL.wod = function (el) {
         editGroupsPanel(indiv ? 'Participants' : 'Groupes de la séance', { cls: cur.classe, indiv, list: () => cur.groups, names: g => g.members,
           take: (g, n) => { g.members.splice(g.members.indexOf(n), 1); return indiv ? { dep: g.dep, arr: g.arr, capped: g.capped, splits: g.splits } : null; },
           put: (g, n, d) => { g.members.push(n); if (indiv && d) Object.assign(g, d); },
-          make: name => ({ name, members: [], dep: null, arr: null, capped: false, splits: (cur.groups[0]?.splits || []).map(() => null) }), onChange: keep, onClose: draw }); };
+          make: name => ({ name, members: [], dep: null, arr: null, capped: false, splits: (cur.groups[0]?.splits || []).map(() => null) }), onChange: () => { keep(); pub(cur); }, onClose: draw }); };
       all('[data-go]').forEach(b => b.onclick = () => { cur.groups[+b.dataset.go].dep = Date.now(); cur.start = cur.start || Date.now(); beep(1300, .3); keep(); draw(); });
       all('[data-fin]').forEach(b => b.onclick = () => { const g = cur.groups[+b.dataset.fin]; g.arr = Date.now(); beep(1000, .3); keep(); draw(); });
       all('[data-undo]').forEach(b => b.onclick = () => { const g = cur.groups[+b.dataset.undo]; g.arr = null; g.capped = false; keep(); draw(); });
       all('[data-sp]').forEach(b => b.onclick = () => { const [i, k] = b.dataset.sp.split('-').map(Number), g = cur.groups[i]; g.splits[k] = g.splits[k] ? null : Date.now(); beep(900, .06); keep(); draw(); });
       $('#save').onclick = saveSeance;
-      $('#cancel').onclick = () => { if (confirm('Abandonner la séance ?')) { DB.wod.current = null; save(); clearInterval(iv); prepare(box); } };
+      $('#cancel').onclick = () => { if (confirm('Abandonner la séance ?')) { partAskRemove(cur); DB.wod.current = null; save(); clearInterval(iv); prepare(box); } };
     };
     const tick = () => {
       if (!box.isConnected || !DB.wod.current) return clearInterval(iv);
@@ -261,7 +271,7 @@ TOOL_IMPL.wod = function (el) {
   }
 
   function prepare(box) {
-    if (!DB.wod.epreuves.length) { box.innerHTML = '<div class="card empty">Créez d\'abord une épreuve dans l\'onglet 🏋️ Épreuves.</div>'; return; }
+    if (!DB.wod.epreuves.length) { box.innerHTML = '<div class="card empty">Créez d\'abord une épreuve dans l\'onglet 🏋️ Épreuves.</div>'; partMount(box, 'wod', p => join(box, p)); return; }
     let mode = 'grp';
     const draw = () => {
       box.innerHTML = `<div class="card"><h3>Nouvelle séance</h3>
@@ -272,7 +282,7 @@ TOOL_IMPL.wod = function (el) {
       const who = box.querySelector('#who');
       const launch = (groups, classe) => { const e = E(box.querySelector('#ep').value);
         DB.wod.current = { id: wid(), date: Date.now(), classe, snap: JSON.parse(JSON.stringify(e)), start: null,
-          groups: groups.map(g => ({ ...g, dep: null, arr: null, capped: false, splits: e.blocs.map(() => null) })) }; save(); seance(box); };
+          groups: groups.map(g => ({ ...g, dep: null, arr: null, capped: false, splits: e.blocs.map(() => null) })) }; pub(DB.wod.current, true); save(); seance(box); };
       if (mode === 'indiv') {
         who.innerHTML = DB.classes.length ? `<label>Classe</label><select id="cl">${DB.classes.map(c => `<option>${esc(c.name)}</option>`).join('')}</select><button class="btn btn-grad btn-block" style="margin-top:12px" id="go">▶ Préparer la séance</button>` : noClassMsg;
         const go = who.querySelector('#go'); if (go) go.onclick = () => { const c = who.querySelector('#cl').value; launch(studentsOf(c).map(n => ({ name: n, members: [n] })), c); };
@@ -283,6 +293,7 @@ TOOL_IMPL.wod = function (el) {
         const setSize = n => { who.querySelector('#wodc-k').value = 's'; who.querySelector('#wodc-v').value = n; who.querySelectorAll('#sz [data-n]').forEach(b => b.classList.toggle('on', +b.dataset.n === n)); };
         who.querySelectorAll('#sz [data-n]').forEach(b => b.onclick = () => setSize(+b.dataset.n)); setSize(2);
       }
+      partMount(box, 'wod', p => join(box, p));
     };
     draw();
   }

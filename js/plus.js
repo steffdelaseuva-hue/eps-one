@@ -2,9 +2,17 @@
    EPS ONE — Onglet PLUS : mise à jour, partage,
    à propos, confidentialité/RGPD, nouvelle année scolaire
    ========================================================= */
-const APP_VERSION = '9.5';
+const APP_VERSION = '10.3';
 const APP_URL = 'https://steffdelaseuva-hue.github.io/eps-one/';
 const CHANGELOG = [
+  { v: '10.3', items: ['Cross : sélection multiple d\'élèves pour les passer d\'un coup en course loisir, adaptée ou autre'] },
+  { v: '10.2', items: ['Nouvel outil Cross du collège : courses (6 à 10), dossards QR-codes, scan à l\'arrivée, classements par course, niveau, classes, adaptée et loisir','Duathlon : VMA des élèves (saisie ou récupérée), potentiel VMA du groupe et coefficient de maîtrise sur la distance réglée'] },
+  { v: '10.1', items: ['Duathlon : objectifs affichés sous les boutons Étape 1 / 2 / 3'] },
+  { v: '10.0', items: ['Séances partagées : une séance Duathlon, Combiné, HYROX ou CO lancée sur une tablette apparaît sur les autres (« 📥 Rejoindre »), chaque tablette choisit son groupe'] },
+  { v: '9.9', items: ['Acrosport · liaisons : bouton « 📊 Diaporama » pour les liens PowerPoint, Google Slides, Keynote ou PDF'] },
+  { v: '9.8', items: ['Tournois : matchs / défis en cours partagés pour tous les formats (ATP avec observations, championnat, élimination) — rencontre en cours grisée, Annuler / Reprendre', 'Acrosport : filtre « Position du voltigeur » (debout, horizontale, semi-renversé, renversé) + 2 figures semi-renversées', 'Acrosport : onglet « Liaisons dynamiques » avec vidéos, à ajouter à l\'enchaînement'] },
+  { v: '9.7', items: ['Pyramide : défis en cours partagés entre les tablettes, équipes / élèves déjà en défi grisés, résultat toujours accepté même si la pyramide a bougé'] },
+  { v: '9.6', items: ['Défi ATP : mode « Résultats simples » (défis en cours, saisie du score et de l\'arbitre en fin de match) en plus du mode avec observations', 'Match libre ATP avec arbitre, compté au classement', 'Minuteur retiré · Timer HIIT / Tabata déplacé dans Activités de performance · famille « Chronos / photo / vidéo »'] },
   { v: '9.5', items: ['Multi chrono (12 élèves) : fond clair comme le reste de l\'app (sombre si l\'appareil est en mode sombre), icône dans le même style que les autres outils'] },
   { v: '9.4', items: ['« Chronos EPS » devient « Multi chrono (12 élèves) » aux couleurs d\'EPS ONE (dossards or et bleu, nouvelle icône)', '« Multi-chrono » devient « Multi chrono (6 élèves) »'] },
   { v: '9.3', items: ['Nouvel outil « Résultats collectifs » (Évaluation & suivi) : tournois (championnat, élimination, pyramide, ATP), matchs, HYROX, CO, Combiné, Duathlon, Relais', '« Questions débrief » retiré du menu'] },

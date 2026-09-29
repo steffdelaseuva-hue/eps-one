@@ -46,6 +46,18 @@ TOOL_IMPL.combine = function (el) {
     L.forEach(s => { const k = sig(s), m = M.get(k) || M.set(k, { date: s.date, classe: s.classe, cfg: s.cfg, recs: [], groups: [] }).get(k); m.recs.push(s); m.groups.push(...s.groups); m.date = Math.min(m.date, s.date); });
     return [...M.values()].map(m => (m.groups.sort((a, b) => a.name.localeCompare(b.name, 'fr', { numeric: true })), m)); };
 
+  /* ---- Séance partagée avec les autres tablettes (modèle sans résultats) ---- */
+  const blankE = (c, n) => ({ nom: n, dep: null, arr: null, tours: 0, plots: 0, sauts: Array(c.sEssais).fill(''), lancers: Array(c.lEssais).fill('') });
+  const pub = (S, create) => { if (S.joined) return; const c = S.cfg;
+    partPublish('combine', S.id, { nom: `${hasSaut(c) ? 'Triathlon' : 'Duathlon'} athlétique`, classe: S.classe, ng: S.groups.length, indiv: c.orga !== 'grp',
+      ep: `course ${c.cMode === 'distance' ? c.cDist + ' m' : c.cDur + ' min'}${hasSaut(c) ? ` · saut ${c.sEssais} essais` : ''} · lancer ${c.lEssais} essais`,
+      tpl: { classe: S.classe, cfg: c, groups: S.groups.map(g => ({ name: g.name, members: g.eleves.map(e => e.nom) })) } }, create); };
+  const join = (box, p) => { const T = p.tpl, c = T.cfg;
+    DB.combine.current = { id: p.id, date: Date.now(), classe: T.classe, cfg: JSON.parse(JSON.stringify(c)), start: null, joined: true,
+      groups: T.groups.map(g => ({ name: g.name, eleves: g.members.map(n => blankE(c, n)) })) };
+    save(); const S = DB.combine.current;
+    partPickGroup(box, S.groups.map(g => ({ name: g.name, members: g.eleves.map(e => e.nom) })), i => { if (!DB.combine.current) { tab = 'config'; return frame(); } S.only = i; save(); tab = 'saisie'; frame(); }, c.orga !== 'grp'); };
+
   /* ================= 1. CONFIGURATION ================= */
   function config(box) {
     const c = cfg();
@@ -83,6 +95,7 @@ TOOL_IMPL.combine = function (el) {
       else if (v && d) { const tt = d / (v / 3.6); $('#xm').value = Math.floor(tt / 60); $('#xs').value = Math.round(tt % 60); $('#xr').textContent = `${d} m à ${n1(v)} km/h = ${cmss(tt)}`; }
       else $('#xr').textContent = 'Renseignez 2 valeurs.'; };
     $('#go').onclick = () => { read(); if (DB.combine.current && !confirm('Une saisie est déjà en cours. La remplacer ?')) return; prepare(box); };
+    if (!DB.combine.current) partMount(box, 'combine', p => join(box, p));
   }
 
   function prepare(box) {
@@ -90,7 +103,7 @@ TOOL_IMPL.combine = function (el) {
     if (!DB.classes.length) { box.innerHTML = noClassMsg; return; }
     const blank = n => ({ nom: n, dep: null, arr: null, tours: 0, plots: 0, sauts: Array(c.sEssais).fill(''), lancers: Array(c.lEssais).fill('') });
     const launch = (classe, groups) => { DB.combine.current = { id: Date.now().toString(36), date: Date.now(), classe, cfg: JSON.parse(JSON.stringify(c)), start: null,
-      groups: groups.map(g => ({ name: g.name, eleves: g.members.map(blank) })) }; save(); tab = 'saisie'; frame(); };
+      groups: groups.map(g => ({ name: g.name, eleves: g.members.map(blank) })) }; pub(DB.combine.current, true); save(); tab = 'saisie'; frame(); };
     if (c.orga === 'indiv') {
       box.innerHTML = `<div class="card"><label style="margin-top:0">Classe</label><select id="cl">${DB.classes.map(x => `<option ${x.name === (DB.lastClass || '') ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select><button class="btn btn-grad btn-block" style="margin-top:12px" id="ok">▶ Commencer</button></div>`;
       box.querySelector('#ok').onclick = () => { const cl = box.querySelector('#cl').value; DB.lastClass = cl; launch(cl, studentsOf(cl).map(n => ({ name: n, members: [n] }))); };
@@ -106,7 +119,7 @@ TOOL_IMPL.combine = function (el) {
   /* ================= 2. SAISIE ================= */
   function saisie(box) {
     const S = DB.combine.current;
-    if (!S) { box.innerHTML = '<div class="card empty">Aucune saisie en cours. Réglez l\'épreuve dans ⚙️ Épreuve puis « Préparer la saisie ».</div>'; return; }
+    if (!S) { box.innerHTML = '<div class="card empty">Aucune saisie en cours. Réglez l\'épreuve dans ⚙️ Épreuve puis « Préparer la saisie ».</div>'; partMount(box, 'combine', p => join(box, p)); return; }
     const c = S.cfg, grp = c.orga === 'grp', dist = c.cMode === 'distance';
     const hasData = e => !!(e.dep || e.tours || e.plots || essaisVals(e.sauts).length || essaisVals(e.lancers).length);
     // Chrono propre au groupe : départ du groupe (ou 1er départ) · compte à rebours en durée imposée
@@ -119,7 +132,7 @@ TOOL_IMPL.combine = function (el) {
       // seuls les groupes / élèves ayant des résultats sont enregistrés (une tablette par groupe → pas de lignes vides)
       const done = S.groups.filter(g => g.eleves.some(hasData)); if (!done.length) return toast(grp ? 'Aucun groupe n\'a de résultat' : 'Aucun résultat saisi');
       if (S.only != null && dist && done.some(g => g.eleves.some(e => e.dep && !e.arr)) && !confirm('Tout le monde n\'est pas arrivé. Enregistrer quand même ?')) return;
-      const rec = { ...S, id: S.id + '-' + Math.random().toString(36).slice(2, 6), groups: done }; delete rec.only;   // id unique par tablette (fusion de synchro par id)
+      const rec = { ...S, id: S.id + '-' + Math.random().toString(36).slice(2, 6), groups: done }; delete rec.only; delete rec.joined;   // id unique par tablette (fusion de synchro par id)
       DB.combine.seances.push(rec); DB.combine.current = null;
       // synthèse « Résultats des élèves » : une ligne par élève ayant des résultats
       done.forEach(g => g.eleves.filter(hasData).forEach(e => saveResult({ tool: 'combine', label: 'Combiné athlétique', classe: S.classe, eleve: e.nom, ...resTxt(c, e, grp ? g.name : '') })));
@@ -187,11 +200,11 @@ TOOL_IMPL.combine = function (el) {
       $('#edg').onclick = () => { const indiv = c.orga !== 'grp', blank = n => ({ nom: n, dep: null, arr: null, tours: 0, plots: 0, sauts: Array(c.sEssais).fill(''), lancers: Array(c.lEssais).fill('') });
         editGroupsPanel(indiv ? 'Participants' : 'Groupes', { cls: S.classe, indiv, list: () => S.groups, names: g => g.eleves.map(e => e.nom),
           take: (g, n) => g.eleves.splice(g.eleves.findIndex(e => e.nom === n), 1)[0],
-          put: (g, n, d) => g.eleves.push(d || blank(n)), make: name => ({ name, eleves: [] }), onChange: keep, onClose: draw }); };
+          put: (g, n, d) => g.eleves.push(d || blank(n)), make: name => ({ name, eleves: [] }), onChange: () => { keep(); pub(S); }, onClose: draw }); };
       if ($('#rz')) $('#rz').onclick = () => { if (confirm('Remettre le chrono de course à zéro ?')) { S.start = null; keep(); draw(); } };
       if ($('#only')) $('#only').onchange = ev => { S.only = ev.target.value === '' ? null : +ev.target.value; keep(); draw(); };
       bind();
-      $('#cancel').onclick = () => { if (confirm('Abandonner cette saisie ?')) { DB.combine.current = null; save(); clearInterval(iv); tab = 'config'; frame(); } };
+      $('#cancel').onclick = () => { if (confirm('Abandonner cette saisie ?')) { partAskRemove(S); DB.combine.current = null; save(); clearInterval(iv); tab = 'config'; frame(); } };
     };
     const tick = () => { if (!box.isConnected || !DB.combine.current) return clearInterval(iv);
       const g = box.querySelector('#gclk'), now = Date.now(), gv = box.querySelector('#gvclk');

@@ -27,9 +27,9 @@ if (!document.getElementById('cl-css')) document.head.insertAdjacentHTML('before
 
 (() => {
   let per = 'all', act = 'all';
-  const KINDS = [['all', 'Tous'], ['tournoi', '🏆 Tournois'], ['match', '⚔️ Matchs'], ['wod', '🏋️ HYROX'], ['co', '🧭 CO'], ['combine', '🏃 Combiné'], ['duathlon', '🥏 Duathlon'], ['relais', '🔁 Relais']];
-  const SECT = { tournoi: '🏆 Tournois', match: '⚔️ Matchs', wod: '🏋️ HYROX / Crosstraining', co: '🧭 Course d\'orientation', combine: '🏃 Combiné athlétique', duathlon: '🥏 Duathlon athlétique', relais: '🔁 Relais' };
-  const ACT = { tournoi: 'Tournoi', match: 'Match', wod: 'HYROX / Crosstraining', co: 'Course d\'orientation', combine: 'Combiné athlétique', duathlon: 'Duathlon athlétique', relais: 'Relais' };
+  const KINDS = [['all', 'Tous'], ['tournoi', '🏆 Tournois'], ['match', '⚔️ Matchs'], ['wod', '🏋️ HYROX'], ['co', '🧭 CO'], ['combine', '🏃 Combiné'], ['duathlon', '🥏 Duathlon'], ['relais', '🔁 Relais'], ['cross', '🏁 Cross']];
+  const SECT = { tournoi: '🏆 Tournois', match: '⚔️ Matchs', wod: '🏋️ HYROX / Crosstraining', co: '🧭 Course d\'orientation', combine: '🏃 Combiné athlétique', duathlon: '🥏 Duathlon athlétique', relais: '🔁 Relais', cross: '🏁 Cross du collège' };
+  const ACT = { tournoi: 'Tournoi', match: 'Match', wod: 'HYROX / Crosstraining', co: 'Course d\'orientation', combine: 'Combiné athlétique', duathlon: 'Duathlon athlétique', relais: 'Relais', cross: 'Cross' };
   const dFr = t => new Date(t).toLocaleDateString('fr-FR');
   const dFull = t => new Date(t).toLocaleDateString('fr-FR', { weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric' });
   const hhmm = t => new Date(t).toLocaleTimeString('fr-FR').slice(0, 5);
@@ -204,11 +204,28 @@ if (!document.getElementById('cl-css')) document.head.insertAdjacentHTML('before
         lead: w ? `🥇 ${w.name} · ${w.res}` : '', body: rankTable(rows, 'Temps'), rows: csvRows(rows) }; });
   }
 
-  const SRC = { tournoi: tournois, match: matchs, wod: wods, co: cos, combine: combines, duathlon: duathlons, relais };
+  /* ================= CROSS DU COLLÈGE (élèves de la classe arrivés + rang de la classe) ================= */
+  function crosses(cls) {
+    if (!window.CROSS) return [];
+    return CROSS.events().filter(E => (E.classes || []).includes(cls)).map(E => {
+      const K = CROSS.compute(E), R = K.courses.flatMap((x, i) => x.R.filter(r => r.s.cls === cls).map(r => ({ r, n: x.R.length, i })));
+      if (!R.length) return null;
+      R.sort((a, b) => a.i - b.i || a.r.place - b.r.place);
+      const L = CROSS.lvOf(E, cls), CR = L ? CROSS.classRank(E, K, L) : [], me = CR.find(c => c.cls === cls);
+      const date = Math.max(E.created || 0, ...(E.arr || []).map(a => a.t || 0));
+      const rows = R.map(({ r, n }) => ({ rk: r.place, name: r.s.name, members: [], res: `${r.c.name} · ${CROSS.perf(r)} · ${r.place}${r.place === 1 ? 'er' : 'e'}/${n}` }));
+      return { kind: 'cross', date, icon: '🏁', title: E.name, event: 'Cross · ' + E.name,
+        sub: `${dFull(date)} · ${R.length} élève${R.length > 1 ? 's' : ''} arrivé${R.length > 1 ? 's' : ''}`,
+        lead: me ? `🏆 Classement des classes (${L}e) : ${me.rk}${me.rk === 1 ? 're' : 'e'} / ${CR.length} · score ${dec(me.score)}` : '',
+        body: rankTable(rows, 'Course · perf · place', false), rows: csvRows(rows) };
+    }).filter(Boolean);
+  }
+
+  const SRC = { tournoi: tournois, match: matchs, wod: wods, co: cos, combine: combines, duathlon: duathlons, relais, cross: crosses };
   /* Classes : celles de « Mes classes » + celles trouvées dans les résultats (classe supprimée ou renommée) */
   const allClasses = () => { const s = new Set(DB.classes.map(c => c.name));
     [...(typeof TR === 'function' ? TR() : []).map(t => t.classe), ...((DB.wod || {}).seances || []).map(x => x.classe), ...((DB.co || {}).seances || []).map(x => x.classe),
-      ...((DB.combine || {}).seances || []).map(x => x.classe), ...((DB.duathlon || {}).seances || []).map(x => x.classe), ...((DB.relais || {}).courses || []).map(x => x.classe)].forEach(c => c && s.add(c));
+      ...((DB.combine || {}).seances || []).map(x => x.classe), ...((DB.duathlon || {}).seances || []).map(x => x.classe), ...((DB.relais || {}).courses || []).map(x => x.classe), ...((DB.cross || {}).events || []).flatMap(e => e.classes || [])].forEach(c => c && s.add(c));
     return [...s]; };
   const inPer = d => { if (per === 'all') return true; if (per === 'day') return new Date(d).toDateString() === new Date().toDateString(); return d >= Date.now() - 7 * 864e5; };
   const collect = cls => { const all = {}; Object.keys(SRC).forEach(k => { try { all[k] = SRC[k](cls).filter(e => inPer(e.date)).sort((a, b) => b.date - a.date); } catch (err) { console.warn('collectifs', k, err); all[k] = []; } }); return all; };
@@ -227,7 +244,7 @@ if (!document.getElementById('cl-css')) document.head.insertAdjacentHTML('before
         <div class="section-title"><h2>Résultats collectifs (${shown.length})</h2>${shown.length ? '<button class="link" id="exp">📤 Exporter CSV</button>' : ''}</div>
         ${shown.length ? kinds.filter(k => all[k].length).map(k => `<div class="section-title" style="margin-top:16px"><h2>${SECT[k]} <span class="muted" style="font-weight:700">(${all[k].length})</span></h2></div>${all[k].map(card).join('')}`).join('')
           : `<div class="card empty">Aucun résultat collectif pour <b>${esc(cls)}</b>${perTxt ? ' ' + perTxt : ''}${act !== 'all' ? ' dans cette activité' : ''}.<br><br>
-            <span style="font-size:.88rem">Les résultats d'équipes et de groupes apparaissent ici automatiquement :<br>🏆 tournois et ⚔️ matchs de <b>Gestion de match</b> (équipes composées avec les élèves de la classe),<br>🏋️ séances <b>HYROX / Crosstraining</b>, 🧭 <b>Course d'orientation</b>, 🏃 <b>Combiné</b>, 🥏 <b>Duathlon</b> et 🔁 <b>Relais</b> enregistrés avec cette classe.</span></div>`}`;
+            <span style="font-size:.88rem">Les résultats d'équipes et de groupes apparaissent ici automatiquement :<br>🏆 tournois et ⚔️ matchs de <b>Gestion de match</b> (équipes composées avec les élèves de la classe),<br>🏋️ séances <b>HYROX / Crosstraining</b>, 🧭 <b>Course d'orientation</b>, 🏃 <b>Combiné</b>, 🥏 <b>Duathlon</b>, 🔁 <b>Relais</b> et 🏁 <b>Cross</b> enregistrés avec cette classe.</span></div>`}`;
       const $ = s => el.querySelector(s);
       $('#cc').onchange = () => { cls = $('#cc').value; if (DB.classes.some(c => c.name === cls)) { DB.lastClass = cls; save(); } draw(); };
       el.querySelectorAll('[data-per]').forEach(b => b.onclick = () => { per = b.dataset.per; draw(); });

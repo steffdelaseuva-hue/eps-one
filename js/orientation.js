@@ -85,7 +85,7 @@ function patPicker({ title, options, draw = true, extra = [], current, used = []
 }
 
 TOOL_IMPL.co = function (el) {
-  let tab = DB.co.current ? 'seance' : 'parcours';
+  let tab = DB.co.current || partToday('co').length ? 'seance' : 'parcours';
   const P = id => DB.co.parcours.find(p => p.id === id);
 
   function frame() {
@@ -179,10 +179,21 @@ TOOL_IMPL.co = function (el) {
       rk: temps ? mpk(temps, km) : '–', rkE: temps && p.denivOn ? mpk(temps, kmE) : null, vit: temps && km ? (km / (temps / 3600)).toFixed(1).replace('.', ',') + ' km/h' : '–' };
   }
 
+  /* ---- Séance partagée avec les autres tablettes (modèle sans résultats) ---- */
+  const pub = (cur, create) => { if (cur.joined) return; const p = P(cur.parcours) || cur.psnap; if (!p) return;
+    const indiv = cur.runs.every(r => r.members.length === 1 && r.name === r.members[0]);
+    partPublish('co', cur.id, { nom: p.nom, classe: cur.classe || '', ng: cur.runs.length, indiv, ep: `${CO_TYPES[p.type][0]} · ${p.balises.length} balises`,
+      tpl: { classe: cur.classe || '', parcours: cur.parcours, psnap: p, gap: cur.gap || 60, runs: cur.runs.map(r => ({ name: r.name, members: r.members })) } }, create); };
+  const join = (box, sp) => { const T = sp.tpl;
+    DB.co.current = { id: sp.id, date: Date.now(), parcours: T.parcours, psnap: T.psnap, classe: T.classe, gap: T.gap || 60, joined: true,
+      runs: T.runs.map(r => ({ name: r.name, members: [...r.members], dep: null, arr: null, found: [], wrong: 0 })) };
+    save(); const cur = DB.co.current;
+    partPickGroup(box, cur.runs, i => { if (!DB.co.current) return prepare(box); cur.only = i; save(); seance(box); }, !!sp.indiv); };
+
   function seance(box) {
     const cur = DB.co.current;
     if (!cur) return prepare(box);
-    const p = P(cur.parcours); if (!p) { DB.co.current = null; save(); return prepare(box); }
+    const p = P(cur.parcours) || cur.psnap; if (!p) { DB.co.current = null; save(); return prepare(box); }
     let raf;
     const tabs = on => { const t = el.querySelector('.co-tabs'); if (t) t.style.display = on ? '' : 'none'; };
     // Vue « une seule équipe » : ce que voient les élèves sur leur tablette (cur.only reste sur l'appareil)
@@ -221,7 +232,8 @@ TOOL_IMPL.co = function (el) {
     const saveSeance = () => { const tab1 = cur.only != null && cur.runs[cur.only];
       if (!tab1 && cur.runs.some(r => r.dep && !r.arr) && !confirm('Certains élèves ne sont pas arrivés. Enregistrer quand même ?')) return;
       // tablette d'une équipe : seule SA course est enregistrée (pas de lignes vides pour les autres)
-      const rec = { ...cur, runs: tab1 ? [tab1] : cur.runs, parcoursSnap: JSON.parse(JSON.stringify(p)) }; delete rec.only;
+      // id unique par tablette (fusion de synchro par id) ; regroupées à l'affichage (même jour + classe + parcours)
+      const rec = { ...cur, id: cur.id + '-' + Math.random().toString(36).slice(2, 6), runs: tab1 ? [tab1] : cur.runs, parcoursSnap: JSON.parse(JSON.stringify(p)) }; delete rec.only; delete rec.joined; delete rec.psnap;
       DB.co.seances.push(rec); DB.co.current = null; save(); coResults(rec); toast('Séance enregistrée ✔'); tabs(true); tab = 'bilan'; frame(); };
     const draw = () => {
       if (cur.only != null && cur.runs[cur.only]) return drawGroup();
@@ -246,7 +258,7 @@ TOOL_IMPL.co = function (el) {
         editGroupsPanel(indiv ? 'Participants' : 'Groupes de la séance', { cls: cur.classe, indiv, list: () => cur.runs, names: r => r.members,
           take: (r, n) => { r.members.splice(r.members.indexOf(n), 1); return indiv ? { dep: r.dep, arr: r.arr, found: r.found, wrong: r.wrong, plan: r.plan } : null; },
           put: (r, n, d) => { r.members.push(n); if (indiv && d) Object.assign(r, d); },
-          make: name => ({ name, members: [], dep: null, arr: null, found: [], wrong: 0 }), onChange: keep, onClose: draw }); };
+          make: name => ({ name, members: [], dep: null, arr: null, found: [], wrong: 0 }), onChange: () => { keep(); pub(cur); }, onClose: draw }); };
       $('#stag').onclick = () => { cur.gap = Math.max(5, +$('#gap').value || 60); const t0 = Date.now() + 60000; cur.runs.forEach((r, i) => r.plan = t0 + i * cur.gap * 1000); keep(); toast('Horaires de départ prévus (1er départ dans 1 min)'); draw(); };
       box.querySelectorAll('[data-go]').forEach(b => b.onclick = () => { cur.runs[+b.dataset.go].dep = Date.now(); beep(1300, .3); keep(); draw(); });
       box.querySelectorAll('[data-fin]').forEach(b => b.onclick = () => { cur.runs[+b.dataset.fin].arr = Date.now(); beep(1000, .3); keep(); draw(); });
@@ -258,7 +270,7 @@ TOOL_IMPL.co = function (el) {
       box.querySelectorAll('[data-wm]').forEach(b => b.onclick = () => { const r = cur.runs[+b.dataset.wm]; r.wrong = Math.max(0, r.wrong - 1); keep(); draw(); });
       if ($('#only')) $('#only').onchange = ev => { if (ev.target.value === '') return; cur.only = +ev.target.value; keep(); draw(); };
       $('#save').onclick = saveSeance;
-      $('#cancel').onclick = () => { if (confirm('Abandonner cette séance ? Les temps saisis seront perdus.')) { DB.co.current = null; save(); draw2(); } };
+      $('#cancel').onclick = () => { if (confirm('Abandonner cette séance ? Les temps saisis seront perdus.')) { partAskRemove(cur); DB.co.current = null; save(); draw2(); } };
     };
     const draw2 = () => { cancelAnimationFrame(raf); prepare(box); };
     const tick = () => { if (!box.isConnected || !DB.co.current) return; const n = box.querySelector('#now'); if (n) n.textContent = clock(Date.now());
@@ -299,7 +311,7 @@ TOOL_IMPL.co = function (el) {
   }
 
   function prepare(box) {
-    if (!DB.co.parcours.length) { box.innerHTML = '<div class="card empty">Créez d\'abord un parcours dans l\'onglet 🗺 Parcours.</div>'; return; }
+    if (!DB.co.parcours.length) { box.innerHTML = '<div class="card empty">Créez d\'abord un parcours dans l\'onglet 🗺 Parcours.</div>'; partMount(box, 'co', sp => join(box, sp)); return; }
     let mode = 'indiv';
     const draw = () => {
       box.innerHTML = `<div class="card"><h3>Nouvelle séance</h3>
@@ -308,7 +320,7 @@ TOOL_IMPL.co = function (el) {
         <div id="who" style="margin-top:10px"></div></div>`;
       box.querySelectorAll('[data-md]').forEach(b => b.onclick = () => { mode = b.dataset.md; draw(); });
       const who = box.querySelector('#who');
-      const launch = (runs, classe) => { DB.co.current = { id: coId(), date: Date.now(), parcours: box.querySelector('#pc').value, classe, runs, gap: 60 }; save(); seance(box); };
+      const launch = (runs, classe) => { DB.co.current = { id: coId(), date: Date.now(), parcours: box.querySelector('#pc').value, classe, runs, gap: 60 }; pub(DB.co.current, true); save(); seance(box); };
       if (mode === 'indiv') {
         who.innerHTML = DB.classes.length ? `<label>Classe</label><select id="cl">${DB.classes.map(c => `<option>${esc(c.name)}</option>`).join('')}</select>
           <button class="btn btn-grad btn-block" style="margin-top:12px" id="go">▶ Préparer la séance</button>` : noClassMsg;
@@ -318,6 +330,7 @@ TOOL_IMPL.co = function (el) {
         mountComposer(who, { id: 'coc', modes: ['random', 'hetero', 'homo'], button: '▶ Former les groupes et préparer la séance',
           onTeams: teams => { const c = who.querySelector('#coc-cls')?.value || ''; launch(teams.map(t => ({ name: t.name.replace('Équipe', 'Groupe'), members: t.members.map(m => m.n), dep: null, arr: null, found: [], wrong: 0 })), c); } });
       }
+      partMount(box, 'co', sp => join(box, sp));
     };
     draw();
   }

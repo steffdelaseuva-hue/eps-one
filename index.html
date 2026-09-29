@@ -198,6 +198,7 @@ th{color:var(--muted);font-size:.78rem;text-transform:uppercase}
       <ul class="hero-list">
         <li>Gestion de séance par les élèves et le prof</li>
         <li>Gestion de match en synchronisation live multi-tablettes : résultats envoyés sur la tablette du prof en direct et/ou en fin de séance</li>
+        <li>Gestion Cross collège : dossards QR-codes, scan à l'arrivée, classements par course, niveau et classe</li>
         <li>Multi-chronos, tirages au sort, équipes, calculs VMA…</li>
         <li>Outils classés par champs d'apprentissage</li>
       </ul>
@@ -272,7 +273,7 @@ const CATS=[
   {id:'art',    name:'Activités gymniques & artistiques', desc:'Parkour, acrosport · gym, cirque, danse à venir'},
   {id:'duel',   name:'Activités de duel', desc:'Sports collectifs, raquettes, combats'},
   {id:'appn',   name:'APPN', desc:'Course d\'orientation, escalade · sauvetage à venir'},
-  {id:'temps',  name:'Chronos & timers',   desc:'Outils transversaux'},
+  {id:'temps',  name:'Chronos / photo / vidéo',   desc:'Outils transversaux'},
   {id:'classe', name:'Gestion de classe',  desc:'Classes, tirages, dispenses'},
   {id:'eval',   name:'Évaluation & suivi', desc:'Résultats, grilles, suivi'},
 ];
@@ -285,7 +286,9 @@ const TOOLS=[
   {id:'combine',  cat:'perf', name:'Combiné athlétique', desc:'Duathlon / triathlon · course, saut, lancer', ready:true},
   {id:'duathlon', cat:'perf', name:'Duathlon athlétique', desc:'Course + lancers · 3 étapes · pénalités', ready:true},
   {id:'relais',   cat:'perf',name:'Relais',             desc:'Gestion des relais', ready:true},
+  {id:'cross',    cat:'perf', name:'Cross du collège',   desc:'Courses, dossards QR, scan à l\'arrivée, classements', ready:true},
   {id:'wod',      cat:'perf', name:'Crosstraining / HYROX', desc:'Blocs, exercices N1-N4, run, time cap', ready:true},
+  {id:'hiit',     cat:'perf', name:'Timer HIIT / Tabata',desc:'Travail / repos / séries + bips', ready:true},
   {id:'rm',       cat:'perf', name:'Calcul 1RM',         desc:'Charge max + % de travail', ready:true},
 
   {id:'acrosport',cat:'art', name:'Acrosport', desc:'Banque de pyramides · duo, trio, quatuor · porteurs, hauteur, appuis', ready:true},
@@ -300,8 +303,6 @@ const TOOLS=[
   {id:'chronos12',cat:'temps', name:'Multi chrono (12 élèves)', desc:'Chrono central + 12 chronos numérotés', ready:true},
   {id:'chrono',   cat:'temps', name:'Chronomètre',        desc:'Chrono plein écran avec tours', ready:true},
   {id:'multi',    cat:'temps', name:'Multi chrono (6 élèves)',       desc:'Un chrono par élève / groupe',  ready:true},
-  {id:'hiit',     cat:'temps', name:'Timer HIIT / Tabata',desc:'Travail / repos / séries + bips', ready:true},
-  {id:'minuteur', cat:'temps', name:'Minuteur',           desc:'Compte à rebours avec alarme',  ready:true},
   {id:'photo',    cat:'temps', name:'Photo-finish',       desc:'Arrivées au ralenti', ready:true},
   {id:'video',    cat:'temps', name:'Vidéo différée',     desc:'Retour vidéo en différé', ready:true},
 
@@ -686,6 +687,7 @@ if('serviceWorker' in navigator && location.protocol==='https:') navigator.servi
 <script src="js/import-classes.js"></script>
 <script src="js/niveaux.js"></script>
 <script src="js/match.js"></script>
+<script src="js/partages.js"></script>
 <script src="js/orientation.js"></script>
 <script src="js/natation.js"></script>
 <script src="js/crosstraining.js"></script>
@@ -702,6 +704,8 @@ if('serviceWorker' in navigator && location.protocol==='https:') navigator.servi
 <script src="js/cloud.js"></script>
 <script type="module" src="js/sync.js"></script>
 <script src="js/qr.js"></script>
+<script src="js/qrscan.js"></script>
+<script src="js/cross.js"></script>
 <script src="js/plus.js"></script>
 <script src="js/profpin.js"></script>
 <script src="js/musique.js"></script>

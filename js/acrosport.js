@@ -2,7 +2,9 @@
    EPS ONE — Outil « Acrosport »
    Banque de pyramides (dessins originaux générés en SVG)
    Filtres : effectif (duo / trio / quatuor), position des porteurs
-   (horizontal, assis, debout, trépied), hauteur, appuis au sol.
+   (horizontal, assis, debout, trépied), position du voltigeur (debout,
+   horizontale, semi-renversé, renversé), hauteur, appuis au sol.
+   Liaisons dynamiques avec vidéo.
    ========================================================= */
 ICONS.acrosport = '<circle cx="8" cy="12.5" r="1.6"/><path d="M4 21v-4l4-2 4 2v4M8 15v-1"/><circle cx="12" cy="4" r="1.6"/><path d="M12 6v4M9 7.5l3 1 3-1M12 10l-2 3.5M12 10l2 3.5"/><circle cx="16" cy="12.5" r="1.6"/><path d="M12 21v-4M16 15v-1M20 21v-4l-4-2"/>';
 
@@ -51,6 +53,9 @@ const AC = (() => {
       return { j: P([x - 2 * m, y + 38], [x - 1 * m, y + 29], [x, y], [x + 22 * m, y + 6], [x + 34 * m, y - 16], [x + 23 * m, y + 5], [x + 35 * m, y - 17], arms([x - 1 * m, y + 29], o.a || 'up', m)), sol: 0 }; },
     // à califourchon sur les épaules (vue de face)
     epaules: (x, y, o) => ({ j: P([x, y + 38], [x, y + 29], [x, y], [x - 10, y - 2], [x - 12, y - 24], [x + 10, y - 2], [x + 12, y - 24], arms([x, y + 29], o.a || 'up', 1)), sol: 0 }),
+    // brouette : mains au sol en x,y, pieds posés en hauteur (corps semi-renversé, tête plus basse que les pieds)
+    brouette: (x, y, o) => { const m = o.m || 1;
+      return { j: P([x + 6 * m, y + 22], [x - 3 * m, y + 27], [x - 33 * m, y + 35], [x - 52 * m, y + 34], [x - 72 * m, y + 31], [x - 52 * m, y + 35], [x - 72 * m, y + 32], [[x - 1 * m, y + 13], [x, y], [x + 1 * m, y + 13], [x + 2 * m, y]]), sol: 2 }; },
     // appui renversé (ATR), mains en x,y
     atr: (x, y, o) => ({ j: P([x, y + 26], [x, y + 35], [x, y + 64], [x - (o.split ? 12 : 1), y + 88], [x - (o.split ? 26 : 2), y + 112], [x + (o.split ? 12 : 1), y + 88], [x + (o.split ? 26 : 2), y + 112], [[x - 5, y + 18], [x - 4, y], [x + 5, y + 18], [x + 4, y]]), sol: y === 0 ? 2 : 0 }),
   };
@@ -78,6 +83,8 @@ const ACRO = [
     c: 'Porteur jambes fléchies pour la montée, dos droit ; il tient les tibias du voltigeur.' },
   { id: 'd8', n: 'L\'ATR tenu', eff: 2, por: ['debout'], h: 1, p: [{ r: 'v', s: 'atr', x: 0, y: 0 }, { r: 'p', s: 'stand', x: 26, y: 0, m: -1, a: 'upfront' }],
     c: 'Le porteur saisit les chevilles, le voltigeur reste gainé, épaules au-dessus des mains.' },
+  { id: 'd10', n: 'La brouette sur le banc', eff: 2, por: ['horizontal'], h: 2, p: [{ r: 'p', s: 'table', x: 0, y: 0 }, { r: 'v', s: 'brouette', x: -88, y: 0, m: -1 }],
+    c: 'Mains du voltigeur au sol, pieds posés sur le bassin du porteur ; corps gainé, tête dans l\'alignement.' },
   { id: 'd9', n: 'Le trône', eff: 2, por: ['assis'], h: 2, p: [{ r: 'p', s: 'assis', x: 0, y: 0, a: 'hold' }, { r: 'v', s: 'stand', x: 22, y: 29, a: 'side' }],
     c: 'Pieds du voltigeur sur les genoux du porteur, qui le tient aux mollets.' },
 
@@ -99,6 +106,9 @@ const ACRO = [
   { id: 't8', n: 'Chevalier et banc', eff: 3, por: ['trepied', 'horizontal'], h: 2, p: [{ r: 'p', s: 'table', x: -34, y: 0 }, { r: 'p', s: 'trep', x: 30, y: 0, m: -1 }, { r: 'v', s: 'stand', x: -2, y: 30, wide: 1, a: 'up' }],
     c: 'Un pied sur le bassin du banc, l\'autre sur la cuisse du chevalier.' },
 
+  { id: 't9', n: 'La brouette sur double banc', eff: 3, por: ['horizontal'], h: 2, p: [{ r: 'p', s: 'table', x: 8, y: 6, z: 1 }, { r: 'p', s: 'table', x: 0, y: 0 }, { r: 'v', s: 'brouette', x: -84, y: 0, m: -1 }],
+    c: 'Un pied sur chaque bassin, mains au sol à l\'aplomb des épaules ; montée et descente contrôlées.' },
+
   // ===== QUATUORS =====
   { id: 'q1', n: 'Le mur', eff: 4, por: ['horizontal'], h: 2, p: [{ r: 'p', s: 'table', x: 16, y: 12, z: 1 }, { r: 'p', s: 'table', x: 8, y: 6, z: 1 }, { r: 'p', s: 'table', x: 0, y: 0 }, { r: 'v', s: 'stand', x: 6, y: 40, wide: 1, a: 'up' }],
     c: 'Trois bancs serrés ; le voltigeur a un pied sur chaque banc extérieur.' },
@@ -117,6 +127,10 @@ const ACRO = [
   { id: 'q8', n: 'La table et l\'ATR', eff: 4, por: ['horizontal', 'debout'], h: 2, p: [{ r: 'p', s: 'table', x: -50, y: 0 }, { r: 'v', s: 'stand', x: -48, y: 35, a: 'side' }, { r: 'v', s: 'atr', x: 30, y: 0, split: 1 }, { r: 'p', s: 'stand', x: 56, y: 0, m: -1, a: 'upfront' }],
     c: 'Un duo en hauteur, un duo au sol : figures tenues 3 secondes.' },
 ];
+/* Position du voltigeur, déduite des postures des voltigeurs de la figure */
+const ACRO_VOL = { debout: 'Debout', horizontale: 'À l\'horizontale', semi: 'Semi-renversé', renverse: 'Renversé' };
+const ACRO_VOL_OF = { stand: 'debout', arab: 'debout', epaules: 'debout', genoux: 'debout', siege: 'debout', planche: 'horizontale', table: 'horizontale', dos: 'horizontale', brouette: 'semi', atr: 'renverse' };
+const acroVol = f => [...new Set(f.p.filter(q => q.r === 'v').map(q => ACRO_VOL_OF[q.s]).filter(Boolean))];
 const ACRO_POR = { horizontal: 'Horizontal (banc, dos)', assis: 'Assis', debout: 'Debout', trepied: 'Trépied' };
 const ACRO_EFF = { 2: 'Duo', 3: 'Trio', 4: 'Quatuor' };
 
@@ -143,12 +157,27 @@ function acroPhoto(file) {
     img.onerror = () => { URL.revokeObjectURL(url); ko(new Error('Image illisible')); }; img.src = url; });
 }
 const acroImgKey = id => 'acroImg_' + id;
+/* Type de lien : diaporama (ppt, pptx, key, pdf, Google Slides, PowerPoint en ligne) ou vidéo */
+const acroIsSlides = u => /\.(pptx?|ppsx?|key|pdf|odp)(\?|#|$)/i.test(u || '') || /docs\.google\.com\/presentation|1drv\.ms\/p\/|powerpoint|sharepoint\.com.*\.pptx/i.test(u || '');
+const acroBtn = (u, long) => acroIsSlides(u) ? (long ? '📊 Voir le diaporama de la liaison' : '📊 Diaporama') : (long ? '▶ Voir la vidéo de la liaison' : '▶ Vidéo');
+/* Vidéo d'une liaison : YouTube intégré, fichier vidéo lu dans l'app, sinon ouverture du lien */
+function acroVideo(li) {
+  if (!li || !li.url) return;
+  const u = li.url, yt = /(?:youtube\.com\/(?:watch\?v=|shorts\/|embed\/)|youtu\.be\/)([\w-]{6,})/.exec(u), file = /\.(mp4|m4v|mov|webm)(\?|#|$)/i.test(u);
+  if (!yt && !file) { window.open(u, '_blank', 'noopener'); return; }   // diaporama, Drive, autre lien : ouvert dans le navigateur
+  const o = document.createElement('div'); o.style.cssText = 'position:fixed;inset:0;z-index:330;background:rgba(0,0,0,.92);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:12px;gap:10px';
+  o.innerHTML = `<b style="color:#fff">🔗 ${esc(li.n)}</b>${yt ? `<iframe src="https://www.youtube-nocookie.com/embed/${yt[1]}?playsinline=1&rel=0" style="width:min(960px,100%);aspect-ratio:16/9;border:0;border-radius:12px" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen></iframe>`
+    : `<video src="${esc(u)}" controls playsinline autoplay loop style="max-width:100%;max-height:78vh;border-radius:12px;background:#000"></video>`}
+    <div class="row" style="gap:8px"><a class="btn btn-ghost" href="${esc(u)}" target="_blank" rel="noopener" style="text-decoration:none">↗ Ouvrir le lien</a><button class="btn btn-grad" id="avx">✕ Fermer</button></div>`;
+  o.querySelector('#avx').onclick = () => o.remove(); document.body.appendChild(o);
+}
 const acroZoom = src => { const o = document.createElement('div'); o.style.cssText = 'position:fixed;inset:0;z-index:320;background:rgba(0,0,0,.92);display:grid;place-items:center;padding:12px'; o.innerHTML = `<img src="${src}" style="max-width:100%;max-height:100%;object-fit:contain">`; o.onclick = () => o.remove(); document.body.appendChild(o); };
 
 TOOL_IMPL.acrosport = function (el) {
   DB.acro = DB.acro || { groupes: {} };
   const A = DB.acro;
-  const F = DB.acroFiltre = Object.assign({ eff: '0', por: '', h: '0', app: '' }, DB.acroFiltre || {});
+  const F = DB.acroFiltre = Object.assign({ eff: '0', por: '', vol: '', h: '0', app: '' }, DB.acroFiltre || {});
+  A.liaisons = A.liaisons || [];
   const APP = { '': 'Tous', a: '1 à 4', b: '5 à 8', c: '9 et +' };
   const appOk = (n, k) => !k || (k === 'a' ? n <= 4 : k === 'b' ? n >= 5 && n <= 8 : n >= 9);
   let tab = 'banque', cls = DB.classes.some(c => c.name === DB.lastClass) ? DB.lastClass : (DB.classes[0] || {}).name || '', gi = 0;
@@ -160,12 +189,12 @@ TOOL_IMPL.acrosport = function (el) {
     const gs = cls ? groups() : []; if (gi >= gs.length) gi = 0;
     el.innerHTML = `${DB.classes.length ? `<div class="card"><div class="row"><div><label style="margin-top:0">Classe</label><select id="acl">${DB.classes.map(c => `<option ${c.name === cls ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</select></div>
         <div><label style="margin-top:0">Groupe</label><select id="agr">${gs.length ? gs.map((g, k) => `<option value="${k}" ${k === gi ? 'selected' : ''}>${esc(g.name)} (${g.seq.length})</option>`).join('') : '<option>— aucun groupe —</option>'}</select></div></div></div>` : ''}
-      <div class="co-tabs" style="margin-top:12px">${[['groupes', '👥 Groupes'], ['banque', '📚 Pyramides'], ['enchainement', '🎬 Enchaînement']].map(([k, l]) => `<button data-tab="${k}" class="${tab === k ? 'on' : ''}">${l}</button>`).join('')}</div><div id="ab"></div>`;
+      <div class="co-tabs" style="margin-top:12px">${[['groupes', '👥 Groupes'], ['banque', '📚 Pyramides'], ['liaisons', '🔗 Liaisons'], ['enchainement', '🎬 Enchaînement']].map(([k, l]) => `<button data-tab="${k}" class="${tab === k ? 'on' : ''}">${l}</button>`).join('')}</div><div id="ab"></div>`;
     el.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => { tab = b.dataset.tab; frame(); });
     const $ = s => el.querySelector(s);
     if ($('#acl')) $('#acl').onchange = e => { cls = e.target.value; DB.lastClass = cls; gi = 0; save(); frame(); };
     if ($('#agr') && gs.length) $('#agr').onchange = e => { gi = +e.target.value; frame(); };
-    ({ groupes: tabGroupes, banque: tabBanque, enchainement: tabEnch })[tab]($('#ab'));
+    ({ groupes: tabGroupes, banque: tabBanque, liaisons: tabLiaisons, enchainement: tabEnch })[tab]($('#ab'));
   }
 
   /* ---------- Groupes (modifiables) ---------- */
@@ -211,18 +240,19 @@ TOOL_IMPL.acrosport = function (el) {
   /* ---------- Banque de pyramides ---------- */
   const chips = (key, opts) => `<div class="tog">${opts.map(([v, l]) => `<button data-f="${key}" data-v="${v}" class="${String(F[key]) === String(v) ? 'on' : ''}">${l}</button>`).join('')}</div>`;
   function tabBanque(box) {
-    const list = ACRO.filter(f => (+F.eff === 0 || f.eff === +F.eff) && (!F.por || f.por.includes(F.por)) && (+F.h === 0 || f.h === +F.h) && appOk(acroAppuis(f), F.app));
+    const list = ACRO.filter(f => (+F.eff === 0 || f.eff === +F.eff) && (!F.por || f.por.includes(F.por)) && (!F.vol || acroVol(f).includes(F.vol)) && (+F.h === 0 || f.h === +F.h) && appOk(acroAppuis(f), F.app));
     const g = G();
     box.innerHTML = `<div class="card">
         <label style="margin-top:0">Effectif</label>${chips('eff', [[0, 'Tous'], [2, 'Duo'], [3, 'Trio'], [4, 'Quatuor']])}
         <label>Position des porteurs</label>${chips('por', [['', 'Toutes'], ...Object.entries(ACRO_POR)])}
+        <label>Position du voltigeur</label>${chips('vol', [['', 'Toutes'], ...Object.entries(ACRO_VOL)])}
         <label>Hauteur de la pyramide</label>${chips('h', [[0, 'Toutes'], [1, '1 étage'], [2, '2 étages'], [3, '3 étages']])}
         <label>Appuis au sol</label>${chips('app', Object.entries(APP))}</div>
       <div class="section-title"><h2>${list.length} pyramide${list.length > 1 ? 's' : ''}</h2><span class="muted" style="font-size:.8rem"><b style="color:#1E5BD8">●</b> porteur · <b style="color:#C9A227">●</b> voltigeur</span></div>
       ${g ? `<p class="muted" style="margin:-4px 0 8px;font-size:.82rem">Touchez ＋ pour ajouter une pyramide à l'enchaînement de <b>${esc(g.name)}</b>.</p>` : ''}
       <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px">${list.map(f => `<div class="card" style="padding:10px;border:1.5px solid var(--line);position:relative">
           <button data-id="${f.id}" style="all:unset;display:block;cursor:pointer;width:100%">${acroSVG(f)}<b style="display:block;margin-top:6px">${esc(f.n)}</b>
-          <span class="muted" style="font-size:.75rem">${ACRO_EFF[f.eff]} · ${f.h} étage${f.h > 1 ? 's' : ''} · ${acroAppuis(f)} appuis</span></button>
+          <span class="muted" style="font-size:.75rem">${ACRO_EFF[f.eff]} · ${f.h} étage${f.h > 1 ? 's' : ''} · ${acroAppuis(f)} appuis<br>Voltigeur : ${acroVol(f).map(v => ACRO_VOL[v]).join(', ')}</span></button>
           ${g ? `<button class="btn btn-grad" data-add="${f.id}" style="position:absolute;top:6px;right:6px;padding:4px 10px">＋</button>` : ''}</div>`).join('') || '<div class="card empty" style="grid-column:1/-1">Aucune pyramide avec ces critères.</div>'}</div>`;
     box.querySelectorAll('[data-f]').forEach(b => b.onclick = () => { F[b.dataset.f] = b.dataset.v; save(); tabBanque(box); });
     box.querySelectorAll('[data-id]').forEach(b => b.onclick = () => detail(ACRO.find(f => f.id === b.dataset.id)));
@@ -238,6 +268,7 @@ TOOL_IMPL.acrosport = function (el) {
         <div class="result" style="margin-top:10px"><div class="card"><b>${ACRO_EFF[f.eff]}</b><small>${nb('p')} porteur${nb('p') > 1 ? 's' : ''} · ${nb('v')} voltigeur${nb('v') > 1 ? 's' : ''}</small></div>
           <div class="card"><b>${f.h}</b><small>étage${f.h > 1 ? 's' : ''}</small></div><div class="card"><b>${acroAppuis(f)}</b><small>appuis au sol</small></div></div>
         <p style="margin:10px 0 4px"><b>Porteur${f.por.length > 1 ? 's' : ''} :</b> ${f.por.map(p => ACRO_POR[p]).join(', ')}</p>
+        <p style="margin:4px 0"><b>Voltigeur${acroVol(f).length > 1 ? 's' : ''} :</b> ${acroVol(f).map(v => ACRO_VOL[v]).join(', ')}</p>
         <p style="margin:4px 0"><b>Consigne :</b> ${esc(f.c)}</p>
         ${g ? `<button class="btn btn-grad btn-block" style="margin-top:12px" id="acadd">＋ Ajouter à l'enchaînement de ${esc(g.name)}</button>` : ''}
         <button class="btn btn-ghost btn-block" style="margin-top:8px" id="acx">Fermer</button></div>`;
@@ -245,17 +276,52 @@ TOOL_IMPL.acrosport = function (el) {
     document.body.appendChild(o);
   };
 
+  /* ---------- Liaisons dynamiques (vidéos) ---------- */
+  let liEdit = null;                                   // id de la liaison modifiée, 'new' pour une nouvelle
+  function tabLiaisons(box) {
+    const L = A.liaisons, g = G(), ed = liEdit === 'new' ? { n: '', url: '', d: '' } : L.find(x => x.id === liEdit);
+    box.innerHTML = `<div class="card doc"><p style="margin:0;line-height:1.45">Les <b>liaisons dynamiques</b> relient deux figures de l'enchaînement (roulade, saut, rotation, déplacement…). Chaque liaison a son lien de démonstration : vidéo ou diaporama (PowerPoint, Google Slides, PDF).</p></div>
+      ${ed ? `<div class="card" style="margin-top:12px"><h3>${liEdit === 'new' ? 'Nouvelle liaison' : 'Modifier la liaison'}</h3>
+        <label>Nom</label><input id="lin" value="${esc(ed.n)}" placeholder="Ex. : roulade avant">
+        <label>Lien (vidéo ou diaporama)</label><input id="liu" value="${esc(ed.url)}" placeholder="https://… (YouTube, vidéo, PowerPoint, Google Slides, PDF…)" inputmode="url" autocapitalize="off">
+        <label>Description / critères de réussite</label><textarea id="lid" style="min-height:70px">${esc(ed.d || '')}</textarea>
+        <div class="row" style="margin-top:10px"><button class="btn btn-grad" id="lis">💾 Enregistrer</button><button class="btn btn-ghost" id="lic">Annuler</button></div></div>`
+      : '<button class="btn btn-grad btn-block" style="margin-top:12px" id="linew">＋ Ajouter une liaison dynamique</button>'}
+      <div class="section-title"><h2>${L.length} liaison${L.length > 1 ? 's' : ''}</h2></div>
+      ${L.length ? `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px">${L.map(x => `<div class="card" style="padding:12px">
+          <b style="font-size:1.05rem">🔗 ${esc(x.n)}</b>${x.d ? `<div class="muted" style="font-size:.85rem;margin-top:4px">${esc(x.d)}</div>` : ''}
+          <div class="row" style="margin-top:10px;gap:6px">${x.url ? `<button class="btn btn-grad" data-lv="${x.id}">${acroBtn(x.url)}</button>` : '<span class="muted" style="font-size:.8rem">Pas de lien</span>'}${g ? `<button class="btn btn-ghost" data-la="${x.id}">＋ ${esc(g.name)}</button>` : ''}</div>
+          <div class="row" style="margin-top:6px;gap:6px"><button class="btn btn-ghost" style="padding:6px" data-le="${x.id}">✏️ Modifier</button><button class="btn btn-ghost" style="padding:6px" data-lx="${x.id}">🗑</button></div></div>`).join('')}</div>`
+      : '<div class="card empty">Aucune liaison pour l\'instant. Ajoutez-en avec leur lien (vidéo ou diaporama).</div>'}`;
+    const $ = q => box.querySelector(q);
+    if ($('#linew')) $('#linew').onclick = () => { liEdit = 'new'; tabLiaisons(box); };
+    if ($('#lic')) $('#lic').onclick = () => { liEdit = null; tabLiaisons(box); };
+    if ($('#lis')) $('#lis').onclick = () => { const n = $('#lin').value.trim(), url = $('#liu').value.trim(), d = $('#lid').value.trim(); if (!n) return toast('Indiquez le nom de la liaison');
+      if (url && !/^https?:\/\//i.test(url)) return toast('Le lien doit commencer par https://');
+      if (liEdit === 'new') L.push({ id: newId(), n, url, d }); else Object.assign(L.find(x => x.id === liEdit), { n, url, d });
+      liEdit = null; save(); toast('Liaison enregistrée ✔'); tabLiaisons(box); };
+    box.querySelectorAll('[data-lv]').forEach(b => b.onclick = () => acroVideo(L.find(x => x.id === b.dataset.lv)));
+    box.querySelectorAll('[data-le]').forEach(b => b.onclick = () => { liEdit = b.dataset.le; tabLiaisons(box); window.scrollTo(0, 0); });
+    box.querySelectorAll('[data-lx]').forEach(b => b.onclick = () => { if (!confirm('Supprimer cette liaison ?')) return; A.liaisons = A.liaisons.filter(x => x.id !== b.dataset.lx); save(); tabLiaisons(box); });
+    box.querySelectorAll('[data-la]').forEach(b => b.onclick = () => { const g2 = G(); if (!g2) return; g2.seq.push({ k: Date.now().toString(36), t: 'liaison', lid: b.dataset.la }); save(); toast(`Liaison ajoutée à ${g2.name} (${g2.seq.length}) ✔`); });
+  }
+
   /* ---------- Enchaînement du groupe ---------- */
   function tabEnch(box) {
     if (!DB.classes.length) { box.innerHTML = noClassMsg; return; }
     const g = G();
     if (!g) { box.innerHTML = `<div class="card empty">Formez d'abord les groupes de la classe.<br><br><button class="btn btn-grad" id="ago">👥 Former les groupes</button></div>`; box.querySelector('#ago').onclick = () => { tab = 'groupes'; frame(); }; return; }
     box.innerHTML = `<div class="card"><b>${esc(g.name)}</b><div class="muted">${g.members.map(esc).join(', ')}</div></div>
-      <div class="row" style="margin-top:12px"><button class="btn btn-ghost" id="afig">📚 Ajouter une pyramide</button>
+      <div class="row" style="margin-top:12px"><button class="btn btn-ghost" id="afig">📚 Ajouter une pyramide</button><button class="btn btn-ghost" id="alia">🔗 Ajouter une liaison</button>
         <label class="btn btn-ghost" style="display:block;text-align:center;cursor:pointer;margin:0">📷 Ajouter une photo<input id="aph" type="file" accept="image/*" capture="environment" style="display:none"></label></div>
       ${g.seq.length ? `<button class="btn btn-grad btn-block" style="margin-top:10px" id="aplay">▶ Présenter l'enchaînement</button>` : ''}
       <div class="section-title"><h2>Enchaînement (${g.seq.length})</h2>${g.seq.length ? '<button class="link" id="aclr">🗑 Vider l\'enchaînement</button>' : ''}</div>
-      ${g.seq.length ? `<div style="display:flex;flex-direction:column;gap:10px">${g.seq.map((it, k) => { const f = it.t === 'fig' ? ACRO.find(x => x.id === it.fig) : null, img = it.img ? DB[acroImgKey(it.img)] : null;
+      ${g.seq.length ? `<div style="display:flex;flex-direction:column;gap:10px">${g.seq.map((it, k) => { const f = it.t === 'fig' ? ACRO.find(x => x.id === it.fig) : null, img = it.img ? DB[acroImgKey(it.img)] : null, li = it.t === 'liaison' ? A.liaisons.find(x => x.id === it.lid) : null;
+        if (it.t === 'liaison') return `<div class="card" style="padding:10px;display:flex;gap:10px;align-items:center;border-left:5px solid var(--gold)">
+          <div style="flex:0 0 30px;height:30px;border-radius:50%;background:var(--grad);color:#fff;display:grid;place-items:center;font-weight:900">${k + 1}</div>
+          <div style="flex:1;min-width:0"><b>🔗 ${li ? esc(li.n) : 'Liaison supprimée'}</b><div class="muted" style="font-size:.78rem">Liaison dynamique</div></div>
+          ${li && li.url ? `<button class="btn btn-ghost" style="flex:0 0 auto;padding:6px 10px" data-vl="${esc(li.id)}">${acroBtn(li.url)}</button>` : ''}
+          <div style="flex:0 0 auto;display:flex;gap:4px"><button class="btn btn-ghost" style="padding:5px 8px" data-up="${k}" ${k ? '' : 'disabled'}>↑</button><button class="btn btn-ghost" style="padding:5px 8px" data-dn="${k}" ${k < g.seq.length - 1 ? '' : 'disabled'}>↓</button><button class="btn btn-ghost" style="padding:5px 8px" data-rm="${k}">✕</button></div></div>`;
         return `<div class="card" style="padding:10px;display:flex;gap:10px;align-items:center">
           <div style="flex:0 0 30px;height:30px;border-radius:50%;background:var(--grad);color:#fff;display:grid;place-items:center;font-weight:900">${k + 1}</div>
           <div style="flex:1;min-width:0;display:flex;gap:8px;align-items:center">
@@ -268,6 +334,8 @@ TOOL_IMPL.acrosport = function (el) {
         : '<div class="card empty">L\'enchaînement est vide : ajoutez des pyramides de la banque ou des photos des figures du groupe.</div>'}`;
     const $ = s => box.querySelector(s);
     $('#afig').onclick = () => { tab = 'banque'; frame(); };
+    if ($('#alia')) $('#alia').onclick = () => { tab = 'liaisons'; frame(); };
+    box.querySelectorAll('[data-vl]').forEach(b => b.onclick = () => acroVideo(A.liaisons.find(x => x.id === b.dataset.vl)));
     const setImg = async (file, it) => { try { const d = await acroPhoto(file); const id = it.img || Date.now().toString(36) + Math.random().toString(36).slice(2, 5); DB[acroImgKey(id)] = d; it.img = id; save(); tabEnch(box); } catch (e) { toast(e.message); } };
     $('#aph').onchange = e => { const f = e.target.files[0]; if (!f) return; const it = { k: Date.now().toString(36), t: 'photo' }; g.seq.push(it); setImg(f, it); };
     box.querySelectorAll('[data-ph]').forEach(i => i.onchange = e => { const f = e.target.files[0]; if (f) setImg(f, g.seq[+i.dataset.ph]); });
@@ -282,12 +350,14 @@ TOOL_IMPL.acrosport = function (el) {
   function present(g) {
     let k = 0; const o = document.createElement('div');
     o.style.cssText = 'position:fixed;inset:0;z-index:310;background:var(--bg,#fff);display:flex;flex-direction:column;padding:16px';
-    const show = () => { const it = g.seq[k], f = it.t === 'fig' ? ACRO.find(x => x.id === it.fig) : null, img = it.img ? DB[acroImgKey(it.img)] : null;
+    const show = () => { const it = g.seq[k], f = it.t === 'fig' ? ACRO.find(x => x.id === it.fig) : null, img = it.img ? DB[acroImgKey(it.img)] : null, li = it.t === 'liaison' ? A.liaisons.find(x => x.id === it.lid) : null;
       o.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center"><b>${esc(g.name)} · ${k + 1} / ${g.seq.length}</b><button class="btn btn-ghost" id="pq">✕ Fermer</button></div>
-        <h3 style="text-align:center;margin:10px 0">${f ? esc(f.n) : 'Figure ' + (k + 1)}</h3>
+        <h3 style="text-align:center;margin:10px 0">${f ? esc(f.n) : li ? '🔗 ' + esc(li.n) : 'Figure ' + (k + 1)}</h3>
+        ${li ? `<div style="text-align:center">${li.d ? `<p class="muted">${esc(li.d)}</p>` : ''}${li.url ? `<button class="btn btn-grad" id="pv">${acroBtn(li.url, true)}</button>` : ''}</div>` : ''}
         <div style="flex:1;display:flex;gap:12px;align-items:center;justify-content:center;min-height:0;flex-wrap:wrap">${f ? `<div style="flex:1 1 280px;max-width:520px">${acroSVG(f, true)}</div>` : ''}${img ? `<img src="${img}" style="flex:1 1 280px;max-width:520px;max-height:70vh;object-fit:contain;border-radius:12px">` : ''}</div>
         <div class="row" style="margin-top:12px"><button class="btn btn-ghost" id="pp" ${k ? '' : 'disabled'}>← Précédente</button><button class="btn btn-grad" id="pn" ${k < g.seq.length - 1 ? '' : 'disabled'}>Suivante →</button></div>`;
       o.querySelector('#pq').onclick = () => o.remove();
+      if (o.querySelector('#pv')) o.querySelector('#pv').onclick = () => acroVideo(li);
       o.querySelector('#pp').onclick = () => { k--; show(); }; o.querySelector('#pn').onclick = () => { k++; show(); }; };
     show(); document.body.appendChild(o);
   }
