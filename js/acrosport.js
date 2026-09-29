@@ -159,11 +159,23 @@ function acroPhoto(file) {
 const acroImgKey = id => 'acroImg_' + id;
 /* Type de lien : diaporama (ppt, pptx, key, pdf, Google Slides, PowerPoint en ligne) ou vidéo */
 const acroIsSlides = u => /\.(pptx?|ppsx?|key|pdf|odp)(\?|#|$)/i.test(u || '') || /docs\.google\.com\/presentation|1drv\.ms\/p\/|powerpoint|sharepoint\.com.*\.pptx/i.test(u || '');
-const acroBtn = (u, long) => acroIsSlides(u) ? (long ? '📊 Voir le diaporama de la liaison' : '📊 Diaporama') : (long ? '▶ Voir la vidéo de la liaison' : '▶ Vidéo');
+const acroDriveId = u => ((/drive\.google\.com\/(?:file\/d\/|open\?id=|uc\?(?:.*&)?id=)([\w-]{10,})/.exec(u || '') || [])[1]);
+const acroBtn = (u, long) => acroDriveId(u) ? (long ? '📂 Ouvrir le fichier de la liaison (Drive)' : '📂 Ouvrir') : acroIsSlides(u) ? (long ? '📊 Voir le diaporama de la liaison' : '📊 Diaporama') : (long ? '▶ Voir la vidéo de la liaison' : '▶ Vidéo');
 /* Vidéo d'une liaison : YouTube intégré, fichier vidéo lu dans l'app, sinon ouverture du lien */
 function acroVideo(li) {
   if (!li || !li.url) return;
   const u = li.url, yt = /(?:youtube\.com\/(?:watch\?v=|shorts\/|embed\/)|youtu\.be\/)([\w-]{6,})/.exec(u), file = /\.(mp4|m4v|mov|webm)(\?|#|$)/i.test(u);
+  const did = acroDriveId(u);
+  if (did) {   // Fichier Google Drive : éviter l'ouverture forcée dans Google Slides (fichiers PowerPoint)
+    const o = document.createElement('div'); o.style.cssText = 'position:fixed;inset:0;z-index:330;background:rgba(7,18,42,.8);display:grid;place-items:center;padding:16px';
+    o.innerHTML = `<div class="card" style="max-width:420px;width:100%"><h3 style="margin:0 0 4px">📂 ${esc(li.n)}</h3><p class="muted" style="margin:0 0 12px;font-size:.85rem">Fichier Google Drive</p>
+      <a class="btn btn-grad btn-block" style="text-decoration:none" href="https://drive.google.com/file/d/${did}/preview" target="_blank" rel="noopener">👁 Aperçu rapide</a>
+      <p class="muted" style="margin:4px 2px 12px;font-size:.78rem">Diapos affichées en images (sans animations) · vidéos lues directement.</p>
+      <a class="btn btn-ghost btn-block" style="text-decoration:none" href="https://drive.google.com/uc?export=download&id=${did}" target="_blank" rel="noopener">📥 Ouvrir dans PowerPoint / Keynote</a>
+      <p class="muted" style="margin:4px 2px 12px;font-size:.78rem">Télécharge le fichier puis « Ouvrir dans… » : diaporama complet avec animations. Gros fichier : touchez « Télécharger quand même ».</p>
+      <button class="btn btn-ghost btn-block" id="avx">✕ Fermer</button></div>`;
+    o.onclick = e => { if (e.target === o || e.target.id === 'avx') o.remove(); }; document.body.appendChild(o); return;
+  }
   if (!yt && !file) { window.open(u, '_blank', 'noopener'); return; }   // diaporama, Drive, autre lien : ouvert dans le navigateur
   const o = document.createElement('div'); o.style.cssText = 'position:fixed;inset:0;z-index:330;background:rgba(0,0,0,.92);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:12px;gap:10px';
   o.innerHTML = `<b style="color:#fff">🔗 ${esc(li.n)}</b>${yt ? `<iframe src="https://www.youtube-nocookie.com/embed/${yt[1]}?playsinline=1&rel=0" style="width:min(960px,100%);aspect-ratio:16/9;border:0;border-radius:12px" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen></iframe>`
