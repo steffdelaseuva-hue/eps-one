@@ -159,7 +159,9 @@ function acroPhoto(file) {
 const acroImgKey = id => 'acroImg_' + id;
 /* Type de lien : diaporama (ppt, pptx, key, pdf, Google Slides, PowerPoint en ligne) ou vidéo */
 const acroIsSlides = u => /\.(pptx?|ppsx?|key|pdf|odp)(\?|#|$)/i.test(u || '') || /docs\.google\.com\/presentation|1drv\.ms\/p\/|powerpoint|sharepoint\.com.*\.pptx/i.test(u || '');
-const acroDriveId = u => ((/drive\.google\.com\/(?:file\/d\/|open\?id=|uc\?(?:.*&)?id=)([\w-]{10,})/.exec(u || '') || [])[1]);
+const acroDriveId = u => ((/drive\.google\.com\/(?:file\/d\/|open\?id=|uc\?(?:.*&)?id=)([\w-]{10,})/.exec(u || '') || [])[1])
+  || (/rtpof=true/.test(u || '') && (/docs\.google\.com\/(?:presentation|document|spreadsheets)\/d\/([\w-]{10,})/.exec(u) || [])[1]);   // fichier Office (pptx…) stocké dans Drive
+const acroGSlidesId = u => !acroDriveId(u) && (/docs\.google\.com\/presentation\/d\/([\w-]{10,})/.exec(u || '') || [])[1];   // vrai Google Slides
 const acroBtn = (u, long) => acroDriveId(u) ? (long ? '📂 Ouvrir le fichier de la liaison (Drive)' : '📂 Ouvrir') : acroIsSlides(u) ? (long ? '📊 Voir le diaporama de la liaison' : '📊 Diaporama') : (long ? '▶ Voir la vidéo de la liaison' : '▶ Vidéo');
 /* Vidéo d'une liaison : YouTube intégré, fichier vidéo lu dans l'app, sinon ouverture du lien */
 function acroVideo(li) {
@@ -174,6 +176,15 @@ function acroVideo(li) {
       <a class="btn btn-ghost btn-block" style="text-decoration:none" href="https://drive.google.com/uc?export=download&id=${did}" target="_blank" rel="noopener">📥 Ouvrir dans PowerPoint / Keynote</a>
       <p class="muted" style="margin:4px 2px 12px;font-size:.78rem">Télécharge le fichier puis « Ouvrir dans… » : diaporama complet avec animations. Gros fichier : touchez « Télécharger quand même ».</p>
       <button class="btn btn-ghost btn-block" id="avx">✕ Fermer</button></div>`;
+    o.onclick = e => { if (e.target === o || e.target.id === 'avx') o.remove(); }; document.body.appendChild(o); return;
+  }
+  const gs = acroGSlidesId(u);
+  if (gs) {   // Google Slides natif : présentation plein écran ou export PowerPoint
+    const o = document.createElement('div'); o.style.cssText = 'position:fixed;inset:0;z-index:330;background:rgba(7,18,42,.8);display:grid;place-items:center;padding:16px';
+    o.innerHTML = `<div class="card" style="max-width:420px;width:100%"><h3 style="margin:0 0 4px">📊 ${esc(li.n)}</h3><p class="muted" style="margin:0 0 12px;font-size:.85rem">Google Slides</p>
+      <a class="btn btn-grad btn-block" style="text-decoration:none" href="https://docs.google.com/presentation/d/${gs}/present" target="_blank" rel="noopener">▶ Présenter</a>
+      <a class="btn btn-ghost btn-block" style="text-decoration:none;margin-top:10px" href="https://docs.google.com/presentation/d/${gs}/export/pptx" target="_blank" rel="noopener">📥 Ouvrir dans PowerPoint / Keynote</a>
+      <button class="btn btn-ghost btn-block" style="margin-top:10px" id="avx">✕ Fermer</button></div>`;
     o.onclick = e => { if (e.target === o || e.target.id === 'avx') o.remove(); }; document.body.appendChild(o); return;
   }
   if (!yt && !file) { window.open(u, '_blank', 'noopener'); return; }   // diaporama, Drive, autre lien : ouvert dans le navigateur

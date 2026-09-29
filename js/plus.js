@@ -2,9 +2,10 @@
    EPS ONE — Onglet PLUS : mise à jour, partage,
    à propos, confidentialité/RGPD, nouvelle année scolaire
    ========================================================= */
-const APP_VERSION = '10.6';
+const APP_VERSION = '10.7';
 const APP_URL = 'https://steffdelaseuva-hue.github.io/eps-one/';
 const CHANGELOG = [
+  { v: '10.7', items: ['Acrosport · liaisons : les liens « Copier le lien » d\'un PowerPoint dans Drive (docs.google.com…rtpof) sont reconnus : aperçu ou ouverture dans PowerPoint / Keynote, sans Google Slides'] },
   { v: '10.6', items: ['Acrosport · liaisons : les liens Google Drive ne s\'ouvrent plus de force dans Google Slides (aperçu rapide ou ouverture dans PowerPoint / Keynote)'] },
   { v: '10.5', items: ['Mes classes : deux catégories, « 🏃 Mes classes EPS » (tous les outils) et « 🏫 Autres classes du collège » (seulement pour le Cross)','Cross : toutes les classes proposées, bouton « Tout cocher », jusqu\'à 24 classes'] },
   { v: '10.4', items: ['Cross : bouton « ⏹ Stop » pour arrêter et remettre à zéro une course lancée','Cross : remise à zéro complète (départs + arrivées) et effacement de tous les numéros de dossard'] },
