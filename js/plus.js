@@ -2,9 +2,12 @@
    EPS ONE — Onglet PLUS : mise à jour, partage,
    à propos, confidentialité/RGPD, nouvelle année scolaire
    ========================================================= */
-const APP_VERSION = '10.7';
+const APP_VERSION = '11.0';
 const APP_URL = 'https://steffdelaseuva-hue.github.io/eps-one/';
 const CHANGELOG = [
+  { v: '11.0', items: ['Acrosport : 4 nouvelles pyramides en semi-renversé (duo et trio, porteurs en trépied ou debout)','Acrosport : ✏️ Créer une pyramide — effectif, porteurs et voltigeurs à faire glisser, posture, inclinaison, bras, prises, plan avant/arrière ; « Copier et modifier » sur les pyramides existantes'] },
+  { v: '10.9', items: ['Cross du collège : rubrique à part (accueil et outils), accès direct','Cross : couleur des filles en or (dossards, boutons F) à la place du rose'] },
+  { v: '10.8', items: ['Acrosport · liaisons : lien PowerPoint Drive → bouton « 📊 Diaporama » qui ouvre directement dans PowerPoint / Keynote (aperçu rapide retiré)'] },
   { v: '10.7', items: ['Acrosport · liaisons : les liens « Copier le lien » d\'un PowerPoint dans Drive (docs.google.com…rtpof) sont reconnus : aperçu ou ouverture dans PowerPoint / Keynote, sans Google Slides'] },
   { v: '10.6', items: ['Acrosport · liaisons : les liens Google Drive ne s\'ouvrent plus de force dans Google Slides (aperçu rapide ou ouverture dans PowerPoint / Keynote)'] },
   { v: '10.5', items: ['Mes classes : deux catégories, « 🏃 Mes classes EPS » (tous les outils) et « 🏫 Autres classes du collège » (seulement pour le Cross)','Cross : toutes les classes proposées, bouton « Tout cocher », jusqu\'à 24 classes'] },

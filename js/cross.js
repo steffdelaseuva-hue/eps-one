@@ -7,7 +7,7 @@
    les passages sont une liste d'objets à id → fusion multi-tablettes)
    ========================================================= */
 DB.cross = DB.cross || { events: [] };
-ICONS.cross = '<circle cx="7.5" cy="4.5" r="2"/><path d="M6.5 8 4 12.5l3 1.5-1.5 6M6.5 8l4 2.5 2.5-1M9 13.5l3 2.5-.5 4.5"/><path d="M16 21V3.5"/><path d="M16 4h5.5v5.5H16"/><path d="M16 4h2.75v2.75H16zM18.75 6.75h2.75v2.75h-2.75z" fill="url(#icoGrad)" stroke="none"/>';
+ICONS.cross = ICONS['cat-cross'] = '<circle cx="7.5" cy="4.5" r="2"/><path d="M6.5 8 4 12.5l3 1.5-1.5 6M6.5 8l4 2.5 2.5-1M9 13.5l3 2.5-.5 4.5"/><path d="M16 21V3.5"/><path d="M16 4h5.5v5.5H16"/><path d="M16 4h2.75v2.75H16zM18.75 6.75h2.75v2.75h-2.75z" fill="url(#icoGrad)" stroke="none"/>';
 if (!document.getElementById('cx-css')) document.head.insertAdjacentHTML('beforeend', `<style id="cx-css">
 .cx-bar{display:flex;gap:8px;align-items:center}
 .cx-bar select{flex:1;min-width:0}
@@ -38,7 +38,7 @@ if (!document.getElementById('cx-css')) document.head.insertAdjacentHTML('before
 .cx-st.off .nm b{text-decoration:line-through;opacity:.55}
 .cx-fg{display:flex;gap:6px;flex:0 0 auto}
 .cx-fg button{width:52px;height:46px;border-radius:12px;border:2px solid var(--line);font-weight:900;font-size:1.15rem;background:var(--card)}
-.cx-fg button.onF{background:#D6457A;color:#fff;border-color:transparent}
+.cx-fg button.onF{background:#C9A227;color:#fff;border-color:transparent}
 .cx-fg button.onG{background:#1E5BD8;color:#fff;border-color:transparent}
 .cx-st select{width:auto;flex:1 1 130px;max-width:210px;padding:9px 8px;font-size:.85rem}
 .cx-bib{font-weight:900;font-variant-numeric:tabular-nums;min-width:44px;text-align:right;color:var(--muted)}
@@ -98,7 +98,7 @@ if (!document.getElementById('cx-css')) document.head.insertAdjacentHTML('before
   const commit = () => { save(); window.syncFlush && window.syncFlush(); };
   const LV = ['6', '5', '4', '3'], LVN = { 6: '6e', 5: '5e', 4: '4e', 3: '3e' };
   const SXN = { F: 'Filles', G: 'Garçons', X: 'Mixte' };
-  const COLORS = ['#D6457A', '#1E5BD8', '#C0392B', '#0B5FA5', '#1B9E5A', '#C9A227', '#7A4FD6', '#E07A1F', '#0FA3B1', '#5B6782'];
+  const COLORS = ['#C9A227', '#1E5BD8', '#C0392B', '#0B5FA5', '#1B9E5A', '#7A4FD6', '#E07A1F', '#0FA3B1', '#5B6782', '#8A6D1F'];
   const MAXC = 10, MAXCL = 24, MAXST = 35;
   const tm = ms => ms == null ? '–' : fmt(ms, false);
   const hms = t => t ? new Date(t).toLocaleTimeString('fr-FR') : '';

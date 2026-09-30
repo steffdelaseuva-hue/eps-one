@@ -56,6 +56,12 @@ const AC = (() => {
     // brouette : mains au sol en x,y, pieds posés en hauteur (corps semi-renversé, tête plus basse que les pieds)
     brouette: (x, y, o) => { const m = o.m || 1;
       return { j: P([x + 6 * m, y + 22], [x - 3 * m, y + 27], [x - 33 * m, y + 35], [x - 52 * m, y + 34], [x - 72 * m, y + 31], [x - 52 * m, y + 35], [x - 72 * m, y + 32], [[x - 1 * m, y + 13], [x, y], [x + 1 * m, y + 13], [x + 2 * m, y]]), sol: 2 }; },
+    // semi-renversé : mains au sol en x,y, corps incliné (ang° par rapport au sol), pieds tenus en hauteur
+    semi: (x, y, o) => { const m = o.m || 1, t = (o.ang == null ? 45 : +o.ang) * Math.PI / 180, d = [-m * Math.cos(t), Math.sin(t)];
+      const at = (q, k) => [q[0] + d[0] * k, q[1] + d[1] * k], n = [x, y + 35], p = at(n, 29), k = at(p, 24), f = at(k, 24), sp = o.split ? 7 : 1;
+      const q = [-d[1] * sp, d[0] * sp];
+      return { j: P(at(n, -9), n, p, [k[0] + q[0], k[1] + q[1]], [f[0] + 2 * q[0], f[1] + 2 * q[1]], [k[0] - q[0], k[1] - q[1]], [f[0] - 2 * q[0], f[1] - 2 * q[1]],
+        [[x - 2, y + 18], [x - 2, y], [x + 2, y + 18], [x + 2, y]]), sol: 2 }; },
     // appui renversé (ATR), mains en x,y
     atr: (x, y, o) => ({ j: P([x, y + 26], [x, y + 35], [x, y + 64], [x - (o.split ? 12 : 1), y + 88], [x - (o.split ? 26 : 2), y + 112], [x + (o.split ? 12 : 1), y + 88], [x + (o.split ? 26 : 2), y + 112], [[x - 5, y + 18], [x - 4, y], [x + 5, y + 18], [x + 4, y]]), sol: y === 0 ? 2 : 0 }),
   };
@@ -87,6 +93,10 @@ const ACRO = [
     c: 'Mains du voltigeur au sol, pieds posés sur le bassin du porteur ; corps gainé, tête dans l\'alignement.' },
   { id: 'd9', n: 'Le trône', eff: 2, por: ['assis'], h: 2, p: [{ r: 'p', s: 'assis', x: 0, y: 0, a: 'hold' }, { r: 'v', s: 'stand', x: 22, y: 29, a: 'side' }],
     c: 'Pieds du voltigeur sur les genoux du porteur, qui le tient aux mollets.' },
+  { id: 'd11', n: 'Le semi-renversé au chevalier', eff: 2, por: ['trepied'], h: 1, p: [{ r: 'p', s: 'trep', x: -56, y: 0, grip: { i: 1, j: 'f1' } }, { r: 'v', s: 'semi', x: 0, y: 0, ang: 45 }],
+    c: 'Mains du voltigeur au sol à l\'aplomb des épaules, corps gainé ; le porteur en trépied tient les chevilles, sans monter jusqu\'à l\'ATR.' },
+  { id: 'd12', n: 'Le semi-renversé tenu debout', eff: 2, por: ['debout'], h: 1, p: [{ r: 'p', s: 'stand', x: -58, y: 0, grip: { i: 1, j: 'f1' } }, { r: 'v', s: 'semi', x: 0, y: 0, ang: 62 }],
+    c: 'Le porteur debout, dos droit, tient les chevilles à hauteur de poitrine ; le voltigeur repousse le sol, tête entre les bras.' },
 
   // ===== TRIOS =====
   { id: 't1', n: 'Le double banc', eff: 3, por: ['horizontal'], h: 2, p: [{ r: 'p', s: 'table', x: 8, y: 6, z: 1 }, { r: 'p', s: 'table', x: 0, y: 0 }, { r: 'v', s: 'stand', x: 4, y: 37, a: 'up' }],
@@ -108,6 +118,10 @@ const ACRO = [
 
   { id: 't9', n: 'La brouette sur double banc', eff: 3, por: ['horizontal'], h: 2, p: [{ r: 'p', s: 'table', x: 8, y: 6, z: 1 }, { r: 'p', s: 'table', x: 0, y: 0 }, { r: 'v', s: 'brouette', x: -84, y: 0, m: -1 }],
     c: 'Un pied sur chaque bassin, mains au sol à l\'aplomb des épaules ; montée et descente contrôlées.' },
+  { id: 't10', n: 'Le semi-renversé à deux chevaliers', eff: 3, por: ['trepied'], h: 1, p: [{ r: 'p', s: 'trep', x: -48, y: 6, z: 1, grip: { i: 2, j: 'f2' } }, { r: 'p', s: 'trep', x: -56, y: 0, grip: { i: 2, j: 'f1' } }, { r: 'v', s: 'semi', x: 0, y: 0, ang: 45, split: 1 }],
+    c: 'Chaque porteur en trépied tient une cheville ; le voltigeur reste gainé, mains au sol, sans aller jusqu\'à l\'ATR.' },
+  { id: 't11', n: 'Le semi-renversé à deux porteurs debout', eff: 3, por: ['debout'], h: 1, p: [{ r: 'p', s: 'stand', x: -50, y: 6, z: 1, grip: { i: 2, j: 'f2' } }, { r: 'p', s: 'stand', x: -58, y: 0, grip: { i: 2, j: 'f1' } }, { r: 'v', s: 'semi', x: 0, y: 0, ang: 62, split: 1 }],
+    c: 'Deux porteurs debout, une cheville chacun, montée au même signal ; épaules du voltigeur au-dessus des mains.' },
 
   // ===== QUATUORS =====
   { id: 'q1', n: 'Le mur', eff: 4, por: ['horizontal'], h: 2, p: [{ r: 'p', s: 'table', x: 16, y: 12, z: 1 }, { r: 'p', s: 'table', x: 8, y: 6, z: 1 }, { r: 'p', s: 'table', x: 0, y: 0 }, { r: 'v', s: 'stand', x: 6, y: 40, wide: 1, a: 'up' }],
@@ -129,12 +143,22 @@ const ACRO = [
 ];
 /* Position du voltigeur, déduite des postures des voltigeurs de la figure */
 const ACRO_VOL = { debout: 'Debout', horizontale: 'À l\'horizontale', semi: 'Semi-renversé', renverse: 'Renversé' };
-const ACRO_VOL_OF = { stand: 'debout', arab: 'debout', epaules: 'debout', genoux: 'debout', siege: 'debout', planche: 'horizontale', table: 'horizontale', dos: 'horizontale', brouette: 'semi', atr: 'renverse' };
+const ACRO_VOL_OF = { stand: 'debout', arab: 'debout', epaules: 'debout', genoux: 'debout', siege: 'debout', planche: 'horizontale', table: 'horizontale', dos: 'horizontale', brouette: 'semi', semi: 'semi', atr: 'renverse' };
 const acroVol = f => [...new Set(f.p.filter(q => q.r === 'v').map(q => ACRO_VOL_OF[q.s]).filter(Boolean))];
 const ACRO_POR = { horizontal: 'Horizontal (banc, dos)', assis: 'Assis', debout: 'Debout', trepied: 'Trépied' };
 const ACRO_EFF = { 2: 'Duo', 3: 'Trio', 4: 'Quatuor' };
 
-function acroBuild(f) { return f.p.map(q => ({ q, ...AC[q.s](q.x, q.y, q) })); }
+function acroBuild(f) {
+  const B = f.p.map(q => ({ q, ...AC[q.s](q.x, q.y, q) }));
+  B.forEach(b => {   // bras dirigés vers une prise : [x, y] ou { i: personne, j: articulation }
+    const g = b.q.grip; if (!g) return; const t = Array.isArray(g) ? g : B[g.i] && B[g.i] !== b && B[g.i].j[g.j]; if (!t) return;
+    const n = b.j.n, dx = t[0] - n[0], dy = t[1] - n[1], L = Math.hypot(dx, dy) || 1, bd = Math.max(2, 14 - L / 4), e = [(n[0] + t[0]) / 2 - dy / L * bd, (n[1] + t[1]) / 2 + dx / L * bd];
+    Object.assign(b.j, { e1: e, m1: [t[0] - 1, t[1]], e2: [e[0] + 2, e[1] - 1], m2: [t[0] + 1, t[1]] });
+  });
+  return B;
+}
+const acroAll = () => [...ACRO, ...((DB.acro && DB.acro.custom) || [])];
+const acroFind = id => acroAll().find(x => x.id === id);
 function acroAppuis(f) { return acroBuild(f).reduce((a, b) => a + (b.q.y === 0 || b.q.z ? b.sol : 0), 0); }
 function acroSVG(f, big) {
   const B = acroBuild(f), pts = B.flatMap(b => Object.values(b.j));
@@ -162,7 +186,7 @@ const acroIsSlides = u => /\.(pptx?|ppsx?|key|pdf|odp)(\?|#|$)/i.test(u || '') |
 const acroDriveId = u => ((/drive\.google\.com\/(?:file\/d\/|open\?id=|uc\?(?:.*&)?id=)([\w-]{10,})/.exec(u || '') || [])[1])
   || (/rtpof=true/.test(u || '') && (/docs\.google\.com\/(?:presentation|document|spreadsheets)\/d\/([\w-]{10,})/.exec(u) || [])[1]);   // fichier Office (pptx…) stocké dans Drive
 const acroGSlidesId = u => !acroDriveId(u) && (/docs\.google\.com\/presentation\/d\/([\w-]{10,})/.exec(u || '') || [])[1];   // vrai Google Slides
-const acroBtn = (u, long) => acroDriveId(u) ? (long ? '📂 Ouvrir le fichier de la liaison (Drive)' : '📂 Ouvrir') : acroIsSlides(u) ? (long ? '📊 Voir le diaporama de la liaison' : '📊 Diaporama') : (long ? '▶ Voir la vidéo de la liaison' : '▶ Vidéo');
+const acroBtn = (u, long) => acroDriveId(u) || acroIsSlides(u) ? (long ? '📊 Voir le diaporama de la liaison' : '📊 Diaporama') : (long ? '▶ Voir la vidéo de la liaison' : '▶ Vidéo');
 /* Vidéo d'une liaison : YouTube intégré, fichier vidéo lu dans l'app, sinon ouverture du lien */
 function acroVideo(li) {
   if (!li || !li.url) return;
@@ -170,10 +194,8 @@ function acroVideo(li) {
   const did = acroDriveId(u);
   if (did) {   // Fichier Google Drive : éviter l'ouverture forcée dans Google Slides (fichiers PowerPoint)
     const o = document.createElement('div'); o.style.cssText = 'position:fixed;inset:0;z-index:330;background:rgba(7,18,42,.8);display:grid;place-items:center;padding:16px';
-    o.innerHTML = `<div class="card" style="max-width:420px;width:100%"><h3 style="margin:0 0 4px">📂 ${esc(li.n)}</h3><p class="muted" style="margin:0 0 12px;font-size:.85rem">Fichier Google Drive</p>
-      <a class="btn btn-grad btn-block" style="text-decoration:none" href="https://drive.google.com/file/d/${did}/preview" target="_blank" rel="noopener">👁 Aperçu rapide</a>
-      <p class="muted" style="margin:4px 2px 12px;font-size:.78rem">Diapos affichées en images (sans animations) · vidéos lues directement.</p>
-      <a class="btn btn-ghost btn-block" style="text-decoration:none" href="https://drive.google.com/uc?export=download&id=${did}" target="_blank" rel="noopener">📥 Ouvrir dans PowerPoint / Keynote</a>
+    o.innerHTML = `<div class="card" style="max-width:420px;width:100%"><h3 style="margin:0 0 4px">📊 ${esc(li.n)}</h3><p class="muted" style="margin:0 0 12px;font-size:.85rem">Diaporama (Google Drive)</p>
+      <a class="btn btn-grad btn-block" style="text-decoration:none" href="https://drive.google.com/uc?export=download&id=${did}" target="_blank" rel="noopener">📥 Ouvrir dans PowerPoint / Keynote</a>
       <p class="muted" style="margin:4px 2px 12px;font-size:.78rem">Télécharge le fichier puis « Ouvrir dans… » : diaporama complet avec animations. Gros fichier : touchez « Télécharger quand même ».</p>
       <button class="btn btn-ghost btn-block" id="avx">✕ Fermer</button></div>`;
     o.onclick = e => { if (e.target === o || e.target.id === 'avx') o.remove(); }; document.body.appendChild(o); return;
@@ -195,6 +217,109 @@ function acroVideo(li) {
   o.querySelector('#avx').onclick = () => o.remove(); document.body.appendChild(o);
 }
 const acroZoom = src => { const o = document.createElement('div'); o.style.cssText = 'position:fixed;inset:0;z-index:320;background:rgba(0,0,0,.92);display:grid;place-items:center;padding:12px'; o.innerHTML = `<img src="${src}" style="max-width:100%;max-height:100%;object-fit:contain">`; o.onclick = () => o.remove(); document.body.appendChild(o); };
+
+/* ---------- Création de pyramide (éditeur glisser-déposer) ---------- */
+const ACRO_POSES = { stand: 'Debout', arab: 'Arabesque (1 pied)', genoux: 'À genoux', assis: 'Assis, jambes fléchies', siege: 'Assis sur un appui', trep: 'Trépied (chevalier)',
+  table: 'À 4 pattes (banc)', dos: 'Sur le dos, jambes en l\'air', planche: 'Planche (horizontal)', epaules: 'Sur les épaules (de face)', brouette: 'Brouette', semi: 'Semi-renversé (mains au sol)', atr: 'ATR (renversé)' };
+const ACRO_POSES_P = ['stand', 'trep', 'table', 'dos', 'assis', 'genoux'];
+const ACRO_POR_OF = { stand: 'debout', trep: 'trepied', table: 'horizontal', dos: 'horizontal', assis: 'assis', genoux: 'assis' };
+const ACRO_ARMS = { '': 'Auto', up: 'En l\'air', side: 'Écartés', front: 'Devant', upfront: 'Devant en haut', hold: 'Tenir (bas)', hip: 'Aux hanches' };
+const ACRO_GRIP_J = { f1: 'les chevilles', m1: 'les mains', p: 'le bassin', k1: 'les genoux', n: 'les épaules' };
+const acroLevels = p => { const ys = [...p.map(q => q.y)].sort((a, b) => a - b); let L = 0, last = -99; ys.forEach(y => { if (y > last + 20) { L++; last = y; } }); return Math.max(1, Math.min(3, L)); };
+
+function acroEditor(src, onSave) {
+  const F0 = src ? JSON.parse(JSON.stringify(src)) : { n: '', c: '', p: [{ r: 'p', s: 'table', x: 0, y: 0 }, { r: 'v', s: 'stand', x: 2, y: 35, a: 'up' }] };
+  const E = { n: F0.n || '', c: F0.c || '', p: F0.p.map(q => ({ ...q })) };
+  let sel = E.p.length - 1;
+  const X0 = -170, X1 = 170, YT = 230, SC = { x0: X0, W: X1 - X0, H: YT + 10 };
+  const o = document.createElement('div');
+  o.style.cssText = 'position:fixed;inset:0;z-index:320;background:var(--bg,#f3f6fc);overflow:auto;padding:14px';
+  document.body.appendChild(o);
+  const close = () => o.remove();
+  const T = ([x, y]) => [x - X0, YT - y];
+  const svg = () => { const B = acroBuild(E);
+    const order = B.map((b, i) => ({ b, i })).sort((a, c) => (c.b.q.z || 0) - (a.b.q.z || 0));
+    const g = ({ b, i }) => { const j = b.j, col = b.q.r === 'p' ? '#1E5BD8' : '#C9A227', op = b.q.z ? .45 : 1, L = (...k) => `<polyline points="${k.map(n => T(j[n]).map(v => v.toFixed(1)).join(',')).join(' ')}"/>`, h = T(j.h);
+      const pts = Object.values(j).map(T), bx = [Math.min(...pts.map(p => p[0])) - 8, Math.min(...pts.map(p => p[1])) - 8, Math.max(...pts.map(p => p[0])) + 8, Math.max(...pts.map(p => p[1])) + 8];
+      return `<g data-pi="${i}" style="cursor:grab">${i === sel ? `<rect x="${bx[0]}" y="${bx[1]}" width="${bx[2] - bx[0]}" height="${bx[3] - bx[1]}" rx="8" fill="rgba(30,91,216,.08)" stroke="#1E5BD8" stroke-dasharray="5 4" stroke-width="1.5"/>` : `<rect x="${bx[0]}" y="${bx[1]}" width="${bx[2] - bx[0]}" height="${bx[3] - bx[1]}" fill="transparent"/>`}
+        <g stroke="${col}" fill="none" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round" opacity="${op}">${L('m1', 'e1', 'n', 'e2', 'm2')}${L('f1', 'k1', 'p', 'k2', 'f2')}${L('n', 'p')}<circle cx="${h[0]}" cy="${h[1]}" r="7" fill="${col}" stroke="none"/></g>
+        <text x="${h[0]}" y="${h[1] - 11}" text-anchor="middle" font-size="11" font-weight="800" fill="${col}">${b.q.r === 'p' ? 'P' : 'V'}${E.p.filter((q, k) => q.r === b.q.r && k <= i).length}</text></g>`; };
+    return `<svg id="aed-svg" viewBox="0 0 ${SC.W} ${SC.H}" style="width:100%;max-height:52vh;background:var(--card);border-radius:14px;touch-action:none;user-select:none;-webkit-user-select:none">
+      <line x1="0" y1="${YT}" x2="${SC.W}" y2="${YT}" stroke="var(--line)" stroke-width="3"/>${order.map(g).join('')}</svg>`; };
+  const who = i => { const q = E.p[i]; return (q.r === 'p' ? 'Porteur ' : 'Voltigeur ') + E.p.filter((x, k) => x.r === q.r && k <= i).length; };
+  const draw = () => {
+    const q = E.p[sel], nP = E.p.filter(x => x.r === 'p').length, nV = E.p.length - nP, eff = E.p.length;
+    const poses = q ? (q.r === 'p' ? ACRO_POSES_P : Object.keys(ACRO_POSES)) : [];
+    o.innerHTML = `<div style="max-width:760px;margin:0 auto">
+      <div style="display:flex;align-items:center;gap:10px"><h3 style="flex:1;margin:0">${src && src.custom ? '✏️ Modifier la pyramide' : '✏️ Nouvelle pyramide'}</h3><button class="btn btn-ghost" id="aex">✕ Fermer</button></div>
+      <div class="card" style="margin-top:10px"><label style="margin-top:0">Nom</label><input id="aen" value="${esc(E.n)}" placeholder="ex : Le pont à deux chevaliers">
+        <label>Effectif</label><div class="tog">${[2, 3, 4].map(n => `<button data-eff="${n}" class="${eff === n ? 'on' : ''}">${ACRO_EFF[n]}</button>`).join('')}</div>
+        <p class="muted" style="margin:6px 0 0;font-size:.8rem">${nP} porteur${nP > 1 ? 's' : ''} · ${nV} voltigeur${nV > 1 ? 's' : ''} · ${acroLevels(E.p)} étage${acroLevels(E.p) > 1 ? 's' : ''} · ${acroAppuis(E)} appuis au sol</p></div>
+      <div style="margin-top:10px">${svg()}</div>
+      <p class="muted" style="margin:6px 2px 0;font-size:.8rem">Faites glisser un élève pour le placer. Touchez-le pour le régler. Près du sol, il se pose automatiquement.</p>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px">${E.p.map((x, i) => `<button class="btn ${i === sel ? 'btn-grad' : 'btn-ghost'}" style="padding:8px 12px;flex:0 0 auto;border-bottom:4px solid ${x.r === 'p' ? '#1E5BD8' : '#C9A227'}" data-sel="${i}">${who(i)}</button>`).join('')}</div>
+      ${q ? `<div class="card" style="margin-top:10px">
+        <div class="row"><div><label style="margin-top:0">Rôle</label><div class="tog"><button data-role="p" class="${q.r === 'p' ? 'on' : ''}">Porteur</button><button data-role="v" class="${q.r === 'v' ? 'on' : ''}">Voltigeur</button></div></div>
+          <div><label style="margin-top:0">Posture</label><select id="aes">${poses.map(k => `<option value="${k}" ${q.s === k ? 'selected' : ''}>${ACRO_POSES[k]}</option>`).join('')}</select></div></div>
+        ${q.s === 'semi' ? `<label>Inclinaison du corps : <b id="aeav">${q.ang == null ? 45 : q.ang}°</b> <span class="muted">(90° = ATR)</span></label><input type="range" id="aea" min="15" max="85" step="1" value="${q.ang == null ? 45 : q.ang}">` : ''}
+        <div class="row"><div><label>Bras</label><select id="aeb" ${q.grip ? 'disabled' : ''}>${Object.entries(ACRO_ARMS).map(([k, l]) => `<option value="${k}" ${(q.a || '') === k ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
+          <div><label>Tient…</label><select id="aeg"><option value="">— rien —</option>${E.p.map((x, i) => i === sel ? '' : Object.entries(ACRO_GRIP_J).map(([j, l]) => `<option value="${i}|${j}" ${q.grip && q.grip.i === i && q.grip.j === j ? 'selected' : ''}>${who(i)} : ${l}</option>`).join('')).join('')}</select></div></div>
+        <div class="row" style="margin-top:10px;flex-wrap:wrap">
+          <button class="btn btn-ghost" id="aem">⇆ Retourner</button>
+          <button class="btn ${q.z ? 'btn-grad' : 'btn-ghost'}" id="aez">${q.z ? '◐ Plan arrière' : '● Plan avant'}</button>
+          ${['semi', 'atr', 'stand'].includes(q.s) ? `<button class="btn ${q.split || q.wide ? 'btn-grad' : 'btn-ghost'}" id="aesp">↔ Jambes écartées</button>` : ''}</div>
+        <div style="display:flex;gap:6px;margin-top:10px;align-items:center;justify-content:center"><span class="muted" style="font-size:.8rem">Ajuster</span>
+          ${[['←', -2, 0], ['→', 2, 0], ['↑', 0, 2], ['↓', 0, -2]].map(([l, dx, dy]) => `<button class="btn btn-ghost" style="padding:8px 14px" data-nx="${dx}" data-ny="${dy}">${l}</button>`).join('')}
+          <button class="btn btn-ghost" style="padding:8px 12px" id="aedel" ${eff <= 2 ? 'disabled' : ''}>🗑</button></div></div>` : ''}
+      <div class="card" style="margin-top:10px"><label style="margin-top:0">Consigne de sécurité / réalisation</label><textarea id="aec" rows="2" placeholder="ex : Mains à l'aplomb des épaules, porteur dos droit.">${esc(E.c)}</textarea></div>
+      <div class="row" style="margin:12px 0 30px"><button class="btn btn-grad" id="aeok">💾 Enregistrer la pyramide</button><button class="btn btn-ghost" id="aeko">Annuler</button></div></div>`;
+    const $ = s => o.querySelector(s);
+    $('#aen').oninput = e => { E.n = e.target.value; };
+    $('#aec').oninput = e => { E.c = e.target.value; };
+    $('#aex').onclick = $('#aeko').onclick = () => { if (confirm('Fermer sans enregistrer ?')) close(); };
+    o.querySelectorAll('[data-eff]').forEach(b => b.onclick = () => { const n = +b.dataset.eff;
+      while (E.p.length > n) { const i = E.p.length - 1; E.p.pop(); E.p.forEach(x => { if (x.grip && x.grip.i >= i) delete x.grip; }); }
+      while (E.p.length < n) E.p.push({ r: 'v', s: 'stand', x: -60 + 45 * E.p.length, y: 0, a: 'side' });
+      sel = Math.min(sel, E.p.length - 1); draw(); });
+    o.querySelectorAll('[data-sel]').forEach(b => b.onclick = () => { sel = +b.dataset.sel; draw(); });
+    if (q) {
+      o.querySelectorAll('[data-role]').forEach(b => b.onclick = () => { q.r = b.dataset.role; if (q.r === 'p' && !ACRO_POSES_P.includes(q.s)) q.s = 'table'; draw(); });
+      $('#aes').onchange = e => { q.s = e.target.value; if (q.s === 'semi' && q.ang == null) q.ang = 45; draw(); };
+      if ($('#aea')) $('#aea').oninput = e => { q.ang = +e.target.value; $('#aeav').textContent = q.ang + '°'; redrawSvg(); };
+      $('#aeb').onchange = e => { if (e.target.value) q.a = e.target.value; else delete q.a; draw(); };
+      $('#aeg').onchange = e => { const v = e.target.value; if (v) { const [i, j] = v.split('|'); q.grip = { i: +i, j }; } else delete q.grip; draw(); };
+      $('#aem').onclick = () => { q.m = (q.m || 1) === 1 ? -1 : 1; draw(); };
+      $('#aez').onclick = () => { if (q.z) delete q.z; else q.z = 1; draw(); };
+      if ($('#aesp')) $('#aesp').onclick = () => { const k = q.s === 'stand' ? 'wide' : 'split'; if (q[k]) delete q[k]; else q[k] = 1; draw(); };
+      o.querySelectorAll('[data-nx]').forEach(b => b.onclick = () => { q.x = Math.max(X0 + 20, Math.min(X1 - 20, q.x + +b.dataset.nx)); q.y = Math.max(0, q.y + +b.dataset.ny); redrawSvg(); });
+      $('#aedel').onclick = () => { if (E.p.length <= 2) return; E.p.splice(sel, 1); E.p.forEach(x => { if (x.grip) { if (x.grip.i === sel) delete x.grip; else if (x.grip.i > sel) x.grip.i--; } }); sel = Math.max(0, sel - 1); draw(); };
+    }
+    $('#aeok').onclick = () => {
+      const n = E.n.trim(); if (!n) { toast('Donnez un nom à la pyramide'); $('#aen').focus(); return; }
+      const por = [...new Set(E.p.filter(x => x.r === 'p').map(x => ACRO_POR_OF[x.s]).filter(Boolean))];
+      if (!por.length) return toast('Il faut au moins un porteur');
+      if (!E.p.some(x => x.r === 'v')) return toast('Il faut au moins un voltigeur');
+      const fig = { id: src && src.custom ? src.id : 'c' + Date.now().toString(36), n, eff: E.p.length, por, h: acroLevels(E.p), p: E.p.map(x => ({ ...x, x: Math.round(x.x), y: Math.round(x.y) })), c: E.c.trim() || '—', custom: 1 };
+      close(); onSave(fig);
+    };
+    bindDrag();
+  };
+  const redrawSvg = () => { const w = o.querySelector('#aed-svg'); if (!w) return; w.outerHTML = svg(); bindDrag(); };
+  function bindDrag() {
+    const sv = o.querySelector('#aed-svg'); if (!sv) return;
+    const pt = e => { const r = (o.querySelector('#aed-svg') || sv).getBoundingClientRect(); return [(e.clientX - r.left) / r.width * SC.W, (e.clientY - r.top) / r.height * SC.H]; };
+    sv.querySelectorAll('[data-pi]').forEach(gEl => gEl.onpointerdown = e => {
+      e.preventDefault(); const i = +gEl.dataset.pi, q = E.p[i], s0 = pt(e), x0 = q.x, y0 = q.y; let moved = false;
+      if (sel !== i) { sel = i; }
+      const mv = ev => { const p = pt(ev), dx = p[0] - s0[0], dy = s0[1] - p[1]; if (Math.abs(dx) + Math.abs(dy) > 2) moved = true;
+        q.x = Math.max(X0 + 20, Math.min(X1 - 20, x0 + dx)); let ny = Math.max(0, y0 + dy); if (ny < 8) ny = 0; q.y = ny;
+        const w = o.querySelector('#aed-svg'); if (w) { w.outerHTML = svg(); } };
+      const up = () => { window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', up); q.x = Math.round(q.x); q.y = Math.round(q.y); draw(); };
+      window.addEventListener('pointermove', mv); window.addEventListener('pointerup', up); window.addEventListener('pointercancel', up);
+    });
+  }
+  draw();
+}
 
 TOOL_IMPL.acrosport = function (el) {
   DB.acro = DB.acro || { groupes: {} };
@@ -263,9 +388,9 @@ TOOL_IMPL.acrosport = function (el) {
   /* ---------- Banque de pyramides ---------- */
   const chips = (key, opts) => `<div class="tog">${opts.map(([v, l]) => `<button data-f="${key}" data-v="${v}" class="${String(F[key]) === String(v) ? 'on' : ''}">${l}</button>`).join('')}</div>`;
   function tabBanque(box) {
-    const list = ACRO.filter(f => (+F.eff === 0 || f.eff === +F.eff) && (!F.por || f.por.includes(F.por)) && (!F.vol || acroVol(f).includes(F.vol)) && (+F.h === 0 || f.h === +F.h) && appOk(acroAppuis(f), F.app));
+    const list = acroAll().filter(f => (+F.eff === 0 || f.eff === +F.eff) && (!F.por || f.por.includes(F.por)) && (!F.vol || acroVol(f).includes(F.vol)) && (+F.h === 0 || f.h === +F.h) && appOk(acroAppuis(f), F.app));
     const g = G();
-    box.innerHTML = `<div class="card">
+    box.innerHTML = `<button class="btn btn-grad btn-block" id="acnew" style="margin-bottom:12px">✏️ Créer une pyramide</button><div class="card">
         <label style="margin-top:0">Effectif</label>${chips('eff', [[0, 'Tous'], [2, 'Duo'], [3, 'Trio'], [4, 'Quatuor']])}
         <label>Position des porteurs</label>${chips('por', [['', 'Toutes'], ...Object.entries(ACRO_POR)])}
         <label>Position du voltigeur</label>${chips('vol', [['', 'Toutes'], ...Object.entries(ACRO_VOL)])}
@@ -274,13 +399,16 @@ TOOL_IMPL.acrosport = function (el) {
       <div class="section-title"><h2>${list.length} pyramide${list.length > 1 ? 's' : ''}</h2><span class="muted" style="font-size:.8rem"><b style="color:#1E5BD8">●</b> porteur · <b style="color:#C9A227">●</b> voltigeur</span></div>
       ${g ? `<p class="muted" style="margin:-4px 0 8px;font-size:.82rem">Touchez ＋ pour ajouter une pyramide à l'enchaînement de <b>${esc(g.name)}</b>.</p>` : ''}
       <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px">${list.map(f => `<div class="card" style="padding:10px;border:1.5px solid var(--line);position:relative">
-          <button data-id="${f.id}" style="all:unset;display:block;cursor:pointer;width:100%">${acroSVG(f)}<b style="display:block;margin-top:6px">${esc(f.n)}</b>
+          <button data-id="${f.id}" style="all:unset;display:block;cursor:pointer;width:100%">${acroSVG(f)}<b style="display:block;margin-top:6px">${f.custom ? '✏️ ' : ''}${esc(f.n)}</b>
           <span class="muted" style="font-size:.75rem">${ACRO_EFF[f.eff]} · ${f.h} étage${f.h > 1 ? 's' : ''} · ${acroAppuis(f)} appuis<br>Voltigeur : ${acroVol(f).map(v => ACRO_VOL[v]).join(', ')}</span></button>
           ${g ? `<button class="btn btn-grad" data-add="${f.id}" style="position:absolute;top:6px;right:6px;padding:4px 10px">＋</button>` : ''}</div>`).join('') || '<div class="card empty" style="grid-column:1/-1">Aucune pyramide avec ces critères.</div>'}</div>`;
     box.querySelectorAll('[data-f]').forEach(b => b.onclick = () => { F[b.dataset.f] = b.dataset.v; save(); tabBanque(box); });
-    box.querySelectorAll('[data-id]').forEach(b => b.onclick = () => detail(ACRO.find(f => f.id === b.dataset.id)));
+    box.querySelectorAll('[data-id]').forEach(b => b.onclick = () => detail(acroFind(b.dataset.id)));
     box.querySelectorAll('[data-add]').forEach(b => b.onclick = () => addFig(b.dataset.add));
+    box.querySelector('#acnew').onclick = () => acroEditor(null, saveCustom);
   }
+  const saveCustom = fig => { A.custom = A.custom || []; const i = A.custom.findIndex(x => x.id === fig.id); if (i >= 0) A.custom[i] = fig; else A.custom.push(fig);
+    save(); toast('Pyramide enregistrée ✔'); frame(); };
   const addFig = id => { const g = G(); if (!g) return; g.seq.push({ k: Date.now().toString(36), t: 'fig', fig: id }); save(); toast(`Ajoutée à ${g.name} (${g.seq.length}) ✔`); frame(); };
   const detail = f => {
     const o = document.createElement('div'), g = G();
@@ -294,8 +422,12 @@ TOOL_IMPL.acrosport = function (el) {
         <p style="margin:4px 0"><b>Voltigeur${acroVol(f).length > 1 ? 's' : ''} :</b> ${acroVol(f).map(v => ACRO_VOL[v]).join(', ')}</p>
         <p style="margin:4px 0"><b>Consigne :</b> ${esc(f.c)}</p>
         ${g ? `<button class="btn btn-grad btn-block" style="margin-top:12px" id="acadd">＋ Ajouter à l'enchaînement de ${esc(g.name)}</button>` : ''}
+        <div class="row" style="margin-top:8px">${f.custom ? '<button class="btn btn-ghost" id="aced">✏️ Modifier</button><button class="btn btn-ghost" id="acdel">🗑 Supprimer</button>' : '<button class="btn btn-ghost" id="accp">✏️ Copier et modifier</button>'}</div>
         <button class="btn btn-ghost btn-block" style="margin-top:8px" id="acx">Fermer</button></div>`;
-    o.onclick = e => { if (e.target === o || e.target.id === 'acx') o.remove(); if (e.target.id === 'acadd') { o.remove(); addFig(f.id); } };
+    o.onclick = e => { const id = e.target.id; if (e.target === o || id === 'acx') o.remove(); if (id === 'acadd') { o.remove(); addFig(f.id); }
+      if (id === 'aced') { o.remove(); acroEditor(f, saveCustom); }
+      if (id === 'accp') { o.remove(); acroEditor({ ...JSON.parse(JSON.stringify(f)), n: f.n + ' (variante)', custom: 0 }, saveCustom); }
+      if (id === 'acdel' && confirm(`Supprimer « ${f.n} » ?`)) { o.remove(); A.custom = (A.custom || []).filter(x => x.id !== f.id); save(); toast('Pyramide supprimée'); frame(); } };
     document.body.appendChild(o);
   };
 
@@ -339,7 +471,7 @@ TOOL_IMPL.acrosport = function (el) {
         <label class="btn btn-ghost" style="display:block;text-align:center;cursor:pointer;margin:0">📷 Ajouter une photo<input id="aph" type="file" accept="image/*" capture="environment" style="display:none"></label></div>
       ${g.seq.length ? `<button class="btn btn-grad btn-block" style="margin-top:10px" id="aplay">▶ Présenter l'enchaînement</button>` : ''}
       <div class="section-title"><h2>Enchaînement (${g.seq.length})</h2>${g.seq.length ? '<button class="link" id="aclr">🗑 Vider l\'enchaînement</button>' : ''}</div>
-      ${g.seq.length ? `<div style="display:flex;flex-direction:column;gap:10px">${g.seq.map((it, k) => { const f = it.t === 'fig' ? ACRO.find(x => x.id === it.fig) : null, img = it.img ? DB[acroImgKey(it.img)] : null, li = it.t === 'liaison' ? A.liaisons.find(x => x.id === it.lid) : null;
+      ${g.seq.length ? `<div style="display:flex;flex-direction:column;gap:10px">${g.seq.map((it, k) => { const f = it.t === 'fig' ? acroFind(it.fig) : null, img = it.img ? DB[acroImgKey(it.img)] : null, li = it.t === 'liaison' ? A.liaisons.find(x => x.id === it.lid) : null;
         if (it.t === 'liaison') return `<div class="card" style="padding:10px;display:flex;gap:10px;align-items:center;border-left:5px solid var(--gold)">
           <div style="flex:0 0 30px;height:30px;border-radius:50%;background:var(--grad);color:#fff;display:grid;place-items:center;font-weight:900">${k + 1}</div>
           <div style="flex:1;min-width:0"><b>🔗 ${li ? esc(li.n) : 'Liaison supprimée'}</b><div class="muted" style="font-size:.78rem">Liaison dynamique</div></div>
@@ -373,7 +505,7 @@ TOOL_IMPL.acrosport = function (el) {
   function present(g) {
     let k = 0; const o = document.createElement('div');
     o.style.cssText = 'position:fixed;inset:0;z-index:310;background:var(--bg,#fff);display:flex;flex-direction:column;padding:16px';
-    const show = () => { const it = g.seq[k], f = it.t === 'fig' ? ACRO.find(x => x.id === it.fig) : null, img = it.img ? DB[acroImgKey(it.img)] : null, li = it.t === 'liaison' ? A.liaisons.find(x => x.id === it.lid) : null;
+    const show = () => { const it = g.seq[k], f = it.t === 'fig' ? acroFind(it.fig) : null, img = it.img ? DB[acroImgKey(it.img)] : null, li = it.t === 'liaison' ? A.liaisons.find(x => x.id === it.lid) : null;
       o.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center"><b>${esc(g.name)} · ${k + 1} / ${g.seq.length}</b><button class="btn btn-ghost" id="pq">✕ Fermer</button></div>
         <h3 style="text-align:center;margin:10px 0">${f ? esc(f.n) : li ? '🔗 ' + esc(li.n) : 'Figure ' + (k + 1)}</h3>
         ${li ? `<div style="text-align:center">${li.d ? `<p class="muted">${esc(li.d)}</p>` : ''}${li.url ? `<button class="btn btn-grad" id="pv">${acroBtn(li.url, true)}</button>` : ''}</div>` : ''}

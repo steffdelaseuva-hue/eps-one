@@ -269,6 +269,7 @@ const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'
    ready:true = fonctionnel ; sinon badge "Bientôt"
    ========================================================= */
 const CATS=[
+  {id:'cross',  name:'Cross du collège', desc:'Dossards QR, scan à l\'arrivée, classements', tool:'cross'},
   {id:'perf',   name:'Activités de performance', desc:'Athlétisme, natation, musculation'},
   {id:'art',    name:'Activités gymniques & artistiques', desc:'Parkour, acrosport · gym, cirque, danse à venir'},
   {id:'duel',   name:'Activités de duel', desc:'Sports collectifs, raquettes, combats'},
@@ -286,7 +287,7 @@ const TOOLS=[
   {id:'combine',  cat:'perf', name:'Combiné athlétique', desc:'Duathlon / triathlon · course, saut, lancer', ready:true},
   {id:'duathlon', cat:'perf', name:'Duathlon athlétique', desc:'Course + lancers · 3 étapes · pénalités', ready:true},
   {id:'relais',   cat:'perf',name:'Relais',             desc:'Gestion des relais', ready:true},
-  {id:'cross',    cat:'perf', name:'Cross du collège',   desc:'Courses, dossards QR, scan à l\'arrivée, classements', ready:true},
+  {id:'cross',    cat:'cross', name:'Cross du collège',   desc:'Courses, dossards QR, scan à l\'arrivée, classements', ready:true},
   {id:'wod',      cat:'perf', name:'Crosstraining / HYROX', desc:'Blocs, exercices N1-N4, run, time cap', ready:true},
   {id:'hiit',     cat:'perf', name:'Timer HIIT / Tabata',desc:'Travail / repos / séries + bips', ready:true},
   {id:'rm',       cat:'perf', name:'Calcul 1RM',         desc:'Charge max + % de travail', ready:true},
@@ -345,7 +346,7 @@ function renderHome(){
   document.getElementById('fav-grid').innerHTML=f.length?f.map(toolCard).join(''):'<div class="empty card" style="grid-column:1/-1">Touchez ☆ sur un outil pour l\'ajouter ici.</div>';
   const r=DB.recent.map(T).filter(Boolean).slice(0,4);
   document.getElementById('recent-grid').innerHTML=r.length?r.map(toolCard).join(''):'<div class="empty card" style="grid-column:1/-1">Aucun outil utilisé pour l\'instant.</div>';
-  document.getElementById('domains').innerHTML=CATS.map(c=>`<button class="domain" onclick="currentCat='${c.id}';go('outils')"><span class="em">${ico('cat-'+c.id)}</span><b>${c.name}</b><small>${c.desc}</small></button>`).join('');
+  document.getElementById('domains').innerHTML=CATS.map(c=>`<button class="domain" onclick="${c.tool?`openTool('${c.tool}')`:`currentCat='${c.id}';go('outils')`}"><span class="em">${ico('cat-'+c.id)}</span><b>${c.name}</b><small>${c.desc}</small></button>`).join('');
 }
 function renderTools(){
   const q=document.getElementById('search').value.trim().toLowerCase();
