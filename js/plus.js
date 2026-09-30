@@ -4,9 +4,12 @@
    ========================================================= */
 /* Page Ko-fi : laisser vide tant qu'elle n'existe pas (le bouton est alors masqué) */
 const KOFI_URL = 'https://ko-fi.com/epsone';
-const APP_VERSION = '12.0';
+const APP_VERSION = '12.3';
 const APP_URL = 'https://steffdelaseuva-hue.github.io/eps-one/';
 const CHANGELOG = [
+  { v: '12.3', items: ['Relais : réglage par défaut 3 × 40 m (schéma et tableau des plots)'] },
+  { v: '12.2', items: ['Nouvel outil Tests 6e : endurance (Luc Léger, lien Test VMA), force (saut pieds joints), vitesse (30 m) + tests optionnels équilibre, coordination, souplesse, endurance musculaire ; sessions début/fin d\'année et progression','Combiné (duathlon / triathlon) : plusieurs courses (ex. 4 × 3 min) avec récup, projet de course par élève (vitesse, distance ou temps), écart projet / réalisé dans le Bilan ; sauts et lancers sans ET avec élan avec le gain en m et %','Relais : zones de transmission (20 m) et d\'élan (10 m) réglables, schéma et position des plots','Résultats des élèves / collectifs : suppression de plusieurs élèves ou lignes à la fois','Accueil : bouton « ❓ Comment ça marche ? »'] },
+  { v: '12.1', items: ['Vidéo différée et Photo-finish : ✏️ dessiner sur l\'image — main levée, trait, flèche, point, cercle, rectangle, angle mesuré en degrés, texte ; couleurs, épaisseur, annuler, effacer, 📸 capture en image'] },
   { v: '12.0', items: ['Tirage au sort : roue qui tourne aux couleurs de l\'app, prénoms des élèves, tic-tic sonore, gagnant en grand avec confettis, sans remise ; « Tirage rapide » toujours disponible'] },
   { v: '11.9', items: ['Crosstraining / HYROX : RUN en tours ou allers-retours → une case à cocher par course (ex. 4 tours = 4 cases), à cocher par le groupe ou par chaque élève (duo/trio/quatuor)'] },
   { v: '11.8', items: ['☕ Soutenir EPS ONE : bouton Ko-fi dans Plus → Aide & infos (facultatif)'] },
@@ -383,3 +386,19 @@ const renderPlusYear = renderPlus;
 const _renderHome = renderHome;
 renderHome = function () { _renderHome(); renderPlus(); };
 renderHome();
+
+
+/* ---------- « Comment ça marche ? » (accueil) ---------- */
+window.openHowTo = () => openPanel('Comment ça marche ?', el => {
+  const step = (n, t, d, btn) => `<div class="card" style="display:flex;gap:14px;align-items:flex-start;margin-top:12px">
+      <div style="flex:0 0 38px;height:38px;border-radius:50%;background:var(--grad);color:#fff;display:grid;place-items:center;font-weight:900;font-size:1.1rem">${n}</div>
+      <div style="flex:1;min-width:0"><b style="font-size:1.05rem">${t}</b><p class="muted" style="margin:4px 0 0;line-height:1.45">${d}</p>${btn || ''}</div></div>`;
+  const b = (label, fn) => `<button class="btn btn-ghost" style="margin-top:10px" onclick="${fn}">${label}</button>`;
+  el.innerHTML = `<p style="margin:0 0 4px;line-height:1.5">EPS ONE réunit vos outils de cours dans une seule app, <b>sans compte obligatoire</b> et <b>sans publicité</b>. En 5 étapes :</p>
+    ${step(1, '📥 Importez ou créez vos classes', 'Fichier Pronote / ENT (CSV ou Excel) ou saisie à la main. Rangez-les en <b>classes EPS</b>, <b>UNSS / AS</b> ou <b>autres classes</b> (cross).', b('📥 Mes classes', "openImportClasses()"))}
+    ${step(2, '🧰 Utilisez les outils', 'Chronos, matchs, cross, HYROX, acrosport, gym, demi-fond… Vos classes sont déjà dedans : choisissez la classe, les élèves et les groupes apparaissent.', b('Ouvrir les OUTILS →', "closeTool();go('outils')"))}
+    ${step(3, '📶 Hors ligne ou en synchro entre tablettes', 'Sans réseau, tout fonctionne et reste sur l\'appareil. Avec la synchronisation (votre cloud ou un compte EPS ONE), chaque groupe peut avoir sa tablette et les résultats arrivent en direct sur la vôtre.', b('🔄 Synchronisation', "openSync()"))}
+    ${step(4, '🔒 Confiez les tablettes aux élèves', 'Créez votre <b>code enseignant</b> : les élèves utilisent les outils (chronos, coches, projets…) mais ne peuvent pas modifier vos réglages. Le bouton 🔒/🔓 en haut verrouille avant de passer la tablette.', b('🔒 Code enseignant', "openProfPin()"))}
+    ${step(5, '📊 Retrouvez les résultats', 'Les résultats de chaque outil arrivent dans <b>Résultats des élèves</b> (individuel) et <b>Résultats collectifs</b> (groupes, tournois), exportables en CSV.', b('📊 Résultats des élèves', "openTool('resultats')"))}
+    <p class="muted" style="margin:14px 2px 0;font-size:.85rem">Astuce : installez l'app sur l'écran d'accueil (Plus → Installer l'application) et ajoutez vos outils préférés en ☆ favoris.</p>`;
+});

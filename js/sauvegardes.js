@@ -65,22 +65,57 @@ hook('chronos12', el => { const bar = el.querySelector('.chronos-bar'); if (!bar
 const TOOL_NAMES = () => Object.fromEntries(TOOLS.map(t => [t.id, t.name]));
 TOOL_IMPL.resultats = function (el) {
   if (!DB.classes.length) { el.innerHTML = noClassMsg; return; }
-  let cls = lastClass(), who = '';
+  // multi : mode « sélection multiple » (enseignant) · sel : résultats cochés (objets de DB.resultats)
+  let cls = lastClass(), who = '', multi = false, sel = new Set();
+  if (!document.getElementById('rs-css')) document.head.insertAdjacentHTML('beforeend', `<style id="rs-css">
+.rs-bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:10px}
+.rs-bar .btn{padding:9px 12px}
+.rs-st{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.rs-st label{display:inline-flex;align-items:center;gap:6px;margin:0;padding:7px 10px;border:1.5px solid var(--line);border-radius:99px;font-weight:700;font-size:.88rem;cursor:pointer;color:var(--text);max-width:100%}
+.rs-st label.on{border-color:var(--blue);background:color-mix(in srgb,var(--blue) 12%,transparent)}
+.rs-st input,.rs-ck{width:20px;height:20px;margin:0;flex:0 0 auto;accent-color:var(--blue)}
+.rs-st small{color:var(--muted);font-weight:600}
+</style>`);
   const draw = () => {
     const names = TOOL_NAMES(), st = studentsOf(cls);
     const rows = DB.resultats.map((r, i) => ({ ...r, i })).filter(r => r.classe === cls && (!who || r.eleve === who)).reverse();
+    const obj = r => DB.resultats[r.i];
+    sel = new Set(rows.map(obj).filter(o => sel.has(o)));        // la sélection ne garde que les lignes affichées
+    const pupils = [...new Set(rows.map(r => r.eleve))].sort((a, b) => (st.indexOf(a) + 1 || 1e6) - (st.indexOf(b) + 1 || 1e6) || String(a).localeCompare(b, 'fr'));
     el.innerHTML = `<div style="text-align:right;margin:-4px 2px 8px"><button class="link" id="coll">👥 Voir les résultats collectifs</button></div>
       <div class="card"><div class="row"><div><label>Classe</label><select id="rc">${DB.classes.map(c => `<option ${c.name === cls ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</select></div>
         <div><label>Élève</label><select id="re"><option value="">Tous</option>${st.map(n => `<option ${n === who ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select></div></div></div>
-      <div class="section-title"><h2>Résultats enregistrés (${rows.length})</h2><button class="link" id="exp">Exporter CSV</button></div>
-      <div class="card sheet-table">${rows.length ? `<table><tr><th>Date</th><th>Élève</th><th>Outil</th><th>Résultat</th><th>Détail</th><th></th></tr>
-        ${rows.map(r => `<tr><td>${new Date(r.date).toLocaleDateString('fr-FR')}</td><td><b>${esc(r.eleve)}</b></td><td>${esc(names[r.tool] || r.tool)}</td><td><b>${esc(r.valeur)}</b></td><td class="muted">${esc(r.detail || '')}</td><td><button class="btn btn-ghost" style="padding:4px 8px" data-x="${r.i}" data-cfg="bare">✕</button></td></tr>`).join('')}</table>`
+      <div class="section-title"><h2>Résultats enregistrés (${rows.length})</h2><span style="display:flex;gap:14px;flex-wrap:wrap;justify-content:flex-end">${rows.length ? `<button class="link" id="rs-multi" data-cfg="bare">${multi ? '✕ Fermer la sélection' : '☑️ Sélection multiple'}</button>` : ''}<button class="link" id="exp">Exporter CSV</button></span></div>
+      ${multi && rows.length ? `<div class="card" id="rs-sel" data-cfg="bare"><b>☑️ Sélection multiple</b><div class="muted" style="font-size:.8rem;margin-top:2px">Cochez des élèves (tous leurs résultats affichés) ou des lignes du tableau.</div>
+        <div class="rs-st">${pupils.map((n, k) => `<label data-pl="${k}"><input type="checkbox" data-p="${k}"><span>${esc(n)}</span><small>${rows.filter(r => r.eleve === n).length}</small></label>`).join('')}</div>
+        <div class="rs-bar"><button class="btn btn-ghost" id="rs-all">Tout cocher</button><button class="btn btn-danger" id="rs-del" disabled>🗑 Supprimer la sélection</button></div></div>` : ''}
+      <div class="card sheet-table">${rows.length ? `<table><tr>${multi ? '<th></th>' : ''}<th>Date</th><th>Élève</th><th>Outil</th><th>Résultat</th><th>Détail</th><th></th></tr>
+        ${rows.map((r, k) => `<tr>${multi ? `<td><input type="checkbox" class="rs-ck" data-cfg="bare" data-k="${k}" aria-label="Sélectionner"></td>` : ''}<td>${new Date(r.date).toLocaleDateString('fr-FR')}</td><td><b>${esc(r.eleve)}</b></td><td>${esc(names[r.tool] || r.tool)}</td><td><b>${esc(r.valeur)}</b></td><td class="muted">${esc(r.detail || '')}</td><td><button class="btn btn-ghost" style="padding:4px 8px" data-x="${r.i}" data-cfg="bare">✕</button></td></tr>`).join('')}</table>`
         : '<div class="empty">Aucun résultat. Utilisez la carte « 💾 Enregistrer » en bas des outils (chronomètre, multi-chrono, Test VMA, 1RM…).<br><br>Les résultats d\'équipes (tournois, matchs, relais, groupes HYROX, CO, duathlon…) sont dans <button class="link" data-coll>👥 Résultats collectifs</button>.</div>'}</div>`;
     const $ = s => el.querySelector(s);
     $('#rc').onchange = () => { cls = $('#rc').value; DB.lastClass = cls; who = ''; save(); draw(); };
     $('#re').onchange = () => { who = $('#re').value; draw(); };
     el.querySelectorAll('#coll,[data-coll]').forEach(b => b.onclick = () => openTool('collectifs'));
     el.querySelectorAll('[data-x]').forEach(b => b.onclick = () => { if (confirm('Supprimer ce résultat ?')) { DB.resultats.splice(+b.dataset.x, 1); save(); draw(); } });
+    if ($('#rs-multi')) $('#rs-multi').onclick = () => { multi = !multi; sel.clear(); draw(); };
+    if (multi && $('#rs-sel')) {
+      const of = n => rows.filter(r => r.eleve === n).map(obj);
+      const upd = () => {   // état des cases sans tout redessiner (garde le défilement)
+        el.querySelectorAll('[data-k]').forEach(c => { c.checked = sel.has(obj(rows[+c.dataset.k])); });
+        el.querySelectorAll('[data-p]').forEach(c => { const L = of(pupils[+c.dataset.p]), n = L.filter(o => sel.has(o)).length;
+          c.checked = n > 0 && n === L.length; c.indeterminate = n > 0 && n < L.length; c.closest('label').classList.toggle('on', n > 0); });
+        const n = sel.size, k = new Set(rows.filter(r => sel.has(obj(r))).map(r => r.eleve)).size;
+        $('#rs-del').disabled = !n; $('#rs-del').textContent = n ? `🗑 Supprimer la sélection (${n} résultat${n > 1 ? 's' : ''} · ${k} élève${k > 1 ? 's' : ''})` : '🗑 Supprimer la sélection';
+        $('#rs-all').textContent = n === rows.length ? 'Tout décocher' : 'Tout cocher'; };
+      el.querySelectorAll('[data-k]').forEach(c => c.onchange = () => { const o = obj(rows[+c.dataset.k]); c.checked ? sel.add(o) : sel.delete(o); upd(); });
+      el.querySelectorAll('[data-p]').forEach(c => c.onchange = () => { const L = of(pupils[+c.dataset.p]); L.forEach(o => c.checked ? sel.add(o) : sel.delete(o)); upd(); });
+      $('#rs-all').onclick = () => { if (sel.size === rows.length) sel.clear(); else rows.forEach(r => sel.add(obj(r))); upd(); };
+      $('#rs-del').onclick = () => { const n = sel.size; if (!n) return; const k = new Set(rows.filter(r => sel.has(obj(r))).map(r => r.eleve)).size;
+        if (!confirm(`Supprimer ${n} résultat${n > 1 ? 's' : ''} de ${k} élève${k > 1 ? "s" : ""} (${cls}) ?\nCette suppression est définitive, sur toutes les tablettes synchronisées.`)) return;
+        for (let i = DB.resultats.length - 1; i >= 0; i--) if (sel.has(DB.resultats[i])) DB.resultats.splice(i, 1);
+        sel.clear(); multi = false; save(); window.syncFlush && window.syncFlush(); toast(`${n} résultat${n > 1 ? 's' : ''} supprimé${n > 1 ? 's' : ''}`); draw(); };
+      upd();
+    }
     $('#exp').onclick = () => { if (!rows.length) return toast('Rien à exporter');
       download(`resultats-${cls}${who ? '-' + who : ''}.csv`, csv([['Date', 'Classe', 'Élève', 'Outil', 'Résultat', 'Détail'], ...rows.slice().reverse().map(r => [new Date(r.date).toLocaleDateString('fr-FR'), r.classe, r.eleve, names[r.tool] || r.tool, r.valeur, r.detail || ''])])); };
   };

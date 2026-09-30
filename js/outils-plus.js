@@ -379,36 +379,70 @@ relais(el) {
 .gv-in{width:84px;padding:12px 6px;text-align:center;font-size:1.3rem;font-weight:800}
 .gv-big{font-size:1.2rem;padding:16px;margin-top:12px}
 </style>`);
+  // Zones : transmission (centrée sur la ligne de relais) + élan (juste avant). Dernières valeurs gardées sur l'appareil.
+  const ZD = { zt: 20, ze: 10 }, ZI = { ...ZD, ...(TB().relaisZones || {}) };
+  const zNum = (v, d) => { const x = parseFloat(String(v ?? '').replace(',', '.')); return isFinite(x) && x >= 0 ? x : d; };
+  const zOf = r => ({ zt: zNum(r && r.zt, ZD.zt) || ZD.zt, ze: zNum(r && r.ze, ZD.ze) });   // anciennes courses : valeurs par défaut
+  const mF = x => (Math.round(x * 10) / 10).toString().replace('.', ',');
   el.innerHTML = `<div class="card" id="setup" data-cfg>
     <label>Équipes (une par ligne)</label><textarea id="tl" style="min-height:100px">Équipe 1\nÉquipe 2\nÉquipe 3\nÉquipe 4</textarea>
-    <div class="row"><div><label>Relayeurs / fractions par équipe</label><input id="lg" type="number" value="4" min="1" max="20"></div><div><label>Distance d'une fraction (m, optionnel)</label><input id="ds" type="number" placeholder="ex : 100"></div></div>
+    <div class="row"><div><label>Relayeurs / fractions par équipe</label><input id="lg" type="number" value="3" min="1" max="20"></div><div><label>Distance d'une fraction (m, optionnel)</label><input id="ds" type="number" value="40" placeholder="ex : 40"></div></div>
+    <div class="row"><div><label>Zone de transmission (m)</label><input id="zt" type="number" value="${ZI.zt}" min="1" max="100" step="any"></div><div><label>Zone d'élan (m)</label><input id="ze" type="number" value="${ZI.ze}" min="0" max="100" step="any"></div></div>
+    <div id="zprev"></div>
     <button class="btn btn-grad btn-block" style="margin-top:12px" id="gen">🔄 Préparer la course</button></div>
     <div id="race" style="display:none">
-      <div class="card"><div class="big clock" id="tm">00:00,00</div><div class="row"><button class="btn btn-grad" id="go">🔫 Départ</button><button class="btn btn-ghost" id="exp">📤 Résultats</button><button class="btn btn-ghost" id="new" data-cfg="bare">↺ Nouvelle</button></div>
+      <div class="card"><div id="zhd"></div><div class="big clock" id="tm">00:00,00</div><div class="row"><button class="btn btn-grad" id="go">🔫 Départ</button><button class="btn btn-ghost" id="exp">📤 Résultats</button><button class="btn btn-ghost" id="new" data-cfg="bare">↺ Nouvelle</button></div>
         <button class="btn btn-ghost btn-block" style="margin-top:8px" id="sv">💾 Enregistrer la course</button><div id="onw"></div></div>
       <div class="relay-grid" id="rg"></div></div>
     <div id="gv" style="display:none"></div>
     <div id="hist"></div>`;
-  const $ = s => el.querySelector(s); let legs = 4, dist = 0;
+  const $ = s => el.querySelector(s); let legs = 3, dist = 40, zt = ZI.zt, ze = ZI.ze;
+  // Schéma d'un passage + positions des plots (depuis la ligne de départ et depuis le départ de chaque fraction)
+  const zSchema = (d, t, e) => { const W = 340, x0 = 12, x1 = W - 12, pre = e + t / 2 + 8, span = pre + t / 2 + 10;
+      const X = m => x0 + (m + pre) / span * (x1 - x0), L = 0, Tb = -t / 2, Te = t / 2, Eb = Tb - e;
+      const tick = (m, lab, y) => `<line x1="${X(m)}" y1="30" x2="${X(m)}" y2="62" stroke="currentColor" stroke-width="1.2" stroke-dasharray="3 2"/><text x="${X(m)}" y="${y}" text-anchor="middle" font-size="10" fill="currentColor">${lab}</text>`;
+      const lab = (a, b2, full, short, col) => { const w = X(b2) - X(a), t = full.length * 5.6 <= w - 4 ? full : short.length * 5.6 <= w - 4 ? short : '';
+        return t ? `<text x="${(X(a) + X(b2)) / 2}" y="50" text-anchor="middle" font-size="10" font-weight="700" fill="${col}">${t}</text>` : ''; };
+      const cone = m => `<path d="M${X(m) - 5} 70 L${X(m)} 60 L${X(m) + 5} 70 Z" fill="#F28C28"/>`;
+      return `<svg viewBox="0 0 ${W} 112" width="100%" style="max-width:520px;display:block;margin:8px auto 0;color:var(--text)" role="img" aria-label="Schéma d'un passage de relais">
+        <rect x="${x0}" y="34" width="${x1 - x0}" height="24" rx="4" fill="var(--line)"/>
+        ${e ? `<rect x="${X(Eb)}" y="34" width="${X(Tb) - X(Eb)}" height="24" fill="#F5B94A"/>${lab(Eb, Tb, `élan ${mF(e)} m`, 'élan', '#222')}` : ''}
+        <rect x="${X(Tb)}" y="34" width="${X(Te) - X(Tb)}" height="24" fill="#3B82F6"/>${lab(Tb, Te, `transmission ${mF(t)} m`, 'transm.', '#fff')}
+        <line x1="${X(L)}" y1="28" x2="${X(L)}" y2="64" stroke="#D93025" stroke-width="2.5"/>
+        <text x="${X(L)}" y="22" text-anchor="middle" font-size="10" font-weight="700" fill="#D93025">ligne de relais${d ? ` (fin des ${mF(d)} m)` : ''}</text>
+        ${e ? cone(Eb) : ''}${cone(Tb)}${cone(Te)}
+        ${e ? tick(Eb, 'début élan', 84) : ''}${tick(Tb, 'début transm.', e ? 98 : 84)}${tick(Te, 'fin transm.', 84)}
+        <text x="${x0}" y="108" font-size="9.5" fill="currentColor" opacity=".7">sens de course →</text></svg>
+      <div style="display:flex;flex-wrap:wrap;gap:4px 14px;justify-content:center;font-size:.8rem;font-weight:700;margin-top:2px">${e ? `<span><span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:#F5B94A;vertical-align:-1px"></span> Zone d'élan ${mF(e)} m</span>` : '<span class="muted">Pas de zone d\'élan</span>'}<span><span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:#3B82F6;vertical-align:-1px"></span> Zone de transmission ${mF(t)} m (centrée sur la ligne)</span></div>`; };
+  const zPlots = (L, d, t, e) => { if (!d) return `<p class="muted" style="font-size:.8rem;margin:6px 0 0">Indiquez la distance d'une fraction pour calculer l'emplacement des plots.</p>`;
+    const warn = t / 2 + e > d ? `<p style="font-size:.8rem;margin:6px 0 0;color:#D93025">⚠️ Zones plus longues que la fraction : vérifiez les distances.</p>` : '';
+    const rows = Array.from({ length: Math.max(0, L - 1) }, (_, k) => { const B = (k + 1) * d;
+      return `<tr><td><b>${k + 1} → ${k + 2}</b></td><td>${e ? mF(B - t / 2 - e) + ' m' : '–'}</td><td>${mF(B - t / 2)} m</td><td><b>${mF(B)} m</b></td><td>${mF(B + t / 2)} m</td></tr>`; }).join('');
+    return `${warn}${L > 1 ? `<div class="sheet-table" style="margin-top:8px"><table><tr><th>Passage</th><th>Début élan</th><th>Début transm.</th><th>Ligne</th><th>Fin transm.</th></tr>${rows}</table></div>
+      <p class="muted" style="font-size:.78rem;margin:6px 0 0">Distances depuis la ligne de départ (${L} × ${mF(d)} m = ${mF(L * d)} m). Pour chaque fraction : début d'élan à ${mF(d - t / 2 - e)} m, début de transmission à ${mF(d - t / 2)} m et fin de transmission à ${mF(d + t / 2)} m de son départ${e ? ' · le relayeur suivant attend au début de la zone d\'élan' : ''}.</p>` : ''}`; };
+  const zBlock = (L, d, t, e, open) => `<details class="rz-z" ${open ? 'open' : ''} style="margin-top:8px"><summary style="cursor:pointer;font-weight:800;font-size:.9rem">📐 Zones et plots</summary>${zSchema(d, t, e)}${zPlots(L, d, t, e)}</details>`;
+  const zPrev = () => { const L = Math.max(1, +$('#lg').value || 1), d = zNum($('#ds').value, 0), t = zNum($('#zt').value, ZD.zt) || ZD.zt, e = zNum($('#ze').value, ZD.ze);
+    $('#zprev').innerHTML = zBlock(L, d, t, e, true); };
   const finished = () => teams.filter(t => t.splits.length === legs).sort((a, b) => a.total - b.total);
   const pass = t => { const now = performance.now() - t0, prev = t.splits.reduce((a, c) => a + c, 0);
     if (now - prev < 300) return; t.splits.push(now - prev); if (t.splits.length === legs) { t.total = now; beep(1200, .3); } else beep(900, .08); draw(); };
-  const exportCsv = list => { const fin = finished(); download(`relais-${today()}.csv`, csv([['Rang', 'Équipe', 'Temps', ...Array.from({ length: legs }, (_, k) => 'Relais ' + (k + 1))],
-    ...list.map(t => [fin.indexOf(t) + 1 || '', t.name, t.total ? fmt(t.total) : '', ...t.splits.map(s => fmt(s))])])); };
+  const ZH = ['Fraction (m)', 'Zone de transmission (m)', 'Zone d\'élan (m)'], zCsv = (d, t, e) => [d ? mF(d) : '', mF(t), mF(e)];
+  const exportCsv = list => { const fin = finished(); download(`relais-${today()}.csv`, csv([['Rang', 'Équipe', 'Temps', ...ZH, ...Array.from({ length: legs }, (_, k) => 'Relais ' + (k + 1))],
+    ...list.map(t => [fin.indexOf(t) + 1 || '', t.name, t.total ? fmt(t.total) : '', ...zCsv(dist, zt, ze), ...t.splits.map(s => fmt(s))])])); };
   // Enregistrement : toute la course (vue enseignant) ou la seule équipe de la tablette
   const rkTxt = r => r === 1 ? '1er' : r + 'e';
   const legsOf = (t, k) => { const M = (t.members || []).length; return M && t.legs.length && legs % M === 0 ? t.legs.filter((s, j) => j % M === k).map(s => fmt(s)).join(' + ') : ''; };
   const saveCourse = only => {
     if (!t0) return toast('Donnez d\'abord le départ');
     const list = only ? [only] : teams, fin = finished(), key = only ? 'T:' + only.name : '*';
-    const rec = { id: saved[key] || uid(), date: today(), at: Date.now(), classe: cls, legs, dist: dist || 0,
+    const rec = { id: saved[key] || uid(), date: today(), at: Date.now(), classe: cls, legs, dist: dist || 0, zt, ze,
       teams: list.map(t => ({ name: t.name, members: t.members || [], total: t.splits.length === legs ? Math.round(t.total) : 0, legs: t.splits.map(s => Math.round(s)) })) };
     const C = DB.relais.courses, i = C.findIndex(x => x.id === rec.id); if (i >= 0) C[i] = rec; else C.push(rec); saved[key] = rec.id;
     let n = 0;
     if (cls) rec.teams.forEach(t => { if (!t.total || resDone.has(t.name)) return; resDone.add(t.name);
       const rk = only ? 0 : fin.findIndex(x => x.name === t.name) + 1;
       t.members.forEach((m, k) => { const lg = legsOf(t, k);
-        saveResult({ tool: 'relais', label: 'Relais', classe: cls, eleve: m, valeur: fmt(t.total), detail: [t.name, rk ? `rang ${rkTxt(rk)} / ${teams.length}` : '', lg ? `son relais : ${lg}` : ''].filter(Boolean).join(' · ') }); n++; }); });
+        saveResult({ tool: 'relais', label: 'Relais', classe: cls, eleve: m, valeur: fmt(t.total), detail: [t.name, rk ? `rang ${rkTxt(rk)} / ${teams.length}` : '', lg ? `son relais : ${lg}` : '', `zones : transmission ${mF(zt)} m, élan ${mF(ze)} m`].filter(Boolean).join(' · ') }); n++; }); });
     if (!n) { save(); window.syncFlush && window.syncFlush(); }
     beep(1000, .1); toast(`Course enregistrée ✔${n ? ` · ${n} résultat(s) élève` : ''}`); draw();
   };
@@ -417,14 +451,14 @@ relais(el) {
     DB.relais.courses.slice().sort((a, b) => (a.at || 0) - (b.at || 0)).forEach(c => { const g = c.classe && G.find(x => x.classe === c.classe && x.date === c.date && x.legs === c.legs);
       if (g) g.recs.push(c); else G.push({ date: c.date, classe: c.classe, legs: c.legs, recs: [c] }); });
     G.forEach(g => { const M = new Map(); g.recs.forEach(r => (r.teams || []).forEach(t => M.set(t.name, t))); // même équipe enregistrée 2 fois : la plus récente
-      g.dist = (g.recs.find(r => r.dist) || {}).dist || 0; g.teams = [...M.values()].sort((a, b) => (a.total || Infinity) - (b.total || Infinity) || b.legs.length - a.legs.length); });
+      g.dist = (g.recs.find(r => r.dist) || {}).dist || 0; Object.assign(g, zOf(g.recs.slice().reverse().find(r => r.zt != null) || {})); g.teams = [...M.values()].sort((a, b) => (a.total || Infinity) - (b.total || Infinity) || b.legs.length - a.legs.length); });
     return G.sort((a, b) => b.recs[b.recs.length - 1].at - a.recs[a.recs.length - 1].at); };
-  const groupCsv = g => download(`relais-${g.date}${g.classe ? '-' + g.classe.replace(/[^\w-]+/g, '_') : ''}.csv`, csv([['Rang', 'Équipe', 'Temps', 'Élèves', ...Array.from({ length: g.legs }, (_, k) => 'Relais ' + (k + 1))],
-    ...g.teams.map((t, i) => [t.total ? i + 1 : '', t.name, t.total ? fmt(t.total) : '', (t.members || []).join(', '), ...t.legs.map(s => fmt(s))])]));
+  const groupCsv = g => download(`relais-${g.date}${g.classe ? '-' + g.classe.replace(/[^\w-]+/g, '_') : ''}.csv`, csv([['Rang', 'Équipe', 'Temps', 'Élèves', ...ZH, ...Array.from({ length: g.legs }, (_, k) => 'Relais ' + (k + 1))],
+    ...g.teams.map((t, i) => [t.total ? i + 1 : '', t.name, t.total ? fmt(t.total) : '', (t.members || []).join(', '), ...zCsv(g.dist, g.zt, g.ze), ...(t.legs || []).map(s => fmt(s))])]));
   const drawHist = () => { const G = groupsOf(), h = $('#hist');
     h.innerHTML = G.length ? `<div class="section-title"><h2>Courses enregistrées</h2></div>` + G.map((g, gi) => `<div class="card" style="margin-top:10px">
       <div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start"><div><b>${frDate(g.date)}${g.classe ? ' · ' + esc(g.classe) : ''}</b>
-        <div class="muted" style="font-size:.8rem">${g.legs} relais${g.dist ? ` × ${g.dist} m` : ''} · ${g.teams.length} équipe(s)${g.recs.length > 1 ? ` · ${g.recs.length} enregistrements fusionnés` : ''}</div></div>
+        <div class="muted" style="font-size:.8rem">${g.legs} relais${g.dist ? ` × ${g.dist} m` : ''} · ${g.teams.length} équipe(s) · transmission ${mF(g.zt)} m · élan ${mF(g.ze)} m${g.recs.length > 1 ? ` · ${g.recs.length} enregistrements fusionnés` : ''}</div></div>
         <div style="display:flex;gap:6px;flex:0 0 auto"><button class="btn btn-ghost" style="padding:7px 10px" data-hx="${gi}">📤</button><button class="btn btn-ghost" style="padding:7px 10px" data-hd="${gi}" data-cfg="bare">🗑</button></div></div>
       ${g.teams.map((t, i) => `<div style="display:flex;justify-content:space-between;gap:8px;padding:7px 0;border-top:1px solid var(--line)"><div><b>${t.total ? (i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : i + 1 + 'e') + ' ' : ''}${esc(t.name)}</b>${(t.members || []).length ? `<div class="muted" style="font-size:.78rem">${esc(t.members.join(', '))}</div>` : ''}</div>
         <span style="font-weight:800;font-variant-numeric:tabular-nums;white-space:nowrap">${t.total ? fmt(t.total) : `<span class="muted">${t.legs.length}/${g.legs} relais</span>`}</span></div>`).join('')}</div>`).join('') : '';
@@ -437,7 +471,7 @@ relais(el) {
   // Vue « une seule équipe » : ce que voient les élèves sur leur tablette
   const drawTeam = t => {
     const done = t.splits.length === legs, n = t.splits.length;
-    $('#gv').innerHTML = `<div class="card" style="text-align:center"><div style="font-weight:900;font-size:1.3rem">${esc(t.name)}</div><div class="muted">${legs} relayeur${legs > 1 ? 's' : ''}${dist ? ` · ${dist} m par fraction` : ''}</div>
+    $('#gv').innerHTML = `<div class="card" style="text-align:center"><div style="font-weight:900;font-size:1.3rem">${esc(t.name)}</div><div class="muted">${legs} relayeur${legs > 1 ? 's' : ''}${dist ? ` · ${dist} m par fraction` : ''}</div><div class="muted" style="font-size:.85rem">Zone de transmission ${mF(zt)} m · zone d'élan ${mF(ze)} m</div>
         <div class="gv-clock" id="gvt" style="color:${done ? '#1B9E5A' : 'inherit'}">${done ? fmt(t.total) : t0 ? fmt(performance.now() - t0) : '00:00,00'}</div>
         <div style="display:flex;gap:6px;justify-content:center;margin:6px 0">${Array.from({ length: legs }, (_, k) => `<span style="flex:0 1 44px;height:12px;border-radius:99px;background:${k < n ? '#1B9E5A' : k === n && t0 ? 'var(--blue)' : 'var(--line)'}"></span>`).join('')}</div>
         ${!t0 ? '<button class="btn btn-grad btn-block gv-big" id="gv-go">🔫 Départ</button>' : ''}
@@ -457,7 +491,9 @@ relais(el) {
     const ot = onlyT(); $('#race').style.display = ot ? 'none' : 'block'; $('#gv').style.display = ot ? 'block' : 'none';
     [...el.children].forEach(c => { if (!['setup', 'race', 'gv'].includes(c.id)) c.style.display = ot ? 'none' : ''; }); // carte « Composer les équipes » masquée aux élèves
     if (ot) return drawTeam(ot);
-    $('#gv').innerHTML = ''; drawHist(); $('#sv').textContent = saved['*'] ? '💾 Enregistrer à nouveau' : '💾 Enregistrer la course';
+    $('#gv').innerHTML = ''; drawHist();
+    const zk = [legs, dist, zt, ze].join('|'); if ($('#zhd').dataset.k !== zk) { $('#zhd').dataset.k = zk;
+      $('#zhd').innerHTML = `<div style="font-weight:800;font-size:.95rem">🔁 ${legs} relais${dist ? ` × ${mF(dist)} m` : ''} <span class="muted" style="font-weight:600">· transmission ${mF(zt)} m · élan ${mF(ze)} m</span></div>${zBlock(legs, dist, zt, ze, false)}`; } $('#sv').textContent = saved['*'] ? '💾 Enregistrer à nouveau' : '💾 Enregistrer la course';
     $('#onw').innerHTML = teams.length > 1 ? `<label>📱 Tablette d'une équipe (les élèves ne verront que leur équipe)</label><select id="only"><option value="">Toutes les équipes</option>${teams.map((t, i) => `<option value="${i}">${esc(t.name)}</option>`).join('')}</select>` : '';
     if ($('#only')) $('#only').onchange = ev => { if (ev.target.value === '') return; setOnly(teams[+ev.target.value].name); draw(); };
     const fin = finished();
@@ -472,6 +508,7 @@ relais(el) {
     teams.forEach((t, i) => { if (t.splits.length < legs) { const d = $(`[data-t="${i}"]`); if (d) d.textContent = fmt(now); } });
     const ot = onlyT(), g = $('#gvt'); if (ot && g && ot.splits.length < legs) g.textContent = fmt(now); };
   $('#gen').onclick = () => { const n = namesFrom('tl'); if (!n.length) return toast('Ajoutez des équipes'); legs = Math.max(1, +$('#lg').value || 1); dist = +$('#ds').value || 0;
+    zt = zNum($('#zt').value, ZD.zt) || ZD.zt; ze = zNum($('#ze').value, ZD.ze); TB().relaisZones = { zt, ze };
     // équipes issues du module « Composer les équipes » : on retrouve la classe et les élèves de chaque équipe
     const c = fromCls ? (el.querySelector('#crelais-cls') || {}).value || '' : '', P = c && (DB.prepGroups || {})['crelais|' + c];
     teams = n.map(name => { const g = P && P.teams.find(x => x.name === name); return { name, splits: [], total: 0, members: g ? g.members.map(m => m.n) : [] }; });
@@ -483,6 +520,7 @@ relais(el) {
   // la carte « Composer les équipes » (ajoutée par niveaux.js) remplit #tl : on note que les équipes viennent d'une classe
   el.addEventListener('click', ev => { if (ev.target.closest('#crelais-go,#crelais-use')) fromCls = true; });
   $('#tl').addEventListener('input', () => { fromCls = false; });
+  ['#lg', '#ds', '#zt', '#ze'].forEach(s => $(s).addEventListener('input', zPrev)); zPrev();
   drawHist(); tick(); return () => cancelAnimationFrame(raf);
 },
 

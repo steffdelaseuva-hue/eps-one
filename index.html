@@ -206,6 +206,7 @@ th{color:var(--muted);font-size:.78rem;text-transform:uppercase}
       <div style="display:flex;flex-wrap:wrap;gap:10px;position:relative">
         <button class="btn btn-white" onclick="go('outils')">Ouvrir les OUTILS →</button>
         <button class="btn btn-white" onclick="openImportClasses()">📥 Importer vos classes</button>
+        <button class="btn" onclick="openHowTo()" style="margin-left:auto;background:rgba(255,255,255,.16);color:#fff;border:1.5px solid rgba(255,255,255,.65)">❓ Comment ça marche ?</button>
       </div>
     </div>
 
@@ -288,6 +289,7 @@ const CATS=[
 const TOOLS=[
   {id:'natation', cat:'perf', name:'Natation', desc:'Nager vite (indice de nage) · Savoir nager (test)', ready:true},
   {id:'testvma',  cat:'perf', name:'Test VMA', desc:'Luc Léger, VAMEVAL, 45-15, Astrand', ready:true},
+  {id:'test6e',   cat:'perf', name:'Tests 6e', desc:'Endurance, force, vitesse + tests optionnels (équilibre, coordination, souplesse, endurance musculaire)', ready:true},
   {id:'vma',      cat:'perf',name:'VMA & allures',      desc:'Temps de passage selon % VMA', ready:true},
   {id:'vitesse',  cat:'perf',name:'Vitesse de course',  desc:'Distance + temps → km/h', ready:true},
   {id:'demifond', cat:'perf', name:'Demi-fond', desc:'Enchaînements de courses, projet, plots, écart projet / réalisé', ready:true},
@@ -695,6 +697,7 @@ if('serviceWorker' in navigator && location.protocol==='https:') navigator.servi
 </script>
 <script src="js/outils-plus.js"></script>
 <script src="js/test-vma.js"></script>
+<script src="js/test6e.js"></script>
 <script src="js/import-classes.js"></script>
 <script src="js/niveaux.js"></script>
 <script src="js/match.js"></script>
@@ -723,6 +726,7 @@ if('serviceWorker' in navigator && location.protocol==='https:') navigator.servi
 <script src="js/plus.js"></script>
 <script src="js/install.js"></script>
 <script src="js/roue.js"></script>
+<script src="js/dessin.js"></script>
 <script src="js/profpin.js"></script>
 <script src="js/musique.js"></script>
 </body>

@@ -32,9 +32,10 @@ TOOL_IMPL.testvma = function (el) {
                desc: 'Courir la <b>plus grande distance en 3 minutes</b>. VMA (km/h) = distance (m) × coefficient ÷ 1000.' },
   };
   let cyc45 = -1, plots45 = [];
-  let key = 'vameval', run = false, E = 0, t0 = 0, iv = null, pre = null;
+  let key = P[window.tvPreset] ? window.tvPreset : 'vameval', run = false, E = 0, t0 = 0, iv = null, pre = null;
   let nextBip = 0, bips = 0, stageSeen = 0, phase = '', lastMark = -1;
-  let students = [];
+  let students = (window.tvPresetClass ? studentsOf(window.tvPresetClass) : []).map(n => ({ name: n, res: null }));
+  window.tvPreset = window.tvPresetClass = null;   // préréglage venant d'un autre outil (Tests 6e)
   const voice = t => { if (!el.querySelector('#vx')?.checked || !window.speechSynthesis) return; say(t); };
   const kmh = v => v.toFixed(1).replace('.', ',');
   const cfg = () => { const p = P[key]; return { ...p, v0: +(el.querySelector('#v0')?.value || p.v0), inc: +(el.querySelector('#inc')?.value || p.inc), coef: +(el.querySelector('#cf')?.value || p.coef) }; };
