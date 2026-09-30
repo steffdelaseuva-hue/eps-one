@@ -35,6 +35,8 @@ function exMeta(nom) {
   const m = (DB.wod.exMeta || {})[k]; return m ? { nom, f: m.f, n: m.n } : null;
 }
 const RUN_T = { tours: 'tours', m: 'mètres', ar: 'allers-retours' };
+// RUN en tours ou allers-retours : une case à cocher par tour (ex. 4 tours → 4 cases) ; en mètres : une seule case
+const runCount = b => b && b.run && (b.runType === 'tours' || b.runType === 'ar') ? Math.max(1, Math.min(20, +b.runVal || 1)) : 1;
 const wid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
 const mmss = s => { if (s == null || isNaN(s)) return '–'; const neg = s < 0; s = Math.abs(Math.round(s)); return (neg ? '−' : '') + Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
 // Format de l'épreuve : absent = plan commun (comportement historique) · 1 individuel · 2 duo · 3 trio · 4 quatuor
@@ -193,7 +195,7 @@ TOOL_IMPL.wod = function (el) {
             <div class="row"><div><label>Famille</label><select id="nf-f">${WOD_FAM.map((f, k) => `<option value="${k}" ${k === nf.f ? 'selected' : ''}>${k + 1} · ${f}</option>`).join('')}</select></div><div><label>Niveau</label><select id="nf-n">${[1, 2, 3, 4].map(n => `<option value="${n}" ${n === nf.n ? 'selected' : ''}>N${n}</option>`).join('')}</select></div></div>
             <div class="row" style="margin-top:8px"><button class="btn btn-grad" id="nf-ok">＋ Ajouter</button><button class="btn btn-ghost" id="nf-no">Annuler</button></div></div>` : ''}
           <label style="display:flex;gap:8px;align-items:center;margin-top:12px"><input type="checkbox" data-run="${bi}" ${b.run ? 'checked' : ''} style="width:auto"> Course / RUN dans ce bloc</label>
-          ${b.run ? `<div class="row"><select data-rt="${bi}">${Object.entries(RUN_T).map(([k, v]) => `<option value="${k}" ${b.runType === k ? 'selected' : ''}>${v}</option>`).join('')}</select><input type="number" min="1" data-rv="${bi}" value="${b.runVal}"></div>` : ''}
+          ${b.run ? `<div class="row"><select data-rt="${bi}">${Object.entries(RUN_T).map(([k, v]) => `<option value="${k}" ${b.runType === k ? 'selected' : ''}>${v}</option>`).join('')}</select>${nM ? `<select data-rby="${bi}" title="Qui coche les courses ?"><option value="g" ${b.runBy !== 'e' ? 'selected' : ''}>à cocher par le groupe</option><option value="e" ${b.runBy === 'e' ? 'selected' : ''}>à cocher par chaque élève</option></select>` : ''}<input type="number" min="1" data-rv="${bi}" value="${b.runVal}"></div>` : ''}
           ${nM ? `<div data-objbox="${bi}">${objHTML(bi)}</div>` : ''}
         </div>`).join('')}
       <button class="btn btn-ghost btn-block" style="margin-top:10px" id="addb">＋ Ajouter un bloc</button>
@@ -208,7 +210,8 @@ TOOL_IMPL.wod = function (el) {
         all('[data-reps]').forEach(s => { const [bi, xi] = s.dataset.reps.split('-').map(Number); exs(bi)[xi].reps = +s.value || 0; });
         all('[data-obj]').forEach(s => { const [bi, f] = s.dataset.obj.split('-').map(Number), b = e.blocs[bi]; b.obj = b.obj || {}; if (+s.value > 0) b.obj[f] = +s.value; else delete b.obj[f]; });
         all('[data-rt]').forEach(s => e.blocs[+s.dataset.rt].runType = s.value);
-        all('[data-rv]').forEach(s => e.blocs[+s.dataset.rv].runVal = +s.value || 0); };
+        all('[data-rv]').forEach(s => e.blocs[+s.dataset.rv].runVal = +s.value || 0);
+        all('[data-rby]').forEach(s => e.blocs[+s.dataset.rby].runBy = s.value); };
       all('[data-sp]').forEach(b => b.onclick = () => { read(); e.sport = b.dataset.sp; if (e.sport === 'hyrox') e.blocs.forEach(x => x.run = true); draw(); });
       all('[data-nv]').forEach(b => b.onclick = () => { read(); const [bi, xi, n] = b.dataset.nv.split('-').map(Number); exs(bi)[xi].niv = n; draw(); });
       all('[data-rmx]').forEach(b => b.onclick = () => { read(); const [bi, xi] = b.dataset.rmx.split('-').map(Number); exs(bi).splice(xi, 1); draw(); });
@@ -272,9 +275,13 @@ TOOL_IMPL.wod = function (el) {
   // Liste des étapes à cocher : pour chaque bloc, chaque série, (RUN) + exercices (duo/trio/quatuor : une colonne par élève dans cols)
   const itemsOf = (e, g) => { const n = wodMulti(e), P = n && g ? profOf(g, n) : []; return e.blocs.map((b, k) => { const L = [];
     for (let sr = 0; sr < (b.series || 1); sr++) {
-      const run = b.run ? [{ id: `${k}-${sr}-r`, txt: `🏃 RUN ${b.runVal} ${RUN_T[b.runType] || ''}` }] : [];
-      if (n) { const cols = Array.from({ length: n }, (_, s) => planOf(g, e, k, s).map((x, j) => { const f = famOf(x.nom);
-          return { id: `${k}-${sr}-p${s}-${j}`, s, f, nom: x.nom, niv: x.niv, reps: +x.reps || 0, col: f != null ? WOD_COL[f] : null, txt: exTxt(x) }; }));
+      const runN = runCount(b), unit = b.runType === 'ar' ? 'aller-retour' : 'tour';
+      const runIt = (base, s) => !b.run ? [] : runN > 1
+        ? Array.from({ length: runN }, (_, i) => ({ id: i ? `${base}${i}` : base, s, nom: '🏃 RUN', reps: 1, run: 1, txt: `🏃 RUN ${i + 1} / ${runN} · 1 ${unit}` }))
+        : [{ id: base, s, nom: '🏃 RUN', reps: 1, run: 1, txt: `🏃 RUN ${b.runVal} ${RUN_T[b.runType] || ''}` }];
+      const perStu = n && b.runBy === 'e', run = perStu ? [] : runIt(`${k}-${sr}-r`).map(it => ({ ...it, s: undefined }));
+      if (n) { const cols = Array.from({ length: n }, (_, s) => [...(perStu ? runIt(`${k}-${sr}-p${s}-r`, s) : []), ...planOf(g, e, k, s).map((x, j) => { const f = famOf(x.nom);
+          return { id: `${k}-${sr}-p${s}-${j}`, s, f, nom: x.nom, niv: x.niv, reps: +x.reps || 0, col: f != null ? WOD_COL[f] : null, txt: exTxt(x) }; })]);
         const act = cols.filter((_, s) => !g || P[s] !== '').flat();          // profil vide (absent) : pas à cocher
         L.push({ sr, run, cols, list: e.sport === 'hyrox' ? [...run, ...act] : [...act, ...run] }); continue; }
       const ex = b.ex.map((x, j) => ({ id: `${k}-${sr}-${j}`, col: (exMeta(x.nom) || {}).f != null ? WOD_COL[exMeta(x.nom).f] : null, txt: exTxt(x) }));
@@ -290,12 +297,12 @@ TOOL_IMPL.wod = function (el) {
     const F = [...new Set([...act.flatMap(x => x.ex.map(y => y.f)).filter(f => f != null), ...Object.keys(b.obj || {}).filter(f => +b.obj[f] > 0).map(Number)])].sort();
     const fam = F.map(f => { const parts = act.flatMap(x => x.ex.filter(y => y.f === f).map(y => ({ ...y, s: x.s, name: x.name })));
       return { f, parts, done: parts.reduce((a, y) => a + y.done, 0), plan: parts.reduce((a, y) => a + y.plan, 0), target: (+(b.obj || {})[f] || 0) * (b.series || 1) }; });
-    const run = b.run ? { done: ser.filter(x => x.run[0] && ck[x.run[0].id]).length, tot: ser.length } : null;
+    const R = ser.flatMap(x => x.run || []), run = b.run && R.length ? { done: R.filter(it => ck[it.id]).length, tot: R.length } : null;
     return { stu, fam, run }; };
   // pastilles « cumul du groupe » par famille (pre = avant le départ : on affiche l'objectif)
   const famChips = (fam, pre, lbl) => fam.length ? `<div class="wod-fam">${lbl ? `<b style="align-self:center;font-size:.8rem">${lbl}</b>` : ''}${fam.map(x => { const tg = x.target || x.plan, ok = !pre && tg && x.done >= tg;
     return `<span class="${ok ? 'ok' : ''}"><i class="wod-dot" style="background:${WOD_COL[x.f]}"></i>${famShort(x.f)} <b>${pre ? (x.target ? '🎯 ' + tg : tg) : x.done + '/' + tg}</b>${x.target ? (pre ? ' <small class="muted">rép. à cumuler</small>' : '') : ' <small class="muted">prévu</small>'}${ok ? ' ✔' : ''}</span>`; }).join('')}</div>` : '';
-  const exDone = x => `${x.done === x.plan ? x.done : x.done + '/' + x.plan} ${x.nom}${/gainage/i.test(x.nom) ? ' (s)' : ''} (N${x.niv})${x.done >= x.plan ? ' ✔' : ''}`;
+  const exDone = x => `${x.done === x.plan ? x.done : x.done + '/' + x.plan} ${x.nom}${/gainage/i.test(x.nom) ? ' (s)' : ''}${x.niv ? ` (N${x.niv})` : ''}${x.done >= x.plan ? ' ✔' : ''}`;
   // cumul du groupe par famille : « Haut du corps : 40 Pompes (É1) + 30 Pompes sur box (É2) + 30 Dips (É3) = 100 / 100 ✔ »
   const famLine = x => { const tg = x.target || x.plan, ok = tg && x.done >= tg;
     return { ok, txt: `${famShort(x.f)} : ${x.parts.map(y => `${y.name || 'É' + (y.s + 1)} ${y.done}${y.done < y.plan ? '/' + y.plan : ''} ${y.nom}`).join(' + ') || '—'} = ${x.done} / ${tg}${x.target ? '' : ' prévu'}${ok ? ' ✔' : x.target ? ` (manque ${tg - x.done})` : ''}` }; };
