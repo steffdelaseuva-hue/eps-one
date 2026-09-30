@@ -4,9 +4,11 @@
    ========================================================= */
 /* Page Ko-fi : laisser vide tant qu'elle n'existe pas (le bouton est alors masqué) */
 const KOFI_URL = 'https://ko-fi.com/epsone';
-const APP_VERSION = '12.3';
+const APP_VERSION = '12.5';
 const APP_URL = 'https://steffdelaseuva-hue.github.io/eps-one/';
 const CHANGELOG = [
+  { v: '12.5', items: ['Accueil : « Récemment utilisés » de retour (entre Mes favoris et Par champ d\'apprentissage)'] },
+  { v: '12.4', items: ['Accueil réorganisé : Mes favoris · Par champ d\'apprentissage (performance, gymniques & artistiques, duel, APPN) · Autres outils (Cross, Tests 6e, chronos/photo/vidéo, gestion de classe, évaluation) ; « Récemment utilisés » retiré'] },
   { v: '12.3', items: ['Relais : réglage par défaut 3 × 40 m (schéma et tableau des plots)'] },
   { v: '12.2', items: ['Nouvel outil Tests 6e : endurance (Luc Léger, lien Test VMA), force (saut pieds joints), vitesse (30 m) + tests optionnels équilibre, coordination, souplesse, endurance musculaire ; sessions début/fin d\'année et progression','Combiné (duathlon / triathlon) : plusieurs courses (ex. 4 × 3 min) avec récup, projet de course par élève (vitesse, distance ou temps), écart projet / réalisé dans le Bilan ; sauts et lancers sans ET avec élan avec le gain en m et %','Relais : zones de transmission (20 m) et d\'élan (10 m) réglables, schéma et position des plots','Résultats des élèves / collectifs : suppression de plusieurs élèves ou lignes à la fois','Accueil : bouton « ❓ Comment ça marche ? »'] },
   { v: '12.1', items: ['Vidéo différée et Photo-finish : ✏️ dessiner sur l\'image — main levée, trait, flèche, point, cercle, rectangle, angle mesuré en degrés, texte ; couleurs, épaisseur, annuler, effacer, 📸 capture en image'] },

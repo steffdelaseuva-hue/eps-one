@@ -219,6 +219,9 @@ th{color:var(--muted);font-size:.78rem;text-transform:uppercase}
     <div class="section-title"><h2>Par champ d'apprentissage</h2></div>
     <div class="domains" id="domains"></div>
 
+    <div class="section-title"><h2>Autres outils</h2></div>
+    <div class="domains" id="domains2"></div>
+
   </section>
 
   <!-- ============ OUTILS ============ -->
@@ -277,19 +280,20 @@ const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'
    ready:true = fonctionnel ; sinon badge "Bientôt"
    ========================================================= */
 const CATS=[
-  {id:'cross',  name:'Cross du collège', desc:'Dossards QR, scan à l\'arrivée, classements', tool:'cross'},
   {id:'perf',   name:'Activités de performance', desc:'Athlétisme, natation, musculation'},
   {id:'art',    name:'Activités gymniques & artistiques', desc:'Parkour, acrosport, gymnastique · cirque, danse à venir'},
   {id:'duel',   name:'Activités de duel', desc:'Sports collectifs, raquettes, combats'},
   {id:'appn',   name:'APPN', desc:'Course d\'orientation, escalade, sauvetage aquatique'},
-  {id:'temps',  name:'Chronos / photo / vidéo',   desc:'Outils transversaux'},
-  {id:'classe', name:'Gestion de classe',  desc:'Classes, tirages, dispenses'},
-  {id:'eval',   name:'Évaluation & suivi', desc:'Résultats, grilles, suivi'},
+  {id:'cross',  name:'Cross du collège', desc:'Dossards QR, scan à l\'arrivée, classements', tool:'cross', autre:1},
+  {id:'test6e', name:'Tests 6e', desc:'Endurance, force, vitesse + tests optionnels', tool:'test6e', autre:1},
+  {id:'temps',  name:'Chronos / photo / vidéo',   desc:'Outils transversaux', autre:1},
+  {id:'classe', name:'Gestion de classe',  desc:'Classes, tirages, dispenses', autre:1},
+  {id:'eval',   name:'Évaluation & suivi', desc:'Résultats, grilles, suivi', autre:1},
 ];
 const TOOLS=[
   {id:'natation', cat:'perf', name:'Natation', desc:'Nager vite (indice de nage) · Savoir nager (test)', ready:true},
   {id:'testvma',  cat:'perf', name:'Test VMA', desc:'Luc Léger, VAMEVAL, 45-15, Astrand', ready:true},
-  {id:'test6e',   cat:'perf', name:'Tests 6e', desc:'Endurance, force, vitesse + tests optionnels (équilibre, coordination, souplesse, endurance musculaire)', ready:true},
+  {id:'test6e',   cat:'test6e', name:'Tests 6e', desc:'Endurance, force, vitesse + tests optionnels (équilibre, coordination, souplesse, endurance musculaire)', ready:true},
   {id:'vma',      cat:'perf',name:'VMA & allures',      desc:'Temps de passage selon % VMA', ready:true},
   {id:'vitesse',  cat:'perf',name:'Vitesse de course',  desc:'Distance + temps → km/h', ready:true},
   {id:'demifond', cat:'perf', name:'Demi-fond', desc:'Enchaînements de courses, projet, plots, écart projet / réalisé', ready:true},
@@ -358,17 +362,19 @@ function renderHome(){
   document.getElementById('fav-grid').innerHTML=f.length?f.map(toolCard).join(''):'<div class="empty card" style="grid-column:1/-1">Touchez ☆ sur un outil pour l\'ajouter ici.</div>';
   const r=DB.recent.map(T).filter(Boolean).slice(0,4);
   document.getElementById('recent-grid').innerHTML=r.length?r.map(toolCard).join(''):'<div class="empty card" style="grid-column:1/-1">Aucun outil utilisé pour l\'instant.</div>';
-  document.getElementById('domains').innerHTML=CATS.map(c=>`<button class="domain" onclick="${c.tool?`openTool('${c.tool}')`:`currentCat='${c.id}';go('outils')`}"><span class="em">${ico('cat-'+c.id)}</span><b>${c.name}</b><small>${c.desc}</small></button>`).join('');
+  const dTile=c=>`<button class="domain" onclick="${c.tool?`openTool('${c.tool}')`:`currentCat='${c.id}';go('outils')`}"><span class="em">${ico(c.tool&&ICONS[c.tool]?c.tool:'cat-'+c.id)}</span><b>${c.name}</b><small>${c.desc}</small></button>`;
+  document.getElementById('domains').innerHTML=CATS.filter(c=>!c.autre).map(dTile).join('');
+  document.getElementById('domains2').innerHTML=CATS.filter(c=>c.autre).map(dTile).join('');
 }
 function renderTools(){
   const q=document.getElementById('search').value.trim().toLowerCase();
   document.getElementById('chips').innerHTML=[{id:'all',name:'Tous'},{id:'fav',name:'Favoris',ic:'star'},...CATS]
-    .map(c=>`<button class="chip ${currentCat===c.id?'active':''}" onclick="currentCat='${c.id}';renderTools()">${c.id==='all'?'':ico(c.ic||'cat-'+c.id)}${c.name}</button>`).join('');
+    .map(c=>`<button class="chip ${currentCat===c.id?'active':''}" onclick="currentCat='${c.id}';renderTools()">${c.id==='all'?'':ico(c.ic||(c.tool&&ICONS[c.tool]?c.tool:'cat-'+c.id))}${c.name}</button>`).join('');
   let list=TOOLS.filter(t=>!q||(t.name+' '+t.desc).toLowerCase().includes(q));
   if(currentCat==='fav') list=list.filter(t=>DB.favs.includes(t.id));
   else if(currentCat!=='all') list=list.filter(t=>t.cat===currentCat);
   let html='';
-  CATS.forEach(c=>{const l=list.filter(t=>t.cat===c.id); if(l.length) html+=`<div class="cat-title">${ico('cat-'+c.id)}${c.name}</div><div class="grid">${l.map(toolCard).join('')}</div>`;});
+  CATS.forEach(c=>{const l=list.filter(t=>t.cat===c.id); if(l.length) html+=`<div class="cat-title">${ico(c.tool&&ICONS[c.tool]?c.tool:'cat-'+c.id)}${c.name}</div><div class="grid">${l.map(toolCard).join('')}</div>`;});
   document.getElementById('tools-list').innerHTML=html||'<div class="empty">Aucun outil trouvé.</div>';
 }
 document.getElementById('search').addEventListener('input',renderTools);
