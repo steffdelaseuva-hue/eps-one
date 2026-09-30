@@ -3,10 +3,11 @@
    à propos, confidentialité/RGPD, nouvelle année scolaire
    ========================================================= */
 /* Page Ko-fi : laisser vide tant qu'elle n'existe pas (le bouton est alors masqué) */
-const KOFI_URL = '';
-const APP_VERSION = '11.7';
+const KOFI_URL = 'https://ko-fi.com/epsone';
+const APP_VERSION = '11.8';
 const APP_URL = 'https://steffdelaseuva-hue.github.io/eps-one/';
 const CHANGELOG = [
+  { v: '11.8', items: ['☕ Soutenir EPS ONE : bouton Ko-fi dans Plus → Aide & infos (facultatif)'] },
   { v: '11.7', items: ['Correctif iPad / iPhone : les boutons protégés par le code (ex. HYROX « Créer une épreuve », ✏️) répondaient mal en mode élève — le pavé du code s\'affiche maintenant','Fluidité : écran qui se figeait quelques secondes (défilement bloqué pendant la synchro, enregistrements trop fréquents) — enregistrements regroupés, défilement toujours libre'] },
   { v: '11.6', items: ['Crosstraining / HYROX : épreuves Individuel / Duo / Trio / Quatuor avec un plan par élève (exercices, répétitions, niveaux), objectif de groupe par famille (ex. 100 répétitions haut du corps en cumulant les élèves), suivi en direct par élève, synthèse individuelle et collective à chaque bloc'] },
   { v: '11.5', items: ['Mes classes : nouvelle catégorie « 🏅 UNSS / AS » — import d\'une liste d\'inscrits (élèves de plusieurs classes) en un seul groupe, utilisable dans tous les outils'] },
@@ -363,7 +364,7 @@ function renderPlus() {
     <div class="card" style="padding:0">
       ${item('lock', 'navy', 'Confidentialité & RGPD', 'Données, caméra, suppression', 'openPrivacy()')}
       ${item('install', 'gold', 'Installer l\'application', 'Sur l\'écran d\'accueil de l\'iPhone, l\'iPad ou Android', 'openInstall(true)')}
-      ${KOFI_URL ? item('coffee', 'gold', '☕ Soutenir EPS ONE', 'Un café sur Ko-fi pour encourager le projet (facultatif)', `window.open('${KOFI_URL}','_blank','noopener')`) : ''}
+      ${KOFI_URL ? item('coffee', 'gold', '☕ Soutenir EPS ONE', 'Offrir un café sur Ko-fi (facultatif · page en anglais, carte ou PayPal)', `window.open('${KOFI_URL}','_blank','noopener')`) : ''}
       ${item('info', 'navy', 'À propos', 'Objectif, installation, crédits', 'openAbout()')}
       ${item('update', 'grad', 'Mise à jour', `Version ${APP_VERSION} · nouveautés`, 'openUpdate()')}
       ${item('mail', 'blue', 'Contact', 'steffdelaseuva@gmail.com', "location.href='mailto:steffdelaseuva@gmail.com?subject=EPS%20ONE'")}
