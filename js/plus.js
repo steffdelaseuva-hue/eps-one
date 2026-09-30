@@ -4,9 +4,10 @@
    ========================================================= */
 /* Page Ko-fi : laisser vide tant qu'elle n'existe pas (le bouton est alors masqué) */
 const KOFI_URL = 'https://ko-fi.com/epsone';
-const APP_VERSION = '11.9';
+const APP_VERSION = '12.0';
 const APP_URL = 'https://steffdelaseuva-hue.github.io/eps-one/';
 const CHANGELOG = [
+  { v: '12.0', items: ['Tirage au sort : roue qui tourne aux couleurs de l\'app, prénoms des élèves, tic-tic sonore, gagnant en grand avec confettis, sans remise ; « Tirage rapide » toujours disponible'] },
   { v: '11.9', items: ['Crosstraining / HYROX : RUN en tours ou allers-retours → une case à cocher par course (ex. 4 tours = 4 cases), à cocher par le groupe ou par chaque élève (duo/trio/quatuor)'] },
   { v: '11.8', items: ['☕ Soutenir EPS ONE : bouton Ko-fi dans Plus → Aide & infos (facultatif)'] },
   { v: '11.7', items: ['Correctif iPad / iPhone : les boutons protégés par le code (ex. HYROX « Créer une épreuve », ✏️) répondaient mal en mode élève — le pavé du code s\'affiche maintenant','Fluidité : écran qui se figeait quelques secondes (défilement bloqué pendant la synchro, enregistrements trop fréquents) — enregistrements regroupés, défilement toujours libre'] },
