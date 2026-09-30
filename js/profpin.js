@@ -130,19 +130,21 @@ setInterval(lockUI, 20000);
 document.addEventListener('visibilitychange', () => { if (!document.hidden) lockUI(); });
 
 // Interception des zones de réglage en mode élève
-// · pointerdown/touchstart : bloqués seulement sur un contrôle (le défilement au doigt reste possible)
-// · click/focusin : bloqués partout dans la zone et ouvrent le pavé du code
-const CTRL = 'button,input,select,textarea,label,summary,a,[role="button"],[data-drop],[data-st],[data-k],[data-sel],[data-pi],[contenteditable]';
+// · aucun écouteur « touchstart » : sur iPhone/iPad, bloquer touchstart supprime le « click » (bouton muet)
+//   et un écouteur tactile non passif fige le défilement quand l'app calcule (synchro…)
+// · pointerdown : on arrête seulement la propagation (et le focus des champs) ; le défilement reste libre
+// · click / focusin : bloqués dans la zone et ouvrent le pavé du code
 const cfgTarget = t => { if (!t || !t.closest) return null; if (t.closest('#pin-ov,[data-free]')) return null;
   const inProfTool = TOOL_PROF.has(typeof currentTool !== 'undefined' ? currentTool : '') && t.closest('#screen-body');
   return inProfTool || t.closest('[data-cfg]'); };
-['pointerdown', 'mousedown', 'touchstart', 'click', 'focusin', 'change', 'input', 'keydown'].forEach(type => document.addEventListener(type, e => {
+const lockAsk = () => { if (!document.getElementById('pin-ov')) profAsk(() => { profUnlock(); toast('🔓 Mode enseignant : vous pouvez modifier les réglages'); }, 'Réglages réservés à l\'enseignant'); };
+['pointerdown', 'click', 'focusin', 'change', 'input', 'keydown'].forEach(type => document.addEventListener(type, e => {
   if (!DB.profPin || profUnlocked()) return;
-  const z = cfgTarget(e.target); if (!z) return;
-  if (['pointerdown', 'mousedown', 'touchstart'].includes(type)) { const c = e.target.closest(CTRL); if (!c || !z.contains(c)) return; }
+  if (!cfgTarget(e.target)) return;
   if (type === 'keydown' && !['Enter', ' '].includes(e.key) && !(e.target.matches && e.target.matches('input,textarea,select'))) return;
-  if (e.cancelable) e.preventDefault(); e.stopImmediatePropagation();
-  if (type === 'focusin' && e.target.blur) e.target.blur();
-  if ((type === 'click' || type === 'focusin') && !document.getElementById('pin-ov'))
-    profAsk(() => { profUnlock(); toast('🔓 Mode enseignant : vous pouvez modifier les réglages'); }, 'Réglages réservés à l\'enseignant');
-}, { capture: true, passive: false }));
+  e.stopImmediatePropagation();
+  if (type === 'pointerdown') { if (e.target.matches && e.target.matches('input,select,textarea') && e.cancelable) e.preventDefault(); return; }
+  if (e.cancelable) e.preventDefault();
+  if (type === 'focusin') { if (e.target.blur) e.target.blur(); lockAsk(); }
+  if (type === 'click') lockAsk();
+}, { capture: true }));

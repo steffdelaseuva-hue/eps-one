@@ -260,7 +260,14 @@ th{color:var(--muted);font-size:.78rem;text-transform:uppercase}
 const KEY='mesOutilsEPS_v1';
 let DB={favs:['chronos12','chrono','hiit','tirage'],recent:[],classes:[]};
 try{const s=localStorage.getItem(KEY); if(s) DB=Object.assign(DB,JSON.parse(s));}catch(e){}
-function save(){try{localStorage.setItem(KEY,JSON.stringify(DB));}catch(e){}}
+/* Sauvegarde regroupée : plusieurs save() rapprochés → une seule écriture (évite les ralentissements
+   quand les données sont volumineuses) ; écriture immédiate quand l'app passe en arrière-plan. */
+let _saveT=null;
+function saveNow(){clearTimeout(_saveT);_saveT=null;try{localStorage.setItem(KEY,JSON.stringify(DB));}catch(e){}}
+function save(){if(!_saveT)_saveT=setTimeout(saveNow,400);}
+addEventListener('pagehide',()=>{if(_saveT)saveNow();});
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden'&&_saveT)saveNow();});
+addEventListener('beforeunload',()=>{if(_saveT)saveNow();});
 function toast(m){const t=document.getElementById('toast');t.textContent=m;t.style.display='block';clearTimeout(t._h);t._h=setTimeout(()=>t.style.display='none',1800)}
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 

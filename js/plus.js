@@ -4,9 +4,10 @@
    ========================================================= */
 /* Page Ko-fi : laisser vide tant qu'elle n'existe pas (le bouton est alors masqué) */
 const KOFI_URL = '';
-const APP_VERSION = '11.6';
+const APP_VERSION = '11.7';
 const APP_URL = 'https://steffdelaseuva-hue.github.io/eps-one/';
 const CHANGELOG = [
+  { v: '11.7', items: ['Correctif iPad / iPhone : les boutons protégés par le code (ex. HYROX « Créer une épreuve », ✏️) répondaient mal en mode élève — le pavé du code s\'affiche maintenant','Fluidité : écran qui se figeait quelques secondes (défilement bloqué pendant la synchro, enregistrements trop fréquents) — enregistrements regroupés, défilement toujours libre'] },
   { v: '11.6', items: ['Crosstraining / HYROX : épreuves Individuel / Duo / Trio / Quatuor avec un plan par élève (exercices, répétitions, niveaux), objectif de groupe par famille (ex. 100 répétitions haut du corps en cumulant les élèves), suivi en direct par élève, synthèse individuelle et collective à chaque bloc'] },
   { v: '11.5', items: ['Mes classes : nouvelle catégorie « 🏅 UNSS / AS » — import d\'une liste d\'inscrits (élèves de plusieurs classes) en un seul groupe, utilisable dans tous les outils'] },
   { v: '11.4', items: ['Gym, Demi-fond, Sauvetage : « Envoyer dans Résultats des élèves » accessible aux élèves, avec anti-doublon (un nouvel envoi remplace le précédent, même depuis une autre tablette)'] },
