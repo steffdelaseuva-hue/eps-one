@@ -4,9 +4,10 @@
    ========================================================= */
 /* Page Ko-fi : laisser vide tant qu'elle n'existe pas (le bouton est alors masqué) */
 const KOFI_URL = 'https://ko-fi.com/epsone';
-const APP_VERSION = '12.5';
+const APP_VERSION = '12.6';
 const APP_URL = 'https://steffdelaseuva-hue.github.io/eps-one/';
 const CHANGELOG = [
+  { v: '12.6', items: ['Tests 6e : ✕ pour effacer un essai, ↺ par élève, reset des chronos, « ↶ Annuler la dernière saisie » (30 dernières actions), réinitialisation d\'un test pour toute la classe (code enseignant)'] },
   { v: '12.5', items: ['Accueil : « Récemment utilisés » de retour (entre Mes favoris et Par champ d\'apprentissage)'] },
   { v: '12.4', items: ['Accueil réorganisé : Mes favoris · Par champ d\'apprentissage (performance, gymniques & artistiques, duel, APPN) · Autres outils (Cross, Tests 6e, chronos/photo/vidéo, gestion de classe, évaluation) ; « Récemment utilisés » retiré'] },
   { v: '12.3', items: ['Relais : réglage par défaut 3 × 40 m (schéma et tableau des plots)'] },

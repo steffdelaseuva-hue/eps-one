@@ -75,6 +75,14 @@ if (!document.getElementById('t6-css')) document.head.insertAdjacentHTML('before
 .t6-kv{display:flex;justify-content:space-between;gap:8px;padding:7px 0;border-bottom:1px solid var(--line)}
 .t6-kv:last-child{border-bottom:none}
 .t6-lbl{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:6px}
+.t6-e{display:inline-flex;align-items:center;gap:3px}
+.t6-x{flex:0 0 auto;padding:9px 8px;border-radius:10px;border:1.5px solid var(--line);background:var(--card);font-weight:900;font-size:.74rem;line-height:1.1;color:var(--muted)}
+.t6-x.off{visibility:hidden}
+.t6-rz{padding:8px 9px;border-radius:10px;border:1.5px solid var(--line);background:var(--card);font-weight:900;font-size:.85rem;color:var(--muted)}
+.t6-undo{position:sticky;bottom:calc(12px + env(safe-area-inset-bottom));display:flex;justify-content:flex-end;margin-top:12px;pointer-events:none;z-index:6}
+.t6-undo[hidden]{display:none}
+.t6-undo button{pointer-events:auto;max-width:100%;padding:10px 16px;border-radius:999px;border:none;background:var(--navy,#0B2A5B);color:#fff;font-weight:800;font-size:.9rem;box-shadow:0 6px 18px rgba(7,18,42,.3);text-align:left;line-height:1.2}
+.t6-undo button small{display:block;font-weight:600;font-size:.7rem;opacity:.85;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:260px}
 @media (max-width:480px){.t6-row .ins{order:3;flex-basis:100%}.t6-row input{width:70px}.t6-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.t6-c .big{font-size:1.6rem}}
 </style>`);
 
@@ -118,6 +126,10 @@ const t6Long = (t, r) => { if (!r) return ''; if (r.abs) return r.abs === 'D' ? 
   if (t.kind === 'leger') return [r.palier != null ? 'Palier ' + r.palier : '', r.vma != null ? t6Fr(r.vma, 1) + ' km/h' : ''].filter(Boolean).join(' · ');
   return r.v == null ? '' : `${t6Fr(r.v, t.dec)} ${t.unit}`; };
 const t6Has = r => r && !r.abs && r.v != null;
+/* Annulation : pile des ~30 dernières actions (instantanés des entrées élève × test concernées,
+   pas du DOM → reste valable après une synchro ou un changement d'onglet / de classe) */
+const T6_UNDO = [];
+const t6Clone = x => x == null ? undefined : JSON.parse(JSON.stringify(x));
 const t6Best = (t, e) => { const v = (e || []).filter(x => x != null && isFinite(x)); return v.length ? (t.hb ? Math.max(...v) : Math.min(...v)) : null; };
 
 TOOL_IMPL.test6e = function (el) {
@@ -139,6 +151,41 @@ TOOL_IMPL.test6e = function (el) {
     if (r == null) delete s.res[e][tid]; else s.res[e][tid] = r; if (!Object.keys(s.res[e]).length) delete s.res[e]; save(); };
   const students = () => studentsOf(cls);
   const T = id => t6Tests(true).find(t => t.id === id);
+
+  /* ---------- Annuler (↶) ---------- */
+  const rAt = (id, e, tid) => { const s = t6DB().sessions[id]; return s && s.res && s.res[e] ? s.res[e][tid] : undefined; };
+  // keys : [[élève, test, sessionId?]] — instantané avant, action, puis mémorisation si quelque chose a changé
+  function track(label, keys, fn) {
+    const items = keys.map(([e, tid, id]) => { const s = id && t6DB().sessions[id] ? t6DB().sessions[id] : ensure(); return { sid: s.id, e, tid, r: t6Clone(rAt(s.id, e, tid)) }; });
+    fn();
+    const ch = items.filter(it => JSON.stringify(t6Clone(rAt(it.sid, it.e, it.tid)) ?? null) !== JSON.stringify(it.r ?? null));
+    if (ch.length) { T6_UNDO.push({ label, cls, items: ch }); if (T6_UNDO.length > 30) T6_UNDO.shift(); }
+    paintUndo(); return ch.length > 0;
+  }
+  function undo() {
+    const u = T6_UNDO.pop(); if (!u) return paintUndo();
+    u.items.forEach(it => { const s = t6DB().sessions[it.sid]; if (!s) return; delete live[it.tid + '|' + it.e];
+      s.res = s.res || {}; s.res[it.e] = s.res[it.e] || {};
+      if (it.r === undefined) delete s.res[it.e][it.tid]; else s.res[it.e][it.tid] = t6Clone(it.r);
+      if (!Object.keys(s.res[it.e]).length) delete s.res[it.e]; });
+    save(); toast('↶ Annulé : ' + u.label);
+    const it0 = u.items[0], tids = [...new Set(u.items.map(x => x.tid))];
+    if (tab === 'pass' && tids.length === 1 && t6Tests().some(t => t.id === tids[0])) passId = tids[0];
+    if (t6DB().sessions[it0.sid] && (it0.sid !== sid || u.cls !== cls)) {       // l'action concernait une autre classe / session : on y retourne
+      cls = u.cls; DB.lastClass = cls; sid = it0.sid; const L = sessionsOf(cls), i = L.findIndex(x => x.id === sid); cmpId = i > 0 ? L[i - 1].id : null; draw();
+    } else body();
+  }
+  const undoBar = () => '<div class="t6-undo" hidden><button type="button" data-undo>↶ Annuler la dernière saisie<small></small></button></div>';
+  function paintUndo() {
+    const u = T6_UNDO[T6_UNDO.length - 1];
+    el.querySelectorAll('.t6-undo').forEach(x => { x.hidden = !u; if (u) x.querySelector('small').textContent = u.label; });
+  }
+  const bindUndo = b => { b.querySelectorAll('[data-undo]').forEach(x => x.onclick = undo); paintUndo(); };
+  // Effacer tout (valeurs, essais, statut absent/dispensé, chrono en cours) d'un élève pour un test
+  function clearOne(e, tid, label) {
+    const k = tid + '|' + e, L = live[k]; delete live[k];
+    return track(label, [[e, tid, L && L.sid]], () => { if (getR(e, tid, L && t6DB().sessions[L.sid] || cur())) setR(e, tid, null, L && L.sid); });
+  }
 
   pickLatest();
 
@@ -193,7 +240,8 @@ TOOL_IMPL.test6e = function (el) {
     if (!names.length) return toast('Aucun résultat « Test VMA » enregistré pour ces élèves');
     const diff = names.filter(n => { const r = getR(n, 'leger'); return r && !r.abs && (r.palier !== found[n].palier || r.vma !== found[n].vma) && (r.palier != null || r.vma != null); });
     let keep = false; if (diff.length && !confirm(`${diff.length} élève(s) ont déjà un résultat d'endurance différent. Le remplacer par celui du Test VMA ?`)) keep = true;
-    let n = 0; names.forEach(e => { if (keep && diff.includes(e)) return; const f = found[e]; setR(e, 'leger', { palier: f.palier, vma: f.vma, v: f.vma }); n++; });
+    let n = 0; const todo = names.filter(e => !(keep && diff.includes(e)));
+    track(`📥 Import Test VMA (${todo.length} élève${todo.length > 1 ? 's' : ''})`, todo.map(e => [e, 'leger']), () => todo.forEach(e => { const f = found[e]; setR(e, 'leger', { palier: f.palier, vma: f.vma, v: f.vma }); n++; }));
     toast(`📥 ${n} résultat(s) récupéré(s) depuis Test VMA`); draw();
   }
 
@@ -206,8 +254,8 @@ TOOL_IMPL.test6e = function (el) {
       ${st.map((e, i) => `<tr><td title="${esc(e)}">${esc(e)}</td>${TT.map(t => { const r = getR(e, t.id), v = t6Val(t, r);
         return `<td><button class="t6-cell ${r && r.abs ? 'ab' : v ? 'ok' : ''}" data-e="${i}" data-t="${t.id}">${v ? esc(v) : '—'}</button></td>`; }).join('')}</tr>`).join('')}
       <tr class="t6-foot"><td>Moyenne</td>${TT.map(t => `<td>${stat(t)}</td>`).join('')}</tr></table></div>
-      ${actionsCard()}`;
-    bindLeger(b); bindActions(b);
+      ${actionsCard()}${undoBar()}`;
+    bindLeger(b); bindActions(b); bindUndo(b);
     b.querySelectorAll('.t6-cell').forEach(c => c.onclick = () => editor(+c.dataset.e, c.dataset.t));
   }
 
@@ -243,9 +291,11 @@ TOOL_IMPL.test6e = function (el) {
       else if (t.kind === 'essais') { const e2 = [...o.querySelectorAll('[data-k]')].map(x => t6Num(x.value)); nr = e2.some(x => x != null) ? { e: e2, v: t6Best(t, e2) } : {}; }
       else { let v = t6Num($('#t6x').value); if (v != null && t.max) v = Math.min(v, t.max); if (v != null && t.kind === 'count') v = Math.max(0, Math.round(v)); nr = v == null ? {} : { v }; }
       if (abs) nr.abs = abs;
-      setR(e, tid, Object.keys(nr).length ? nr : null);
+      track(`${t.name} — ${e}`, [[e, tid]], () => setR(e, tid, Object.keys(nr).length ? nr : null));
     };
-    $('#t6clr').onclick = () => { if (!confirm('Effacer ce résultat ?')) return; setR(e, tid, null); close(); };
+    $('#t6clr').onclick = () => { const r0 = getR(e, tid);
+      if ((r0 && Object.keys(r0).length || live[tid + '|' + e]) && !confirm(`Effacer le résultat de ${e} (${t.name}) ? Vous pourrez annuler avec ↶.`)) return;
+      clearOne(e, tid, `Effacé : ${t.name} — ${e}`); close(); };
     $('#t6ok').onclick = () => { commit(); close(); };
     $('#t6x0').onclick = () => { o.remove(); };
     if ($('#t6nx')) $('#t6nx').onclick = () => { commit(); o.remove(); drawGrid(el.querySelector('#t6b')); editor(i + 1, tid); };
@@ -256,20 +306,40 @@ TOOL_IMPL.test6e = function (el) {
 
   /* ---------- ▶ Passer un test ---------- */
   const stBtn = (e, tid) => { const r = getR(e, tid), a = r && r.abs || ''; return `<button class="t6-st ${a}" data-st="${esc(e)}" data-tid="${tid}" title="Présent / Absent / Dispensé">${a === 'A' ? 'Abs.' : a === 'D' ? 'Disp.' : 'A / D'}</button>`; };
-  function cycleAbs(e, tid) { const r = { ...(getR(e, tid) || {}) }; r.abs = !r.abs ? 'A' : r.abs === 'A' ? 'D' : ''; if (!r.abs) delete r.abs; setR(e, tid, Object.keys(r).length ? r : null); }
+  const rzBtn = e => `<button class="t6-rz" data-rz="${esc(e)}" title="Tout effacer pour cet élève (essais, résultat, chrono, statut)">↺</button>`;
+  function cycleAbs(e, tid) { const r = { ...(getR(e, tid) || {}) }; r.abs = !r.abs ? 'A' : r.abs === 'A' ? 'D' : ''; if (!r.abs) delete r.abs;
+    track(`${T(tid).name} — ${e} : ${r.abs === 'A' ? 'absent' : r.abs === 'D' ? 'dispensé' : 'présent'}`, [[e, tid]], () => setR(e, tid, Object.keys(r).length ? r : null)); }
+  // Réinitialiser un élève pour le test en cours (confirmation seulement s'il y a quelque chose à perdre)
+  function resetStudent(t, e, b) {
+    const r = getR(e, t.id), has = r && Object.keys(r).length;
+    if (has && !confirm(`Réinitialiser ${t.name} pour ${e} ?\n(essais, résultat${r.abs ? ', statut absent/dispensé' : ''} effacés — annulable avec ↶)`)) return;
+    clearOne(e, t.id, `↺ ${t.name} — ${e}`); drawPass(b);
+  }
+  // Réinitialiser le test pour toute la classe (session en cours) — réservé à l'enseignant (data-cfg)
+  function resetClass(t, b) {
+    const st = students(), keys = st.filter(e => { const r = getR(e, t.id); return r && Object.keys(r).length || live[t.id + '|' + e]; });
+    if (!keys.length && !(t.kind === 'count' && coord)) return toast('Rien à réinitialiser pour ce test');
+    if (keys.length && !confirm(`Réinitialiser « ${t.name} » pour toute la classe ${cls} (${(cur() || {}).nom || 'session'}) ?\n${keys.length} élève(s) concerné(s). Vous pourrez annuler avec ↶.`)) return;
+    keys.forEach(e => delete live[t.id + '|' + e]);
+    if (t.kind === 'count') { clearTimeout(preT); preT = null; coord = null; }
+    if (keys.length) track(`↺ ${t.name} — toute la classe`, keys.map(e => [e, t.id]), () => keys.forEach(e => setR(e, t.id, null)));
+    toast(`↺ ${t.name} réinitialisé pour la classe`); drawPass(b);
+  }
   function drawPass(b) {
     const TT = t6Tests(); if (!TT.find(t => t.id === passId)) passId = 'saut';
     const t = T(passId), st = students().filter(e => !hideDone || !(getR(e, passId) && (t6Has(getR(e, passId)) || getR(e, passId).abs) && !live[passId + '|' + e]));
     const nDone = students().filter(e => { const r = getR(e, passId); return r && (t6Has(r) || r.abs); }).length;
     b.innerHTML = `<div class="t6-chips">${TT.map(x => `<button data-p="${x.id}" class="${x.id === passId ? 'on' : ''}">${esc(x.name)}<small>${esc(x.sub)}</small></button>`).join('')}</div>
-      <div class="card" style="margin-top:8px"><p class="t6-help">${t.help}${t.max && t.kind === 'chrono' ? ` <b>Durée max : ${t.max} s</b> (arrêt automatique).` : ''}${t.kind === 'essais' ? ` <b>${t.n} essai${t.n > 1 ? 's' : ''}.</b>` : ''}</p></div>
+      <div class="card" style="margin-top:8px"><p class="t6-help">${t.help}${t.max && t.kind === 'chrono' ? ` <b>Durée max : ${t.max} s</b> (arrêt automatique).` : ''}${t.kind === 'essais' ? ` <b>${t.n} essai${t.n > 1 ? 's' : ''}.</b>` : ''}</p>
+        <p class="muted" style="margin:6px 0 0;font-size:.76rem">✕ efface un essai · ↺ efface tout pour un élève · ↶ annule la dernière saisie.</p>
+        <div style="margin-top:6px;text-align:right"><button class="link" data-cfg="bare" id="t6rall" style="background:none;border:none;padding:4px 0">↺ Réinitialiser ce test pour toute la classe</button></div></div>
       ${t.kind === 'leger' ? '<div style="margin-top:10px"></div>' + legerCard() : ''}
       ${t.kind === 'count' ? `<div class="t6-timer" id="t6tm" style="margin-top:10px"><span id="t6tl">Prêt</span><b id="t6tv">${t.max}</b>
-          <div class="row" style="margin-top:6px"><button class="btn" style="background:rgba(255,255,255,.22);color:#fff" id="t6go">▶ Lancer les ${t.max} s</button><button class="btn" style="background:rgba(255,255,255,.22);color:#fff" id="t6stop">⏹ Stop</button></div></div>` : ''}
+          <div class="row" style="margin-top:6px"><button class="btn" style="background:rgba(255,255,255,.22);color:#fff" id="t6go">▶ Lancer les ${t.max} s</button><button class="btn" style="background:rgba(255,255,255,.22);color:#fff" id="t6stop">⏹ Stop</button><button class="btn" style="background:rgba(255,255,255,.22);color:#fff;flex:0 0 auto" id="t6trz" title="Remettre le minuteur à zéro">↺</button></div></div>` : ''}
       <div class="section-title" style="margin-top:14px"><h2>${esc(t.name)} · ${nDone}/${students().length}</h2>
         <label style="display:flex;gap:6px;align-items:center;font-size:.8rem;font-weight:700;color:var(--muted)"><input type="checkbox" id="t6hd" style="width:auto" ${hideDone ? 'checked' : ''}> Masquer les élèves testés</label></div>
       ${t.kind === 'chrono' ? `<div class="row" style="margin-bottom:4px"><button class="btn btn-ghost" id="t6all">⏹ Arrêter tous les chronos</button></div><p class="muted" style="margin:0 2px;font-size:.78rem">Jusqu'à 6 chronos en même temps.</p>` : ''}
-      <div id="t6pl"></div>`;
+      <div id="t6pl"></div>${undoBar()}`;
     const pl = b.querySelector('#t6pl');
     if (!st.length) pl.innerHTML = '<div class="card empty">Tous les élèves ont été testés 👍</div>';
     else if (t.kind === 'chrono' || t.kind === 'count') pl.innerHTML = `<div class="t6-grid">${st.map(e => t.kind === 'chrono' ? chronoCard(t, e) : countCard(t, e)).join('')}</div>`;
@@ -277,44 +347,52 @@ TOOL_IMPL.test6e = function (el) {
     b.querySelectorAll('[data-p]').forEach(x => x.onclick = () => { passId = x.dataset.p; drawPass(b); });
     b.querySelector('#t6hd').onchange = ev => { hideDone = ev.target.checked; drawPass(b); };
     b.querySelectorAll('[data-st]').forEach(x => x.onclick = () => { cycleAbs(x.dataset.st, x.dataset.tid); drawPass(b); });
-    bindLeger(b);
+    bindLeger(b); bindUndo(b);
+    b.querySelector('#t6rall').onclick = () => resetClass(t, b);
     // Saisies (distances, temps, palier…)
     b.querySelectorAll('[data-in]').forEach(x => {
-      x.onchange = () => writeInput(t, x.dataset.in, b);
+      x.onchange = () => writeInput(t, x.dataset.in, b, x.dataset.f);
       x.onkeydown = ev => { if (ev.key !== 'Enter') return; ev.preventDefault(); x.blur(); const all = [...b.querySelectorAll('[data-in]')], k = all.indexOf(x); if (all[k + 1]) all[k + 1].focus(); };
     });
     b.querySelectorAll('[data-pal]').forEach(x => x.oninput = () => { const v = b.querySelector(`[data-in="${CSS.escape(x.dataset.pal)}"][data-f="vma"]`), p = t6Num(x.value);
       if (v && p != null && (!v.value || v.dataset.auto)) { v.value = t6Fr(t6VmaFromPalier(p), 1); v.dataset.auto = '1'; } });
     b.querySelectorAll('[data-f="vma"]').forEach(x => x.addEventListener('input', () => delete x.dataset.auto));
-    b.querySelectorAll('[data-pm]').forEach(x => x.onclick = () => { const i = b.querySelector(`[data-in="${CSS.escape(x.dataset.pm)}"]`); i.value = i.value.startsWith('-') ? i.value.slice(1) : '-' + i.value; writeInput(t, x.dataset.pm, b); });
+    b.querySelectorAll('[data-pm]').forEach(x => x.onclick = () => { const i = b.querySelector(`[data-in="${CSS.escape(x.dataset.pm)}"]`); i.value = i.value.startsWith('-') ? i.value.slice(1) : '-' + i.value; writeInput(t, x.dataset.pm, b, 'v'); });
+    // ✕ : effacer un essai (ou la valeur) d'un élève
+    b.querySelectorAll('[data-cl]').forEach(x => x.onclick = () => { const i = b.querySelector(`[data-in="${CSS.escape(x.dataset.cl)}"][data-f="${x.dataset.f}"]`); if (!i || !i.value) return; i.value = ''; writeInput(t, x.dataset.cl, b, x.dataset.f, true); });
     // Chronos
     b.querySelectorAll('[data-go]').forEach(x => x.onclick = () => toggleChrono(t, x.dataset.go, b));
-    b.querySelectorAll('[data-rz]').forEach(x => x.onclick = () => { const e = x.dataset.rz; if (live[t.id + '|' + e]) delete live[t.id + '|' + e];
-      const r = getR(e, t.id); if (r && r.v != null && !confirm(`Remettre à zéro ${e} ?`)) return; setR(e, t.id, r && r.abs ? { abs: r.abs } : null); drawPass(b); });
+    b.querySelectorAll('[data-rz]').forEach(x => x.onclick = () => resetStudent(t, x.dataset.rz, b));
+    b.querySelectorAll('[data-cx]').forEach(x => x.onclick = () => { delete live[t.id + '|' + x.dataset.cx]; toast('Chrono annulé'); drawPass(b); });
     const all = b.querySelector('#t6all'); if (all) all.onclick = () => { Object.keys(live).filter(k => k.startsWith(t.id + '|')).forEach(k => stopChrono(T(t.id), k.split('|').slice(1).join('|'), false)); drawPass(b); };
     // Coordination
     b.querySelectorAll('[data-plus]').forEach(x => x.onclick = () => bump(t, x.dataset.plus, 1, b));
     b.querySelectorAll('[data-minus]').forEach(x => x.onclick = () => bump(t, x.dataset.minus, -1, b));
-    if (b.querySelector('#t6go')) { b.querySelector('#t6go').onclick = startCoord; b.querySelector('#t6stop').onclick = () => { if (!coord) return; clearTimeout(preT); preT = null; coord = { end: true }; beep(500, .5); paintLive(); }; }
+    if (b.querySelector('#t6go')) { b.querySelector('#t6go').onclick = startCoord; b.querySelector('#t6stop').onclick = () => { if (!coord) return; clearTimeout(preT); preT = null; coord = { end: true }; beep(500, .5); paintLive(); };
+      b.querySelector('#t6trz').onclick = () => { clearTimeout(preT); preT = null; coord = null; drawPass(b); }; }
     paintLive();
   }
   function passRow(t, e) {
     const r = getR(e, t.id) || {}, cl = r.abs ? 't6ab' : t6Has(r) ? 't6ok' : '', k = esc(e);
     let ins = '';
     if (t.kind === 'leger') ins = `<input data-in="${k}" data-f="palier" data-pal="${k}" inputmode="numeric" placeholder="Palier" value="${r.palier ?? ''}"><input data-in="${k}" data-f="vma" inputmode="decimal" placeholder="VMA" value="${t6Fr(r.vma, 1)}">`;
-    else if (t.kind === 'essais') ins = Array.from({ length: t.n }, (_, j) => `<input data-in="${k}" data-f="${j}" inputmode="decimal" placeholder="Essai ${j + 1}" value="${t6Fr((r.e || [])[j], t.dec)}">`).join('')
-      + (t.chrono ? `<button class="t6-ch ${live[t.id + '|' + e] ? 't6on' : ''}" data-go="${k}" data-lt="${esc(t.id + '|' + e)}">${live[t.id + '|' + e] ? '⏹ ' + t6Fr(0, 2) : '⏱ Départ'}</button>` : '');
+    else if (t.kind === 'essais') { const L = live[t.id + '|' + e];
+      ins = Array.from({ length: t.n }, (_, j) => { const v = t6Fr((r.e || [])[j], t.dec);
+        return `<span class="t6-e"><input data-in="${k}" data-f="${j}" inputmode="decimal" placeholder="Essai ${j + 1}" value="${v}"><button class="t6-x ${v ? '' : 'off'}" data-cl="${k}" data-f="${j}" title="Effacer l'essai ${j + 1}" aria-label="Effacer l'essai ${j + 1}">✕</button></span>`; }).join('')
+      + (t.chrono ? `<span class="t6-e"><button class="t6-ch ${L ? 't6on' : ''}" data-go="${k}" data-lt="${esc(t.id + '|' + e)}">${L ? '⏹ ' + t6Fr(0, 2) : '⏱ Départ'}</button>${L ? `<button class="t6-x" data-cx="${k}" title="Annuler ce chrono (rien n'est enregistré)" aria-label="Annuler ce chrono">✕</button>` : '<span class="t6-x off" aria-hidden="true">✕</span>'}</span>` : ''); }
     else ins = `${t.kind === 'signed' ? `<button class="t6-st" data-pm="${k}" title="Changer le signe">±</button>` : ''}<input data-in="${k}" data-f="v" inputmode="${t.kind === 'count' ? 'numeric' : 'decimal'}" placeholder="${esc(t.unit)}" value="${t6Fr(r.v, t.dec)}">`;
-    return `<div class="t6-row ${cl}"><span class="nm">${k}</span><span class="ins">${ins}</span><span class="best" data-best="${k}">${t.kind === 'leger' ? '' : t6Has(r) ? `${t6Fr(r.v, t.dec)} ${esc(t.unit)}` : ''}</span>${stBtn(e, t.id)}</div>`;
+    return `<div class="t6-row ${cl}"><span class="nm">${k}</span><span class="ins">${ins}</span><span class="best" data-best="${k}">${t.kind === 'leger' ? '' : t6Has(r) ? `${t6Fr(r.v, t.dec)} ${esc(t.unit)}` : ''}</span>${rzBtn(e)}${stBtn(e, t.id)}</div>`;
   }
-  function writeInput(t, e, b) {
+  function writeInput(t, e, b, f, cleared) {
     const q = f => b.querySelector(`[data-in="${CSS.escape(e)}"][data-f="${f}"]`), old = getR(e, t.id) || {}, abs = old.abs;
     let nr;
     if (t.kind === 'leger') { const p = t6Num(q('palier').value), v = t6Num(q('vma').value); nr = p == null && v == null ? {} : { palier: p == null ? null : Math.round(p), vma: v, v }; }
     else if (t.kind === 'essais') { const e2 = Array.from({ length: t.n }, (_, j) => t6Num(q(j).value)); nr = e2.some(x => x != null) ? { e: e2, v: t6Best(t, e2) } : {}; }
     else { let v = t6Num(q('v').value); if (v != null && t.max && t.kind === 'chrono') v = Math.min(v, t.max); nr = v == null ? {} : { v }; }
     if (abs) nr.abs = abs;
-    setR(e, t.id, Object.keys(nr).length ? nr : null);
+    const what = t.kind === 'essais' && f != null && f !== '' && !isNaN(f) ? ` · essai ${+f + 1}` : t.kind === 'leger' ? ` · ${f === 'vma' ? 'VMA' : 'palier'}` : '';
+    track(`${cleared ? 'Effacé : ' : ''}${t.name}${what} — ${e}`, [[e, t.id]], () => setR(e, t.id, Object.keys(nr).length ? nr : null));
+    b.querySelectorAll(`[data-cl="${CSS.escape(e)}"]`).forEach(x => { const i = q(x.dataset.f); x.classList.toggle('off', !(i && i.value)); });
     const bs = b.querySelector(`[data-best="${CSS.escape(e)}"]`), r = getR(e, t.id);
     if (bs && t.kind !== 'leger') bs.textContent = t6Has(r) ? `${t6Fr(r.v, t.dec)} ${t.unit}` : '';
     const row = bs && bs.closest('.t6-row'); if (row) row.classList.toggle('t6ok', t6Has(r));
@@ -324,7 +402,7 @@ TOOL_IMPL.test6e = function (el) {
     return `<div class="t6-c ${cl}"><div class="nm">${esc(e)}</div><div class="big"><span data-lt="${esc(k)}">${t6Fr(L ? 0 : r.v ?? 0, 1)}</span> <small>s</small></div>
       <div class="bar"><i data-lb="${esc(k)}" style="width:${L ? 0 : Math.min(100, (r.v || 0) / t.max * 100)}%"></i></div><div class="flag">${!L && r.v >= t.max ? `Max ${t.max} s atteint ✔` : ''}</div>
       <button class="btn ${L ? 'btn-grad' : 'btn-ghost'} go" data-go="${esc(e)}">${L ? '⏹ Stop' : '▶ Départ'}</button>
-      <div class="sub"><input data-in="${esc(e)}" data-f="v" inputmode="decimal" placeholder="saisir s" value="${L ? '' : t6Fr(r.v, 1)}"><button data-rz="${esc(e)}" title="Remettre à zéro">↺</button>${stBtn(e, t.id)}</div></div>`;
+      <div class="sub"><input data-in="${esc(e)}" data-f="v" inputmode="decimal" placeholder="saisir s" value="${L ? '' : t6Fr(r.v, 1)}"><button data-rz="${esc(e)}" title="${L ? 'Arrêter et remettre à zéro' : 'Remettre à zéro'}">↺</button>${stBtn(e, t.id)}</div></div>`;
   }
   function countCard(t, e) {
     const r = getR(e, t.id) || {}, cl = r.abs ? 't6ab' : t6Has(r) ? 't6ok' : '';
@@ -333,7 +411,8 @@ TOOL_IMPL.test6e = function (el) {
       <div class="sub"><button data-minus="${esc(e)}">−1</button><input data-in="${esc(e)}" data-f="v" inputmode="numeric" placeholder="nb" value="${r.v ?? ''}"><button data-rz="${esc(e)}" title="Remettre à zéro">↺</button>${stBtn(e, t.id)}</div></div>`;
   }
   function bump(t, e, d, b) {
-    const r = { ...(getR(e, t.id) || {}) }; r.v = Math.max(0, (r.v || 0) + d); setR(e, t.id, r);
+    const r = { ...(getR(e, t.id) || {}) }; r.v = Math.max(0, (r.v || 0) + d);
+    track(`${t.name} ${d > 0 ? '+1' : '−1'} — ${e}`, [[e, t.id]], () => setR(e, t.id, r));
     const card = b.querySelector(`[data-plus="${CSS.escape(e)}"]`).closest('.t6-c');
     card.querySelector('.big').innerHTML = `${r.v} <small>${esc(t.unit)}</small>`; card.querySelector('[data-in]').value = r.v; card.classList.add('t6ok');
     if (d > 0) beep(1200, .04, .2);
@@ -350,9 +429,10 @@ TOOL_IMPL.test6e = function (el) {
   function stopChrono(t, e, auto) {
     const k = t.id + '|' + e, L = live[k]; if (!L) return; delete live[k];
     const ms = performance.now() - L.t0, s = L.sid, old = (getR(e, t.id, t6DB().sessions[s]) || {});
-    if (t.kind === 'essais') { const e2 = Array.from({ length: t.n }, (_, j) => (old.e || [])[j] ?? null), j = e2.findIndex(x => x == null); e2[j < 0 ? t.n - 1 : j] = Math.round(ms / 10) / 100;
-      setR(e, t.id, { ...old, e: e2, v: t6Best(t, e2) }, s); beep(900, .1); }
-    else { const v = auto ? t.max : Math.min(t.max, Math.round(ms / 100) / 10); setR(e, t.id, { ...old, v }, s); beep(auto ? 1300 : 900, auto ? .6 : .12); if (auto) toast(`${e} : ${t.max} s atteint ✔`); }
+    if (!t6DB().sessions[s]) return;            // session supprimée entre-temps
+    if (t.kind === 'essais') { const e2 = Array.from({ length: t.n }, (_, j) => (old.e || [])[j] ?? null), j = e2.findIndex(x => x == null), jj = j < 0 ? t.n - 1 : j; e2[jj] = Math.round(ms / 10) / 100;
+      track(`⏱ ${t.name} · essai ${jj + 1} — ${e}`, [[e, t.id, s]], () => setR(e, t.id, { ...old, e: e2, v: t6Best(t, e2) }, s)); beep(900, .1); }
+    else { const v = auto ? t.max : Math.min(t.max, Math.round(ms / 100) / 10); track(`⏱ ${t.name} — ${e}`, [[e, t.id, s]], () => setR(e, t.id, { ...old, v }, s)); beep(auto ? 1300 : 900, auto ? .6 : .12); if (auto) toast(`${e} : ${t.max} s atteint ✔`); }
   }
   function startCoord() {
     if (coord && (coord.t0 || coord.pre)) return;
