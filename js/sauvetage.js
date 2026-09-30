@@ -244,7 +244,7 @@ TOOL_IMPL.sauvetage = function (el) {
     const stp = (k, f, v, lbl, on, del) => `<span class="sv-stp ${on ? 'on' : ''}"><button data-ek="${k}" data-f="${f}-" data-v="${esc(v)}" aria-label="moins">−</button><b>${lbl}</b><button data-ek="${k}" data-f="${f}+" data-v="${esc(v)}" aria-label="plus">+</button>${del ? `<button class="x" data-obdel="${esc(v)}" aria-label="Supprimer ce type">✕</button>` : ''}</span>`;
     const eq = s => s.k === 'dist' ? `= ${svLongTxt(s.m, c)} de ${c.bassin} m · ≈ ${dfT(s.m / c.refV)} à ${dfFr(c.refV, 2)} m/s`
       : s.k === 'duree' ? `≈ ${dfFr(c.refV * s.d, 0)} m à ${dfFr(c.refV, 2)} m/s, soit ${svLongTxt(c.refV * s.d, c)} de ${c.bassin} m` : 'Atelier au bord : chronométré, sans distance nagée.';
-    const etHTML = (s, k) => `<details class="sv-et" data-et="${k}" ${openEt.has(k) ? 'open' : ''}><summary><span class="n">${k + 1}</span><span class="t">${s.lb ? esc(s.lb) : `Étape ${k + 1}`}<small>${esc(svEtLbl(s, c))}</small></span><span class="chev">▾</span></summary><div class="bd">
+    const etHTML = (s, k) => `<details class="sv-et" data-et="${k}" ${openEt.has(k) ? 'open' : ''}><summary data-free><span class="n">${k + 1}</span><span class="t">${s.lb ? esc(s.lb) : `Étape ${k + 1}`}<small>${esc(svEtLbl(s, c))}</small></span><span class="chev">▾</span></summary><div class="bd">
         <label>Intitulé (facultatif)</label><input data-ek="${k}" data-f="lb" value="${esc(s.lb)}" placeholder="ex. Aller chercher la victime">
         <label>Départ</label>${etog(k, 'dep', Object.entries(SV_DEP).filter(([d]) => k || d !== 'suite').map(([d, v]) => [d, v[0] + ' ' + (d === 'suite' && svRel({ cfg: c }) ? 'Enchaîné / relais' : v[1])]), s.dep)}
         <label>Nage</label>${etog(k, 'k', Object.entries(SV_NAGE).map(([d, v]) => [d, v[0] + ' ' + v[1]]), s.k)}
@@ -264,14 +264,14 @@ TOOL_IMPL.sauvetage = function (el) {
         <div class="sv-acts"><button class="btn btn-ghost" data-ek="${k}" data-f="up" ${k ? '' : 'disabled'}>↑ Monter</button><button class="btn btn-ghost" data-ek="${k}" data-f="dn" ${k < c.et.length - 1 ? '' : 'disabled'}>↓ Descendre</button><button class="btn btn-ghost" data-ek="${k}" data-f="dup" ${c.et.length >= 12 ? 'disabled' : ''}>⧉ Dupliquer</button>${c.et.length > 1 ? `<button class="btn btn-ghost" data-ek="${k}" data-f="del">✕ Supprimer</button>` : ''}</div>
       </div></details>`;
     const N = svNeed(c), Df = svDfix(c), Td = svTdur(c), obTot = c.et.reduce((a, s) => a + svObN(s), 0), ojTot = c.et.reduce((a, s) => a + s.oj.n, 0);
-    host.innerHTML = `<div class="card"><h3 style="margin-top:0">🏊 Bassin et groupement</h3>
+    host.innerHTML = `<div class="card" data-cfg><h3 style="margin-top:0">🏊 Bassin et groupement</h3>
         ${locked ? '<p class="muted" style="margin:0 0 8px">🔒 Épreuve commencée : le format n\'est plus modifiable (les bips restent réglables dans l\'onglet Séance).</p>' : ''}
         <label style="margin-top:0">Longueur du bassin</label>${tog('bas', [[15, '15 m'], [25, '25 m'], [50, '50 m'], ['x', 'Autre']], [15, 25, 50].includes(c.bassin) ? c.bassin : 'x')}
         ${[15, 25, 50].includes(c.bassin) ? '' : `<div class="sv-inl" style="margin-top:6px"><input id="basx" type="number" min="5" step="1" value="${c.bassin}"> m</div>`}
         <label>Groupement</label>${tog('grp', [[1, 'Individuel'], [2, 'Duo'], [3, 'Trio'], [4, 'Quatuor'], [5, '5'], [6, '6']], c.grp)}
         ${c.grp > 1 ? `<label>Organisation</label>${tog('org', Object.entries(SV_ORG).map(([k, v]) => [k, v[0]]), c.org)}<p class="df-help">${SV_ORG[c.org][1]}</p>` : ''}</div>
 
-      <div class="card" style="margin-top:12px"><h3 style="margin-top:0">🛟 Épreuve (${c.et.length} étape${c.et.length > 1 ? 's' : ''})</h3>
+      <div class="card" data-cfg style="margin-top:12px"><h3 style="margin-top:0">🛟 Épreuve (${c.et.length} étape${c.et.length > 1 ? 's' : ''})</h3>
         <label style="margin-top:0">Épreuves types</label><div class="tog" id="pre">${SV_PRESETS.map(([l], i) => `<button data-pre="${i}">${l}</button>`).join('')}</div>
         <p class="df-help">Une épreuve = une suite d'étapes (ateliers) enchaînées : départ, nage (distance ou temps limité), obstacles, victimes / objets, matériel, geste de secours. ${svRel({ cfg: c }) ? 'En relais, chaque étape = un relayeur.' : ''}</p>
         <div id="ets">${c.et.map(etHTML).join('')}</div>
@@ -280,7 +280,7 @@ TOOL_IMPL.sauvetage = function (el) {
           <br>Projet demandé : ${[N.t ? 'temps' : '', N.m ? 'distance' : '', N.o ? svKind(c) : ''].filter(Boolean).join(', ')}.</div>
         <label>⏳ Temps limite de l'épreuve (facultatif)</label><div class="sv-inl"><input id="cap" value="${c.cap ? dfT(c.cap) : ''}" placeholder="aucun" inputmode="numeric"><span class="muted">min:s · au-delà, arrêt pour tous (bip 1 min avant)</span></div></div>
 
-      <div class="card" style="margin-top:12px"><h3 style="margin-top:0">🎯 Règles</h3>
+      <div class="card" data-cfg style="margin-top:12px"><h3 style="margin-top:0">🎯 Règles</h3>
         <label style="margin-top:0">Arrêts / appuis au bord autorisés (sur l'épreuve)</label>${tog('arr', [[0, '0'], [1, '1'], [2, '2'], [3, '3'], [-1, 'Illimité']], c.arrets)}
         <label>Tolérance « projet respecté » (± %)</label><input id="tol" type="number" min="1" max="50" step="1" value="${c.tol}" style="max-width:120px">
         <p class="df-help">Temps et distance : vert si l'écart ≤ ${c.tol} %, orange ≤ ${2 * c.tol} %, rouge au-delà. Victimes / objets : vert si exact, orange à ± 1.</p>
@@ -330,9 +330,9 @@ TOOL_IMPL.sauvetage = function (el) {
   /* ---------- Préparation (pas encore de séance) ---------- */
   function prepNew(box) {
     const c = D.lastCfg = svNorm(D.lastCfg || svDefCfg());
-    box.innerHTML = `<div class="card"><label style="margin-top:0">Nom de la séance</label><input id="nm" value="Sauvetage ${new Date().toLocaleDateString('fr-FR')}"></div>
+    box.innerHTML = `<div class="card" data-cfg><label style="margin-top:0">Nom de la séance</label><input id="nm" value="Sauvetage ${new Date().toLocaleDateString('fr-FR')}"></div>
       <div id="cfg" style="margin-top:12px"></div>
-      <div class="card" style="margin-top:12px"><h3 style="margin-top:0" id="cmpt"></h3><div id="cmp"></div></div>
+      <div class="card" data-cfg style="margin-top:12px"><h3 style="margin-top:0" id="cmpt"></h3><div id="cmp"></div></div>
       ${safetyCard(c)}`;
     const $ = s => box.querySelector(s);
     const syncCmp = () => {
@@ -372,7 +372,7 @@ TOOL_IMPL.sauvetage = function (el) {
     box.innerHTML = `<div class="card"><b style="font-size:1.1rem">${esc(C.nom)}</b>
         <div class="muted">${esc(C.classe || '')} · bassin ${c.bassin} m · ${esc(svFormat(c))} · ${c.grp === 1 ? 'individuel' : SV_GRPN[c.grp] + ' · ' + SV_ORG[c.org][0]}</div>
         <div class="row" style="margin-top:10px"><button class="btn btn-grad" id="gopj">🎯 Projets</button><button class="btn btn-ghost" id="golv">⏱ Aller à la séance</button></div></div>
-      <div class="card" style="margin-top:12px"><div style="display:flex;align-items:center;gap:8px"><h3 style="margin:0;flex:1">${c.grp === 1 ? '🧑 Élèves' : '👥 Groupes'} (${C.groups.length})</h3><button class="btn btn-ghost" id="edg" style="padding:8px 12px">✏️ Modifier</button></div>
+      <div class="card" data-cfg style="margin-top:12px"><div style="display:flex;align-items:center;gap:8px"><h3 style="margin:0;flex:1">${c.grp === 1 ? '🧑 Élèves' : '👥 Groupes'} (${C.groups.length})</h3><button class="btn btn-ghost" id="edg" style="padding:8px 12px">✏️ Modifier</button></div>
         ${rel ? '<p class="df-help">Choisissez qui nage chaque étape (relais).</p>' : ''}
         ${c.grp === 1 ? `<div style="margin-top:6px">${C.groups.map(g => `<span class="df-mem">${esc(g.members[0])}</span>`).join('')}</div>`
           : C.groups.map((g, gi) => `<div style="padding:8px 0;border-top:1px solid var(--line)"><b>${esc(g.name)}</b><br>${g.members.map(n => `<span class="df-mem">${esc(n)}</span>`).join('')}
@@ -412,7 +412,7 @@ TOOL_IMPL.sauvetage = function (el) {
         <p class="df-help" style="margin-top:0">Avant de nager, chaque ${grpP ? 'groupe' : 'élève'} annonce ce qu'il pense réaliser : ${[N.t ? 'un temps' : '', N.m ? 'une distance (ou un nombre de longueurs)' : '', N.o ? `un nombre de ${kind} ramené${kind === 'objets' ? 's' : 's'}` : ''].filter(Boolean).join(', ')}. La vitesse de nage correspondante s'affiche aussitôt.</p>
         <div class="muted" style="font-size:.82rem">${esc(svFormat(c))} · bassin ${c.bassin} m</div>
         ${N.m ? `<label>Distance saisie en</label><div class="tog">${[['m', 'Mètres'], ['L', `Longueurs (${c.bassin} m)`]].map(([k, l]) => `<button data-pu="${k}" class="${c.pUnit === k ? 'on' : ''}">${l}</button>`).join('')}</div>` : ''}
-        <label>Proposer d'après une vitesse</label><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><input id="pv" type="number" min="0.2" max="2.5" step="0.05" value="${c.refV}" style="width:80px;text-align:center"> <span>m/s</span>
+        <label>Proposer d'après une vitesse</label><div data-cfg="bare" style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><input id="pv" type="number" min="0.2" max="2.5" step="0.05" value="${c.refV}" style="width:80px;text-align:center"> <span>m/s</span>
           <button class="btn btn-ghost" id="fill" style="padding:9px 12px">Remplir les projets vides</button></div>
         <p class="df-help">${filled}/${parts.length} projets complets.</p></div>
       ${parts.map(P => `<div class="card" style="margin-top:10px"><div style="display:flex;gap:8px;align-items:baseline;flex-wrap:wrap"><b style="font-size:1.05rem">${esc(P.label)}</b>${P.sub ? `<span class="muted" style="font-size:.78rem">${esc(P.sub)}</span>` : ''}</div>${cell(P)}</div>`).join('')}
@@ -530,13 +530,13 @@ TOOL_IMPL.sauvetage = function (el) {
       ${L.st === 'done' ? `<button class="btn btn-grad btn-block" style="margin-top:10px;padding:16px" id="save">💾 Terminer et enregistrer</button>` : ''}
       <div class="muted" style="margin-top:8px;font-size:.8rem">Touchez « +1 longueur » à chaque longueur, « +1 obstacle / victime / objet » à chaque réussite, puis « ✔ Étape suivante », « 🔁 Relais » ou « 🏁 Arrivé ». Les étapes (É1, É2…) permettent de corriger après coup.</div>
       ${U.length ? `<div class="df-grid">${U.map(card).join('')}</div>` : '<div class="card empty" style="margin-top:10px">Aucun nageur pour cette vague.</div>'}
-      <div class="card" style="margin-top:12px"><b>🔔 Bips</b>
+      <div class="card" data-cfg style="margin-top:12px"><b>🔔 Bips</b>
         <div class="tog">${[['off', 'Départ / fin seulement'], ['n', 'Toutes les N s']].map(([m, l]) => `<button data-bm="${m}" class="${b.mode === m ? 'on' : ''}">${l}</button>`).join('')}</div>
         ${b.mode === 'n' ? `<div style="display:flex;gap:6px;align-items:center;margin-top:8px">Bip toutes les <input id="bn" type="number" min="3" value="${b.n}" style="width:76px;text-align:center"> s</div>` : ''}
         <p class="df-help">Toujours actifs : 3-2-1 et départ, fin des étapes en temps limité (3-2-1 puis double bip), rappel 1 min avant le temps limite de l'épreuve${c.cap ? ` (${dfT(c.cap)})` : ''}, fin de vague.</p></div>
       ${obs ? '<div style="text-align:center;margin:18px 0 6px"><button class="link" id="gv-prof">🔒 Mode enseignant</button></div>'
-        : `${C.groups.length > 1 ? `<div class="card" style="margin-top:12px"><label style="margin-top:0">📱 Tablette d'un ${c.grp === 1 ? 'élève' : 'groupe'} (l'observateur ne voit que son ${c.grp === 1 ? 'nageur' : 'groupe'})</label><select id="only"><option value="">Tous</option>${C.groups.map((g, i) => `<option value="${i}">${esc(g.name)}</option>`).join('')}</select></div>` : ''}
-        ${L.st !== 'done' && started(C) ? '<button class="btn btn-ghost btn-block" style="margin-top:12px" id="save">💾 Enregistrer maintenant (séance incomplète)</button>' : ''}`}
+        : `${C.groups.length > 1 ? `<div class="card" data-cfg style="margin-top:12px"><label style="margin-top:0">📱 Tablette d'un ${c.grp === 1 ? 'élève' : 'groupe'} (l'observateur ne voit que son ${c.grp === 1 ? 'nageur' : 'groupe'})</label><select id="only"><option value="">Tous</option>${C.groups.map((g, i) => `<option value="${i}">${esc(g.name)}</option>`).join('')}</select></div>` : ''}
+        ${L.st !== 'done' && started(C) ? '<button class="btn btn-ghost btn-block" data-cfg="bare" style="margin-top:12px" id="save">💾 Enregistrer maintenant (séance incomplète)</button>' : ''}`}
       </div>`;
     const $ = s => box.querySelector(s), redraw = () => live(box, C);
     box.querySelectorAll('[data-a]').forEach(bt => bt.onclick = () => {
@@ -664,20 +664,20 @@ TOOL_IMPL.sauvetage = function (el) {
     return csv(rows);
   }
   function sendRes(C) {
-    if (C.sent && !confirm('Cette séance a déjà été envoyée dans les Résultats des élèves. Envoyer à nouveau ?')) return;
+    const base = String(C.id).split('-')[0]; let nMaj = 0;
     let n = 0; const inCls = C.classe ? studentsOf(C.classe) : null, c = svNorm(C.cfg), N = svNeed(c), kind = svKind(c);
     C.groups.forEach(g => { const G = svGrpProj(C) ? svGroup(C, g) : null;
       g.members.forEach(e => { if (inCls && !inCls.includes(e)) return; const S = svMember(C, g, e); if (!S) return; const E = svRel(C) ? G : S;
-        saveResult({ tool: 'sauvetage', label: 'Sauvetage aquatique', classe: C.classe, eleve: e,
+        nMaj += saveResult({ key: `sauvetage|${base}|${C.classe || ''}|${e}`, tool: 'sauvetage', label: 'Sauvetage aquatique', classe: C.classe, eleve: e,
           valeur: [N.m ? `${dfFr(S.dist, 0)} m` : dfT(S.t), S.ojT ? `${S.oj}/${S.ojT} ${kind}` : '', S.gT ? `geste ${S.gOK ? '✔' : '✘'}` : ''].filter(Boolean).join(' · '),
-          detail: `${C.nom} · ${svFormat(c)} · bassin ${c.bassin} m${c.grp > 1 ? ' · ' + g.name : ''} · ${dfFr(S.dist, 0)} m (${svLongTxt(S.dist, c)}) en ${dfT(S.t)}${S.partial ? ' (incomplet)' : ''}${S.v ? ` · ${svV(S.v)} (${dfFr(S.v * 3.6, 1)} km/h)` : ''}${S.obT ? ` · obstacles ${S.ob}/${S.obT}` : ''}${S.gT ? ` · geste de secours ${S.gOK ? 'réussi' : 'non réussi'} (${S.gN}/${S.gT})` : ''} · écart projet ${E && E.eAbs != null ? dfFr(E.eAbs * 100, 1) + ' % (moy.)' : '–'}${svRel(C) ? ' (relais)' : ''} · ${S.st} arrêt(s)${S.over ? ' (au-delà du nombre autorisé)' : ''}` }); n++; }); });
-    C.sent = Date.now(); save(); toast(`${n} résultat(s) envoyé(s) ✔`);
+          detail: `${C.nom} · ${svFormat(c)} · bassin ${c.bassin} m${c.grp > 1 ? ' · ' + g.name : ''} · ${dfFr(S.dist, 0)} m (${svLongTxt(S.dist, c)}) en ${dfT(S.t)}${S.partial ? ' (incomplet)' : ''}${S.v ? ` · ${svV(S.v)} (${dfFr(S.v * 3.6, 1)} km/h)` : ''}${S.obT ? ` · obstacles ${S.ob}/${S.obT}` : ''}${S.gT ? ` · geste de secours ${S.gOK ? 'réussi' : 'non réussi'} (${S.gN}/${S.gT})` : ''} · écart projet ${E && E.eAbs != null ? dfFr(E.eAbs * 100, 1) + ' % (moy.)' : '–'}${svRel(C) ? ' (relais)' : ''} · ${S.st} arrêt(s)${S.over ? ' (au-delà du nombre autorisé)' : ''}` }) === 'maj'; n++; }); });
+    C.sent = Date.now(); save(); toast(nMaj ? `${n} résultat(s) mis à jour ✔ (déjà envoyés : remplacés, sans doublon)` : `${n} résultat(s) envoyé(s) ✔`);
   }
   function results(box) {
     const C = cur(), S = D.seances.slice().sort((a, b) => b.date - a.date);
     const lbl = R => `${esc(svFormat(svNorm(R.cfg)))} · bassin ${R.cfg.bassin} m · ${R.cfg.grp === 1 ? 'individuel' : SV_GRPN[R.cfg.grp] + ' · ' + SV_ORG[R.cfg.org][0]}`;
     box.innerHTML = `${C ? `<div class="card" style="border:2px solid var(--gold)"><h3 style="margin-top:0">⏱ Séance en cours · ${esc(C.nom)}</h3><div class="muted">${esc(C.classe || '')} · ${lbl(C)} · résultats provisoires (étapes terminées)</div>
-        <div id="rcur"></div><button class="btn btn-grad btn-block" style="margin-top:10px" id="save">💾 Terminer et enregistrer</button></div>` : ''}
+        <div id="rcur"></div><button class="btn btn-grad btn-block" data-cfg="bare" style="margin-top:10px" id="save">💾 Terminer et enregistrer</button></div>` : ''}
       <div class="section-title"><h2>Historique (${S.length})</h2>${S.length ? '<button class="link" id="expall">Exporter tout (CSV)</button>' : ''}</div>
       <div class="seg" style="margin-bottom:10px">${[['ecart', '🎯 Respect du projet'], ['perf', '🏆 Performance'], ['v', '⚡ Vitesse']].map(([k, l]) => `<button data-rk="${k}" class="${rk === k ? 'on' : ''}">${l}</button>`).join('')}</div>
       ${S.length ? S.map(R => `<details class="card" style="margin-top:10px" data-id="${esc(R.id)}" ${openRec === R.id ? 'open' : ''}><summary style="cursor:pointer"><b>${new Date(R.date).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })} · ${esc(R.classe || '')} · ${esc(R.nom)}</b>

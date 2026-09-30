@@ -7,7 +7,12 @@ DB.resultats = DB.resultats || [];
 ICONS.resultats = '<rect x="4" y="3.5" width="16" height="17" rx="2.5"/><path d="M8 8h8M8 12h8M8 16h5"/><circle cx="17.5" cy="17.5" r="3.5" fill="var(--card)"/><path d="M16 17.5l1 1 2-2"/>';
 
 const lastClass = () => (DB.classes.find(c => c.name === DB.lastClass) || DB.classes[0] || {}).name || '';
-function saveResult(r) { DB.resultats.push({ date: Date.now(), ...r }); save(); window.syncFlush && window.syncFlush(); }
+/* r.key (facultatif) : anti-doublon — un résultat de même clé remplace le précédent (même id sur toutes les tablettes) */
+function saveResult(r) {
+  const o = { date: Date.now(), ...r };
+  if (r.key) { o.id = 'r:' + r.key; const i = DB.resultats.findIndex(x => x.id === o.id || x.key === r.key); if (i >= 0) { DB.resultats[i] = o; save(); window.syncFlush && window.syncFlush(); return 'maj'; } }
+  DB.resultats.push(o); save(); window.syncFlush && window.syncFlush(); return 'new';
+}
 
 /* Carte à ajouter en bas d'un outil.
    single: () => ({ valeur, detail })  → enregistrement pour l'élève choisi
@@ -69,7 +74,7 @@ TOOL_IMPL.resultats = function (el) {
         <div><label>Élève</label><select id="re"><option value="">Tous</option>${st.map(n => `<option ${n === who ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select></div></div></div>
       <div class="section-title"><h2>Résultats enregistrés (${rows.length})</h2><button class="link" id="exp">Exporter CSV</button></div>
       <div class="card sheet-table">${rows.length ? `<table><tr><th>Date</th><th>Élève</th><th>Outil</th><th>Résultat</th><th>Détail</th><th></th></tr>
-        ${rows.map(r => `<tr><td>${new Date(r.date).toLocaleDateString('fr-FR')}</td><td><b>${esc(r.eleve)}</b></td><td>${esc(names[r.tool] || r.tool)}</td><td><b>${esc(r.valeur)}</b></td><td class="muted">${esc(r.detail || '')}</td><td><button class="btn btn-ghost" style="padding:4px 8px" data-x="${r.i}">✕</button></td></tr>`).join('')}</table>`
+        ${rows.map(r => `<tr><td>${new Date(r.date).toLocaleDateString('fr-FR')}</td><td><b>${esc(r.eleve)}</b></td><td>${esc(names[r.tool] || r.tool)}</td><td><b>${esc(r.valeur)}</b></td><td class="muted">${esc(r.detail || '')}</td><td><button class="btn btn-ghost" style="padding:4px 8px" data-x="${r.i}" data-cfg="bare">✕</button></td></tr>`).join('')}</table>`
         : '<div class="empty">Aucun résultat. Utilisez la carte « 💾 Enregistrer » en bas des outils (chronomètre, multi-chrono, Test VMA, 1RM…).<br><br>Les résultats d\'équipes (tournois, matchs, relais, groupes HYROX, CO, duathlon…) sont dans <button class="link" data-coll>👥 Résultats collectifs</button>.</div>'}</div>`;
     const $ = s => el.querySelector(s);
     $('#rc').onchange = () => { cls = $('#rc').value; DB.lastClass = cls; who = ''; save(); draw(); };

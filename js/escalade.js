@@ -59,7 +59,7 @@ TOOL_IMPL.escalade = function (el) {
   function voies(box, edit = null) {
     const v = edit || { id: null, nom: '', cot: '5a' };
     let photo = v.id ? DB[escImgKey(v.id)] || null : null;
-    box.innerHTML = `<div class="card"><h3>${v.id ? 'Modifier la voie' : 'Nouvelle voie'}</h3>
+    box.innerHTML = `<div class="card" data-cfg><h3>${v.id ? 'Modifier la voie' : 'Nouvelle voie'}</h3>
         <label>Nom / numéro de la voie</label><input id="vn" value="${esc(v.nom)}" placeholder="Ex. Voie 3 – la jaune">
         <label>Cotation</label><div id="vc" style="display:flex;flex-wrap:wrap;gap:6px">${ESC_COT.map(c => `<button class="btn ${c === v.cot ? 'btn-grad' : 'btn-ghost'}" style="flex:0 0 auto;padding:8px 10px;min-width:48px" data-c="${c}">${c}</button>`).join('')}</div>
         <label>Photo de la voie</label>
@@ -71,7 +71,7 @@ TOOL_IMPL.escalade = function (el) {
         return `<div class="card" style="margin-top:8px;display:flex;gap:12px;align-items:center">
           ${img ? `<img src="${img}" data-zoom="${w.id}" style="width:64px;height:64px;object-fit:cover;border-radius:10px;cursor:zoom-in">` : '<div style="width:64px;height:64px;border-radius:10px;background:var(--line);display:grid;place-items:center;font-size:1.6rem">🧗</div>'}
           <div style="flex:1;min-width:0"><div>${escBadge(w.cot)} <b>${esc(w.nom)}</b></div><div class="muted" style="font-size:.8rem;margin-top:3px">${E.passages.filter(p => p.voie === w.id).length} passage(s)</div></div>
-          <button class="btn btn-ghost" style="padding:6px 10px" data-ed="${i}">✏️</button><button class="btn btn-ghost" style="padding:6px 10px" data-dl="${i}">🗑</button></div>`; }).join('')
+          <button class="btn btn-ghost" data-cfg="bare" style="padding:6px 10px" data-ed="${i}">✏️</button><button class="btn btn-ghost" data-cfg="bare" style="padding:6px 10px" data-dl="${i}">🗑</button></div>`; }).join('')
         : '<div class="card empty">Aucune voie pour l\'instant : créez votre première voie ci-dessus.</div>'}`;
     const $ = s => box.querySelector(s);
     const showPh = () => { $('#ph').innerHTML = photo ? `<div style="position:relative"><img src="${photo}" style="width:100%;max-height:340px;object-fit:contain;border-radius:12px;background:#000"><button class="btn btn-ghost" id="prm" style="position:absolute;top:6px;right:6px;padding:4px 10px;background:#fff;color:#000">✕</button></div>` : '<div class="muted" style="font-size:.85rem">Aucune photo.</div>';
@@ -106,10 +106,10 @@ TOOL_IMPL.escalade = function (el) {
     if (!DB.classes.some(c => c.name === P.cls)) P.cls = DB.classes[0].name;
     const T = teamsOf(P.cls);
     box.innerHTML = `<div class="card"><label style="margin-top:0">Classe</label><select id="ec">${DB.classes.map(c => `<option ${c.name === P.cls ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</select></div>
-      <details class="card" style="margin-top:12px" ${T.length ? '' : 'open'}><summary style="font-weight:800;cursor:pointer">🧩 ${T.length ? 'Refaire les équipes' : 'Former les équipes'}</summary><div id="ecmp" style="margin-top:6px"></div></details>
-      <div class="section-title"><h2>Équipes de ${esc(P.cls)} (${T.length})</h2>${T.length ? '<button class="link" id="edel">Supprimer les équipes</button>' : ''}</div>
+      <details class="card" data-cfg style="margin-top:12px" ${T.length ? '' : 'open'}><summary style="font-weight:800;cursor:pointer">🧩 ${T.length ? 'Refaire les équipes' : 'Former les équipes'}</summary><div id="ecmp" style="margin-top:6px"></div></details>
+      <div class="section-title"><h2>Équipes de ${esc(P.cls)} (${T.length})</h2>${T.length ? '<button class="link" data-cfg="bare" id="edel">Supprimer les équipes</button>' : ''}</div>
       ${T.length ? `<div class="teams">${T.map(t => `<div class="card team"><h3><span>${esc(t.name)}</span><span class="muted">${t.members.length}</span></h3><ul>${t.members.map(n => `<li>${esc(n)}</li>`).join('')}</ul></div>`).join('')}</div>
-        <button class="btn btn-grad btn-block" style="margin-top:12px" id="eedit">✏️ Modifier les équipes (absent, blessé…)</button>
+        <button class="btn btn-grad btn-block" data-cfg style="margin-top:12px" id="eedit">✏️ Modifier les équipes (absent, blessé…)</button>
         <p class="muted" style="font-size:.8rem;margin:8px 2px 0">Les équipes servent dans 📋 Passage (liste des élèves filtrée par équipe) et dans ⚔️ Défis (défi entre équipes).</p>`
         : '<div class="card empty">Aucune équipe pour cette classe.</div>'}`;
     const $ = s => box.querySelector(s);
@@ -141,7 +141,7 @@ TOOL_IMPL.escalade = function (el) {
         <label>Voie</label><select id="vo">${E.voies.map(w => `<option value="${w.id}" ${w.id === P.voie ? 'selected' : ''}>${esc(w.cot)} — ${esc(w.nom)}</option>`).join('')}</select>
         ${img ? `<img src="${img}" id="vimg" style="width:100%;max-height:220px;object-fit:contain;border-radius:12px;background:#000;margin-top:8px;cursor:zoom-in">` : ''}
         <label>Mode de grimpe</label><div class="seg" id="md">${Object.entries(ESC_MODES).map(([k, l]) => `<button data-md="${k}" class="${P.mode === k ? 'on' : ''}">${l}</button>`).join('')}</div>
-        ${TM.length ? `<label>📱 Tablette d'une équipe / cordée (les élèves ne verront que leur cordée)</label><select id="only"><option value="">Toutes</option>${TM.map(t => `<option>${esc(t.name)}</option>`).join('')}</select>` : ''}</div>
+        ${TM.length ? `<div data-cfg="bare"><label>📱 Tablette d'une équipe / cordée (les élèves ne verront que leur cordée)</label><select id="only"><option value="">Toutes</option>${TM.map(t => `<option>${esc(t.name)}</option>`).join('')}</select></div>` : ''}</div>
       <div class="card" style="margin-top:12px"><h3>Observables</h3>
         <label>Temps de grimpe</label>
         <div class="big clock" id="tm" style="font-size:clamp(2.4rem,12vw,4rem);padding:4px 0">${escTime(sec())}</div>
@@ -232,7 +232,7 @@ TOOL_IMPL.escalade = function (el) {
   }
   const detailOf = r => [r.temps != null ? 'temps ' + escTime(r.temps) : '', `${r.pieds} poses de pieds`, `${r.pme} PME`, r.flu ? 'fluidité ' + r.flu + '/4' : ''].filter(Boolean).join(' · ');
   const rowsTable = (rows, del) => `<table><tr><th>Élève</th><th>Date</th><th>Voie</th><th>Mode</th><th>Temps</th><th>Pieds</th><th>PME</th><th>Fluidité</th>${del ? '<th></th>' : ''}</tr>
-    ${rows.map(r => `<tr><td><b>${esc(r.eleve)}</b></td><td>${new Date(r.date).toLocaleDateString('fr-FR')}</td><td>${escBadge(r.cot)} ${esc(r.voieNom)}</td><td>${ESC_MODES[r.mode]}</td><td>${escTime(r.temps)}</td><td>${r.pieds}</td><td>${r.pme}</td><td>${r.flu ? r.flu + ' · ' + ESC_FLU[r.flu] : '–'}</td>${del ? `<td><button class="btn btn-ghost" style="padding:4px 8px" data-x="${r.id}">✕</button></td>` : ''}</tr>`).join('')}</table>`;
+    ${rows.map(r => `<tr><td><b>${esc(r.eleve)}</b></td><td>${new Date(r.date).toLocaleDateString('fr-FR')}</td><td>${escBadge(r.cot)} ${esc(r.voieNom)}</td><td>${ESC_MODES[r.mode]}</td><td>${escTime(r.temps)}</td><td>${r.pieds}</td><td>${r.pme}</td><td>${r.flu ? r.flu + ' · ' + ESC_FLU[r.flu] : '–'}</td>${del ? `<td><button class="btn btn-ghost" data-cfg="bare" style="padding:4px 8px" data-x="${r.id}">✕</button></td>` : ''}</tr>`).join('')}</table>`;
 
   /* ---------- Défis entre élèves ---------- */
   const CRIT = { pieds: 'Poses de pieds', pme: 'PME', temps: 'Temps' };
@@ -259,7 +259,7 @@ TOOL_IMPL.escalade = function (el) {
     const D = E.defi;
     if (!D) {
       const cls = DB.classes.some(c => c.name === P.cls) ? P.cls : DB.classes[0].name, TM = teamsOf(cls), eqm = P.dmode === 'eq' && TM.length > 1, st = eqm ? TM.map(t => t.name) : studentsOf(cls), c = E.lastCrit || { pieds: true, pme: true, temps: true };
-      box.innerHTML = `<div class="card"><h3>Nouveau défi</h3>
+      box.innerHTML = `<div class="card" data-cfg><h3>Nouveau défi</h3>
           <label>Classe</label><select id="dc">${DB.classes.map(x => `<option ${x.name === cls ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select>
           <label>Défi entre</label><div class="seg"><button data-dm2="el" class="${eqm ? '' : 'on'}">Élèves</button><button data-dm2="eq" class="${eqm ? 'on' : ''}">Équipes</button></div>
           ${P.dmode === 'eq' && TM.length < 2 ? '<p class="muted" style="margin:6px 0 0;font-size:.82rem">Formez au moins 2 équipes dans l\'onglet 👥 Équipes.</p>' : ''}
@@ -270,7 +270,7 @@ TOOL_IMPL.escalade = function (el) {
           ${Object.entries(CRIT).map(([k, l]) => `<label style="display:flex;gap:8px;align-items:center;margin:6px 0;color:var(--text);font-weight:600"><input type="checkbox" data-cr="${k}" ${c[k] ? 'checked' : ''} style="width:auto"> ${l}${k === 'temps' ? ' mis pour la voie' : ''}</label>`).join('')}
           <button class="btn btn-grad btn-block" style="margin-top:12px" id="dgo">⚔️ Lancer le défi</button></div>
         <div class="section-title"><h2>Défis enregistrés (${E.defis.length})</h2>${E.defis.length ? '<button class="link" id="dexp">Exporter CSV</button>' : ''}</div>
-        ${E.defis.slice().reverse().map(x => { const T = duelTotals(x); return `<details class="card" style="margin-top:8px"><summary style="cursor:pointer"><b>${esc(x.eleves[0])} vs ${esc(x.eleves[1])}</b> <span class="muted">· ${new Date(x.date).toLocaleDateString('fr-FR')} · ${x.manches.length} voie(s) · ${T.winner < 0 ? 'égalité' : '🏆 ' + esc(x.eleves[T.winner])}</span></summary>${duelTable(x)}<button class="btn btn-ghost" style="margin-top:8px" data-dx="${x.id}">🗑 Supprimer</button></details>`; }).join('') || '<div class="card empty">Aucun défi enregistré.</div>'}`;
+        ${E.defis.slice().reverse().map(x => { const T = duelTotals(x); return `<details class="card" style="margin-top:8px"><summary style="cursor:pointer"><b>${esc(x.eleves[0])} vs ${esc(x.eleves[1])}</b> <span class="muted">· ${new Date(x.date).toLocaleDateString('fr-FR')} · ${x.manches.length} voie(s) · ${T.winner < 0 ? 'égalité' : '🏆 ' + esc(x.eleves[T.winner])}</span></summary>${duelTable(x)}<button class="btn btn-ghost" data-cfg="bare" style="margin-top:8px" data-dx="${x.id}">🗑 Supprimer</button></details>`; }).join('') || '<div class="card empty">Aucun défi enregistré.</div>'}`;
       const $ = s => box.querySelector(s);
       $('#dc').onchange = e => { P.cls = e.target.value; defis(box); };
       box.querySelectorAll('[data-dm2]').forEach(b => b.onclick = () => { P.dmode = b.dataset.dm2; defis(box); });
@@ -299,7 +299,7 @@ TOOL_IMPL.escalade = function (el) {
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px">${col(0)}${col(1)}</div>
       <button class="btn btn-grad btn-block" style="margin-top:12px" id="dval">✔ Valider cette voie</button>
       ${D.manches.length ? `<div class="section-title"><h2>Cumul de la séance</h2></div>${duelTable(D)}${duelWinner(D)}` : ''}
-      <div class="row" style="margin-top:12px"><button class="btn btn-grad" id="dend">💾 Terminer et enregistrer le défi</button><button class="btn btn-ghost" id="dab">Abandonner</button></div>`;
+      <div class="row" style="margin-top:12px"><button class="btn btn-grad" id="dend">💾 Terminer et enregistrer le défi</button><button class="btn btn-ghost" data-cfg="bare" id="dab">Abandonner</button></div>`;
     const $ = s => box.querySelector(s), all = s => box.querySelectorAll(s);
     all('[data-who]').forEach(s2 => s2.onchange = () => { D.cur.who = D.cur.who || ['', '']; D.cur.who[+s2.dataset.who] = s2.value; save(); });
     $('#dv').onchange = e => { D.cur.voie = e.target.value; E.lastVoie = D.cur.voie; save(); defis(box); };

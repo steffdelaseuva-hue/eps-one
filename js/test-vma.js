@@ -43,8 +43,8 @@ TOOL_IMPL.testvma = function (el) {
 
   function layout() {
     const p = P[key], c = p;
-    el.innerHTML = `<div class="chips" style="padding-top:0">${Object.entries(P).map(([k, x]) => `<button class="chip ${k === key ? 'active' : ''}" data-k="${k}">${x.name}</button>`).join('')}</div>
-      <div class="card" style="margin-top:6px"><p style="margin:0 0 6px;font-size:.92rem;line-height:1.45">${p.desc}</p>
+    el.innerHTML = `<div class="chips" style="padding-top:0" data-cfg="bare">${Object.entries(P).map(([k, x]) => `<button class="chip ${k === key ? 'active' : ''}" data-k="${k}">${x.name}</button>`).join('')}</div>
+      <div class="card" style="margin-top:6px" data-cfg><p style="margin:0 0 6px;font-size:.92rem;line-height:1.45">${p.desc}</p>
         <div class="row">${p.type === 'duree'
           ? `<div><label>Coefficient</label><input id="cf" type="number" step="0.001" value="${c.coef}"></div>`
           : `<div><label>Vitesse de départ (km/h)</label><input id="v0" type="number" step="0.5" value="${c.v0}"></div><div><label>+ par palier (km/h)</label><input id="inc" type="number" step="0.5" value="${c.inc}"></div>`}</div>
@@ -58,7 +58,7 @@ TOOL_IMPL.testvma = function (el) {
         <div class="row" style="margin-top:12px"><button class="btn btn-grad" id="go">▶ Démarrer</button><button class="btn btn-ghost" id="st">⏹ Arrêter</button></div>
       </div>
       <div class="section-title"><h2>Élèves</h2><button class="link" id="exp">Exporter CSV</button></div>
-      <div class="card">${DB.classes.length ? `<div class="row"><select id="cls"><option value="">Charger une classe…</option>${DB.classes.map((x, i) => `<option value="${i}">${esc(x.name)}</option>`).join('')}</select></div>` : ''}
+      <div class="card" data-cfg>${DB.classes.length ? `<div class="row"><select id="cls"><option value="">Charger une classe…</option>${DB.classes.map((x, i) => `<option value="${i}">${esc(x.name)}</option>`).join('')}</select></div>` : ''}
         <div class="row" style="margin-top:8px"><input id="nn" placeholder="Ajouter un élève"><button class="btn btn-ghost" style="flex:0 0 auto" id="add">＋</button></div>
         <p class="muted" style="margin:8px 0 0">${p.type === 'duree' ? 'Saisissez la distance parcourue par chaque élève à la fin des 3 minutes.' : 'Touchez « Arrêt » quand un élève abandonne ou prend trop de retard : son palier et sa VMA sont notés.'}</p></div>
       <div class="card" style="padding:0;margin-top:10px" id="ls"></div>`;

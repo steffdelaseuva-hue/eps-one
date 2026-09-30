@@ -335,7 +335,7 @@ TOOL_IMPL.acrosport = function (el) {
 
   function frame() {
     const gs = cls ? groups() : []; if (gi >= gs.length) gi = 0;
-    el.innerHTML = `${DB.classes.length ? `<div class="card"><div class="row"><div><label style="margin-top:0">Classe</label><select id="acl">${DB.classes.map(c => `<option ${c.name === cls ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</select></div>
+    el.innerHTML = `${DB.classes.length ? `<div class="card"><div class="row"><div data-cfg="bare"><label style="margin-top:0">Classe</label><select id="acl">${DB.classes.map(c => `<option ${c.name === cls ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</select></div>
         <div><label style="margin-top:0">Groupe</label><select id="agr">${gs.length ? gs.map((g, k) => `<option value="${k}" ${k === gi ? 'selected' : ''}>${esc(g.name)} (${g.seq.length})</option>`).join('') : '<option>— aucun groupe —</option>'}</select></div></div></div>` : ''}
       <div class="co-tabs" style="margin-top:12px">${[['groupes', '👥 Groupes'], ['banque', '📚 Pyramides'], ['liaisons', '🔗 Liaisons'], ['enchainement', '🎬 Enchaînement']].map(([k, l]) => `<button data-tab="${k}" class="${tab === k ? 'on' : ''}">${l}</button>`).join('')}</div><div id="ab"></div>`;
     el.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => { tab = b.dataset.tab; frame(); });
@@ -351,17 +351,17 @@ TOOL_IMPL.acrosport = function (el) {
     if (!DB.classes.length) { box.innerHTML = noClassMsg; return; }
     const gs = groups(), placed = new Set(gs.flatMap(g => g.members)), free = studentsOf(cls).filter(n => !placed.has(n));
     const chip = (gIdx, n) => `<button class="pl-chip ${selSt && selSt.g === gIdx && selSt.n === n ? 'sel' : ''}" data-st="${gIdx}" data-n="${esc(n)}" style="padding:6px 10px;border-radius:10px;border:1.5px solid var(--line);background:${selSt && selSt.g === gIdx && selSt.n === n ? 'var(--grad)' : 'var(--card)'};color:${selSt && selSt.g === gIdx && selSt.n === n ? '#fff' : 'inherit'};font-weight:700;font-size:.85rem;cursor:pointer">${esc(n)}</button>`;
-    box.innerHTML = `<details class="card" ${gs.length ? '' : 'open'}><summary style="font-weight:800;cursor:pointer">🧩 ${gs.length ? 'Refaire les groupes automatiquement' : 'Former les groupes'}</summary><div id="acmp" style="margin-top:6px"></div></details>
-      <div class="section-title"><h2>Groupes de ${esc(cls)} (${gs.length})</h2>${gs.length ? '<button class="link" id="agdel">Supprimer tous les groupes</button>' : ''}</div>
+    box.innerHTML = `<details class="card" data-cfg ${gs.length ? '' : 'open'}><summary style="font-weight:800;cursor:pointer">🧩 ${gs.length ? 'Refaire les groupes automatiquement' : 'Former les groupes'}</summary><div id="acmp" style="margin-top:6px"></div></details>
+      <div class="section-title"><h2>Groupes de ${esc(cls)} (${gs.length})</h2>${gs.length ? '<button class="link" data-cfg="bare" id="agdel">Supprimer tous les groupes</button>' : ''}</div>
       ${gs.length || free.length ? `<p class="muted" style="margin:-4px 0 8px;font-size:.82rem">Touchez un élève, puis un autre groupe pour l'y déplacer, ou « Non placés / absents » pour le retirer.</p>` : ''}
-      <div class="teams">${gs.map((g, k) => `<div class="card team" data-drop="${k}" style="cursor:pointer;border-top:5px solid ${k === gi ? 'var(--gold)' : 'var(--line)'}">
+      <div class="teams">${gs.map((g, k) => `<div class="card team" data-cfg="bare" data-drop="${k}" style="cursor:pointer;border-top:5px solid ${k === gi ? 'var(--gold)' : 'var(--line)'}">
           <h3><span>${esc(g.name)}</span><span class="muted">${g.members.length}</span></h3>
           <div style="display:flex;flex-wrap:wrap;gap:5px">${g.members.map(n => chip(k, n)).join('') || '<span class="muted">Groupe vide</span>'}</div>
           <div class="muted" style="font-size:.78rem;margin-top:6px">${g.seq.length} élément(s) dans l'enchaînement</div>
-          <div class="row" style="margin-top:8px;gap:6px"><button class="btn btn-grad" style="padding:8px" data-open="${k}">🎬 Ouvrir</button><button class="btn btn-ghost" style="padding:8px;flex:0 0 42px" data-ren="${k}">✏️</button><button class="btn btn-ghost" style="padding:8px;flex:0 0 42px" data-gdel="${k}">🗑</button></div></div>`).join('')}
-        <div class="card team" data-drop="-1" style="cursor:pointer;border-top:5px dashed var(--line);background:var(--grad-soft)"><h3><span>Non placés / absents</span><span class="muted">${free.length}</span></h3>
+          <div class="row" style="margin-top:8px;gap:6px"><button class="btn btn-grad" style="padding:8px" data-free data-open="${k}">🎬 Ouvrir</button><button class="btn btn-ghost" style="padding:8px;flex:0 0 42px" data-ren="${k}">✏️</button><button class="btn btn-ghost" style="padding:8px;flex:0 0 42px" data-gdel="${k}">🗑</button></div></div>`).join('')}
+        <div class="card team" data-cfg="bare" data-drop="-1" style="cursor:pointer;border-top:5px dashed var(--line);background:var(--grad-soft)"><h3><span>Non placés / absents</span><span class="muted">${free.length}</span></h3>
           <div style="display:flex;flex-wrap:wrap;gap:5px">${free.map(n => chip(-1, n)).join('') || '<span class="muted">Tous les élèves sont dans un groupe.</span>'}</div></div></div>
-      <button class="btn btn-ghost btn-block" style="margin-top:12px" id="agadd">＋ Nouveau groupe</button>`;
+      <button class="btn btn-ghost btn-block" data-cfg="bare" style="margin-top:12px" id="agadd">＋ Nouveau groupe</button>`;
     mountComposer(box.querySelector('#acmp'), { id: 'acg', prep: false, modes: ['random', 'hetero', 'homo'], button: '👥 Former les groupes',
       onTeams: teams => { if (gs.some(g => g.seq.length) && !confirm('Remplacer les groupes existants ? Leurs enchaînements seront supprimés.')) return;
         clearImgs(gs);
@@ -390,7 +390,7 @@ TOOL_IMPL.acrosport = function (el) {
   function tabBanque(box) {
     const list = acroAll().filter(f => (+F.eff === 0 || f.eff === +F.eff) && (!F.por || f.por.includes(F.por)) && (!F.vol || acroVol(f).includes(F.vol)) && (+F.h === 0 || f.h === +F.h) && appOk(acroAppuis(f), F.app));
     const g = G();
-    box.innerHTML = `<button class="btn btn-grad btn-block" id="acnew" style="margin-bottom:12px">✏️ Créer une pyramide</button><div class="card">
+    box.innerHTML = `<button class="btn btn-grad btn-block" data-cfg="bare" id="acnew" style="margin-bottom:12px">✏️ Créer une pyramide</button><div class="card">
         <label style="margin-top:0">Effectif</label>${chips('eff', [[0, 'Tous'], [2, 'Duo'], [3, 'Trio'], [4, 'Quatuor']])}
         <label>Position des porteurs</label>${chips('por', [['', 'Toutes'], ...Object.entries(ACRO_POR)])}
         <label>Position du voltigeur</label>${chips('vol', [['', 'Toutes'], ...Object.entries(ACRO_VOL)])}
@@ -422,7 +422,7 @@ TOOL_IMPL.acrosport = function (el) {
         <p style="margin:4px 0"><b>Voltigeur${acroVol(f).length > 1 ? 's' : ''} :</b> ${acroVol(f).map(v => ACRO_VOL[v]).join(', ')}</p>
         <p style="margin:4px 0"><b>Consigne :</b> ${esc(f.c)}</p>
         ${g ? `<button class="btn btn-grad btn-block" style="margin-top:12px" id="acadd">＋ Ajouter à l'enchaînement de ${esc(g.name)}</button>` : ''}
-        <div class="row" style="margin-top:8px">${f.custom ? '<button class="btn btn-ghost" id="aced">✏️ Modifier</button><button class="btn btn-ghost" id="acdel">🗑 Supprimer</button>' : '<button class="btn btn-ghost" id="accp">✏️ Copier et modifier</button>'}</div>
+        <div class="row" data-cfg="bare" style="margin-top:8px">${f.custom ? '<button class="btn btn-ghost" id="aced">✏️ Modifier</button><button class="btn btn-ghost" id="acdel">🗑 Supprimer</button>' : '<button class="btn btn-ghost" id="accp">✏️ Copier et modifier</button>'}</div>
         <button class="btn btn-ghost btn-block" style="margin-top:8px" id="acx">Fermer</button></div>`;
     o.onclick = e => { const id = e.target.id; if (e.target === o || id === 'acx') o.remove(); if (id === 'acadd') { o.remove(); addFig(f.id); }
       if (id === 'aced') { o.remove(); acroEditor(f, saveCustom); }
@@ -436,17 +436,17 @@ TOOL_IMPL.acrosport = function (el) {
   function tabLiaisons(box) {
     const L = A.liaisons, g = G(), ed = liEdit === 'new' ? { n: '', url: '', d: '' } : L.find(x => x.id === liEdit);
     box.innerHTML = `<div class="card doc"><p style="margin:0;line-height:1.45">Les <b>liaisons dynamiques</b> relient deux figures de l'enchaînement (roulade, saut, rotation, déplacement…). Chaque liaison a son lien de démonstration : vidéo ou diaporama (PowerPoint, Google Slides, PDF).</p></div>
-      ${ed ? `<div class="card" style="margin-top:12px"><h3>${liEdit === 'new' ? 'Nouvelle liaison' : 'Modifier la liaison'}</h3>
+      ${ed ? `<div class="card" data-cfg style="margin-top:12px"><h3>${liEdit === 'new' ? 'Nouvelle liaison' : 'Modifier la liaison'}</h3>
         <label>Nom</label><input id="lin" value="${esc(ed.n)}" placeholder="Ex. : roulade avant">
         <label>Lien (vidéo ou diaporama)</label><input id="liu" value="${esc(ed.url)}" placeholder="https://… (YouTube, vidéo, PowerPoint, Google Slides, PDF…)" inputmode="url" autocapitalize="off">
         <label>Description / critères de réussite</label><textarea id="lid" style="min-height:70px">${esc(ed.d || '')}</textarea>
         <div class="row" style="margin-top:10px"><button class="btn btn-grad" id="lis">💾 Enregistrer</button><button class="btn btn-ghost" id="lic">Annuler</button></div></div>`
-      : '<button class="btn btn-grad btn-block" style="margin-top:12px" id="linew">＋ Ajouter une liaison dynamique</button>'}
+      : '<button class="btn btn-grad btn-block" data-cfg="bare" style="margin-top:12px" id="linew">＋ Ajouter une liaison dynamique</button>'}
       <div class="section-title"><h2>${L.length} liaison${L.length > 1 ? 's' : ''}</h2></div>
       ${L.length ? `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px">${L.map(x => `<div class="card" style="padding:12px">
           <b style="font-size:1.05rem">🔗 ${esc(x.n)}</b>${x.d ? `<div class="muted" style="font-size:.85rem;margin-top:4px">${esc(x.d)}</div>` : ''}
           <div class="row" style="margin-top:10px;gap:6px">${x.url ? `<button class="btn btn-grad" data-lv="${x.id}">${acroBtn(x.url)}</button>` : '<span class="muted" style="font-size:.8rem">Pas de lien</span>'}${g ? `<button class="btn btn-ghost" data-la="${x.id}">＋ ${esc(g.name)}</button>` : ''}</div>
-          <div class="row" style="margin-top:6px;gap:6px"><button class="btn btn-ghost" style="padding:6px" data-le="${x.id}">✏️ Modifier</button><button class="btn btn-ghost" style="padding:6px" data-lx="${x.id}">🗑</button></div></div>`).join('')}</div>`
+          <div class="row" data-cfg="bare" style="margin-top:6px;gap:6px"><button class="btn btn-ghost" style="padding:6px" data-le="${x.id}">✏️ Modifier</button><button class="btn btn-ghost" style="padding:6px" data-lx="${x.id}">🗑</button></div></div>`).join('')}</div>`
       : '<div class="card empty">Aucune liaison pour l\'instant. Ajoutez-en avec leur lien (vidéo ou diaporama).</div>'}`;
     const $ = q => box.querySelector(q);
     if ($('#linew')) $('#linew').onclick = () => { liEdit = 'new'; tabLiaisons(box); };
@@ -470,7 +470,7 @@ TOOL_IMPL.acrosport = function (el) {
       <div class="row" style="margin-top:12px"><button class="btn btn-ghost" id="afig">📚 Ajouter une pyramide</button><button class="btn btn-ghost" id="alia">🔗 Ajouter une liaison</button>
         <label class="btn btn-ghost" style="display:block;text-align:center;cursor:pointer;margin:0">📷 Ajouter une photo<input id="aph" type="file" accept="image/*" capture="environment" style="display:none"></label></div>
       ${g.seq.length ? `<button class="btn btn-grad btn-block" style="margin-top:10px" id="aplay">▶ Présenter l'enchaînement</button>` : ''}
-      <div class="section-title"><h2>Enchaînement (${g.seq.length})</h2>${g.seq.length ? '<button class="link" id="aclr">🗑 Vider l\'enchaînement</button>' : ''}</div>
+      <div class="section-title"><h2>Enchaînement (${g.seq.length})</h2>${g.seq.length ? '<button class="link" data-cfg="bare" id="aclr">🗑 Vider l\'enchaînement</button>' : ''}</div>
       ${g.seq.length ? `<div style="display:flex;flex-direction:column;gap:10px">${g.seq.map((it, k) => { const f = it.t === 'fig' ? acroFind(it.fig) : null, img = it.img ? DB[acroImgKey(it.img)] : null, li = it.t === 'liaison' ? A.liaisons.find(x => x.id === it.lid) : null;
         if (it.t === 'liaison') return `<div class="card" style="padding:10px;display:flex;gap:10px;align-items:center;border-left:5px solid var(--gold)">
           <div style="flex:0 0 30px;height:30px;border-radius:50%;background:var(--grad);color:#fff;display:grid;place-items:center;font-weight:900">${k + 1}</div>

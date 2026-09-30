@@ -98,7 +98,7 @@ Object.assign(TOOL_IMPL, {
 chronos12(el) {
   el.classList.add('flush');
   el.innerHTML = `<div class="chronos-bar">
-      ${DB.classes.length ? `<select id="cc"><option value="">Charger les prénoms d'une classe…</option>${DB.classes.map((c, i) => `<option value="${i}">${esc(c.name)}</option>`).join('')}</select>` : '<span class="muted" style="flex:1">Astuce : créez une classe pour charger les prénoms.</span>'}
+      ${DB.classes.length ? `<select id="cc" data-cfg="bare"><option value="">Charger les prénoms d'une classe…</option>${DB.classes.map((c, i) => `<option value="${i}">${esc(c.name)}</option>`).join('')}</select>` : '<span class="muted" style="flex:1">Astuce : créez une classe pour charger les prénoms.</span>'}
       <button class="btn btn-ghost" id="full">⛶ Plein écran</button>
     </div>
     <iframe class="chronos-frame" id="fr" src="outils/chronos-eps.html" title="Multi chrono (12 élèves)"></iframe>`;
@@ -125,7 +125,7 @@ video(el) {
   let stream = null, facing = 'environment', frames = [], capIv = null, raf = null, frozen = false, shown = null;
   el.innerHTML = `<div class="cam-wrap"><canvas id="cv" width="640" height="360"></canvas><div class="cam-overlay" id="ov">—</div><div class="cam-msg" id="msg">Touchez « Activer la caméra »</div></div>
     <div class="card" style="margin-top:12px">
-      <label>Délai de différé : <b id="dl">8 s</b></label><input type="range" id="d" min="2" max="30" value="8">
+      <div data-cfg><label>Délai de différé : <b id="dl">8 s</b></label><input type="range" id="d" min="2" max="30" value="8"></div>
       <div class="row" style="margin-top:12px"><button class="btn btn-grad" id="on">📷 Activer la caméra</button><button class="btn btn-ghost" id="sw">🔄 Avant / arrière</button><button class="btn btn-ghost" id="fz">⏸ Figer</button></div>
       <p class="muted" style="margin:10px 0 0">Posez la tablette face à l'atelier : l'élève fait son passage puis vient se voir quelques secondes plus tard, sans toucher l'écran.</p></div>
     <video id="vd" playsinline muted style="display:none"></video>`;
@@ -244,12 +244,12 @@ dispenses(el) {
     const actives = list.filter(d => !d.fin || d.fin >= today()), passees = list.filter(d => d.fin && d.fin < today());
     const item = d => `<div class="list-item"><div style="flex:1"><b>${esc(d.eleve)}</b> <span class="muted">${esc(d.classe || '')}</span><br>
       <span class="pill ${d.type === 'Totale' ? 'warn' : ''}">${d.type}</span> <span class="muted">du ${frDate(d.debut)}${d.fin ? ' au ' + frDate(d.fin) : ' (sans date de fin)'}</span>
-      ${d.note ? `<div class="muted">${esc(d.note)}</div>` : ''}</div><button class="btn btn-ghost" data-d="${DB.dispenses.indexOf(d)}">🗑</button></div>`;
+      ${d.note ? `<div class="muted">${esc(d.note)}</div>` : ''}</div><button class="btn btn-ghost" data-cfg="bare" data-d="${DB.dispenses.indexOf(d)}">🗑</button></div>`;
     el.querySelector('#lists').innerHTML = `<div class="section-title"><h2>En cours (${actives.length})</h2></div><div class="card" style="padding:0">${actives.map(item).join('') || '<div class="empty">Aucune dispense en cours.</div>'}</div>
       <div class="section-title"><h2>Terminées (${passees.length})</h2></div><div class="card" style="padding:0">${passees.map(item).join('') || '<div class="empty">—</div>'}</div>`;
     el.querySelectorAll('[data-d]').forEach(b => b.onclick = () => { if (confirm('Supprimer ?')) { DB.dispenses.splice(b.dataset.d, 1); save(); draw(); } });
   };
-  el.innerHTML = `<div class="card"><h3>Nouvelle dispense</h3>
+  el.innerHTML = `<div class="card" data-cfg><h3>Nouvelle dispense</h3>
     <div class="row"><div><label>Classe</label>${DB.classes.length ? classNameSelect('cl') : '<input id="cl" placeholder="ex : 6E1">'}</div><div><label>Élève</label><input id="el" list="eleves" placeholder="Nom de l'élève"><datalist id="eleves"></datalist></div></div>
     <div class="row"><div><label>Type</label><select id="ty"><option>Partielle</option><option>Totale</option></select></div><div><label>Du</label><input id="db" type="date" value="${today()}"></div><div><label>Au</label><input id="fn" type="date"></div></div>
     <label>Remarque (activités possibles, aménagements…)</label><input id="nt">
@@ -270,9 +270,9 @@ dispenses(el) {
 /* ---------- Oublis de tenue ---------- */
 oubli(el) {
   if (!DB.classes.length) { el.innerHTML = noClassMsg; return; }
-  el.innerHTML = `<div class="card"><label>Classe</label>${classNameSelect('cl')}
-    <div class="row" style="margin-top:10px"><button class="btn btn-ghost" id="exp">📤 Exporter</button><button class="btn btn-ghost" id="rz">↺ Remettre à zéro</button></div></div>
-    <div class="card" style="padding:0;margin-top:12px" id="ls"></div>`;
+  el.innerHTML = `<div class="card" data-cfg><label>Classe</label>${classNameSelect('cl')}
+    <div class="row" style="margin-top:10px"><button class="btn btn-ghost" id="exp" data-free>📤 Exporter</button><button class="btn btn-ghost" id="rz">↺ Remettre à zéro</button></div></div>
+    <div class="card" style="padding:0;margin-top:12px" id="ls" data-cfg="bare"></div>`;
   const $ = s => el.querySelector(s);
   const data = () => (DB.oublis[$('#cl').value] = DB.oublis[$('#cl').value] || {});
   const draw = () => {
@@ -292,7 +292,7 @@ oubli(el) {
 /* ---------- Tournoi à élimination directe ---------- */
 tournoi(el) {
   let rounds = [];
-  el.innerHTML = `<div class="card">${classSelect('ts')}<label>Équipes / joueurs (un par ligne)</label><textarea id="tl" style="min-height:110px">Équipe 1\nÉquipe 2\nÉquipe 3\nÉquipe 4\nÉquipe 5\nÉquipe 6</textarea>
+  el.innerHTML = `<div class="card" data-cfg>${classSelect('ts')}<label>Équipes / joueurs (un par ligne)</label><textarea id="tl" style="min-height:110px">Équipe 1\nÉquipe 2\nÉquipe 3\nÉquipe 4\nÉquipe 5\nÉquipe 6</textarea>
     <label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="mx" style="width:auto"> Mélanger au hasard</label>
     <button class="btn btn-grad btn-block" style="margin-top:10px" id="gen">🏅 Générer le tableau</button></div>
     <p class="muted" style="margin:12px 2px 0">Touchez le vainqueur de chaque match pour le qualifier.</p><div class="bracket" id="br"></div><div id="ch"></div>`;
@@ -329,7 +329,7 @@ tournoi(el) {
 /* ---------- Pyramide des victoires ---------- */
 pyramide(el) {
   let ranks = [], log = [];
-  el.innerHTML = `<div class="card" id="setup">${classSelect('ps')}<label>Joueurs (ordre = classement de départ)</label><textarea id="pl"></textarea>
+  el.innerHTML = `<div class="card" id="setup" data-cfg>${classSelect('ps')}<label>Joueurs (ordre = classement de départ)</label><textarea id="pl"></textarea>
     <label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="mx" checked style="width:auto"> Placement de départ au hasard</label>
     <button class="btn btn-grad btn-block" style="margin-top:10px" id="gen">🔺 Construire la pyramide</button></div>
     <div id="game" style="display:none">
@@ -337,7 +337,7 @@ pyramide(el) {
       <div class="card"><h3>Défi</h3><p class="muted" style="margin:4px 0 0">On défie un joueur de la ligne juste au-dessus (ou de sa propre ligne). Si le challenger gagne, il prend sa place.</p>
         <div class="row"><div><label>Challenger</label><select id="c1"></select></div><div><label>Défié</label><select id="c2"></select></div></div>
         <div class="row" style="margin-top:10px"><button class="btn btn-grad" id="w1">Victoire challenger</button><button class="btn btn-ghost" id="w2">Victoire défié</button></div></div>
-      <div class="section-title"><h2>Historique</h2><button class="link" id="new">Nouvelle pyramide</button></div><div class="card" id="lg"></div>
+      <div class="section-title"><h2>Historique</h2><button class="link" id="new" data-cfg="bare">Nouvelle pyramide</button></div><div class="card" id="lg"></div>
     </div>`;
   bindClassToTextarea('ps', 'pl');
   const $ = s => el.querySelector(s);
@@ -379,12 +379,12 @@ relais(el) {
 .gv-in{width:84px;padding:12px 6px;text-align:center;font-size:1.3rem;font-weight:800}
 .gv-big{font-size:1.2rem;padding:16px;margin-top:12px}
 </style>`);
-  el.innerHTML = `<div class="card" id="setup">
+  el.innerHTML = `<div class="card" id="setup" data-cfg>
     <label>Équipes (une par ligne)</label><textarea id="tl" style="min-height:100px">Équipe 1\nÉquipe 2\nÉquipe 3\nÉquipe 4</textarea>
     <div class="row"><div><label>Relayeurs / fractions par équipe</label><input id="lg" type="number" value="4" min="1" max="20"></div><div><label>Distance d'une fraction (m, optionnel)</label><input id="ds" type="number" placeholder="ex : 100"></div></div>
     <button class="btn btn-grad btn-block" style="margin-top:12px" id="gen">🔄 Préparer la course</button></div>
     <div id="race" style="display:none">
-      <div class="card"><div class="big clock" id="tm">00:00,00</div><div class="row"><button class="btn btn-grad" id="go">🔫 Départ</button><button class="btn btn-ghost" id="exp">📤 Résultats</button><button class="btn btn-ghost" id="new">↺ Nouvelle</button></div>
+      <div class="card"><div class="big clock" id="tm">00:00,00</div><div class="row"><button class="btn btn-grad" id="go">🔫 Départ</button><button class="btn btn-ghost" id="exp">📤 Résultats</button><button class="btn btn-ghost" id="new" data-cfg="bare">↺ Nouvelle</button></div>
         <button class="btn btn-ghost btn-block" style="margin-top:8px" id="sv">💾 Enregistrer la course</button><div id="onw"></div></div>
       <div class="relay-grid" id="rg"></div></div>
     <div id="gv" style="display:none"></div>
@@ -425,7 +425,7 @@ relais(el) {
     h.innerHTML = G.length ? `<div class="section-title"><h2>Courses enregistrées</h2></div>` + G.map((g, gi) => `<div class="card" style="margin-top:10px">
       <div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start"><div><b>${frDate(g.date)}${g.classe ? ' · ' + esc(g.classe) : ''}</b>
         <div class="muted" style="font-size:.8rem">${g.legs} relais${g.dist ? ` × ${g.dist} m` : ''} · ${g.teams.length} équipe(s)${g.recs.length > 1 ? ` · ${g.recs.length} enregistrements fusionnés` : ''}</div></div>
-        <div style="display:flex;gap:6px;flex:0 0 auto"><button class="btn btn-ghost" style="padding:7px 10px" data-hx="${gi}">📤</button><button class="btn btn-ghost" style="padding:7px 10px" data-hd="${gi}">🗑</button></div></div>
+        <div style="display:flex;gap:6px;flex:0 0 auto"><button class="btn btn-ghost" style="padding:7px 10px" data-hx="${gi}">📤</button><button class="btn btn-ghost" style="padding:7px 10px" data-hd="${gi}" data-cfg="bare">🗑</button></div></div>
       ${g.teams.map((t, i) => `<div style="display:flex;justify-content:space-between;gap:8px;padding:7px 0;border-top:1px solid var(--line)"><div><b>${t.total ? (i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : i + 1 + 'e') + ' ' : ''}${esc(t.name)}</b>${(t.members || []).length ? `<div class="muted" style="font-size:.78rem">${esc(t.members.join(', '))}</div>` : ''}</div>
         <span style="font-weight:800;font-variant-numeric:tabular-nums;white-space:nowrap">${t.total ? fmt(t.total) : `<span class="muted">${t.legs.length}/${g.legs} relais</span>`}</span></div>`).join('')}</div>`).join('') : '';
     h.querySelectorAll('[data-hx]').forEach(b => b.onclick = () => groupCsv(G[b.dataset.hx]));
@@ -508,7 +508,7 @@ journal(el) {
     $('#fl').innerHTML = '<option value="">Tous les élèves</option>' + used.map(n => `<option ${n === cur ? 'selected' : ''}>${esc(n)}</option>`).join('');
     const list = DB.journal.map((j, i) => ({ ...j, i })).filter(j => !$('#fl').value || j.eleve === $('#fl').value).sort((a, b) => b.date.localeCompare(a.date));
     $('#ls').innerHTML = list.map(j => `<div class="list-item"><div style="flex:1"><b>${esc(j.exercice)}</b> — ${j.charge || 0} kg · ${j.series}×${j.reps} <span class="pill">RPE ${j.rpe}</span>
-      <div class="muted">${esc(j.eleve)} · ${frDate(j.date)} · volume ${Math.round((j.charge || 0) * j.series * j.reps)} kg${j.note ? ' · ' + esc(j.note) : ''}</div></div><button class="btn btn-ghost" data-d="${j.i}">🗑</button></div>`).join('') || '<div class="empty">Journal vide.</div>';
+      <div class="muted">${esc(j.eleve)} · ${frDate(j.date)} · volume ${Math.round((j.charge || 0) * j.series * j.reps)} kg${j.note ? ' · ' + esc(j.note) : ''}</div></div><button class="btn btn-ghost" data-d="${j.i}" data-cfg="bare">🗑</button></div>`).join('') || '<div class="empty">Journal vide.</div>';
     $('#ls').querySelectorAll('[data-d]').forEach(b => b.onclick = () => { DB.journal.splice(b.dataset.d, 1); save(); draw(); });
   };
   $('#fl').onchange = draw;
@@ -581,8 +581,8 @@ grilles(el) {
 suivi(el) {
   if (!DB.classes.length) { el.innerHTML = noClassMsg; return; }
   el.innerHTML = `<div class="card"><label>Classe</label>${classNameSelect('cl')}
-    <div class="row" style="margin-top:10px"><input id="ct" placeholder="Nouvelle colonne (ex : Test Luc Léger)"><input id="cd" type="date" value="${today()}" style="flex:0 0 150px"></div>
-    <div class="row" style="margin-top:10px"><button class="btn btn-grad" id="add">＋ Ajouter la colonne</button><button class="btn btn-ghost" id="exp">📤 Export CSV</button></div>
+    <div class="row" style="margin-top:10px" data-cfg="bare"><input id="ct" placeholder="Nouvelle colonne (ex : Test Luc Léger)"><input id="cd" type="date" value="${today()}" style="flex:0 0 150px"></div>
+    <div class="row" style="margin-top:10px"><button class="btn btn-grad" id="add" data-cfg="bare">＋ Ajouter la colonne</button><button class="btn btn-ghost" id="exp">📤 Export CSV</button></div>
     <p class="muted" style="margin:8px 0 0">Saisissez des nombres (notes, temps, paliers…) ou du texte (observations). La moyenne se calcule sur les valeurs numériques.</p></div>
     <div class="card sheet-table" id="tb" style="margin-top:12px"></div>`;
   const $ = s => el.querySelector(s);
@@ -592,7 +592,7 @@ suivi(el) {
   const draw = () => {
     const d = data(), st = studentsOf($('#cl').value);
     if (!d.cols.length) { $('#tb').innerHTML = '<div class="empty">Ajoutez une première colonne pour commencer.</div>'; return; }
-    $('#tb').innerHTML = `<table><tr><th>Élève</th>${d.cols.map((c, k) => `<th>${esc(c.title)}<br><span style="font-weight:500">${frDate(c.date)}</span> <button data-x="${k}" title="Supprimer">✕</button></th>`).join('')}<th>Moy.</th></tr>
+    $('#tb').innerHTML = `<table><tr><th>Élève</th>${d.cols.map((c, k) => `<th>${esc(c.title)}<br><span style="font-weight:500">${frDate(c.date)}</span> <button data-x="${k}" data-cfg="bare" title="Supprimer">✕</button></th>`).join('')}<th>Moy.</th></tr>
       ${st.map(n => `<tr><td><b>${esc(n)}</b></td>${d.cols.map((c, k) => `<td><input data-k="${k}" data-n="${esc(n)}" value="${esc(d.vals[k + '|' + n] ?? '')}"></td>`).join('')}<td><b data-avg="${esc(n)}">${avg(d, n)}</b></td></tr>`).join('')}</table>`;
     $('#tb').querySelectorAll('input').forEach(i => i.oninput = () => { d.vals[i.dataset.k + '|' + i.dataset.n] = i.value; save(); const a = $('#tb').querySelector(`[data-avg="${CSS.escape(i.dataset.n)}"]`); if (a) a.textContent = avg(d, i.dataset.n); });
     $('#tb').querySelectorAll('[data-x]').forEach(b => b.onclick = () => {
@@ -624,7 +624,7 @@ debrief(el) {
     el.innerHTML = `<div class="chips">${cats.map(c => `<button class="chip ${c === cat ? 'active' : ''}" data-c="${esc(c)}">${c || '✨ Toutes'}</button>`).join('')}</div>
       <div class="card" style="margin-top:8px"><div class="question" id="q">${esc(last) || '💬'}</div><button class="btn btn-grad btn-block" id="go">🎲 Question au hasard</button></div>
       <div class="section-title"><h2>Mes questions</h2></div>
-      <div class="card"><div class="row"><input id="nq" placeholder="Ajouter ma question…"><button class="btn btn-grad" style="flex:0 0 auto" id="add">＋</button></div>
+      <div class="card" data-cfg><div class="row"><input id="nq" placeholder="Ajouter ma question…"><button class="btn btn-grad" style="flex:0 0 auto" id="add">＋</button></div>
       ${DB.debrief.map((q, i) => `<div class="list-item" style="padding:10px 0"><span>${esc(q)}</span><button class="btn btn-ghost" data-d="${i}">🗑</button></div>`).join('')}</div>`;
     el.querySelectorAll('[data-c]').forEach(b => b.onclick = () => { cat = b.dataset.c; draw(); });
     el.querySelector('#go').onclick = () => { const pool = all().filter(x => !cat || x.c === cat).map(x => x.q).filter(q => q !== last); if (!pool.length) return; last = pool[Math.floor(Math.random() * pool.length)]; el.querySelector('#q').textContent = last; beep(900, .08); };

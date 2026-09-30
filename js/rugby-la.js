@@ -32,21 +32,21 @@ TOOL_IMPL.rugbyla = function (el) {
   let cls = DB.classes.some(c => c.name === DB.lastClass) ? DB.lastClass : DB.classes[0].name, si = 0, obs = '', C = { recule: 0, avance: 0, bloque: 0 }, hist = [];
   const draw = () => {
     const st = studentsOf(cls); if (si >= st.length) si = 0;
-    el.innerHTML = `<div class="card"><div class="row"><div><label>Classe</label><select id="rc">${DB.classes.map(c => `<option ${c.name === cls ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</select></div>
+    el.innerHTML = `<div class="card"><div class="row"><div data-cfg="bare"><label>Classe</label><select id="rc">${DB.classes.map(c => `<option ${c.name === cls ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</select></div>
         <div><label>🏉 Joueur</label><select id="rj">${st.map((n, k) => `<option value="${k}" ${k === si ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select></div></div>
         <label>👁 Observateur</label><select id="ro"><option value="">—</option>${st.map(n => `<option ${n === obs ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select></div>
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:12px">
         ${Object.entries(RLA).map(([k, x]) => `<div style="text-align:center"><div class="muted" style="font-size:.75rem;font-weight:800;text-transform:uppercase">${x.g}</div>
           <button data-add="${k}" style="width:100%;border:none;border-radius:16px;background:${x.col};color:#fff;padding:12px 4px;margin-top:4px;cursor:pointer">
             <svg viewBox="0 0 42 42" style="width:46px;height:46px">${x.ic}</svg><div style="font-weight:900;font-size:1.05rem">${x.l}</div><div style="font-size:2rem;font-weight:900;line-height:1.1">${C[k]}</div></button>
-          <label style="margin:6px 0 2px;font-size:.72rem">Valeur bonus</label><select data-val="${k}" style="padding:6px">${[0, 1, 2, 3, 4, 5].map(v => `<option ${v === V[k] ? 'selected' : ''}>${v}</option>`).join('')}</select></div>`).join('')}</div>
+          <label style="margin:6px 0 2px;font-size:.72rem">Valeur bonus</label><select data-cfg="bare" data-val="${k}" style="padding:6px">${[0, 1, 2, 3, 4, 5].map(v => `<option ${v === V[k] ? 'selected' : ''}>${v}</option>`).join('')}</select></div>`).join('')}</div>
       <div class="result" style="margin-top:12px"><div class="card"><b>${rlaPts(C)}</b><small>points (actions)</small></div><div class="card"><b>${rlaBonus(C, V)}</b><small>avec bonus</small></div></div>
       <div class="card" style="margin-top:12px">${rlaPie(C)}</div>
       <div class="row" style="margin-top:12px"><button class="btn btn-ghost" id="ru" ${hist.length ? '' : 'disabled'}>↶ Annuler</button><button class="btn btn-ghost" id="rz">Réinitialiser</button></div>
       <button class="btn btn-grad btn-block" style="margin-top:10px" id="rs">💾 Enregistrer pour ${esc(st[si] || '—')}</button>
       <div class="section-title"><h2>Relevés · ${esc(cls)}</h2>${R.obs.some(o => o.classe === cls) ? '<button class="link" id="rx">Exporter CSV</button>' : ''}</div>
       <div class="card sheet-table">${(() => { const L = R.obs.filter(o => o.classe === cls).slice().reverse(); return L.length ? `<table><tr><th>Joueur</th><th>Date</th><th>Recule</th><th>Avance</th><th>Bloque</th><th>Points</th><th>Bonus</th><th>Observateur</th><th></th></tr>
-        ${L.map(o => `<tr><td><b>${esc(o.eleve)}</b></td><td>${new Date(o.date).toLocaleDateString('fr-FR')}</td><td>${o.c.recule}</td><td>${o.c.avance}</td><td>${o.c.bloque}</td><td><b>${rlaPts(o.c)}</b></td><td><b>${rlaBonus(o.c, o.v)}</b></td><td>${esc(o.obs || '')}</td><td><button class="btn btn-ghost" style="padding:4px 8px" data-x="${o.id}">✕</button></td></tr>`).join('')}</table>` : '<div class="empty">Aucun relevé pour cette classe.</div>'; })()}</div>`;
+        ${L.map(o => `<tr><td><b>${esc(o.eleve)}</b></td><td>${new Date(o.date).toLocaleDateString('fr-FR')}</td><td>${o.c.recule}</td><td>${o.c.avance}</td><td>${o.c.bloque}</td><td><b>${rlaPts(o.c)}</b></td><td><b>${rlaBonus(o.c, o.v)}</b></td><td>${esc(o.obs || '')}</td><td><button class="btn btn-ghost" data-cfg="bare" style="padding:4px 8px" data-x="${o.id}">✕</button></td></tr>`).join('')}</table>` : '<div class="empty">Aucun relevé pour cette classe.</div>'; })()}</div>`;
     const $ = s => el.querySelector(s);
     $('#rc').onchange = e => { cls = e.target.value; DB.lastClass = cls; si = 0; save(); draw(); };
     $('#rj').onchange = e => { si = +e.target.value; draw(); };

@@ -458,8 +458,8 @@ chrono(el){
 /* ---------- Multi-chrono ---------- */
 multi(el){
   let chronos=[],raf,gStart=null;
-  el.innerHTML=`<div class="card">${classSelect('mcs')}
-    <div class="row" style="margin-top:10px"><input id="mcn" type="number" min="1" max="40" value="6" style="max-width:90px"><button class="btn btn-ghost" id="mcgen">Créer les chronos</button></div>
+  el.innerHTML=`<div class="card"><div data-cfg>${classSelect('mcs')}
+    <div class="row" style="margin-top:10px"><input id="mcn" type="number" min="1" max="40" value="6" style="max-width:90px"><button class="btn btn-ghost" id="mcgen">Créer les chronos</button></div></div>
     <div class="row" style="margin-top:10px"><button class="btn btn-grad" id="all">▶ Départ groupé</button><button class="btn btn-ghost" id="rst">↺ Tout remettre à zéro</button></div></div>
     <div class="mc-grid" id="mcg"></div>`;
   const g=el.querySelector('#mcg');
@@ -480,7 +480,7 @@ multi(el){
 /* ---------- Timer HIIT / Tabata ---------- */
 hiit(el){
   let iv=null,state=null;
-  el.innerHTML=`<div class="card" id="cfg">
+  el.innerHTML=`<div class="card" id="cfg" data-cfg>
     <div class="row"><div><label>Travail (s)</label><input id="w" type="number" value="20"></div><div><label>Repos (s)</label><input id="r" type="number" value="10"></div></div>
     <div class="row"><div><label>Répétitions</label><input id="n" type="number" value="8"></div><div><label>Séries</label><input id="s" type="number" value="1"></div><div><label>Repos séries (s)</label><input id="rs" type="number" value="60"></div></div>
     <div class="row" style="margin-top:10px"><button class="btn btn-ghost" data-p="20,10,8,1">Tabata</button><button class="btn btn-ghost" data-p="30,30,10,1">30/30</button><button class="btn btn-ghost" data-p="45,15,6,2">45/15</button></div></div>
@@ -507,8 +507,8 @@ hiit(el){
 /* ---------- Minuteur ---------- */
 minuteur(el){
   let end=null,left=0,raf;
-  el.innerHTML=`<div class="card"><div class="row"><div><label>Minutes</label><input id="m" type="number" value="5" min="0"></div><div><label>Secondes</label><input id="s" type="number" value="0" min="0" max="59"></div></div>
-    <div class="row" style="margin-top:10px">${[1,2,3,5,10].map(m=>`<button class="btn btn-ghost" data-m="${m}">${m} min</button>`).join('')}</div>
+  el.innerHTML=`<div class="card"><div data-cfg><div class="row"><div><label>Minutes</label><input id="m" type="number" value="5" min="0"></div><div><label>Secondes</label><input id="s" type="number" value="0" min="0" max="59"></div></div>
+    <div class="row" style="margin-top:10px">${[1,2,3,5,10].map(m=>`<button class="btn btn-ghost" data-m="${m}">${m} min</button>`).join('')}</div></div>
     <div class="big clock" id="tm">05:00</div>
     <div class="row"><button class="btn btn-grad" id="go">▶ Démarrer</button><button class="btn btn-ghost" id="rz">↺ Réinitialiser</button></div></div>`;
   const $=s=>el.querySelector(s);
@@ -544,10 +544,10 @@ classes(el){
 /* ---------- Tirage au sort ---------- */
 tirage(el){
   let pool=[],drawn=[];
-  el.innerHTML=`<div class="card">${classSelect('ts')}<label>Participants</label><textarea id="tl" placeholder="Un nom par ligne"></textarea>
+  el.innerHTML=`<div class="card" data-cfg>${classSelect('ts')}<label>Participants</label><textarea id="tl" placeholder="Un nom par ligne"></textarea>
     <label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="nr" checked style="width:auto"> Sans remise (chacun passe une fois)</label></div>
     <div class="card" style="margin-top:12px"><div class="pick" id="pk">🎲</div>
-    <div class="row"><button class="btn btn-grad" id="go">🎲 Tirer au sort</button><button class="btn btn-ghost" id="rz">↺ Recommencer</button></div>
+    <div class="row"><button class="btn btn-grad" id="go">🎲 Tirer au sort</button><button class="btn btn-ghost" id="rz" data-cfg="bare">↺ Recommencer</button></div>
     <p class="muted" id="hist" style="margin:12px 0 0"></p></div>`;
   bindClassToTextarea('ts','tl');
   const $=s=>el.querySelector(s);
@@ -580,8 +580,8 @@ marque(el){
   el.innerHTML=`<div class="score-wrap">
     <div class="score a"><input id="na" value="Équipe A"><div class="pts" id="pa">0</div><div class="row"><button data-a="-1">−1</button><button data-a="1">+1</button><button data-a="2">+2</button><button data-a="3">+3</button></div></div>
     <div class="score b"><input id="nb" value="Équipe B"><div class="pts" id="pb">0</div><div class="row"><button data-b="-1">−1</button><button data-b="1">+1</button><button data-b="2">+2</button><button data-b="3">+3</button></div></div></div>
-    <div class="card" style="margin-top:12px"><div class="row" style="align-items:center"><div><label>Durée (min)</label><input id="d" type="number" value="7"></div><div class="big" style="font-size:2.6rem" id="tm">07:00</div></div>
-    <div class="row" style="margin-top:10px"><button class="btn btn-grad" id="go">▶ Chrono</button><button class="btn btn-ghost" id="rz">↺ Nouveau match</button></div></div>`;
+    <div class="card" style="margin-top:12px"><div class="row" style="align-items:center"><div data-cfg="bare"><label>Durée (min)</label><input id="d" type="number" value="7"></div><div class="big" style="font-size:2.6rem" id="tm">07:00</div></div>
+    <div class="row" style="margin-top:10px"><button class="btn btn-grad" id="go">▶ Chrono</button><button class="btn btn-ghost" id="rz" data-cfg="bare">↺ Nouveau match</button></div></div>`;
   const $=s=>el.querySelector(s);
   const draw=()=>{$('#pa').textContent=a;$('#pb').textContent=b;};
   el.querySelectorAll('[data-a]').forEach(x=>x.onclick=()=>{a=Math.max(0,a+ +x.dataset.a);draw();});

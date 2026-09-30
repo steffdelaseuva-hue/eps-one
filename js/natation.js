@@ -58,7 +58,7 @@ function natationVite(el) {
       $('#fl').innerHTML = '<option value="">Tous les élèves</option>' + names.map(n => `<option ${n === cur ? 'selected' : ''}>${esc(n)}</option>`).join('');
       const rows = DB.natation.map((r, i) => ({ ...r, i })).filter(r => !$('#fl').value || r.eleve === $('#fl').value).reverse();
       $('#ls').innerHTML = rows.length ? `<table><tr><th>Élève</th><th>Date</th><th>Dist.</th><th>Temps</th><th>Coups</th><th>m/s</th><th>m/coup</th><th>coups/min</th><th>Indice 25 m</th><th></th></tr>
-        ${rows.map(r => { const x = calc(r.d, r.t, r.c); return `<tr><td><b>${esc(r.eleve)}</b></td><td>${new Date(r.date).toLocaleDateString('fr-FR')}</td><td>${r.d} m</td><td>${fmt(r.t * 1000)}</td><td>${r.c || '–'}</td><td>${n2(x.v)}</td><td>${n2(x.amp)}</td><td>${x.freq ? Math.round(x.freq) : '–'}</td><td><b>${natI(natIndice(r.d, r.t, r.c))}</b></td><td><button class="btn btn-ghost" style="padding:4px 8px" data-x="${r.i}">✕</button></td></tr>`; }).join('')}</table>`
+        ${rows.map(r => { const x = calc(r.d, r.t, r.c); return `<tr><td><b>${esc(r.eleve)}</b></td><td>${new Date(r.date).toLocaleDateString('fr-FR')}</td><td>${r.d} m</td><td>${fmt(r.t * 1000)}</td><td>${r.c || '–'}</td><td>${n2(x.v)}</td><td>${n2(x.amp)}</td><td>${x.freq ? Math.round(x.freq) : '–'}</td><td><b>${natI(natIndice(r.d, r.t, r.c))}</b></td><td><button class="btn btn-ghost" style="padding:4px 8px" data-x="${r.i}" data-cfg="bare">✕</button></td></tr>`; }).join('')}</table>`
         : '<div class="empty">Aucun résultat enregistré.</div>';
       $('#ls').querySelectorAll('[data-x]').forEach(b => b.onclick = () => { if (confirm('Supprimer ?')) { DB.natation.splice(+b.dataset.x, 1); save(); list(); } });
     };
@@ -83,7 +83,7 @@ function natationMulti(el, n) {
   let iv;
   const draw = () => {
     const st = S.cls ? studentsOf(S.cls) : [];
-    el.innerHTML = `<div class="card"><div class="row">${DB.classes.length ? `<div><label style="margin-top:0">Classe</label><select id="mc">${DB.classes.map(c => `<option ${c.name === S.cls ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</select></div>` : ''}
+    el.innerHTML = `<div class="card"><div class="row" data-cfg="bare">${DB.classes.length ? `<div><label style="margin-top:0">Classe</label><select id="mc">${DB.classes.map(c => `<option ${c.name === S.cls ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</select></div>` : ''}
         <div><label style="margin-top:0">Distance (m)</label><select id="md">${[25, 50, 100, 200].map(v => `<option ${v === S.d ? 'selected' : ''}>${v}</option>`).join('')}</select></div></div>
         <div class="row" style="margin-top:10px"><button class="btn btn-grad" id="mall">🚩 Départ groupé</button><button class="btn btn-ghost" id="mrz">↺ Tout remettre à zéro</button></div></div>
       ${st.length ? '' : '<div class="card empty" style="margin-top:12px">Créez d\'abord une classe dans « Mes classes ».</div>'}
@@ -282,7 +282,7 @@ TOOL_IMPL.natation = function (el) {
     box.addEventListener('change', e => { const h = box.querySelector('#nat-tp'); if (h && ['cl', 'mc', 'sc'].includes(e.target.id)) natTabPicker(h, mode === 'vite' ? DB.natLanes || 1 : 1, frame); });
     if (mode === 'vite') {
       const L = DB.natLanes || 1;
-      box.innerHTML = `<div class="card" style="margin-bottom:12px"><label style="margin-top:0">Nageurs chronométrés en même temps</label><div class="seg">${[1, 2, 3, 4].map(n => `<button data-ln="${n}" class="${L === n ? 'on' : ''}">${n}</button>`).join('')}</div><div id="nat-tp"></div></div><div id="nat-v"></div>`;
+      box.innerHTML = `<div class="card" style="margin-bottom:12px"><div data-cfg><label style="margin-top:0">Nageurs chronométrés en même temps</label><div class="seg">${[1, 2, 3, 4].map(n => `<button data-ln="${n}" class="${L === n ? 'on' : ''}">${n}</button>`).join('')}</div></div><div id="nat-tp"></div></div><div id="nat-v"></div>`;
       box.querySelectorAll('[data-ln]').forEach(b => b.onclick = () => { DB.natLanes = +b.dataset.ln; save(); frame(); });
       natTabPicker(box.querySelector('#nat-tp'), L, frame);
       const vb = box.querySelector('#nat-v');

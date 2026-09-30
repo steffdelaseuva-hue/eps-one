@@ -120,15 +120,19 @@ function openClassImport(el, sheets, fileName, back, dest0) {
         <div class="row"><div><label>Colonne NOM</label><select id="cn">${opt(cNom)}</select></div><div><label>Colonne Prénom</label><select id="cp">${opt(cPre, true)}</select></div></div>
         <label>Colonne Classe (si le fichier contient plusieurs classes)</label><select id="cc">${opt(cCla, true)}</select>
         <div id="cnw"><label>Nom de la classe</label><input id="cname" value="${esc(sheets.length > 1 ? sh.name : fileName.replace(/\.[^.]+$/, ''))}"></div>
-        <label>Ranger dans</label><div class="seg" id="dst"><button data-dst="eps" class="${dest === 'eps' ? 'on' : ''}">🏃 Mes classes EPS</button><button data-dst="all" class="${dest === 'all' ? 'on' : ''}">🏫 Autres classes du collège</button></div>
-        <p class="muted" style="margin:4px 0 0;font-size:.78rem">Les « autres classes » ne servent qu'au Cross : elles n'apparaissent pas dans les outils.</p>
+        <label>Ranger dans</label><div class="seg" id="dst"><button data-dst="eps" class="${dest === 'eps' ? 'on' : ''}">🏃 Mes classes EPS</button><button data-dst="unss" class="${dest === 'unss' ? 'on' : ''}">🏅 UNSS / AS</button><button data-dst="all" class="${dest === 'all' ? 'on' : ''}">🏫 Autres classes</button></div>
+        <p class="muted" style="margin:4px 0 0;font-size:.78rem" id="dsth"></p>
         <label style="display:flex;gap:8px;align-items:center;margin-top:10px"><input type="checkbox" id="mg" checked style="width:auto"> Si la classe existe déjà : ajouter seulement les nouveaux élèves</label></div>
       <div class="section-title"><h2>Aperçu</h2></div><div class="card" id="pv"></div>
       <div class="row" style="margin-top:12px"><button class="btn btn-grad" id="ok">✔ Importer</button><button class="btn btn-ghost" id="ko">Annuler</button></div>`;
     const $ = s => el.querySelector(s);
+    const orig = {};
     const build = () => {
-      const per = $('#per')?.checked, useHd = $('#hd').checked, n = +$('#cn').value, p = +$('#cp').value, c = +$('#cc').value;
-      $('#cnw').style.display = c >= 0 || per ? 'none' : 'block';
+      const U = dest === 'unss', per = !U && $('#per')?.checked, useHd = $('#hd').checked, n = +$('#cn').value, p = +$('#cp').value, c = +$('#cc').value;
+      $('#cnw').style.display = U || !(c >= 0 || per) ? 'block' : 'none';
+      $('#cnw label').textContent = U ? 'Nom du groupe UNSS / AS' : 'Nom de la classe';
+      if (U && (!$('#cname').dataset.u)) { $('#cname').dataset.u = 1; $('#cname').value = 'UNSS mercredi'; }
+      $('#dsth').textContent = U ? 'Tous les élèves du fichier forment UN groupe (ex. « UNSS mercredi »), utilisable dans tous les outils ; la colonne Classe sert seulement à retenir la classe de chaque élève.' : dest === 'all' ? 'Les « autres classes » ne servent qu\'au Cross : elles n\'apparaissent pas dans les outils.' : 'Classes proposées dans tous les outils.';
       const src = per ? sheets.map(s => ({ s, rows: s.rows })) : [{ s: sh, rows }];
       const out = new Map();
       src.forEach(({ s, rows: rr }) => {
@@ -137,7 +141,8 @@ function openClassImport(el, sheets, fileName, back, dest0) {
           const nom = (r[n] || '').trim(), pre = p >= 0 ? (r[p] || '').trim() : '';
           const full = [nom, pre].filter(Boolean).join(' ').replace(/\s+/g, ' ');
           if (!full) return;
-          const cls = per ? s.name : c >= 0 ? (r[c] || '').trim() || 'Sans classe' : ($('#cname').value.trim() || 'Nouvelle classe');
+          const cls = U ? ($('#cname').value.trim() || 'UNSS') : per ? s.name : c >= 0 ? (r[c] || '').trim() || 'Sans classe' : ($('#cname').value.trim() || 'Nouvelle classe');
+          if (U && c >= 0 && (r[c] || '').trim()) orig[full] = (r[c] || '').trim();
           if (!out.has(cls)) out.set(cls, []);
           if (!out.get(cls).includes(full)) out.get(cls).push(full);
         });
@@ -147,7 +152,7 @@ function openClassImport(el, sheets, fileName, back, dest0) {
     const preview = () => { const out = build();
       $('#pv').innerHTML = out.size ? [...out].map(([k, v]) => `<div class="list-item" style="padding:8px 0"><div><b>${esc(k)}</b> — ${v.length} élèves${DB.classes.some(x => x.name === k) ? ' <span class="pill">existe déjà · EPS</span>' : otherClasses().some(x => x.name === k) ? ' <span class="pill">existe déjà · autres</span>' : ''}<div class="muted">${v.slice(0, 4).map(esc).join(', ')}${v.length > 4 ? '…' : ''}</div></div></div>`).join('') : '<div class="empty">Aucun élève trouvé : vérifiez les colonnes choisies.</div>'; };
     ['#hd', '#cn', '#cp', '#cc', '#per', '#cname', '#mg'].forEach(s => { const e = $(s); if (e) e.oninput = e.onchange = preview; });
-    el.querySelectorAll('[data-dst]').forEach(b => b.onclick = () => { dest = b.dataset.dst; el.querySelectorAll('[data-dst]').forEach(x => x.classList.toggle('on', x === b)); });
+    el.querySelectorAll('[data-dst]').forEach(b => b.onclick = () => { dest = b.dataset.dst; el.querySelectorAll('[data-dst]').forEach(x => x.classList.toggle('on', x === b)); preview(); });
     if ($('#sh')) $('#sh').onchange = () => { si = +$('#sh').value; draw(); };
     $('#ko').onclick = back;
     $('#ok').onclick = () => {
@@ -155,6 +160,7 @@ function openClassImport(el, sheets, fileName, back, dest0) {
       let nc = 0, ne = 0;
       out.forEach((names, cls) => {
         const ex = DB.classes.find(x => x.name === cls) || otherClasses().find(x => x.name === cls);
+        if (dest === 'unss') { const o = {}; names.forEach(x => { if (orig[x]) o[x] = orig[x]; }); if (ex) ex.orig = { ...(ex.orig || {}), ...o }; else { DB.classes.push({ name: cls, students: names, unss: 1, orig: o }); nc++; ne += names.length; return; } }
         if (!ex) { (dest === 'all' ? otherClasses() : DB.classes).push({ name: cls, students: names }); nc++; ne += names.length; }
         else if ($('#mg').checked) { const add = names.filter(x => !ex.students.includes(x)); ex.students.push(...add); ne += add.length; }
         else { ex.students = names; ne += names.length; }
@@ -169,27 +175,32 @@ function openClassImport(el, sheets, fileName, back, dest0) {
 /* ---------- Outil « Mes classes » (remplace la version d'origine) ---------- */
 TOOL_IMPL.classes = function (el) {
   const draw = () => {
-    const O = otherClasses();
-    const item = (c, i, kind) => `<div class="list-item"><div style="flex:1;min-width:0"><b>${esc(c.name)}</b><div class="muted">${c.students.length} élèves</div></div><div class="row" style="flex:0 0 auto;gap:6px;flex-wrap:nowrap">${kind === 'eps' ? `<button class="btn btn-grad" style="padding:9px 11px;white-space:nowrap;font-size:.85rem" data-a="${i}" title="Ajouter un élève">＋ Élève</button>` : ''}<button class="btn btn-ghost" style="padding:9px 10px;white-space:nowrap;font-size:.8rem" data-mv="${kind}:${i}" title="${kind === 'eps' ? 'Déplacer vers Autres classes' : 'Déplacer vers Mes classes EPS'}">${kind === 'eps' ? '→ 🏫' : '→ 🏃 EPS'}</button><button class="btn btn-ghost" style="padding:9px 10px" data-e="${kind}:${i}">✏️</button><button class="btn btn-ghost" style="padding:9px 10px" data-d="${kind}:${i}">🗑</button></div></div>`;
+    const O = otherClasses(), EPS = DB.classes.map((c, i) => ({ c, i })).filter(x => !x.c.unss), UN = DB.classes.map((c, i) => ({ c, i })).filter(x => x.c.unss);
+    const origTxt = c => { const v = [...new Set(Object.values(c.orig || {}))].sort((a, b) => a.localeCompare(b, 'fr', { numeric: true })); return v.length ? ' · ' + esc(v.join(', ')) : ''; };
+    const item = (c, i, kind) => `<div class="list-item"><div style="flex:1;min-width:0"><b>${esc(c.name)}</b><div class="muted">${c.students.length} élèves${kind === 'unss' ? origTxt(c) : ''}</div></div><div class="row" style="flex:0 0 auto;gap:6px;flex-wrap:nowrap">${kind !== 'all' ? `<button class="btn btn-grad" style="padding:9px 11px;white-space:nowrap;font-size:.85rem" data-a="${i}" title="Ajouter un élève">＋ Élève</button>` : ''}${kind === 'unss' ? '' : `<button class="btn btn-ghost" style="padding:9px 10px;white-space:nowrap;font-size:.8rem" data-mv="${kind}:${i}" title="${kind === 'eps' ? 'Déplacer vers Autres classes' : 'Déplacer vers Mes classes EPS'}">${kind === 'eps' ? '→ 🏫' : '→ 🏃 EPS'}</button>`}<button class="btn btn-ghost" style="padding:9px 10px" data-e="${kind}:${i}">✏️</button><button class="btn btn-ghost" style="padding:9px 10px" data-d="${kind}:${i}">🗑</button></div></div>`;
     el.innerHTML = `<div class="card" style="display:flex;align-items:center;gap:12px;background:var(--grad-soft)"><div style="flex:1"><div class="muted">Année scolaire</div><b style="font-size:1.15rem;white-space:nowrap">${esc(DB.annee || '')}</b></div><button class="btn btn-grad" style="flex:0 0 auto;font-size:.85rem;padding:10px 12px" id="ny">🗓 Nouvelle année</button></div>
       <div class="card" style="margin-top:12px"><h3>Importer des classes</h3><p class="muted" style="margin:4px 0 10px">Fichier CSV ou Excel (.xlsx) : export Pronote, ENT ou tableur. Une ou plusieurs classes à la fois. Fichier Numbers : l'app vous indique comment l'exporter en Excel.</p>
-        <div class="row"><button class="btn btn-grad" id="imp">📥 Mes classes EPS</button><button class="btn btn-ghost" id="imp2">📥 Autres classes du collège</button></div><input type="file" id="f" accept=".csv,.txt,.xlsx,.xls,.numbers,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" hidden></div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:8px"><button class="btn btn-grad" id="imp">📥 Mes classes EPS</button><button class="btn btn-ghost" id="imp3">📥 Liste UNSS / AS</button><button class="btn btn-ghost" id="imp2">📥 Autres classes du collège</button></div><input type="file" id="f" accept=".csv,.txt,.xlsx,.xls,.numbers,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" hidden></div>
       <div class="card" style="margin-top:12px"><h3>Nouvelle classe</h3><label>Nom</label><input id="cn" placeholder="ex : 6E1">
       <label>Élèves (un par ligne, ou collés depuis un tableur)</label><textarea id="cl" placeholder="DUPONT Léa&#10;MARTIN Hugo"></textarea>
-      <label>Ranger dans</label><div class="seg" id="ndst"><button data-nd="eps" class="on">🏃 Mes classes EPS</button><button data-nd="all">🏫 Autres classes</button></div>
+      <label>Ranger dans</label><div class="seg" id="ndst"><button data-nd="eps" class="on">🏃 Classe EPS</button><button data-nd="unss">🏅 UNSS / AS</button><button data-nd="all">🏫 Autres classes</button></div>
       <button class="btn btn-grad btn-block" style="margin-top:10px" id="add">＋ Enregistrer la classe</button></div>
-      <div class="section-title"><h2>🏃 Mes classes EPS (${DB.classes.length})</h2></div>
+      <div class="section-title"><h2>🏃 Mes classes EPS (${EPS.length})</h2></div>
       <p class="muted" style="margin:-4px 4px 8px;font-size:.8rem">Classes proposées dans tous les outils.</p>
-      <div class="card" style="padding:0">${DB.classes.length ? DB.classes.map((c, i) => item(c, i, 'eps')).join('') : '<div class="empty">Aucune classe enregistrée.</div>'}</div>
+      <div class="card" style="padding:0">${EPS.length ? EPS.map(x => item(x.c, x.i, 'eps')).join('') : '<div class="empty">Aucune classe enregistrée.</div>'}</div>
+      <div class="section-title"><h2>🏅 UNSS / AS (${UN.length})</h2></div>
+      <p class="muted" style="margin:-4px 4px 8px;font-size:.8rem">Groupes d'élèves de plusieurs classes (ex. « UNSS mercredi »), proposés dans tous les outils comme une classe.</p>
+      <div class="card" style="padding:0">${UN.length ? UN.map(x => item(x.c, x.i, 'unss')).join('') : '<div class="empty">Aucun groupe. Importez la liste des inscrits avec « 📥 Liste UNSS / AS » (colonnes Nom, Prénom, Classe).</div>'}</div>
       <div class="section-title"><h2>🏫 Autres classes du collège (${O.length})</h2></div>
       <p class="muted" style="margin:-4px 4px 8px;font-size:.8rem">Classes des collègues, utilisées uniquement pour le Cross (qui voit toutes les classes). Elles n'encombrent pas vos autres outils.</p>
       <div class="card" style="padding:0">${O.length ? O.map((c, i) => item(c, i, 'all')).join('') : '<div class="empty">Aucune pour l\'instant. Importez le fichier de toutes les classes avec « 📥 Autres classes du collège ».</div>'}</div>
       ${O.length ? '<button class="btn btn-ghost btn-block" style="margin-top:10px" id="delall">🗑 Supprimer toutes les autres classes</button>' : ''}`;
-    const $ = s => el.querySelector(s), L = k => k === 'all' ? otherClasses() : DB.classes;
+    const $ = s => el.querySelector(s), L = k => k === 'all' ? otherClasses() : DB.classes;   // 'eps' et 'unss' : même tableau (DB.classes, drapeau unss)
     let dest = 'eps', nd = 'eps';
     $('#ny').onclick = () => openNewYear('classes');
     $('#imp').onclick = () => { dest = 'eps'; $('#f').click(); };
     $('#imp2').onclick = () => { dest = 'all'; $('#f').click(); };
+    $('#imp3').onclick = () => { dest = 'unss'; $('#f').click(); };
     $('#f').onchange = async () => {
       const inp = $('#f'), file = inp.files[0]; if (!file) return; inp.value = '';
       try { const sheets = await readClassFile(file); if (!sheets.length) throw new Error('Aucune donnée trouvée dans ce fichier.'); openClassImport(el, sheets, file.name, draw, dest); }
@@ -199,7 +210,7 @@ TOOL_IMPL.classes = function (el) {
     $('#add').onclick = () => { const name = $('#cn').value.trim(), st = namesFrom('cl');
       if (!name || !st.length) return toast('Nom et élèves requis');
       const ex = DB.classes.find(c => c.name === name) || otherClasses().find(c => c.name === name);
-      if (ex) ex.students = st; else L(nd).push({ name, students: st });
+      if (ex) ex.students = st; else L(nd).push(nd === 'unss' ? { name, students: st, unss: 1 } : { name, students: st });
       save(); toast('Classe enregistrée ✔'); draw(); };
     el.querySelectorAll('[data-a]').forEach(b => b.onclick = () => {
       const c = DB.classes[b.dataset.a], n = (prompt(`Nouvel élève en ${c.name} (NOM Prénom) :`) || '').trim().replace(/\s+/g, ' ');
@@ -210,7 +221,7 @@ TOOL_IMPL.classes = function (el) {
       save(); toast(`${c.name} → ${k === 'eps' ? 'Autres classes' : 'Mes classes EPS'}`); draw(); });
     el.querySelectorAll('[data-d]').forEach(b => b.onclick = () => { if (confirm('Supprimer cette classe ?')) { const { i, A } = ref(b.dataset.d); A.splice(i, 1); save(); draw(); } });
     el.querySelectorAll('[data-e]').forEach(b => b.onclick = () => { const { k, i, A } = ref(b.dataset.e), c = A[i]; $('#cn').value = c.name; $('#cl').value = c.students.join('\n');
-      nd = k; el.querySelectorAll('[data-nd]').forEach(x => x.classList.toggle('on', x.dataset.nd === k)); $('#cn').scrollIntoView({ behavior: 'smooth' }); });
+      nd = k === 'eps' && c.unss ? 'unss' : k; el.querySelectorAll('[data-nd]').forEach(x => x.classList.toggle('on', x.dataset.nd === nd)); $('#cn').scrollIntoView({ behavior: 'smooth' }); });
     if ($('#delall')) $('#delall').onclick = () => { if (!confirm(`Supprimer les ${otherClasses().length} autres classes du collège ?\nVos classes EPS sont conservées.`)) return; DB.classesAll = []; save(); draw(); };
   };
   draw();

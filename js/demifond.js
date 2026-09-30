@@ -129,11 +129,11 @@ function dfNorm(c) {
   return c;
 }
 const dfMk = (k, v, n, rest) => ({ runs: Array.from({ length: n }, () => ({ k, d: k === 'duree' ? v : 180, m: k === 'dist' ? v : 500 })), rests: Array.from({ length: n - 1 }, () => ({ d: rest, actif: false })) });
+const dfMix = (durs, rest) => ({ runs: durs.map(d => ({ k: 'duree', d, m: 500 })), rests: durs.slice(1).map(() => ({ d: rest, actif: false })) });
 const DF_PRESETS = [
-  ['3 × 3 min · R 1 min', () => dfMk('duree', 180, 3, 60)], ['4 × 2 min · R 1 min', () => dfMk('duree', 120, 4, 60)],
-  ['30 s – 30 s × 10', () => dfMk('duree', 30, 10, 30)], ['2 × 500 m · R 2 min', () => dfMk('dist', 500, 2, 120)],
-  ['2 × 800 m · R 3 min', () => dfMk('dist', 800, 2, 180)], ['6 min', () => dfMk('duree', 360, 1, 0)], ['10 min', () => dfMk('duree', 600, 1, 0)],
-  ['1 000 m', () => dfMk('dist', 1000, 1, 0)], ['3 min + 500 m + 2 min', () => ({ runs: [{ k: 'duree', d: 180, m: 500 }, { k: 'dist', d: 180, m: 500 }, { k: 'duree', d: 120, m: 500 }], rests: [{ d: 90, actif: false }, { d: 90, actif: false }] })]];
+  ['9 min + 3 min · R 2 min', () => dfMix([540, 180], 120)], ['6 min + 3 min · R 2 min', () => dfMix([360, 180], 120)],
+  ['4 × 3 min · R 1 min', () => dfMk('duree', 180, 4, 60)], ['3 × 500 m · R 2 min', () => dfMk('dist', 500, 3, 120)],
+  ['2 × 800 m · R 3 min', () => dfMk('dist', 800, 2, 180)]];
 const DF_ORG = {
   vagues: ['👀 Coureur / observateur', 'Chaque membre fait tout l\'enchaînement à son tour (vague 1, vague 2…) pendant que son partenaire l\'observe et compte ses plots.'],
   relais: ['🔁 Relais', 'Les membres se relaient : une course chacun à tour de rôle (choix du coureur de chaque course dans l\'onglet Épreuve). Le nombre de courses = nombre de relais.'],
@@ -243,7 +243,7 @@ TOOL_IMPL.demifond = function (el) {
     dfNorm(c);
     const tog = (attr, list, val) => `<div class="tog">${list.map(([v, l]) => `<button data-${attr}="${v}" class="${String(val) === String(v) ? 'on' : ''}">${l}</button>`).join('')}</div>`;
     const refRun = r => dfEq(c.refV, r, c, null, true);
-    host.innerHTML = `<div class="card"><h3 style="margin-top:0">🏃 Format de l'épreuve</h3>
+    host.innerHTML = `<div class="card" data-cfg><h3 style="margin-top:0">🏃 Format de l'épreuve</h3>
         ${locked ? '<p class="muted" style="margin:0 0 8px">🔒 Épreuve commencée : le format n\'est plus modifiable (les bips restent réglables dans l\'onglet Course).</p>' : ''}
         <label style="margin-top:0">Formats rapides</label><div class="tog" id="pre">${DF_PRESETS.map(([l], i) => `<button data-pre="${i}">${l}</button>`).join('')}</div>
         <label>Enchaînement de courses (${c.runs.length})</label>
@@ -257,17 +257,17 @@ TOOL_IMPL.demifond = function (el) {
           ${c.runs.length > 1 ? `<div style="display:flex;gap:6px;align-items:center;flex:1;min-width:210px"><span class="muted">Même repos partout</span><input id="allr" style="width:76px;padding:8px;text-align:center" value="${dfT(c.rests[0].d)}"><button class="btn btn-ghost" id="allrok" style="padding:8px 12px">OK</button></div>` : ''}</div>
         <p class="df-help">Durée : de 15 s à 20 min et plus (« 3:00 », « 45 s », « 12 min »). Distance : de 15 m à 1 000 m et plus. Repos à 0:00 = enchaînement direct. Équivalences calculées à <input id="refv" type="number" step="0.5" min="3" value="${c.refV}" style="width:64px;padding:4px;text-align:center;display:inline-block"> km/h (vitesse de référence).</p></div>
 
-      <div class="card" style="margin-top:12px"><h3 style="margin-top:0">📍 Plots et piste</h3>
+      <div class="card" data-cfg style="margin-top:12px"><h3 style="margin-top:0">📍 Plots et piste</h3>
         <label style="margin-top:0">Écart entre deux plots</label>${tog('plot', [[20, '20 m'], [25, '25 m'], [50, '50 m'], ['x', 'Autre']], [20, 25, 50].includes(c.plot) ? c.plot : 'x')}
         ${[20, 25, 50].includes(c.plot) ? '' : `<input id="plotx" type="number" min="5" step="1" value="${c.plot}" style="margin-top:6px;max-width:120px"> m`}
         <label>Tour de piste (facultatif)</label>${tog('piste', [[0, 'Aucun'], [150, '150 m'], [200, '200 m'], [250, '250 m'], [400, '400 m']], c.piste)}</div>
 
-      <div class="card" style="margin-top:12px"><h3 style="margin-top:0">👥 Groupement</h3>
+      <div class="card" data-cfg style="margin-top:12px"><h3 style="margin-top:0">👥 Groupement</h3>
         ${tog('grp', [[1, 'Individuel'], [2, 'Duo'], [3, 'Trio'], [4, 'Quatuor']], c.grp)}
         ${c.grp > 1 ? `<label>Organisation pendant l'épreuve</label>${tog('org', Object.entries(DF_ORG).map(([k, v]) => [k, v[0]]), c.org)}<p class="df-help">${DF_ORG[c.org][1]}</p>
           ${c.org === 'groupe' ? `<label>Résultat du groupe</label>${tog('gres', [['lent', '🐢 Le plus lent'], ['moy', '⚖️ La moyenne']], c.grpRes)}<p class="df-help">${c.grpRes === 'lent' ? 'Le groupe vaut son membre le plus lent : on apprend à courir ensemble, à l\'allure du plus faible.' : 'Moyenne des distances et des temps des membres : chacun contribue au résultat.'} Le projet est fixé par le groupe.</p>` : ''}` : ''}</div>
 
-      <div class="card" style="margin-top:12px"><h3 style="margin-top:0">🎯 Règles</h3>
+      <div class="card" data-cfg style="margin-top:12px"><h3 style="margin-top:0">🎯 Règles</h3>
         <label style="margin-top:0">Arrêts autorisés par course (marche / arrêt)</label>${tog('arr', [[0, '0'], [1, '1'], [2, '2'], [3, '3'], [-1, 'Illimité']], c.arrets)}
         <label>Tolérance « projet respecté » (± %)</label><input id="tol" type="number" min="1" max="30" step="1" value="${c.tol}" style="max-width:120px">
         <p class="df-help">Écart vert si ≤ ${c.tol} %, orange si ≤ ${2 * c.tol} %, rouge au-delà (écart de vitesse, équivalent à l'écart de distance sur une durée).</p>
@@ -304,9 +304,9 @@ TOOL_IMPL.demifond = function (el) {
   /* ---------- Préparation (pas encore de séance) ---------- */
   function prepNew(box) {
     const c = D.lastCfg = dfNorm(D.lastCfg || dfDefCfg());
-    box.innerHTML = `<div class="card"><label style="margin-top:0">Nom de la séance</label><input id="nm" value="Demi-fond ${new Date().toLocaleDateString('fr-FR')}"></div>
+    box.innerHTML = `<div class="card" data-cfg><label style="margin-top:0">Nom de la séance</label><input id="nm" value="Demi-fond ${new Date().toLocaleDateString('fr-FR')}"></div>
       <div id="cfg" style="margin-top:12px"></div>
-      <div class="card" style="margin-top:12px"><h3 style="margin-top:0" id="cmpt"></h3><div id="cmp"></div></div>`;
+      <div class="card" data-cfg style="margin-top:12px"><h3 style="margin-top:0" id="cmpt"></h3><div id="cmp"></div></div>`;
     const $ = s => box.querySelector(s);
     const syncCmp = () => {
       $('#cmpt').textContent = c.grp === 1 ? '🧑 Élèves (course individuelle)' : `👥 Former les ${['', '', 'duos', 'trios', 'quatuors'][c.grp]}`;
@@ -347,14 +347,14 @@ TOOL_IMPL.demifond = function (el) {
     box.innerHTML = `<div class="card"><div style="display:flex;gap:8px;align-items:flex-start"><div style="flex:1"><b style="font-size:1.1rem">${esc(C.nom)}</b>
         <div class="muted">${esc(C.classe || '')} · ${dfFormat(c)} · ${c.grp === 1 ? 'individuel' : ['', '', 'duos', 'trios', 'quatuors'][c.grp] + ' · ' + DF_ORG[c.org][0]}</div></div></div>
         <div class="row" style="margin-top:10px"><button class="btn btn-grad" id="gopj">🎯 Projets de course</button><button class="btn btn-ghost" id="golv">⏱ Aller à la course</button></div></div>
-      <div class="card" style="margin-top:12px"><div style="display:flex;align-items:center;gap:8px"><h3 style="margin:0;flex:1">${c.grp === 1 ? '🧑 Élèves' : '👥 Groupes'} (${C.groups.length})</h3><button class="btn btn-ghost" id="edg" style="padding:8px 12px">✏️ Modifier</button></div>
+      <div class="card" data-cfg style="margin-top:12px"><div style="display:flex;align-items:center;gap:8px"><h3 style="margin:0;flex:1">${c.grp === 1 ? '🧑 Élèves' : '👥 Groupes'} (${C.groups.length})</h3><button class="btn btn-ghost" id="edg" style="padding:8px 12px">✏️ Modifier</button></div>
         <p class="df-help">Touchez un élève pour activer / retirer 🚶 <b>marche rapide</b> (projet limité à ${dfFr(c.mrMin)}–${dfFr(c.mrMax)} km/h${c.arretsMR === -1 ? ', arrêts non comptés' : ''}).${relais ? ' Choisissez qui court chaque course (relais).' : ''}</p>
         ${C.groups.map((g, gi) => `<div style="padding:8px 0;border-top:1px solid var(--line)">${c.grp > 1 ? `<b>${esc(g.name)}</b><br>` : ''}
           ${g.members.map(n => { const v = dfVma(C, n); return `<button class="df-mem ${g.mr && g.mr[n] ? 'on' : ''}" data-mr="${gi}|${esc(n)}">${esc(n)}${v ? ` <span class="muted" style="font-size:.72rem">${dfFr(v)}</span>` : ''}${g.mr && g.mr[n] ? ' <span class="df-mr">🚶 MR</span>' : ''}</button>`; }).join('')}
           ${relais ? `<div style="display:flex;flex-wrap:wrap;gap:6px 10px;margin-top:6px">${c.runs.map((r, k) => `<div style="display:flex;align-items:center;gap:4px"><span class="muted" style="font-size:.75rem">C${k + 1}</span><select data-rl="${gi}|${k}" style="padding:5px 6px;width:auto;font-size:.82rem" ${lock ? 'disabled' : ''}>${g.members.map((n, mi) => `<option value="${mi}" ${dfRelay(g, k) === mi ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select></div>`).join('')}</div>
             <div class="muted" style="font-size:.75rem;margin-top:4px">${g.members.map((n, mi) => `${esc(n)} : ${c.runs.filter((r, k) => dfRelay(g, k) === mi).length} relais`).join(' · ')}</div>` : ''}</div>`).join('')}
         ${c.grp > 1 && c.org === 'vagues' ? `<p class="df-help">Vague 1 : ${C.groups.map(g => esc(g.members[0] || '—')).join(', ')} courent, leurs partenaires observent ; puis on inverse.</p>` : ''}</div>
-      <div class="card" style="margin-top:12px"><details id="vmad"><summary style="cursor:pointer"><b>⚡ VMA des élèves</b> <span class="muted">· ${C.groups.flatMap(g => g.members).filter(n => dfVma(C, n) != null).length}/${C.groups.flatMap(g => g.members).length} connues</span></summary>
+      <div class="card" data-cfg style="margin-top:12px"><details id="vmad"><summary data-free style="cursor:pointer"><b>⚡ VMA des élèves</b> <span class="muted">· ${C.groups.flatMap(g => g.members).filter(n => dfVma(C, n) != null).length}/${C.groups.flatMap(g => g.members).length} connues</span></summary>
         <p class="df-help">Reprises du Test VMA (Résultats des élèves), des tableaux de suivi (colonne « VMA ») ou des VMA saisies dans le Duathlon. Modifiables ici.</p>
         <div class="sheet-table"><table><tr><th>Élève</th><th>VMA (km/h)</th></tr>${C.groups.flatMap(g => g.members).map((n, i) => `<tr><td><b>${esc(n)}</b></td><td><input data-vma="${esc(n)}" type="number" step="0.5" min="0" inputmode="decimal" value="${dfVma(C, n) ?? ''}" placeholder="—" style="width:84px;padding:6px;text-align:center"></td></tr>`).join('')}</table></div></details></div>
       <div id="cfg" style="margin-top:12px"></div>
@@ -410,9 +410,9 @@ TOOL_IMPL.demifond = function (el) {
     const filled = parts.filter(P => P.runs.length && (c.projMode === 'global' ? ((P.g.proj || {})[P.key] || {}).g : P.runs.every(k => ((P.g.proj || {})[P.key] || {})[k]))).length;
     box.innerHTML = `<div class="card"><h3 style="margin-top:0">🎯 Projet de course</h3>
         <p class="df-help" style="margin-top:0">Avant de courir, chaque ${grpMode ? 'groupe' : 'élève'} annonce ce qu'il pense réaliser : ${allD ? 'une distance' : allM ? 'un temps' : 'une distance (courses en durée) ou un temps (courses en distance)'}, en mètres, en plots ou en vitesse. Les équivalences s'affichent aussitôt.</p>
-        <label>Projet</label><div class="tog">${[['run', 'Course par course'], ['global', 'Global (même allure partout)']].map(([k, l]) => `<button data-pm="${k}" class="${c.projMode === k ? 'on' : ''}">${l}</button>`).join('')}</div>
+        <label>Projet</label><div class="tog" data-cfg="bare">${[['run', 'Course par course'], ['global', 'Global (même allure partout)']].map(([k, l]) => `<button data-pm="${k}" class="${c.projMode === k ? 'on' : ''}">${l}</button>`).join('')}</div>
         <label>Saisir en</label><div class="tog">${[['nat', allM ? 'Temps' : allD ? 'Distance (m)' : 'Distance / temps'], ['plots', 'Plots'], ['v', 'Vitesse (km/h)']].map(([k, l]) => `<button data-un="${k}" class="${unit === k ? 'on' : ''}">${l}</button>`).join('')}</div>
-        <label>Proposer d'après la VMA</label><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><input id="pct" type="number" min="40" max="120" step="5" value="${c.pct}" style="width:76px;text-align:center"> <span>% VMA</span>
+        <label>Proposer d'après la VMA</label><div data-cfg="bare" style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><input id="pct" type="number" min="40" max="120" step="5" value="${c.pct}" style="width:76px;text-align:center"> <span>% VMA</span>
           <button class="btn btn-ghost" id="fill" style="padding:9px 12px">Remplir les projets vides</button><button class="btn btn-ghost" id="fillall" style="padding:9px 12px">Tout remplacer</button></div>
         <p class="df-help">Élèves 🚶 marche rapide : projet ramené dans ${dfFr(c.mrMin)}–${dfFr(c.mrMax)} km/h (${dfFr((c.mrMin + c.mrMax) / 2)} km/h si la VMA est inconnue). ${filled}/${parts.length} projets complets.</p></div>
       ${parts.map(P => `<div class="card" style="margin-top:10px${P.mr ? ';border:2px dashed #8E5BD8' : ''}"><div style="display:flex;gap:8px;align-items:baseline;flex-wrap:wrap"><b style="font-size:1.05rem">${esc(P.label)}</b>${P.mr ? '<span class="df-mr">🚶 marche rapide</span>' : ''}
@@ -529,14 +529,14 @@ TOOL_IMPL.demifond = function (el) {
       ${tl}
       <div class="muted" style="margin-top:6px;font-size:.8rem">${isCur ? `Course ${k + 1} en cours` : L.view != null || L.st === 'go' || L.st === 'done' ? `Course ${k + 1} : corrigez si besoin (+/− plots, mètres, arrêts)` : `Course ${k + 1} : attend le départ`}${run.k === 'dist' ? ' · touchez « 🏁 Arrivé » à l\'arrivée de chaque coureur' : ` · touchez « +1 plot » à chaque plot franchi (${c.plot} m)`}</div>
       ${grid || '<div class="card empty" style="margin-top:10px">Aucun coureur pour cette course.</div>'}
-      <div class="card" style="margin-top:12px"><b>🔔 Bips d'allure</b>
+      <div class="card" data-cfg style="margin-top:12px"><b>🔔 Bips d'allure</b>
         <div class="tog">${[['off', 'Aucun'], ['n', 'Toutes les N s'], ['allure', 'Allure fixe'], ['projet', 'Allure du projet']].map(([m, l]) => `<button data-bm="${m}" class="${b.mode === m ? 'on' : ''}">${l}</button>`).join('')}</div>
         ${b.mode === 'n' ? `<div style="display:flex;gap:6px;align-items:center;margin-top:8px">Bip toutes les <input id="bn" type="number" min="3" value="${b.n}" style="width:76px;text-align:center"> s</div>` : ''}
         ${b.mode === 'allure' ? `<div style="display:flex;gap:6px;align-items:center;margin-top:8px"><input id="bv" type="number" step="0.5" min="3" value="${b.v}" style="width:76px;text-align:center"> km/h → bip à chaque plot, soit toutes les <b>${dfFr(c.plot / (b.v / 3.6), 1)} s</b></div>` : ''}
         <p class="df-help" id="bipinfo">${b.mode === 'projet' ? `Bip à chaque plot (${c.plot} m) à l'allure du projet ${obs ? 'du coureur suivi' : 'moyenne des coureurs en piste'} : l'élève doit passer son plot au bip.` : b.mode === 'off' ? 'Bips de départ, de fin et 3-2-1 toujours actifs. Un bip d\'allure aide l\'élève à régler sa vitesse (« bip à chaque plot »).' : ''}</p></div>
       ${obs ? '<div style="text-align:center;margin:18px 0 6px"><button class="link" id="gv-prof">🔒 Mode enseignant</button></div>'
-        : `${C.groups.length > 1 ? `<div class="card" style="margin-top:12px"><label style="margin-top:0">📱 Tablette d'un ${c.grp === 1 ? 'élève' : 'groupe'} (l'observateur ne voit que son coureur)</label><select id="only"><option value="">Tous</option>${C.groups.map((g, i) => `<option value="${i}">${esc(g.name)}</option>`).join('')}</select></div>` : ''}
-        ${L.st !== 'done' && started(C) ? '<button class="btn btn-ghost btn-block" style="margin-top:12px" id="save">💾 Enregistrer maintenant (séance incomplète)</button>' : ''}`}
+        : `${C.groups.length > 1 ? `<div class="card" data-cfg style="margin-top:12px"><label style="margin-top:0">📱 Tablette d'un ${c.grp === 1 ? 'élève' : 'groupe'} (l'observateur ne voit que son coureur)</label><select id="only"><option value="">Tous</option>${C.groups.map((g, i) => `<option value="${i}">${esc(g.name)}</option>`).join('')}</select></div>` : ''}
+        ${L.st !== 'done' && started(C) ? '<button class="btn btn-ghost btn-block" data-cfg="bare" style="margin-top:12px" id="save">💾 Enregistrer maintenant (séance incomplète)</button>' : ''}`}
       </div>`;
     const $ = s => box.querySelector(s), redraw = () => live(box, C), keep = () => save();
     const find = key => { const [gi, ...r] = key.split('|'); return { g: C.groups[+gi], gi: +gi, n: r.join('|') }; };
@@ -638,17 +638,17 @@ TOOL_IMPL.demifond = function (el) {
     return csv(rows);
   }
   function sendRes(C) {
-    if (C.sent && !confirm('Cette séance a déjà été envoyée dans les Résultats des élèves. Envoyer à nouveau ?')) return;
+    const base = String(C.id).split('-')[0]; let nMaj = 0;
     let n = 0; const inCls = C.classe ? studentsOf(C.classe) : null;
     C.groups.forEach(g => g.members.forEach(e => { if (inCls && !inCls.includes(e)) return; const S = dfMember(C, g, e); if (!S) return; const mr = g.mr && g.mr[e];
-      saveResult({ tool: 'demifond', label: 'Demi-fond', classe: C.classe, eleve: e, valeur: `${dfFr(S.v)} km/h${S.pVma ? ` (${Math.round(S.pVma * 100)} % VMA)` : ''}${mr ? ' · 🚶 marche rapide' : ''}`,
-        detail: `${C.nom} · ${dfFormat(C.cfg)}${C.cfg.grp > 1 ? ' · ' + g.name : ''} · ${dfFr(S.dist, 0)} m en ${dfT(S.t)} · écart projet ${S.eAbs != null ? dfFr(S.eAbs * 100, 1) + ' % (moy.)' : '–'} · ${S.st} arrêt(s)${S.over ? ' (au-delà du nombre autorisé)' : ''}` }); n++; }));
-    C.sent = Date.now(); save(); toast(`${n} résultat(s) envoyé(s) ✔`);
+      nMaj += saveResult({ key: `demifond|${base}|${C.classe || ''}|${e}`, tool: 'demifond', label: 'Demi-fond', classe: C.classe, eleve: e, valeur: `${dfFr(S.v)} km/h${S.pVma ? ` (${Math.round(S.pVma * 100)} % VMA)` : ''}${mr ? ' · 🚶 marche rapide' : ''}`,
+        detail: `${C.nom} · ${dfFormat(C.cfg)}${C.cfg.grp > 1 ? ' · ' + g.name : ''} · ${dfFr(S.dist, 0)} m en ${dfT(S.t)} · écart projet ${S.eAbs != null ? dfFr(S.eAbs * 100, 1) + ' % (moy.)' : '–'} · ${S.st} arrêt(s)${S.over ? ' (au-delà du nombre autorisé)' : ''}` }) === 'maj'; n++; }));
+    C.sent = Date.now(); save(); toast(nMaj ? `${n} résultat(s) mis à jour ✔ (déjà envoyés : remplacés, sans doublon)` : `${n} résultat(s) envoyé(s) ✔`);
   }
   function results(box) {
     const C = cur(), S = D.seances.slice().sort((a, b) => b.date - a.date);
     box.innerHTML = `${C ? `<div class="card" style="border:2px solid var(--gold)"><h3 style="margin-top:0">⏱ Séance en cours · ${esc(C.nom)}</h3><div class="muted">${esc(C.classe || '')} · ${dfFormat(C.cfg)} · résultats provisoires (courses terminées)</div>
-        <div id="rcur"></div><button class="btn btn-grad btn-block" style="margin-top:10px" id="save">💾 Terminer et enregistrer</button></div>` : ''}
+        <div id="rcur"></div><button class="btn btn-grad btn-block" data-cfg="bare" style="margin-top:10px" id="save">💾 Terminer et enregistrer</button></div>` : ''}
       <div class="section-title"><h2>Historique (${S.length})</h2>${S.length ? '<button class="link" id="expall">Exporter tout (CSV)</button>' : ''}</div>
       <div class="seg" style="margin-bottom:10px">${[['ecart', '🎯 Classer par respect du projet'], ['vitesse', '⚡ Classer par vitesse']].map(([k, l]) => `<button data-rk="${k}" class="${rk === k ? 'on' : ''}">${l}</button>`).join('')}</div>
       ${S.length ? S.map(R => `<details class="card" style="margin-top:10px" data-id="${esc(R.id)}" ${openRec === R.id ? 'open' : ''}><summary style="cursor:pointer"><b>${new Date(R.date).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })} · ${esc(R.classe || '')} · ${esc(R.nom)}</b>

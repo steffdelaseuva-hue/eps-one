@@ -17,7 +17,7 @@ TOOL_IMPL.grilles = function (el) {
 
   /* ---------- Liste ---------- */
   const list = () => {
-    el.innerHTML = `<div class="card"><h3>Mes grilles</h3><div id="gl"></div>
+    el.innerHTML = `<div class="card" data-cfg><h3>Mes grilles</h3><div id="gl"></div>
         <button class="btn btn-grad btn-block" style="margin-top:12px" id="new">＋ Nouvelle grille</button>
         <button class="btn btn-ghost btn-block" style="margin-top:8px" id="imp">📥 Importer une grille (CSV / Excel)</button><input type="file" id="f" accept=".csv,.txt,.xlsx,.xls,.numbers" hidden></div>
       <details class="card" style="margin-top:12px"><summary style="font-weight:800;cursor:pointer">Format des fichiers à importer</summary>
@@ -29,7 +29,7 @@ TOOL_IMPL.grilles = function (el) {
           <li>Depuis <b>iDoceo</b> ou un tableur : exportez en <b>.xlsx</b> ou <b>.csv</b> puis importez ici.</li></ul>
         <div class="row" style="margin-top:10px"><button class="btn btn-ghost" id="m1">⬇ Modèle « points »</button><button class="btn btn-ghost" id="m2">⬇ Modèle « compétences »</button></div></details>`;
     el.querySelector('#gl').innerHTML = DB.grilles.map((g, i) => `<div class="list-item"><div style="flex:1"><b>${esc(g.name)}</b><div class="muted">${grType(g) === 'points' ? `Par points · ${g.criteria.length} critères · sur ${g.criteria.reduce((a, c) => a + (c.pts || 0), 0)} pts` : `Par compétences · ${g.criteria.length} critères · ${grLevels(g).length} niveaux`}</div></div>
-      <button class="btn btn-grad" data-v="${i}">Évaluer</button><button class="btn btn-ghost" data-e="${i}">✏️</button></div>`).join('') || '<div class="empty">Aucune grille. Créez-en une ou importez-la !</div>';
+      <button class="btn btn-grad" data-v="${i}" data-free>Évaluer</button><button class="btn btn-ghost" data-e="${i}">✏️</button></div>`).join('') || '<div class="empty">Aucune grille. Créez-en une ou importez-la !</div>';
     const $ = s => el.querySelector(s);
     $('#new').onclick = () => edit(null);
     $('#imp').onclick = () => $('#f').click();
@@ -65,7 +65,7 @@ TOOL_IMPL.grilles = function (el) {
     const draw = () => {
       const A = analyse(sheets[si].rows), auto = A.cPts >= 0 ? 'points' : A.levels.length >= 2 ? 'competences' : 'points';
       const t = type || auto, levels = A.levels.length >= 2 ? A.levels : GR_LV_DEF;
-      el.innerHTML = `<div class="card"><h3>📥 Importer « ${esc(fileName)} »</h3>
+      el.innerHTML = `<div data-cfg="bare"><div class="card" data-cfg><h3>📥 Importer « ${esc(fileName)} »</h3>
           ${sheets.length > 1 ? `<label>Feuille</label><select id="sh">${sheets.map((s, k) => `<option value="${k}" ${k === si ? 'selected' : ''}>${esc(s.name)}</option>`).join('')}</select>` : ''}
           <label>Nom de la grille</label><input id="nm" value="${esc(sheets.length > 1 ? sheets[si].name : fileName.replace(/\.[^.]+$/, ''))}">
           <label>Type de grille</label><div class="seg"><button data-t="points" class="${t === 'points' ? 'on' : ''}">Par points<br><small style="font-weight:600;opacity:.85">note /20</small></button><button data-t="competences" class="${t === 'competences' ? 'on' : ''}">Par compétences<br><small style="font-weight:600;opacity:.85">niveaux de maîtrise</small></button></div>
@@ -75,7 +75,7 @@ TOOL_IMPL.grilles = function (el) {
           ${A.crit.map(c => `<tr>${A.crit.some(x => x.domain) ? `<td>${esc(c.domain)}</td>` : ''}<td><b>${esc(c.label)}</b></td>${t === 'points' ? `<td>${c.pts || '<span style="color:var(--danger)">?</span>'}</td>` : ''}${A.levels.length >= 2 ? c.desc.map(d => `<td class="muted" style="font-size:.78rem">${esc(d)}</td>`).join('') : ''}</tr>`).join('')}</table>`
           : '<div class="empty">Aucun critère reconnu. Vérifiez que la 1re ligne contient les titres (Critère, Points ou niveaux).</div>'}</div>
         ${t === 'points' && A.cPts < 0 ? '<p class="muted" style="margin:8px 2px">Pas de colonne « Points » trouvée : chaque critère vaudra 1 point (modifiable ensuite).</p>' : ''}
-        <div class="row" style="margin-top:12px"><button class="btn btn-grad" id="ok" ${A.crit.length ? '' : 'disabled'}>✔ Importer la grille</button><button class="btn btn-ghost" id="ko">Annuler</button></div>`;
+        <div class="row" style="margin-top:12px"><button class="btn btn-grad" id="ok" ${A.crit.length ? '' : 'disabled'}>✔ Importer la grille</button><button class="btn btn-ghost" id="ko" data-free>Annuler</button></div></div>`;
       const $ = s => el.querySelector(s);
       if ($('#sh')) $('#sh').onchange = () => { si = +$('#sh').value; type = null; draw(); };
       el.querySelectorAll('[data-t]').forEach(b => b.onclick = () => { type = b.dataset.t; draw(); });
@@ -95,13 +95,13 @@ TOOL_IMPL.grilles = function (el) {
       criteria: [{ label: 'Performance / VMA', pts: 8 }, { label: 'Respect du projet de course', pts: 6 }, { label: 'Analyse de sa course', pts: 4 }, { label: 'Rôle d\'observateur', pts: 2 }] };
     const draw = () => {
       const t = grType(g);
-      el.innerHTML = `<div class="card"><h3>${i != null ? 'Modifier' : 'Nouvelle'} grille</h3><label>Nom</label><input id="gn" value="${esc(g.name)}">
+      el.innerHTML = `<div class="card" data-cfg><h3>${i != null ? 'Modifier' : 'Nouvelle'} grille</h3><label>Nom</label><input id="gn" value="${esc(g.name)}">
         <label>Type</label><div class="seg"><button data-t="points" class="${t === 'points' ? 'on' : ''}">Par points</button><button data-t="competences" class="${t === 'competences' ? 'on' : ''}">Par compétences</button></div>
         <label>Niveaux (un par ligne, du plus faible au plus élevé)</label><textarea id="gl" style="min-height:110px">${esc(grLevels(g).join('\n'))}</textarea>
         <label>Critères — un par ligne${t === 'points' ? ' : « Critère ; points »' : ''}</label><textarea id="gc" style="min-height:150px">${esc(g.criteria.map(c => t === 'points' ? c.label + ' ; ' + (c.pts || 1) : c.label).join('\n'))}</textarea>
         ${t === 'points' ? '<p class="muted">Chaque niveau rapporte une part des points du critère (ex. 4 niveaux : 0, ⅓, ⅔, 100 %).</p>' : '<p class="muted">Pas de note : chaque critère est positionné sur un niveau de maîtrise.</p>'}
         ${g.criteria.some(c => c.desc && c.desc.some(Boolean)) ? '<p class="muted">Les descripteurs importés sont conservés pour les critères dont le nom ne change pas.</p>' : ''}
-        <div class="row"><button class="btn btn-grad" id="sv">💾 Enregistrer</button><button class="btn btn-ghost" id="bk">Annuler</button>${i != null ? '<button class="btn btn-danger" id="dl">Supprimer</button>' : ''}</div></div>`;
+        <div class="row"><button class="btn btn-grad" id="sv">💾 Enregistrer</button><button class="btn btn-ghost" id="bk" data-free>Annuler</button>${i != null ? '<button class="btn btn-danger" id="dl">Supprimer</button>' : ''}</div></div>`;
       const $ = s => el.querySelector(s);
       const read = () => {
         g.name = $('#gn').value.trim() || 'Grille';

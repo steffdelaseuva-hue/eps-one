@@ -88,14 +88,14 @@ function mountComposer(host, { id, modes = ['random', 'hetero', 'homo'], allowFr
   const M = { random: ['Aléatoire', ''], hetero: ['Hétérogène', 'niveaux mélangés'], homo: ['Homogène', 'équipes de niveau'] };
   let mode = 'random';
   const q = s => host.querySelector(`#${id}-${s}`);
-  host.innerHTML = `
+  host.innerHTML = `<div data-cfg="bare">
     ${DB.classes.length || allowFree ? `<label>Classe</label><select id="${id}-cls">${allowFree ? '<option value="">— Saisie libre —</option>' : ''}${DB.classes.map(c => `<option value="${esc(c.name)}">${esc(c.name)} (${c.students.length})</option>`).join('')}</select>` : '<p class="muted">Créez d\'abord une classe dans « Mes classes ».</p>'}
     ${allowFree ? `<div id="${id}-free"><label>Élèves</label><textarea id="${id}-ta" placeholder="Un nom par ligne"></textarea></div>` : ''}
     <div id="${id}-lvz"><div id="${id}-sum"></div><button class="btn btn-ghost btn-block" id="${id}-lv"><span style="display:inline-block;width:20px;height:20px;vertical-align:-4px;margin-right:6px">${ico('levels')}</span>Classer les élèves par niveau de jeu</button><div id="${id}-box"></div></div>
     <label>Répartition</label><div class="seg" id="${id}-seg">${modes.map(m => `<button data-m="${m}">${M[m][0]}${M[m][1] ? `<br><small style="font-weight:600;opacity:.85">${M[m][1]}</small>` : ''}</button>`).join('')}</div>
     <div class="row"><div><label>Former selon</label><select id="${id}-k"><option value="n">Nombre d'équipes</option><option value="s">Élèves par équipe</option></select></div><div><label>Valeur</label><input id="${id}-v" type="number" value="4" min="1"></div></div>
     <button class="btn btn-grad btn-block" style="margin-top:12px" id="${id}-go">${button}</button>
-    ${prep ? `<button class="btn btn-ghost btn-block" style="margin-top:8px" id="${id}-prep">💾 Préparer pour plus tard (sans commencer)</button><div id="${id}-saved"></div>` : ''}`;
+    ${prep ? `<button class="btn btn-ghost btn-block" style="margin-top:8px" id="${id}-prep">💾 Préparer pour plus tard (sans commencer)</button><div id="${id}-saved"></div>` : ''}</div>`;
   const cls = () => q('cls')?.value || '';
   const PK = () => (DB.prepGroups = DB.prepGroups || {}, id + '|' + cls());
   // toutes les classes déjà préparées pour cet outil (plusieurs classes à l'avance)
@@ -148,7 +148,7 @@ function mountComposer(host, { id, modes = ['random', 'hetero', 'homo'], allowFr
 
 /* ---------- Composition d'équipes ---------- */
 TOOL_IMPL.equipes = function (el) {
-  el.innerHTML = `<div class="card" id="cmp"></div><div id="tr"></div>`;
+  el.innerHTML = `<div class="card" id="cmp" data-cfg></div><div id="tr"></div>`;
   mountComposer(el.querySelector('#cmp'), { id: 'eq', allowFree: true,
     onTeams: (teams, o) => { el.querySelector('#tr').innerHTML = teamsHTML(teams, o.withLevels); el.querySelector('#tr').scrollIntoView({ behavior: 'smooth' }); } });
 };
@@ -156,7 +156,7 @@ TOOL_IMPL.equipes = function (el) {
 /* Carte repliable « Composer depuis une classe » pour les outils de match */
 function composerCard(el, { id, modes, target, before, onTeams, minPerLevel }) {
   const wrap = document.createElement('div');
-  wrap.innerHTML = `<details class="card" style="margin-bottom:12px"><summary style="font-weight:800;cursor:pointer">👥 Composer les équipes depuis une classe (par niveau)</summary><div id="${id}-host" style="margin-top:6px"></div></details><div id="${id}-compo"></div>`;
+  wrap.innerHTML = `<details class="card" style="margin-bottom:12px" data-cfg><summary style="font-weight:800;cursor:pointer">👥 Composer les équipes depuis une classe (par niveau)</summary><div id="${id}-host" style="margin-top:6px"></div></details><div id="${id}-compo"></div>`;
   (before || el).prepend(wrap);
   mountComposer(wrap.querySelector(`#${id}-host`), { id, modes, minPerLevel, button: '🧩 Former les équipes et les utiliser',
     onTeams: (teams, o) => {
@@ -180,7 +180,7 @@ function composerCard(el, { id, modes, target, before, onTeams, minPerLevel }) {
 /* ---------- Championnat : une poule par niveau en mode homogène ---------- */
 TOOL_IMPL.poule = function (el) {
   let teams = [], matches = [];
-  el.innerHTML = `<div class="card"><label>Équipes (une par ligne)</label><textarea id="pl" style="min-height:100px">Équipe 1\nÉquipe 2\nÉquipe 3\nÉquipe 4</textarea>
+  el.innerHTML = `<div class="card" data-cfg><label>Équipes (une par ligne)</label><textarea id="pl" style="min-height:100px">Équipe 1\nÉquipe 2\nÉquipe 3\nÉquipe 4</textarea>
     <p class="muted" style="margin:6px 0 0">Les équipes nommées « Niveau 1 · … », « Niveau 2 · … » jouent dans des poules séparées.</p>
     <div class="row"><div><label>Victoire</label><input id="pv" type="number" value="3"></div><div><label>Nul</label><input id="pn" type="number" value="2"></div><div><label>Défaite</label><input id="pd" type="number" value="1"></div></div>
     <button class="btn btn-grad btn-block" style="margin-top:12px" id="gen">🔁 Générer les rencontres</button></div><div id="out"></div>`;
@@ -240,7 +240,7 @@ function editGroupsPanel(title, ad) {
     return `<button data-s="${g}" data-n="${esc(n)}" style="padding:6px 10px;border-radius:10px;border:1.5px solid ${on ? 'transparent' : 'var(--line)'};background:${on ? 'var(--grad)' : 'var(--card)'};color:${on ? '#fff' : 'inherit'};font-weight:700;font-size:.85rem;cursor:pointer">${esc(n)}</button>`; };
   const render = () => {
     const L = ad.list(), placed = new Set(L.flatMap(g => ad.names(g))), free = (ad.cls ? studentsOf(ad.cls) : []).filter(n => !placed.has(n));
-    o.innerHTML = `<div class="card" style="max-width:640px;width:100%;max-height:92vh;overflow:auto"><h3>${esc(title)}</h3>
+    o.innerHTML = `<div class="card" data-cfg="bare" style="max-width:640px;width:100%;max-height:92vh;overflow:auto"><h3>${esc(title)}</h3>
       <p class="muted" style="margin:4px 0 10px;font-size:.82rem">${ad.indiv ? 'Touchez un élève, puis « Non placés / absents » pour le retirer, ou un élève non placé puis « Participants » pour l\'ajouter.' : 'Touchez un élève, puis le groupe de destination, ou « Non placés / absents » pour le retirer (absent, blessé…).'}</p>
       <div class="teams" style="margin-top:0">${ad.indiv
         ? `<div class="card team" data-d="new" style="cursor:pointer"><h3><span>Participants</span><span class="muted">${L.length}</span></h3><div style="display:flex;flex-wrap:wrap;gap:5px">${L.map((g, i) => chip(i, ad.names(g)[0] || '?')).join('') || '<span class="muted">—</span>'}</div></div>`
@@ -250,7 +250,7 @@ function editGroupsPanel(title, ad) {
         <div class="card team" data-d="-1" style="cursor:pointer;border-top:5px dashed var(--line);background:var(--grad-soft)"><h3><span>Non placés / absents</span><span class="muted">${free.length}</span></h3>
           <div style="display:flex;flex-wrap:wrap;gap:5px">${free.map(n => chip(-1, n)).join('') || '<span class="muted">—</span>'}</div></div></div>
       ${ad.indiv ? '' : '<button class="btn btn-ghost btn-block" style="margin-top:10px" id="gnew">＋ Nouveau groupe</button>'}
-      <button class="btn btn-grad btn-block" style="margin-top:8px" id="gok">✔ Terminé</button></div>`;
+      <button class="btn btn-grad btn-block" style="margin-top:8px" id="gok" data-free>✔ Terminé</button></div>`;
     const done = () => { ad.onChange(); render(); };
     o.querySelectorAll('[data-s]').forEach(b => b.onclick = e => { e.stopPropagation(); const g = +b.dataset.s, n = b.dataset.n; sel = sel && sel.g === g && sel.n === n ? null : { g, n }; render(); });
     o.querySelectorAll('[data-d]').forEach(c => c.onclick = () => { if (!sel) return; const L2 = ad.list(), d = c.dataset.d, s = sel; sel = null;

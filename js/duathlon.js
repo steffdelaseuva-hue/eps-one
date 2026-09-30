@@ -93,7 +93,7 @@ TOOL_IMPL.duathlon = function (el) {
   function vmaCard(host, cls, names, onChange) {
     if (!host) return; if (!cls) { host.innerHTML = ''; return; }
     const K = duaVmaSync(cls), L = [...new Set([...studentsOf(cls), ...(names || [])])], miss = L.filter(n => !K[n]).length;
-    host.innerHTML = `<div class="card" style="margin-top:12px"><details ${vmaOpen ? 'open' : ''}><summary style="cursor:pointer"><b>⚡ VMA des élèves</b> <span class="muted">· ${esc(cls)} · ${L.length - miss}/${L.length} renseignée${L.length - miss > 1 ? 's' : ''}${miss ? ` · <span style="color:var(--danger)">${miss} manquante${miss > 1 ? 's' : ''}</span>` : ''}</span></summary>
+    host.innerHTML = `<div class="card" data-cfg style="margin-top:12px"><details ${vmaOpen ? 'open' : ''}><summary style="cursor:pointer"><b>⚡ VMA des élèves</b> <span class="muted">· ${esc(cls)} · ${L.length - miss}/${L.length} renseignée${L.length - miss > 1 ? 's' : ''}${miss ? ` · <span style="color:var(--danger)">${miss} manquante${miss > 1 ? 's' : ''}</span>` : ''}</span></summary>
         <p class="muted" style="font-size:.78rem;margin:8px 0 6px">Reprises automatiquement du dernier Test VMA enregistré (Résultats des élèves), modifiables. <b>Potentiel VMA</b> d'un groupe = somme des VMA de ses membres.</p>
         <div class="sheet-table"><table><tr><th>Élève</th><th>VMA (km/h)</th><th>Source</th></tr>
         ${L.map((n, i) => `<tr><td><b>${esc(n)}</b></td><td><input type="number" step="0.5" min="0" inputmode="decimal" data-vma="${i}" value="${K[n] ? K[n].v : ''}" placeholder="—" style="width:80px;padding:6px;text-align:center"></td><td class="muted" style="font-size:.75rem" data-vsrc="${i}">${K[n] ? esc(K[n].src) : '<span style="color:var(--danger)">VMA manquante</span>'}</td></tr>`).join('')}</table></div>
@@ -125,14 +125,14 @@ TOOL_IMPL.duathlon = function (el) {
   /* ---- Préparation ---- */
   function prepare(box) {
     const c = D.lastCfg || { optL: true, boucles: 1, optC: false, secC: 10 };
-    box.innerHTML = `<div class="card"><h3>Nouvelle épreuve de duathlon</h3>
+    box.innerHTML = `<div class="card" data-cfg><h3>Nouvelle épreuve de duathlon</h3>
         <label>Nom</label><input id="nm" value="Duathlon ${new Date().toLocaleDateString('fr-FR')}">
         <label style="display:flex;gap:8px;align-items:center;margin-top:12px"><input type="checkbox" id="ol" ${c.optL ? 'checked' : ''} style="width:auto"> Pénalité lancers : petite boucle par lancer non valide</label>
         <div id="olw"><label>Tours de petite boucle par lancer non valide</label><input id="bo" type="number" min="1" value="${c.boucles}"></div>
         <label style="display:flex;gap:8px;align-items:center;margin-top:12px"><input type="checkbox" id="oc" ${c.optC ? 'checked' : ''} style="width:auto"> Pénalité de course (secondes ajoutées)</label>
         <div id="ocw"><label>Secondes par pénalité</label><input id="sc" type="number" min="1" value="${c.secC}"></div>
         <label>Distance d'épreuve (m) — pour le coefficient de maîtrise</label><input id="di" type="number" min="100" step="100" value="${c.dist || DUA_DIST}"></div>
-      <div class="card" style="margin-top:12px"><h3>Groupes</h3><label style="margin-top:0">Taille des groupes</label><div class="seg" id="sz">${[[2, 'Duos'], [3, 'Trios'], [4, 'Quatuors']].map(([n, l]) => `<button data-n="${n}">${l}</button>`).join('')}</div><div id="cmp" style="margin-top:6px"></div></div>
+      <div class="card" data-cfg style="margin-top:12px"><h3>Groupes</h3><label style="margin-top:0">Taille des groupes</label><div class="seg" id="sz">${[[2, 'Duos'], [3, 'Trios'], [4, 'Quatuors']].map(([n, l]) => `<button data-n="${n}">${l}</button>`).join('')}</div><div id="cmp" style="margin-top:6px"></div></div>
       <div id="vmac"></div>`;
     const $ = s => box.querySelector(s);
     const vis = () => { $('#olw').style.display = $('#ol').checked ? 'block' : 'none'; $('#ocw').style.display = $('#oc').checked ? 'block' : 'none'; };
@@ -213,8 +213,8 @@ TOOL_IMPL.duathlon = function (el) {
       const e = C.etape;
       box.innerHTML = `<div class="card"><b>${esc(C.nom)}</b><div class="muted">${esc(C.classe)} · ${C.groups.length} groupes${c.optL ? ` · ${c.boucles} boucle(s) par lancer non valide` : ''}${c.optC ? ` · pénalité course ${c.secC} s` : ''} · distance ${duaFr((c.dist || DUA_DIST) / 1000, 2)} km</div>
           <label>Étape</label><div class="seg" id="et">${[0, 1, 2].map(k => `<button data-e="${k}" class="${k === e ? 'on' : ''}">Étape ${k + 1}${duaObj(k)}</button>`).join('')}</div>
-          <button class="btn btn-grad btn-block" style="margin-top:10px" id="all">🚩 Départ groupé — étape ${e + 1}</button><button class="btn btn-ghost btn-block" style="margin-top:8px" id="edg">✏️ Modifier les groupes / participants (absent, blessé…)</button>
-          ${C.groups.length > 1 ? `<label>📱 Tablette d'un groupe (les élèves ne verront que leur groupe)</label><select id="only"><option value="">Tous les groupes</option>${C.groups.map((g, i) => `<option value="${i}">${esc(g.name)}</option>`).join('')}</select>` : ''}</div>
+          <button class="btn btn-grad btn-block" style="margin-top:10px" id="all">🚩 Départ groupé — étape ${e + 1}</button><button class="btn btn-ghost btn-block" data-cfg="bare" style="margin-top:8px" id="edg">✏️ Modifier les groupes / participants (absent, blessé…)</button>
+          ${C.groups.length > 1 ? `<div data-cfg="bare"><label>📱 Tablette d'un groupe (les élèves ne verront que leur groupe)</label><select id="only"><option value="">Tous les groupes</option>${C.groups.map((g, i) => `<option value="${i}">${esc(g.name)}</option>`).join('')}</select></div>` : ''}</div>
         ${C.groups.map((g, gi) => { const E = g.etapes[e], s = stepOf(c, g, e), T = totalOf(c, g);
           return `<div class="run ${E.arr ? 'fin' : E.dep ? 'go' : ''}"><div class="run-h"><b>${esc(g.name)}</b><span class="run-t" data-live="${gi}">${s.temps != null ? dmss(s.temps) : E.dep ? '…' : '0:00'}</span></div>
             <div class="row" style="margin-top:6px">${E.dep ? '' : `<button class="btn btn-grad" data-go="${gi}">▶ Départ</button>`}${E.dep && !E.arr ? `<button class="btn btn-danger" data-fin="${gi}">🏁 Arrivée</button>` : ''}${E.arr ? `<button class="btn btn-ghost" data-undo="${gi}">↺ Annuler l'arrivée</button>` : ''}</div>
@@ -226,7 +226,7 @@ TOOL_IMPL.duathlon = function (el) {
             <div class="muted" style="font-size:.82rem;margin-top:4px">${potTxt(potOf(C, g, T))}</div></div>`; }).join('')}
         <div id="vmac"></div>
         <div class="section-title"><h2>Classement provisoire</h2></div>${table(C)}
-        <div class="row" style="margin-top:12px"><button class="btn btn-grad" id="save">💾 Terminer et enregistrer</button><button class="btn btn-ghost" id="cancel">Abandonner</button></div>`;
+        <div class="row" style="margin-top:12px"><button class="btn btn-grad" data-cfg="bare" id="save">💾 Terminer et enregistrer</button><button class="btn btn-ghost" data-cfg="bare" id="cancel">Abandonner</button></div>`;
       const $ = s => box.querySelector(s), keep = () => save();
       $('#all').onclick = () => { const t = Date.now(); C.groups.forEach(g => { if (!g.etapes[e].dep) g.etapes[e].dep = t; }); beep(1300, .45); keep(); draw(); };
       $('#edg').onclick = () => editGroupsPanel('Groupes du duathlon', { cls: C.classe, list: () => C.groups, names: g => g.members,
@@ -277,7 +277,7 @@ TOOL_IMPL.duathlon = function (el) {
     box.innerHTML = `<div class="section-title" style="margin-top:0"><h2>Épreuves (${M.length})</h2><button class="link" id="exp">Exporter CSV</button></div>
       <div class="seg" id="rk">${[['temps', 'Classer par temps'], ['coef', 'Classer par coefficient de maîtrise']].map(([k, l]) => `<button data-rk="${k}" class="${rk === k ? 'on' : ''}">${l}</button>`).join('')}</div>
       ${M.slice().reverse().map(m => { const i = M.indexOf(m);
-        return `<div style="margin-top:12px"><div style="display:flex;justify-content:space-between;align-items:center"><div><b>${new Date(m.date).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })} · ${esc(m.classe)} · ${m.groups.length} groupe${m.groups.length > 1 ? 's' : ''}${m.recs.length > 1 ? ` (${m.recs.length} tablettes)` : ''}</b><div class="muted">${m.noms.map(esc).join(' / ')}</div></div><button class="btn btn-ghost" data-x="${i}">🗑</button></div>${table(m, rk === 'coef')}</div>`; }).join('')}`;
+        return `<div style="margin-top:12px"><div style="display:flex;justify-content:space-between;align-items:center"><div><b>${new Date(m.date).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })} · ${esc(m.classe)} · ${m.groups.length} groupe${m.groups.length > 1 ? 's' : ''}${m.recs.length > 1 ? ` (${m.recs.length} tablettes)` : ''}</b><div class="muted">${m.noms.map(esc).join(' / ')}</div></div><button class="btn btn-ghost" data-cfg="bare" data-x="${i}">🗑</button></div>${table(m, rk === 'coef')}</div>`; }).join('')}`;
     box.querySelectorAll('[data-rk]').forEach(b => b.onclick = () => { rk = b.dataset.rk; results(box); });
     box.querySelectorAll('[data-x]').forEach(b => b.onclick = () => { const m = M[+b.dataset.x];
       if (confirm(`Supprimer cette épreuve${m.recs.length > 1 ? ` (${m.recs.length} enregistrements de tablettes)` : ''} ?`)) { m.recs.forEach(r => { const k = S.indexOf(r); if (k >= 0) S.splice(k, 1); }); save(); results(box); } });

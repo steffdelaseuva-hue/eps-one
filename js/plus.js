@@ -4,9 +4,13 @@
    ========================================================= */
 /* Page Ko-fi : laisser vide tant qu'elle n'existe pas (le bouton est alors masqué) */
 const KOFI_URL = '';
-const APP_VERSION = '11.2';
+const APP_VERSION = '11.6';
 const APP_URL = 'https://steffdelaseuva-hue.github.io/eps-one/';
 const CHANGELOG = [
+  { v: '11.6', items: ['Crosstraining / HYROX : épreuves Individuel / Duo / Trio / Quatuor avec un plan par élève (exercices, répétitions, niveaux), objectif de groupe par famille (ex. 100 répétitions haut du corps en cumulant les élèves), suivi en direct par élève, synthèse individuelle et collective à chaque bloc'] },
+  { v: '11.5', items: ['Mes classes : nouvelle catégorie « 🏅 UNSS / AS » — import d\'une liste d\'inscrits (élèves de plusieurs classes) en un seul groupe, utilisable dans tous les outils'] },
+  { v: '11.4', items: ['Gym, Demi-fond, Sauvetage : « Envoyer dans Résultats des élèves » accessible aux élèves, avec anti-doublon (un nouvel envoi remplace le précédent, même depuis une autre tablette)'] },
+  { v: '11.3', items: ['Code enseignant sur toute l\'app : en mode élève 🔒, les réglages et paramétrages de tous les outils, Mes classes, dispenses, oublis et les données demandent le code ; bouton 🔒/🔓 en haut de l\'écran ; verrouillage automatique réglable par appareil (Plus → Code enseignant)','Demi-fond : nouveaux formats rapides (9 min + 3 min, 6 min + 3 min, 4 × 3 min, 3 × 500 m, 2 × 800 m)'] },
   { v: '11.2', items: ['Nouvel outil Gymnastique (sol, poutre, barres parallèles, barre fixe · tremplin, plinth, mini-trampoline) : 96 éléments A→F par famille, groupes, enchaînement, diaporamas, validation des ateliers, consignes de sécurité','Nouvel outil Demi-fond : enchaînements de courses, repos, groupements, relais, projet, équivalences en plots, bips d\'allure, marche rapide, écart projet / réalisé','Nouvel outil Sauvetage aquatique : bassin, étapes (départ, nage, obstacles, victimes/objets, matériel, geste de secours), relais, projet / réalisé'] },
   { v: '11.1', items: ['Invitation à installer l\'app sur l\'écran d\'accueil (iPhone, iPad, Android) tant qu\'elle est ouverte dans le navigateur ; aussi dans Plus → Installer l\'application'] },
   { v: '11.0', items: ['Acrosport : 4 nouvelles pyramides en semi-renversé (duo et trio, porteurs en trépied ou debout)','Acrosport : ✏️ Créer une pyramide — effectif, porteurs et voltigeurs à faire glisser, posture, inclinaison, bras, prises, plan avant/arrière ; « Copier et modifier » sur les pyramides existantes'] },
@@ -346,9 +350,9 @@ function renderPlus() {
     `<div onclick="${action}" class="menu-item"><span class="mi-ic ${color}">${ico(ic)}</span><span><b>${title}</b><span class="muted">${sub}</span></span><span class="chev">›</span></div>`;
   box.innerHTML = `
     <div class="menu-sec">Données & partage</div>
-    <div class="card" style="padding:0">
+    <div class="card" style="padding:0" data-cfg>
       ${item('update', 'grad', 'Stockage & synchronisation', `<span id="sync-sub">${window.syncStatusText ? window.syncStatusText() : 'Mode : stockage local'}</span>`, 'openSync()')}
-      ${item('lock', 'navy', 'Code enseignant', DB.profPin ? 'Code défini · protège le mode enseignant des tablettes' : 'Protéger le mode enseignant des tablettes élèves', 'openProfPin()')}
+      ${item('lock', 'navy', 'Code enseignant', DB.profPin ? 'Code défini · protège les réglages des outils' : 'Protéger les réglages des outils face aux élèves', 'openProfPin()')}
       ${window.isEpsAdmin && window.isEpsAdmin() ? item('lock', 'gold', 'Accès des collègues', 'Valider ou retirer les accès à EPS ONE', 'openAccessAdmin()') : ''}
       ${item('save', 'blue', 'Exporter mes données', 'Fichier de sauvegarde JSON', 'exportData()')}
       ${item('restore', 'blue', 'Importer une sauvegarde', 'Restaurer depuis un fichier JSON', "document.getElementById('imp').click()")}
@@ -364,7 +368,7 @@ function renderPlus() {
       ${item('mail', 'blue', 'Contact', 'steffdelaseuva@gmail.com', "location.href='mailto:steffdelaseuva@gmail.com?subject=EPS%20ONE'")}
     </div>
     <div class="menu-sec">Année scolaire</div>
-    <div class="card" style="padding:0">
+    <div class="card" style="padding:0" data-cfg>
       ${item('calendar', 'gold', 'Nouvelle année scolaire', `Année en cours : ${esc(DB.annee)} · archiver ou repartir à zéro`, 'openNewYear()')}
       ${item('trash', 'navy', '<span style="color:var(--danger)">Tout effacer</span>', 'Supprime toutes les données de cet appareil', 'resetAll()')}
     </div>

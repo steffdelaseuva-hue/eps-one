@@ -99,8 +99,8 @@ TOOL_IMPL.co = function (el) {
   function listParcours(box) {
     box.innerHTML = `<div class="card" style="padding:0">${DB.co.parcours.length ? DB.co.parcours.map((p, i) => `<div class="list-item"><div style="flex:1"><b>${esc(p.nom)}</b>
         <div class="muted">${CO_TYPES[p.type][0]} · ${p.distance ? (p.distance / 1000).toFixed(2).replace('.', ',') + ' km' : 'distance ?'}${p.deniv ? ' · D+ ' + p.deniv + ' m' : ''} · ${p.balises.length} balises${p.alloue ? ' · ' + p.alloue + ' min' : ''}</div></div>
-        <button class="btn btn-ghost" data-e="${i}">✏️</button><button class="btn btn-ghost" data-c="${i}" title="Dupliquer">⧉</button></div>`).join('') : '<div class="empty">Aucun parcours. Créez le premier !</div>'}</div>
-      <button class="btn btn-grad btn-block" style="margin-top:12px" id="new">＋ Créer un parcours</button>`;
+        <button class="btn btn-ghost" data-cfg="bare" data-e="${i}">✏️</button><button class="btn btn-ghost" data-cfg="bare" data-c="${i}" title="Dupliquer">⧉</button></div>`).join('') : '<div class="empty">Aucun parcours. Créez le premier !</div>'}</div>
+      <button class="btn btn-grad btn-block" data-cfg style="margin-top:12px" id="new">＋ Créer un parcours</button>`;
     box.querySelector('#new').onclick = () => editParcours(box, null);
     box.querySelectorAll('[data-e]').forEach(b => b.onclick = () => editParcours(box, +b.dataset.e));
     box.querySelectorAll('[data-c]').forEach(b => b.onclick = () => { const c = JSON.parse(JSON.stringify(DB.co.parcours[+b.dataset.c])); c.id = coId(); c.nom += ' (copie)'; DB.co.parcours.push(c); save(); listParcours(box); });
@@ -112,7 +112,7 @@ TOOL_IMPL.co = function (el) {
       balises: Array.from({ length: 8 }, (_, i) => ({ num: 31 + i, niv: 1, ob: true })),
       pts: [1, 2, 3], penWrongP: 1, penWrongS: 30, penMissS: 60, penOverP: 1 };
     const draw = () => {
-      box.innerHTML = `<div class="card"><h3>${idx != null ? 'Modifier' : 'Nouveau'} parcours</h3>
+      box.innerHTML = `<div data-cfg="bare"><div class="card" data-cfg><h3>${idx != null ? 'Modifier' : 'Nouveau'} parcours</h3>
         <label>Nom</label><input id="nm" value="${esc(p.nom)}">
         <label>Type de parcours</label><select id="ty">${Object.entries(CO_TYPES).map(([k, v]) => `<option value="${k}" ${p.type === k ? 'selected' : ''}>${v[0]}</option>`).join('')}</select>
         <p class="muted" style="margin:6px 0 0">${CO_TYPES[p.type][1]}</p>
@@ -135,7 +135,7 @@ TOOL_IMPL.co = function (el) {
         <label>Mauvaise balise poinçonnée</label><div class="row"><div><input id="pwp" type="number" value="${p.penWrongP}"><small class="muted">point(s) en moins</small></div><div><input id="pws" type="number" value="${p.penWrongS}"><small class="muted">secondes ajoutées</small></div></div>
         <label>Balise obligatoire manquante</label><input id="pms" type="number" value="${p.penMissS}"><small class="muted">secondes ajoutées par balise</small>
         <label>Dépassement du temps attribué + écart</label><input id="pop" type="number" value="${p.penOverP}"><small class="muted">point(s) en moins par minute de retard</small></div>
-      <div class="row" style="margin-top:12px"><button class="btn btn-grad" id="sv">💾 Enregistrer</button><button class="btn btn-ghost" id="bk">Annuler</button>${idx != null ? '<button class="btn btn-danger" id="del">Supprimer</button>' : ''}</div>`;
+      <div class="row" style="margin-top:12px"><button class="btn btn-grad" id="sv">💾 Enregistrer</button><button class="btn btn-ghost" id="bk">Annuler</button>${idx != null ? '<button class="btn btn-danger" id="del">Supprimer</button>' : ''}</div></div>`;
       const $ = s => box.querySelector(s);
       const read = () => { p.nom = $('#nm').value.trim() || 'Parcours'; p.distance = +$('#di').value || 0; p.alloue = +$('#al').value || 0; p.ecart = +$('#ec').value || 0;
         p.denivOn = $('#dn').checked; if ($('#dv')) p.deniv = +$('#dv').value || 0;
@@ -240,18 +240,18 @@ TOOL_IMPL.co = function (el) {
       tabs(true);
       const rs = cur.runs.map(r => ({ r, x: result(r, p) }));
       box.innerHTML = `<div class="card"><div style="display:flex;justify-content:space-between;gap:8px;align-items:center"><div><b>${esc(p.nom)}</b><div class="muted">${esc(cur.classe || '')} · ${CO_TYPES[p.type][0]} · ${p.balises.length} balises${p.alloue ? ` · ${p.alloue} min ± ${p.ecart}` : ''}</div></div><div class="run-t" id="now">${clock(Date.now())}</div></div>
-          <div class="row" style="margin-top:10px"><button class="btn btn-grad" id="all">🚩 Départ groupé</button><button class="btn btn-ghost btn-block" style="margin-top:8px" id="edg">✏️ Modifier les groupes / participants (absent, blessé…)</button><div style="display:flex;gap:6px;align-items:center;flex:1.3"><input id="gap" type="number" value="${cur.gap || 60}" style="width:70px;padding:8px"><button class="btn btn-ghost" id="stag" style="padding:9px 8px;font-size:.8rem">Départs échelonnés (s)</button></div></div>
+          <div class="row" style="margin-top:10px"><button class="btn btn-grad" id="all">🚩 Départ groupé</button><button class="btn btn-ghost btn-block" data-cfg="bare" style="margin-top:8px" id="edg">✏️ Modifier les groupes / participants (absent, blessé…)</button><div data-cfg="bare" style="display:flex;gap:6px;align-items:center;flex:1.3"><input id="gap" type="number" value="${cur.gap || 60}" style="width:70px;padding:8px"><button class="btn btn-ghost" id="stag" style="padding:9px 8px;font-size:.8rem">Départs échelonnés (s)</button></div></div>
           <p class="muted" style="margin:8px 0 0;font-size:.8rem">Balises : touchez un numéro trouvé (souligné rouge = obligatoire).</p>
-          ${cur.runs.length > 1 ? `<label>📱 Tablette d'une équipe (les élèves ne verront que leur équipe)</label><select id="only"><option value="">Toutes</option>${cur.runs.map((r, i) => `<option value="${i}">${esc(r.name)}</option>`).join('')}</select>` : ''}</div>
+          ${cur.runs.length > 1 ? `<div data-cfg="bare"><label>📱 Tablette d'une équipe (les élèves ne verront que leur équipe)</label><select id="only"><option value="">Toutes</option>${cur.runs.map((r, i) => `<option value="${i}">${esc(r.name)}</option>`).join('')}</select></div>` : ''}</div>
         ${rs.map(({ r, x }, i) => `<div class="run ${r.arr ? 'fin' : r.dep ? 'go' : ''}"><div class="run-h"><b>${esc(r.name)}</b><span class="run-t" data-live="${i}">${r.dep ? hms(((r.arr || Date.now()) - r.dep) / 1000) : '0:00'}</span></div>
             ${r.members.length > 1 || r.name !== r.members[0] ? `<div class="muted" style="font-size:.8rem">${r.members.map(esc).join(', ')}</div>` : ''}
-            <div class="co-times"><div><label style="margin:0 0 3px">Départ</label>${r.dep ? `<input type="time" step="1" data-dep="${i}" value="${new Date(r.dep).toTimeString().slice(0, 8)}">` : `<button class="btn btn-grad btn-block" data-go="${i}">▶ Départ${r.plan ? ' ' + clock(r.plan).slice(0, 5) : ''}</button>`}</div>
-              <div><label style="margin:0 0 3px">Arrivée</label>${r.arr ? `<input type="time" step="1" data-arr="${i}" value="${new Date(r.arr).toTimeString().slice(0, 8)}">` : `<button class="btn ${r.dep ? 'btn-danger' : 'btn-ghost'} btn-block" data-fin="${i}" ${r.dep ? '' : 'disabled'}>🏁 Arrivée</button>`}</div></div>
+            <div class="co-times"><div><label style="margin:0 0 3px">Départ</label>${r.dep ? `<input type="time" step="1" data-cfg="bare" data-dep="${i}" value="${new Date(r.dep).toTimeString().slice(0, 8)}">` : `<button class="btn btn-grad btn-block" data-go="${i}">▶ Départ${r.plan ? ' ' + clock(r.plan).slice(0, 5) : ''}</button>`}</div>
+              <div><label style="margin:0 0 3px">Arrivée</label>${r.arr ? `<input type="time" step="1" data-cfg="bare" data-arr="${i}" value="${new Date(r.arr).toTimeString().slice(0, 8)}">` : `<button class="btn ${r.dep ? 'btn-danger' : 'btn-ghost'} btn-block" data-fin="${i}" ${r.dep ? '' : 'disabled'}>🏁 Arrivée</button>`}</div></div>
             <div class="bal-chips">${p.balises.map(b => `<button data-b="${i}" data-n="${b.num}" class="${r.found.includes(b.num) ? 'on' : ''} ${b.ob ? 'ob' : ''}">${b.num}<sup> N${b.niv}</sup></button>`).join('')}</div>
             <div style="display:flex;align-items:center;gap:8px;margin-top:8px;font-size:.85rem"><span>Mauvaises balises :</span><button class="btn btn-ghost" style="padding:5px 12px" data-wm="${i}">−</button><b>${r.wrong}</b><button class="btn btn-ghost" style="padding:5px 12px" data-wp="${i}">+</button></div>
             <div class="muted" style="margin-top:6px;font-size:.8rem">${r.found.length}/${p.balises.length} balises · <b style="color:var(--text)">${x.score} pts</b>${x.penP ? ` (−${x.penP})` : ''}${x.miss ? ` · ${x.miss} oblig. manquante(s)` : ''}${x.temps != null ? ` · RK ${x.rk}${x.penS ? ` · pénalités +${hms(x.penS)}` : ''}${x.statut ? ' · ' + x.statut : ''}` : ''}</div></div>`).join('')}
         <div class="section-title"><h2>Classement</h2></div>${ranking(rs, p)}
-        <div class="row" style="margin-top:12px"><button class="btn btn-grad" id="save">💾 Terminer et enregistrer la séance</button><button class="btn btn-ghost" id="cancel">Abandonner</button></div>`;
+        <div class="row" style="margin-top:12px"><button class="btn btn-grad" data-cfg="bare" id="save">💾 Terminer et enregistrer la séance</button><button class="btn btn-ghost" data-cfg="bare" id="cancel">Abandonner</button></div>`;
       const $ = s => box.querySelector(s), keep = () => save();
       $('#all').onclick = () => { const t = Date.now(); cur.runs.forEach(r => { if (!r.dep) r.dep = t; }); beep(1300, .4); keep(); draw(); };
       $('#edg').onclick = () => { const indiv = cur.runs.every(r => r.members.length === 1 && r.name === r.members[0]);
@@ -314,7 +314,7 @@ TOOL_IMPL.co = function (el) {
     if (!DB.co.parcours.length) { box.innerHTML = '<div class="card empty">Créez d\'abord un parcours dans l\'onglet 🗺 Parcours.</div>'; partMount(box, 'co', sp => join(box, sp)); return; }
     let mode = 'indiv';
     const draw = () => {
-      box.innerHTML = `<div class="card"><h3>Nouvelle séance</h3>
+      box.innerHTML = `<div class="card" data-cfg><h3>Nouvelle séance</h3>
         <label>Parcours</label><select id="pc">${DB.co.parcours.map(p => `<option value="${p.id}">${esc(p.nom)} — ${p.balises.length} balises</option>`).join('')}</select>
         <label>Organisation</label><div class="seg"><button data-md="indiv" class="${mode === 'indiv' ? 'on' : ''}">Parcours individuels</button><button data-md="grp" class="${mode === 'grp' ? 'on' : ''}">Groupes<br><small style="font-weight:600;opacity:.85">homogènes / hétérogènes</small></button></div>
         <div id="who" style="margin-top:10px"></div></div>`;
@@ -400,7 +400,7 @@ TOOL_IMPL.co = function (el) {
           ${rows.map(([n, a]) => `<tr><td><b>${esc(n)}</b></td><td>${a.n}</td><td>${a.km.toFixed(2).replace('.', ',')} km</td><td>${hms(a.t)}</td><td>${mpk(a.t, a.km)}</td><td>${a.bal}</td><td><b>${a.pts}</b></td></tr>`).join('')}</table></div>
         <div class="section-title"><h2>Séances</h2></div>
         <div class="card" style="padding:0">${gs.map((g, gi) => { const p = g.p, fin = g.runs.filter(({ r }) => r.arr).length, grp = g.runs.some(({ r }) => r.members.length > 1), n = g.runs.length;
-          return `<div class="list-item"><div style="flex:1"><b>${new Date(g.date).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })} · ${esc(p.nom)}${cls !== '—' ? ' · ' + esc(cls) : ''} · ${n} ${grp ? 'équipe' : 'élève'}${n > 1 ? 's' : ''}${g.recs.length > 1 ? ` (${g.recs.length} tablettes)` : ''}</b><div class="muted">${CO_TYPES[p.type][0]} · ${fin} arrivé${fin > 1 ? 's' : ''}</div></div><button class="btn btn-ghost" data-v="${gi}">👁</button><button class="btn btn-ghost" data-x="${gi}">🗑</button></div>`; }).join('')}</div>
+          return `<div class="list-item"><div style="flex:1"><b>${new Date(g.date).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })} · ${esc(p.nom)}${cls !== '—' ? ' · ' + esc(cls) : ''} · ${n} ${grp ? 'équipe' : 'élève'}${n > 1 ? 's' : ''}${g.recs.length > 1 ? ` (${g.recs.length} tablettes)` : ''}</b><div class="muted">${CO_TYPES[p.type][0]} · ${fin} arrivé${fin > 1 ? 's' : ''}</div></div><button class="btn btn-ghost" data-v="${gi}">👁</button><button class="btn btn-ghost" data-cfg="bare" data-x="${gi}">🗑</button></div>`; }).join('')}</div>
         <div id="det"></div>`;
       const $ = s => box.querySelector(s);
       $('#bc').onchange = () => { cls = $('#bc').value; draw(); };

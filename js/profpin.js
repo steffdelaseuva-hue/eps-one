@@ -40,7 +40,7 @@ function pinPad(mode, onOK, title) {
     if (mode === 'new') {
       if (step === 1) { first = val; val = ''; step = 2; return setTimeout(() => draw(), 150); }
       if (val !== first) { err = 'Les deux codes sont différents'; val = ''; first = ''; step = 1; return setTimeout(() => draw(true), 150); }
-      DB.profPin = await pinHash(val); save(); close(); toast('🔒 Code enseignant enregistré'); onOK && onOK(); return;
+      DB.profPin = await pinHash(val); save(); close(); toast('🔒 Code enseignant enregistré'); window.profUnlock && profUnlock(); onOK && onOK(); return;
     }
     if (await pinHash(val) === DB.profPin) { close(); onOK && onOK(); }
     else { err = 'Code incorrect'; val = ''; setTimeout(() => draw(true), 150); }
@@ -54,6 +54,7 @@ window.profAsk = (onOK, title) => pinPad(DB.profPin ? 'ask' : 'new', onOK, title
 document.addEventListener('click', e => {
   const t = e.target.closest && e.target.closest('#gv-prof,[data-prof]'); if (!t) return;
   if (window.__profPass) { window.__profPass = false; return; }
+  if (t.id !== 'gv-prof' && window.profUnlocked && profUnlocked()) return;   // appareil déverrouillé : pas de code
   const det = t.tagName === 'SUMMARY' && t.parentElement; if (det && det.open) return;   // refermer : pas de code
   e.preventDefault(); e.stopImmediatePropagation();
   profAsk(() => { window.__profPass = true; const oc = window.confirm; window.confirm = () => true; try { t.click(); } finally { window.confirm = oc; window.__profPass = false; } });
@@ -62,14 +63,86 @@ document.addEventListener('click', e => {
 /* Réglage dans Plus → Code enseignant */
 window.openProfPin = () => {
   const panel = () => openPanel('Code enseignant', el => {
-    el.innerHTML = `<div class="card doc"><p style="margin:0;line-height:1.5">Sur les tablettes des élèves (vue « un groupe »), le retour au <b>🔒 Mode enseignant</b> demande ce code à 4 chiffres. Il est le même sur toutes vos tablettes synchronisées.</p></div>
+    el.innerHTML = `<div class="card doc"><p style="margin:0;line-height:1.5">Ce code à 4 chiffres protège les <b>réglages de tous les outils</b>, Mes classes, les données, et le retour au <b>🔒 Mode enseignant</b> des tablettes « un groupe ». Il est le même sur toutes vos tablettes synchronisées.</p></div>
       <div class="card" style="margin-top:12px"><p style="margin:0"><b>${DB.profPin ? '✅ Un code est défini.' : 'Aucun code pour l\'instant.'}</b></p>
         <button class="btn btn-grad btn-block" style="margin-top:12px" id="pp-new">${DB.profPin ? '✏️ Modifier le code' : '🔒 Créer un code'}</button>
         ${DB.profPin ? '<button class="btn btn-ghost btn-block" style="margin-top:8px" id="pp-del">Supprimer le code</button>' : ''}</div>
+      ${DB.profPin ? `<div class="card" style="margin-top:12px"><b>Verrouillage de cet appareil</b><p class="muted" style="margin:4px 0 8px;font-size:.82rem">En mode élève (🔒), les réglages des outils, Mes classes et les données demandent le code. Le bouton 🔒/🔓 en haut de l'écran verrouille ou déverrouille à tout moment.</p>
+        ${[['auto', '🔒 Verrouillé à l\'ouverture et après 15 min sans activité', 'Conseillé pour les tablettes de la classe'], ['launch', '🔒 Verrouillé à chaque ouverture de l\'app', 'Reste déverrouillé tant que l\'app est ouverte'], ['off', '🔓 Jamais verrouillé (appareil personnel)', 'Votre téléphone : pas de code pour les réglages']].map(([k, l, d]) => `<label style="display:flex;gap:10px;align-items:flex-start;margin:8px 0;cursor:pointer"><input type="radio" name="pplm" value="${k}" ${lockMode() === k ? 'checked' : ''} style="width:auto;margin-top:3px"><span><b>${l}</b><br><span class="muted" style="font-size:.8rem">${d}</span></span></label>`).join('')}</div>` : ''}
       ${DB.profPin ? `<details class="card" style="margin-top:12px"><summary style="font-weight:800;cursor:pointer">Code oublié ?</summary><p class="muted" style="font-size:.85rem">Tapez <b>REINITIALISER</b> pour effacer le code, puis créez-en un nouveau.</p><input id="pp-r" placeholder="REINITIALISER" autocapitalize="characters"><button class="btn btn-ghost btn-block" style="margin-top:8px" id="pp-rst">Effacer le code</button></details>` : ''}`;
+    el.querySelectorAll('[name="pplm"]').forEach(r => r.onchange = () => { const v = r.value; profGate(() => { try { localStorage.setItem(LOCK_KEY, v); } catch (e) {} if (v !== 'off') profUnlock(); lockUI(); toast('Réglage enregistré'); }); });
     el.querySelector('#pp-new').onclick = () => DB.profPin ? profAsk(() => pinPad('new', panel), 'Code actuel') : pinPad('new', panel);
-    const d = el.querySelector('#pp-del'); if (d) d.onclick = () => profAsk(() => { delete DB.profPin; save(); toast('Code supprimé'); panel(); }, 'Code actuel');
-    const r = el.querySelector('#pp-rst'); if (r) r.onclick = () => { if (el.querySelector('#pp-r').value.trim().toUpperCase() !== 'REINITIALISER') return toast('Tapez REINITIALISER'); delete DB.profPin; save(); toast('Code effacé'); panel(); };
+    const d = el.querySelector('#pp-del'); if (d) d.onclick = () => profAsk(() => { delete DB.profPin; save(); lockUI(); toast('Code supprimé'); panel(); }, 'Code actuel');
+    const r = el.querySelector('#pp-rst'); if (r) r.onclick = () => { if (el.querySelector('#pp-r').value.trim().toUpperCase() !== 'REINITIALISER') return toast('Tapez REINITIALISER'); delete DB.profPin; save(); lockUI(); toast('Code effacé'); panel(); };
   });
   panel();
 };
+
+/* =========================================================
+   Verrou enseignant global
+   · Zones de réglage marquées data-cfg : touchées en « mode élève » → code demandé.
+     À l'intérieur, data-free rend un élément utilisable par les élèves (saisie de résultats…).
+   · Outils entièrement réservés : TOOL_PROF (ex. Mes classes).
+   · Une fois le code saisi, l'appareil reste déverrouillé (selon le réglage de l'appareil) ;
+     le bouton 🔒/🔓 de l'en-tête reverrouille avant de confier la tablette aux élèves.
+   · data-prof (actions sensibles) : sans code si l'appareil est déverrouillé, sauf #gv-prof
+     (sortie de la vue « un groupe ») qui demande toujours le code.
+   ========================================================= */
+const TOOL_PROF = new Set(['classes', 'dispenses', 'oubli']);
+const LOCK_KEY = 'epsone_lock_mode';          // 'auto' (défaut) · 'launch' · 'off'  — propre à l'appareil
+const LOCK_IDLE = 15 * 60 * 1000;
+let profOpenUntil = 0;
+const lockMode = () => { try { return localStorage.getItem(LOCK_KEY) || 'auto'; } catch (e) { return 'auto'; } };
+window.profUnlocked = () => !DB.profPin || lockMode() === 'off' || Date.now() < profOpenUntil;
+window.profUnlock = () => { profOpenUntil = lockMode() === 'auto' ? Date.now() + LOCK_IDLE : Infinity; lockUI(); };
+window.profLock = () => { profOpenUntil = 0; lockUI(); };
+window.profGate = (onOK, title) => profUnlocked() ? onOK() : profAsk(() => { profUnlock(); onOK(); }, title);
+
+document.head.insertAdjacentHTML('beforeend', `<style>
+body.prof-locked [data-cfg]{position:relative}
+body.prof-locked [data-cfg]:not([data-cfg="bare"])::after{content:'🔒';position:absolute;top:6px;right:8px;font-size:.75rem;opacity:.55;pointer-events:none;z-index:2}
+.lock-btn{font-size:1.05rem}
+</style>`);
+
+function lockUI() {
+  const locked = !!DB.profPin && !profUnlocked();
+  document.body.classList.toggle('prof-locked', locked);
+  document.querySelectorAll('.lock-btn').forEach(b => { b.style.display = DB.profPin && lockMode() !== 'off' ? '' : 'none'; b.textContent = locked ? '🔒' : '🔓';
+    b.title = b.ariaLabel = locked ? 'Mode élève : touchez pour déverrouiller (code enseignant)' : 'Mode enseignant : touchez pour verrouiller avant de confier l\'appareil'; });
+}
+window.lockUI = lockUI;
+const lockBtnClick = () => {
+  if (!DB.profPin) return openProfPin();
+  if (profUnlocked()) { profLock(); toast('🔒 Mode élève : réglages verrouillés'); }
+  else profAsk(() => { profUnlock(); toast('🔓 Mode enseignant'); }, 'Déverrouiller');
+};
+// Boutons 🔒/🔓 dans la barre du haut et dans l'en-tête des outils
+(() => {
+  const mk = () => { const b = document.createElement('button'); b.className = 'icon-btn lock-btn'; b.type = 'button'; b.onclick = lockBtnClick; return b; };
+  const tb = document.querySelector('.topbar .spacer'); if (tb) tb.after(mk());
+  const star = document.getElementById('screen-star'); if (star) star.before(mk());
+  lockUI();
+})();
+
+// Délai d'inactivité : chaque geste de l'enseignant prolonge le déverrouillage
+document.addEventListener('pointerdown', () => { if (DB.profPin && lockMode() === 'auto' && Date.now() < profOpenUntil) profOpenUntil = Date.now() + LOCK_IDLE; }, true);
+setInterval(lockUI, 20000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) lockUI(); });
+
+// Interception des zones de réglage en mode élève
+// · pointerdown/touchstart : bloqués seulement sur un contrôle (le défilement au doigt reste possible)
+// · click/focusin : bloqués partout dans la zone et ouvrent le pavé du code
+const CTRL = 'button,input,select,textarea,label,summary,a,[role="button"],[data-drop],[data-st],[data-k],[data-sel],[data-pi],[contenteditable]';
+const cfgTarget = t => { if (!t || !t.closest) return null; if (t.closest('#pin-ov,[data-free]')) return null;
+  const inProfTool = TOOL_PROF.has(typeof currentTool !== 'undefined' ? currentTool : '') && t.closest('#screen-body');
+  return inProfTool || t.closest('[data-cfg]'); };
+['pointerdown', 'mousedown', 'touchstart', 'click', 'focusin', 'change', 'input', 'keydown'].forEach(type => document.addEventListener(type, e => {
+  if (!DB.profPin || profUnlocked()) return;
+  const z = cfgTarget(e.target); if (!z) return;
+  if (['pointerdown', 'mousedown', 'touchstart'].includes(type)) { const c = e.target.closest(CTRL); if (!c || !z.contains(c)) return; }
+  if (type === 'keydown' && !['Enter', ' '].includes(e.key) && !(e.target.matches && e.target.matches('input,textarea,select'))) return;
+  if (e.cancelable) e.preventDefault(); e.stopImmediatePropagation();
+  if (type === 'focusin' && e.target.blur) e.target.blur();
+  if ((type === 'click' || type === 'focusin') && !document.getElementById('pin-ov'))
+    profAsk(() => { profUnlock(); toast('🔓 Mode enseignant : vous pouvez modifier les réglages'); }, 'Réglages réservés à l\'enseignant');
+}, { capture: true, passive: false }));

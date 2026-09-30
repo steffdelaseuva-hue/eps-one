@@ -278,13 +278,13 @@ tr:nth-child(-n+4) td{font-weight:700}`,
       stopAll();
       const L = X().events;
       if (!L.length) {
-        el.innerHTML = `<div class="card"><h3>🏁 Nouveau cross</h3><p class="muted" style="margin:6px 0 0">Courses par niveau et par sexe, dossards avec QR code, scan des arrivées sur une ou plusieurs tablettes, classements automatiques.</p>
+        el.innerHTML = `<div class="card" data-cfg><h3>🏁 Nouveau cross</h3><p class="muted" style="margin:6px 0 0">Courses par niveau et par sexe, dossards avec QR code, scan des arrivées sur une ou plusieurs tablettes, classements automatiques.</p>
           <label>Nom</label><input id="cx-nn" value="Cross du collège ${new Date().getFullYear()}"><button class="btn btn-grad btn-block" style="margin-top:12px" id="cx-mk">＋ Créer le cross</button></div>`;
         el.querySelector('#cx-mk').onclick = () => { const E = newEvent(el.querySelector('#cx-nn').value.trim()); X().events.push(E); setCur(E.id); commit(); frame(); };
         return;
       }
       const E = norm(cur()); setCur(E.id);
-      el.innerHTML = `<div class="cx-bar"><select id="cx-ev" aria-label="Cross">${L.map(e => `<option value="${esc(e.id)}" ${e === E ? 'selected' : ''}>${esc(e.name)}</option>`).join('')}</select>
+      el.innerHTML = `<div class="cx-bar" data-cfg="bare"><select id="cx-ev" aria-label="Cross">${L.map(e => `<option value="${esc(e.id)}" ${e === E ? 'selected' : ''}>${esc(e.name)}</option>`).join('')}</select>
           <button class="btn btn-ghost" id="cx-new" title="Nouveau cross">＋</button><button class="btn btn-ghost" id="cx-dup" title="Dupliquer">⧉</button></div>
         <div class="cx-tabs">${[['courses', '🏁 Courses'], ['inscr', '👥 Inscriptions'], ['bibs', '🎽 Dossards'], ['scan', '📷 Arrivée'], ['rank', '🏆 Classements']].map(([k, l]) => `<button data-tab="${k}" class="${tab === k ? 'on' : ''}">${l}</button>`).join('')}</div>
         <div id="cx-body"></div>`;
@@ -303,10 +303,10 @@ tr:nth-child(-n+4) td{font-weight:700}`,
     /* ---------- 🏁 Courses ---------- */
     function courses(box, E) {
       const K = compute(E);
-      box.innerHTML = `<div class="card"><div class="row"><div style="flex:2"><label style="margin-top:0">Nom du cross</label><input id="cx-name" value="${esc(E.name)}"></div><div><label style="margin-top:0">Date</label><input id="cx-date" type="date" value="${esc(E.date || '')}"></div></div></div>
-        <div class="section-title"><h2>Courses (${E.courses.length}/${MAXC})</h2>${E.courses.length < MAXC ? '<button class="link" id="cx-add">＋ Ajouter une course</button>' : ''}</div>
+      box.innerHTML = `<div class="card" data-cfg><div class="row"><div style="flex:2"><label style="margin-top:0">Nom du cross</label><input id="cx-name" value="${esc(E.name)}"></div><div><label style="margin-top:0">Date</label><input id="cx-date" type="date" value="${esc(E.date || '')}"></div></div></div>
+        <div class="section-title"><h2>Courses (${E.courses.length}/${MAXC})</h2>${E.courses.length < MAXC ? '<button class="link" data-cfg="bare" id="cx-add">＋ Ajouter une course</button>' : ''}</div>
         ${E.courses.map((c, i) => { const x = K.courses[i];
-          return `<div class="card cx-course" style="--cc:${col(E, c)}" data-c="${i}">
+          return `<div class="card cx-course" data-cfg style="--cc:${col(E, c)}" data-c="${i}">
           <div class="hd"><span class="cx-dot"></span><input data-f="name" value="${esc(c.name)}" aria-label="Nom de la course"><button class="btn btn-ghost" data-up="${i}" ${i ? '' : 'disabled'} aria-label="Monter">↑</button><button class="btn btn-ghost" data-dn="${i}" ${i < E.courses.length - 1 ? '' : 'disabled'} aria-label="Descendre">↓</button></div>
           <div class="seg" style="margin-top:10px"><button data-mode="distance" class="${c.mode !== 'temps' ? 'on' : ''}">📏 Distance</button><button data-mode="temps" class="${c.mode === 'temps' ? 'on' : ''}">⏱ Temps (tours)</button></div>
           ${c.mode === 'temps' ? `<div class="row"><div><label>Durée (min)</label><input type="number" min="1" data-f="dur" value="${c.dur}"></div><div><label>Longueur du tour (m)</label><input type="number" min="1" data-f="lap" value="${c.lap}"></div></div><p class="muted" style="margin:6px 0 0;font-size:.78rem">Chaque scan sur la ligne = 1 tour (30 s minimum entre 2 tours). Classement : tours, puis heure du dernier passage.</p>`
@@ -316,7 +316,7 @@ tr:nth-child(-n+4) td{font-weight:700}`,
           <label class="cx-chk"><input type="checkbox" data-main ${c.main !== false ? 'checked' : ''}> Course principale (affectation automatique + classements généraux et des classes)</label>
           <div class="muted" style="margin-top:8px">${x.n} coureur${x.n > 1 ? 's' : ''} · ${c.start ? `départ ${hms(c.start)} · ${x.R.length} arrivé${x.R.length > 1 ? 's' : ''}` : 'pas encore partie'}</div>
           <button class="btn btn-ghost btn-block" style="margin-top:10px" data-prof data-del="${i}">🗑 Supprimer la course</button></div>`; }).join('')}
-        <details class="card cx-prof"><summary data-prof>🔒 Enseignant</summary>
+        <details class="card cx-prof" data-cfg="bare"><summary data-prof>🔒 Enseignant</summary>
           <h3 style="margin:12px 0 4px">Heures de départ</h3><p class="muted" style="margin:0 0 6px;font-size:.8rem">Pour corriger un départ donné trop tôt ou trop tard.</p>
           ${E.courses.map((c, i) => `<div class="cx-start" style="--cc:${col(E, c)}"><span class="cx-dot"></span><div class="nm">${esc(c.name)}</div><input type="time" step="1" style="width:130px" data-st="${i}" value="${c.start ? new Date(c.start).toTimeString().slice(0, 8) : ''}"><button class="btn btn-ghost" style="flex:0 0 auto;padding:9px" data-stclr="${i}" aria-label="Effacer le départ">✕</button></div>`).join('')}
           <button class="btn btn-ghost btn-block" style="margin-top:12px" id="cx-rz">↺ Remettre le cross à zéro (tous les départs + arrivées)</button>
@@ -349,10 +349,10 @@ tr:nth-child(-n+4) td{font-weight:700}`,
     /* ---------- 👥 Inscriptions ---------- */
     function inscr(box, E) {
       if (!DB.classes.length && !otherClasses().length) { box.innerHTML = noClassMsg; return; }
-      const K = compute(E), mine = new Set(DB.classes.map(c => c.name)), allN = [...new Set([...DB.classes, ...otherClasses()].map(c => c.name))];
+      const K = compute(E), mine = new Set(DB.classes.filter(c => !c.unss).map(c => c.name)), allN = [...new Set([...DB.classes.filter(c => !c.unss), ...otherClasses()].map(c => c.name))];
       if (!E.classes.includes(insCls)) insCls = sortCls(E, E.classes)[0] || '';
       const S = K.S, noSx = S.filter(s => !s.st && !K.cOf.get(s.k)).length;
-      box.innerHTML = `<div class="card"><b>Classes participantes (${E.classes.length}/${MAXCL})</b><p class="muted" style="margin:4px 0 0;font-size:.8rem">Niveau déduit du 1er chiffre du nom de la classe (modifiable). ${MAXST} élèves max par classe. Toutes les classes : 🏃 vos classes EPS et 🏫 les autres classes du collège (Mes classes).</p>
+      box.innerHTML = `<div class="card" data-cfg><b>Classes participantes (${E.classes.length}/${MAXCL})</b><p class="muted" style="margin:4px 0 0;font-size:.8rem">Niveau déduit du 1er chiffre du nom de la classe (modifiable). ${MAXST} élèves max par classe. Toutes les classes : 🏃 vos classes EPS et 🏫 les autres classes du collège (Mes classes).</p>
           <div class="cx-cls">${sortCls(E, allN).map(c => `<button data-tc="${esc(c)}" class="${E.classes.includes(c) ? 'on' : ''}">${mine.has(c) ? '🏃 ' : ''}${esc(c)}<small>${lvOf(E, c) ? LVN[lvOf(E, c)] : '?'}</small></button>`).join('')}</div>
           ${allN.length > 1 ? `<div class="row" style="margin-top:8px"><button class="btn btn-ghost" id="cx-tall">Tout cocher</button><button class="btn btn-ghost" id="cx-tnone">Tout décocher</button></div>` : ''}
           ${E.classes.length ? `<div class="cx-cls" style="margin-top:12px">${sortCls(E, E.classes).map(c => `<label style="margin:0;display:flex;gap:6px;align-items:center;font-size:.82rem">${esc(c)}<select data-lvc="${esc(c)}" style="width:auto;padding:6px 8px">${['', ...LV].map(l => `<option value="${l}" ${lvOf(E, c) === l ? 'selected' : ''}>${l ? LVN[l] : '—'}</option>`).join('')}</select></label>`).join('')}</div>` : ''}</div>
@@ -362,7 +362,7 @@ tr:nth-child(-n+4) td{font-weight:700}`,
           ${noSx ? `<div class="cx-warn">⚠️ ${noSx} élève${noSx > 1 ? 's' : ''} sans course : indiquez F ou G (ou choisissez une course).</div>` : ''}</div>
         <div class="section-title"><h2>Élèves par classe</h2></div>
         <div class="cx-cls" style="margin-top:0">${sortCls(E, E.classes).map(c => { const n = S.filter(s => s.cls === c && !s.st && !s.sx && !s.c).length; return `<button data-ic="${esc(c)}" class="${c === insCls ? 'on' : ''}">${esc(c)}${n ? `<small>${n} ?</small>` : '<small>✓</small>'}</button>`; }).join('')}</div>
-        <div class="card" style="margin-top:10px" id="cx-ins"></div>` : '<div class="card empty" style="margin-top:12px">Touchez les classes qui participent au cross.</div>'}`;
+        <div class="card" data-cfg style="margin-top:10px" id="cx-ins"></div>` : '<div class="card empty" style="margin-top:12px">Touchez les classes qui participent au cross.</div>'}`;
       if (box.querySelector('#cx-tall')) box.querySelector('#cx-tall').onclick = () => { const L = sortCls(E, allN); E.classes = L.slice(0, MAXCL); if (L.length > MAXCL) toast(`${MAXCL} classes maximum`); if (!E.classes.includes(insCls)) insCls = E.classes[0] || ''; commit(); again(); };
       if (box.querySelector('#cx-tnone')) box.querySelector('#cx-tnone').onclick = () => { if (!confirm('Retirer toutes les classes de ce cross ? (les réglages des élèves sont conservés)')) return; E.classes = []; commit(); again(); };
       box.querySelectorAll('[data-tc]').forEach(b => b.onclick = () => { const c = b.dataset.tc;
@@ -416,7 +416,7 @@ tr:nth-child(-n+4) td{font-weight:700}`,
       const K = compute(E), S = K.S, miss = S.filter(s => !s.b).length, cnt = {}; S.forEach(s => { if (s.b) cnt[s.b] = (cnt[s.b] || 0) + 1; });
       const dup = Object.keys(cnt).filter(b => cnt[b] > 1);
       if (!gsel.size || [...gsel].some(c => !E.classes.includes(c))) gsel = new Set(E.classes);
-      box.innerHTML = `<div class="card"><b>Numérotation</b>
+      box.innerHTML = `<div class="card" data-cfg><b>Numérotation</b>
           <div class="seg"><button data-bm="classe" class="${E.bibMode !== 'suite' ? 'on' : ''}">Par classe<br><small>101-135, 201-235…</small></button><button data-bm="suite" class="${E.bibMode === 'suite' ? 'on' : ''}">À la suite<br><small>1, 2, 3…</small></button></div>
           <button class="btn btn-grad btn-block" style="margin-top:10px" id="cx-ab">🔢 Attribuer les dossards manquants${miss ? ` (${miss})` : ''}</button>
           ${dup.length ? `<div class="cx-warn">⚠️ Numéros en double : ${dup.join(', ')}</div>` : ''}
@@ -426,7 +426,7 @@ tr:nth-child(-n+4) td{font-weight:700}`,
           <label class="cx-chk"><input type="checkbox" id="cx-abs"> Inclure les absents et dispensés</label>
           <div class="row" style="margin-top:10px"><button class="btn btn-grad" id="cx-pp">🖨 Imprimer la sélection</button><button class="btn btn-ghost" id="cx-pa">Tout imprimer</button></div></div>
         ${sortCls(E, E.classes).map(c => `<div class="section-title"><h2>${esc(c)}</h2><button class="link" data-p1="${esc(c)}">🖨 Imprimer une classe</button></div>
-          <div class="card" style="padding:4px 12px">${stuOf(E, c).map(s => { const co = K.cOf.get(s.k); return `<div class="cx-st ${s.st ? 'off' : ''}"><div class="nm"><b>${esc(s.name)}</b><small>${s.st ? (s.st === 'abs' ? 'Absent' : 'Dispensé') : co ? esc(co.name) : '⚠️ sans course'}</small></div><input class="cx-bibin" type="number" inputmode="numeric" data-bk="${esc(s.k)}" value="${s.b || ''}" aria-label="Dossard"></div>`; }).join('')}</div>`).join('')}`;
+          <div class="card" data-cfg="bare" style="padding:4px 12px">${stuOf(E, c).map(s => { const co = K.cOf.get(s.k); return `<div class="cx-st ${s.st ? 'off' : ''}"><div class="nm"><b>${esc(s.name)}</b><small>${s.st ? (s.st === 'abs' ? 'Absent' : 'Dispensé') : co ? esc(co.name) : '⚠️ sans course'}</small></div><input class="cx-bibin" type="number" inputmode="numeric" data-bk="${esc(s.k)}" value="${s.b || ''}" aria-label="Dossard"></div>`; }).join('')}</div>`).join('')}`;
       const $ = s => box.querySelector(s);
       box.querySelectorAll('[data-bm]').forEach(b => b.onclick = () => { E.bibMode = b.dataset.bm; commit(); again(); });
       $('#cx-ab').onclick = () => { assignBibs(E, false); toast('Dossards attribués ✔'); again(); };
@@ -453,7 +453,7 @@ tr:nth-child(-n+4) td{font-weight:700}`,
             <div class="cx-keys">${[1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => `<button data-k="${n}">${n}</button>`).join('')}<button data-k="b" aria-label="Effacer">⌫</button><button data-k="0">0</button><button data-k="ok" class="ok">✓</button></div>
             <button class="btn btn-ghost btn-block" style="margin-top:10px" id="cx-undo">↶ Annuler mon dernier passage</button></div>
           <div class="section-title"><h2>Derniers passages</h2><span class="muted" id="cx-cnt"></span></div><div class="card" style="padding:4px 12px" id="cx-last"></div></div></div>
-        <details class="card cx-prof"><summary data-prof>🔒 Enseignant</summary><p class="muted" style="font-size:.82rem">Supprimer un passage enregistré (toutes tablettes). Les heures de départ se corrigent dans l'onglet 🏁 Courses.</p><div id="cx-all"></div></details>`;
+        <details class="card cx-prof" data-cfg="bare"><summary data-prof>🔒 Enseignant</summary><p class="muted" style="font-size:.82rem">Supprimer un passage enregistré (toutes tablettes). Les heures de départ se corrigent dans l'onglet 🏁 Courses.</p><div id="cx-all"></div></details>`;
       const $ = s => box.querySelector(s), video = box.querySelector('video'), cmsg = $('#cx-cmsg');
       const drawStarts = () => {
         const K = compute(E), ns = E.courses.filter(c => !c.start);
@@ -555,14 +555,14 @@ tr:nth-child(-n+4) td{font-weight:700}`,
         T = levelTable(E, K, rl, rsx);
       } else {
         sub = `<div class="cx-cls">${LV.map(l => `<button data-rl="${l}" class="${rl === l ? 'on' : ''}">${LVN[l]}</button>`).join('')}</div>
-          <div class="row" style="align-items:center;margin-top:8px"><label style="margin:0;flex:2">Nombre de places retenues par classe (X)</label><input id="cx-topn" type="number" min="1" max="35" value="${E.topN}" style="flex:0 0 80px"></div>`;
+          <div class="row" data-cfg="bare" style="align-items:center;margin-top:8px"><label style="margin:0;flex:2">Nombre de places retenues par classe (X)</label><input id="cx-topn" type="number" min="1" max="35" value="${E.topN}" style="flex:0 0 80px"></div>`;
         T = classTable(E, K, rl);
       }
       box.innerHTML = `<div class="card">${head}${sub}</div>
         ${T ? `<div class="section-title"><h2>${esc(T.title)}</h2></div>${T.note ? `<p class="muted" style="margin:-4px 2px 8px;font-size:.8rem">${esc(T.note)}</p>` : ''}
           <div class="card sheet-table cx-rk" style="margin-top:0">${T.rows.length ? `<table><tr>${T.head.map(h => `<th>${esc(h)}</th>`).join('')}</tr>${T.rows.map((r, i) => `<tr>${r.map((v, j) => `<td class="${j === 2 || (rv === 'classes' && j === 1) ? 'nmc' : ''}">${j === 0 && typeof v === 'number' && v <= 3 ? ['🥇', '🥈', '🥉'][v - 1] : j === 2 || (rv === 'classes' && j === 1) ? `<b>${esc(v)}</b>` : esc(v)}</td>`).join('')}</tr>`).join('')}</table>` : '<div class="empty">Aucun résultat pour l\'instant.</div>'}</div>` : ''}
         <div class="row" style="margin-top:12px"><button class="btn btn-ghost" id="cx-csv">📤 Exporter CSV</button><button class="btn btn-ghost" id="cx-pr">🖨 Imprimer</button><button class="btn btn-ghost" id="cx-pall">🖨 Tout imprimer</button></div>
-        <button class="btn btn-grad btn-block" style="margin-top:10px" id="cx-save">💾 Envoyer dans « Résultats des élèves »</button>`;
+        <button class="btn btn-grad btn-block" data-cfg="bare" style="margin-top:10px" id="cx-save">💾 Envoyer dans « Résultats des élèves »</button>`;
       const $ = s => box.querySelector(s);
       box.querySelectorAll('[data-rv]').forEach(b => b.onclick = () => { rv = b.dataset.rv; again(); });
       box.querySelectorAll('[data-rc]').forEach(b => b.onclick = () => { rc = b.dataset.rc; again(); });
