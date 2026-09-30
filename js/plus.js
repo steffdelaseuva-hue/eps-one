@@ -2,9 +2,13 @@
    EPS ONE — Onglet PLUS : mise à jour, partage,
    à propos, confidentialité/RGPD, nouvelle année scolaire
    ========================================================= */
-const APP_VERSION = '11.0';
+/* Page Ko-fi : laisser vide tant qu'elle n'existe pas (le bouton est alors masqué) */
+const KOFI_URL = '';
+const APP_VERSION = '11.2';
 const APP_URL = 'https://steffdelaseuva-hue.github.io/eps-one/';
 const CHANGELOG = [
+  { v: '11.2', items: ['Nouvel outil Gymnastique (sol, poutre, barres parallèles, barre fixe · tremplin, plinth, mini-trampoline) : 96 éléments A→F par famille, groupes, enchaînement, diaporamas, validation des ateliers, consignes de sécurité','Nouvel outil Demi-fond : enchaînements de courses, repos, groupements, relais, projet, équivalences en plots, bips d\'allure, marche rapide, écart projet / réalisé','Nouvel outil Sauvetage aquatique : bassin, étapes (départ, nage, obstacles, victimes/objets, matériel, geste de secours), relais, projet / réalisé'] },
+  { v: '11.1', items: ['Invitation à installer l\'app sur l\'écran d\'accueil (iPhone, iPad, Android) tant qu\'elle est ouverte dans le navigateur ; aussi dans Plus → Installer l\'application'] },
   { v: '11.0', items: ['Acrosport : 4 nouvelles pyramides en semi-renversé (duo et trio, porteurs en trépied ou debout)','Acrosport : ✏️ Créer une pyramide — effectif, porteurs et voltigeurs à faire glisser, posture, inclinaison, bras, prises, plan avant/arrière ; « Copier et modifier » sur les pyramides existantes'] },
   { v: '10.9', items: ['Cross du collège : rubrique à part (accueil et outils), accès direct','Cross : couleur des filles en or (dossards, boutons F) à la place du rose'] },
   { v: '10.8', items: ['Acrosport · liaisons : lien PowerPoint Drive → bouton « 📊 Diaporama » qui ouvre directement dans PowerPoint / Keynote (aperçu rapide retiré)'] },
@@ -353,6 +357,8 @@ function renderPlus() {
     <div class="menu-sec">Aide & infos</div>
     <div class="card" style="padding:0">
       ${item('lock', 'navy', 'Confidentialité & RGPD', 'Données, caméra, suppression', 'openPrivacy()')}
+      ${item('install', 'gold', 'Installer l\'application', 'Sur l\'écran d\'accueil de l\'iPhone, l\'iPad ou Android', 'openInstall(true)')}
+      ${KOFI_URL ? item('coffee', 'gold', '☕ Soutenir EPS ONE', 'Un café sur Ko-fi pour encourager le projet (facultatif)', `window.open('${KOFI_URL}','_blank','noopener')`) : ''}
       ${item('info', 'navy', 'À propos', 'Objectif, installation, crédits', 'openAbout()')}
       ${item('update', 'grad', 'Mise à jour', `Version ${APP_VERSION} · nouveautés`, 'openUpdate()')}
       ${item('mail', 'blue', 'Contact', 'steffdelaseuva@gmail.com', "location.href='mailto:steffdelaseuva@gmail.com?subject=EPS%20ONE'")}
