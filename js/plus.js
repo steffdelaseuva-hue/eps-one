@@ -4,9 +4,10 @@
    ========================================================= */
 /* Page Ko-fi : laisser vide tant qu'elle n'existe pas (le bouton est alors masqué) */
 const KOFI_URL = 'https://ko-fi.com/epsone';
-const APP_VERSION = '12.8';
+const APP_VERSION = '12.9';
 const APP_URL = 'https://steffdelaseuva-hue.github.io/eps-one/';
 const CHANGELOG = [
+  { v: '12.9', items: ['Nouvel outil Lutte (activités de duel) : lutte au sol / debout, match 1c1, relais (je gagne je reste / les deux sortent), tournoi à élimination, avec observation ou résultats simples ; points attaque (passage arrière, sortie, mise en danger, tombé chronométré), pénalités, formes de corps, observables du défenseur, barème modifiable ; règle d\'or « NE PAS FAIRE MAL ! »'] },
   { v: '12.8', items: ['Page « Mentions légales » (Plus → Aide & infos, À propos, page Confidentialité)'] },
   { v: '12.7', items: ['Démarrage instantané même sans réseau (cache d\'abord, mise à jour en arrière-plan) et bandeau « Nouvelle version prête »','Référencement : titre, description, aperçu de partage, sitemap.xml, robots.txt, données structurées'] },
   { v: '12.6', items: ['Tests 6e : ✕ pour effacer un essai, ↺ par élève, reset des chronos, « ↶ Annuler la dernière saisie » (30 dernières actions), réinitialisation d\'un test pour toute la classe (code enseignant)'] },
