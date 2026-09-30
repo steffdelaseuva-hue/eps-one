@@ -4,9 +4,11 @@
    ========================================================= */
 /* Page Ko-fi : laisser vide tant qu'elle n'existe pas (le bouton est alors masqué) */
 const KOFI_URL = 'https://ko-fi.com/epsone';
-const APP_VERSION = '12.6';
+const APP_VERSION = '12.8';
 const APP_URL = 'https://steffdelaseuva-hue.github.io/eps-one/';
 const CHANGELOG = [
+  { v: '12.8', items: ['Page « Mentions légales » (Plus → Aide & infos, À propos, page Confidentialité)'] },
+  { v: '12.7', items: ['Démarrage instantané même sans réseau (cache d\'abord, mise à jour en arrière-plan) et bandeau « Nouvelle version prête »','Référencement : titre, description, aperçu de partage, sitemap.xml, robots.txt, données structurées'] },
   { v: '12.6', items: ['Tests 6e : ✕ pour effacer un essai, ↺ par élève, reset des chronos, « ↶ Annuler la dernière saisie » (30 dernières actions), réinitialisation d\'un test pour toute la classe (code enseignant)'] },
   { v: '12.5', items: ['Accueil : « Récemment utilisés » de retour (entre Mes favoris et Par champ d\'apprentissage)'] },
   { v: '12.4', items: ['Accueil réorganisé : Mes favoris · Par champ d\'apprentissage (performance, gymniques & artistiques, duel, APPN) · Autres outils (Cross, Tests 6e, chronos/photo/vidéo, gestion de classe, évaluation) ; « Récemment utilisés » retiré'] },
@@ -232,6 +234,7 @@ function openAbout() {
         <p>Plus → « Exporter mes données » sur l'ancien appareil, puis « Importer une sauvegarde » sur le nouveau.</p>
         <h3>🙏 Remerciements</h3>
         <p>Conception et développement : Steff64, professeur d'EPS.</p>
+        <p style="margin-top:12px"><a href="mentions-legales.html" target="_blank" rel="noopener">⚖️ Mentions légales</a> · <a href="confidentialite.html" target="_blank" rel="noopener">🔒 Politique de confidentialité</a></p>
       </div>`;
   });
 }
@@ -373,6 +376,7 @@ function renderPlus() {
       ${item('lock', 'navy', 'Confidentialité & RGPD', 'Données, caméra, suppression', 'openPrivacy()')}
       ${item('install', 'gold', 'Installer l\'application', 'Sur l\'écran d\'accueil de l\'iPhone, l\'iPad ou Android', 'openInstall(true)')}
       ${KOFI_URL ? item('coffee', 'gold', '☕ Soutenir EPS ONE', 'Offrir un café sur Ko-fi (facultatif · page en anglais, carte ou PayPal)', `window.open('${KOFI_URL}','_blank','noopener')`) : ''}
+      ${item('info', 'navy', 'Mentions légales', 'Éditeur, hébergement, responsabilité', "window.open('mentions-legales.html','_blank','noopener')")}
       ${item('info', 'navy', 'À propos', 'Objectif, installation, crédits', 'openAbout()')}
       ${item('update', 'grad', 'Mise à jour', `Version ${APP_VERSION} · nouveautés`, 'openUpdate()')}
       ${item('mail', 'blue', 'Contact', 'steffdelaseuva@gmail.com', "location.href='mailto:steffdelaseuva@gmail.com?subject=EPS%20ONE'")}

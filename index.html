@@ -6,7 +6,17 @@
 <meta name="theme-color" content="#0B2A5B">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>EPS ONE</title>
+<title>EPS ONE · Outils numériques pour l'EPS (chronos, matchs, cross, VMA)</title>
+<link rel="canonical" href="https://steffdelaseuva-hue.github.io/eps-one/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="EPS ONE">
+<meta property="og:title" content="EPS ONE · Tous vos outils EPS au même endroit">
+<meta property="og:description" content="Application gratuite pour les profs d'EPS : chronos, gestion de match multi-tablettes, cross du collège, HYROX, acrosport, gym, demi-fond, tests 6e, VMA… Hors ligne, sans publicité.">
+<meta property="og:url" content="https://steffdelaseuva-hue.github.io/eps-one/">
+<meta property="og:image" content="https://steffdelaseuva-hue.github.io/eps-one/icons/icone-v3-512.png">
+<meta property="og:locale" content="fr_FR">
+<meta name="twitter:card" content="summary">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"WebApplication","name":"EPS ONE","url":"https://steffdelaseuva-hue.github.io/eps-one/","applicationCategory":"EducationalApplication","operatingSystem":"iOS, Android, Windows, macOS (navigateur)","inLanguage":"fr","isAccessibleForFree":true,"offers":{"@type":"Offer","price":"0","priceCurrency":"EUR"},"description":"Outils numériques pour l'EPS au collège et au lycée : chronos, gestion de match multi-tablettes, cross, HYROX, acrosport, gymnastique, demi-fond, tests 6e, VMA, fonctionnant hors ligne."}</script>
 <meta name="description" content="EPS ONE : gestion de séance par les élèves et le prof, gestion de match en synchronisation live multi-tablettes, multi-chronos, tirages au sort, équipes, calculs VMA. Outils classés par champs d'apprentissage, pensés pour la tablette et le téléphone.">
 <meta name="apple-mobile-web-app-title" content="EPS ONE">
 <script src="js/icons.js"></script>
@@ -699,7 +709,12 @@ function resetAll(){ if(confirm('Effacer toutes les données (classes, favoris�
 /* Démarrage */
 renderHome();
 const h=location.hash.slice(1); if(['outils','plus'].includes(h)) go(h);
-if('serviceWorker' in navigator && location.protocol==='https:') navigator.serviceWorker.register('sw.js').catch(()=>{});
+if('serviceWorker' in navigator && location.protocol==='https:'){ navigator.serviceWorker.register('sw.js').catch(()=>{});
+  // nouvelle version téléchargée en arrière-plan : proposer de l'appliquer
+  let hadCtrl=!!navigator.serviceWorker.controller; navigator.serviceWorker.addEventListener('controllerchange',()=>{ if(!hadCtrl){hadCtrl=true;return;}
+    if(document.getElementById('upd-bar')) return; const b=document.createElement('button'); b.id='upd-bar'; b.className='btn btn-grad';
+    b.style.cssText='position:fixed;left:50%;transform:translateX(-50%);bottom:calc(86px + env(safe-area-inset-bottom));z-index:450;border-radius:999px;box-shadow:var(--shadow);width:auto;padding:12px 18px';
+    b.textContent='🔄 Nouvelle version prête · Toucher pour l\'appliquer'; b.onclick=()=>{ try{window.saveNow&&saveNow();}catch(e){} location.reload(); }; document.body.appendChild(b); }); }
 </script>
 <script src="js/outils-plus.js"></script>
 <script src="js/test-vma.js"></script>

@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://steffdelaseuva-hue.github.io/eps-one/sitemap.xml
