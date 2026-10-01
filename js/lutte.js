@@ -241,7 +241,7 @@ TOOL_IMPL.lutte = function (el) {
     stop(); M = null; S.view = null;
     const c = luCfg(), T = c.type, R = c.rules[T], cur = LU().current;
     const rec = LU().seances.filter(s => s.date >= Date.now() - 7 * 864e5).sort((x, y) => y.date - x.date);
-    const hist = LU().combats.slice().sort((x, y) => (y.date || 0) - (x.date || 0));
+    const hist = LU().combats.filter(m => !(window.eleveMode && eleveMode()) || !S.cls || m.cls === S.cls).sort((x, y) => (y.date || 0) - (x.date || 0));
     el.innerHTML = `${gold()}${safety(false)}
       ${cur && cur.o ? `<div class="card" style="margin-top:12px;border:2px solid #1E9E5A"><h3>⏸ Combat en cours sur cette tablette</h3>
         <div class="mo-vs" style="margin:6px 0"><span style="background:#B8912A">${esc(cur.o.a)}</span><span class="muted" style="color:var(--muted);padding:0">vs</span><span style="background:#1E5BD8">${esc(cur.o.b)}</span></div>

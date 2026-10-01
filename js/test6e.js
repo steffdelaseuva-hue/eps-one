@@ -223,7 +223,7 @@ TOOL_IMPL.test6e = function (el) {
   function openVma() {
     DB.lastClass = cls; save(); window.tvPreset = 'leger'; window.tvPresetClass = cls;
     try { if (typeof cleanup === 'function') cleanup(); cleanup = null; } catch (e) {}
-    openTool('testvma');
+    window.__navPass = true; openTool('testvma');
   }
   function parseVma(r) {
     const txt = `${r.valeur || ''} ${r.detail || ''}`, p = /Palier\s*(\d+)/i.exec(txt);

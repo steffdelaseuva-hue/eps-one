@@ -323,7 +323,7 @@ function acroEditor(src, onSave) {
 
 TOOL_IMPL.acrosport = function (el) {
   DB.acro = DB.acro || { groupes: {} };
-  const A = DB.acro;
+  const A = liveDB(() => DB.acro);
   const F = DB.acroFiltre = Object.assign({ eff: '0', por: '', vol: '', h: '0', app: '' }, DB.acroFiltre || {});
   A.liaisons = A.liaisons || [];
   const APP = { '': 'Tous', a: '1 à 4', b: '5 à 8', c: '9 et +' };

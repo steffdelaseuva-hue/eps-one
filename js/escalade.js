@@ -33,7 +33,8 @@ function escReadPhoto(file) {
 }
 
 TOOL_IMPL.escalade = function (el) {
-  const E = DB.escalade = Object.assign({ voies: [], passages: [], defis: [], equipes: {} }, DB.escalade || {});
+  DB.escalade = Object.assign({ voies: [], passages: [], defis: [], equipes: {} }, DB.escalade || {});
+  const E = liveDB(() => DB.escalade);   // toujours l'objet synchronisé actuel
   let tab = E.voies.length ? 'passage' : 'voies', sub = null;
   // état de la saisie en cours
   const P = { cls: DB.lastClass || (DB.classes[0] || {}).name || '', si: 0, voie: E.lastVoie || '', mode: E.lastMode || 'moul', pieds: 0, pme: 0, flu: 0, t0: null, acc: 0, run: false };
@@ -100,6 +101,15 @@ TOOL_IMPL.escalade = function (el) {
   /* ---------- Équipes (cordées) ---------- */
   const teamsOf = c => (E.equipes[c] = E.equipes[c] || []);
   // membres actuels de l'équipe (les équipes restent modifiables pendant le défi)
+  /* Séance partagée : les cordées de la classe sont proposées aux autres tablettes (« Rejoindre ») */
+  const escShareId = cls => 'esc-' + cls + '-' + new Date().toDateString();
+  const escPub = (cls, create) => { const T = teamsOf(cls); if (!T.length || typeof partPublish !== 'function') return;
+    partPublish('escalade', escShareId(cls), { nom: 'Escalade · ' + cls, classe: cls, ng: T.length, ep: `${E.voies.length} voie(s)`, tpl: { cls, groups: T.map(t => ({ name: t.name, members: [...t.members] })) } }, create); };
+  const escJoin = (box, p) => { const T = p.tpl; if (!T || !T.groups) return;
+    if (!teamsOf(T.cls).length) { E.equipes[T.cls] = T.groups.map(g => ({ name: g.name, members: [...g.members] })); save(); }
+    partPickGroup(box, teamsOf(T.cls), i => { P.cls = T.cls; if (i == null) { tab = 'passage'; return frame(); }
+      DB.tablette = DB.tablette || {}; DB.tablette.escalade = { cls: T.cls, eq: teamsOf(T.cls)[i].name }; P.gw = ''; save(); frame(); }); };
+  const escMount = box => { if (typeof partMount === 'function') partMount(box, 'escalade', p => escJoin(box, p)); };
   const membD = (D, k) => (teamsOf(D.classe).find(t => t.name === D.eleves[k]) || {}).members || D.membres[k];
   function equipes(box) {
     if (!DB.classes.length) { box.innerHTML = noClassMsg; return; }
@@ -116,18 +126,18 @@ TOOL_IMPL.escalade = function (el) {
     $('#ec').onchange = e => { P.cls = e.target.value; DB.lastClass = P.cls; P.eq = ''; save(); equipes(box); };
     mountComposer($('#ecmp'), { id: 'esq', prep: false, modes: ['random', 'hetero', 'homo'], button: '👥 Former les équipes',
       onTeams: teams => { if (T.length && !confirm('Remplacer les équipes existantes ?')) return;
-        E.equipes[P.cls] = teams.map(t => ({ name: t.name, members: t.members.map(m => m.n) })); P.eq = ''; save(); toast('Équipes formées ✔'); equipes(box); } });
+        E.equipes[P.cls] = teams.map(t => ({ name: t.name, members: t.members.map(m => m.n) })); P.eq = ''; save(); escPub(P.cls, true); toast('Équipes formées ✔ · proposées aux autres tablettes'); equipes(box); } });
     const sel = box.querySelector('#esq-cls'); if (sel) { sel.value = P.cls; sel.dispatchEvent(new Event('change')); }
     const k = box.querySelector('#esq-k'), v = box.querySelector('#esq-v'); if (k && v) { k.value = 's'; v.value = 3; }
     if ($('#eedit')) $('#eedit').onclick = () => editGroupsPanel('Équipes d\'escalade', { cls: P.cls, list: () => teamsOf(P.cls), names: t => t.members,
-      take: (t, n) => { t.members.splice(t.members.indexOf(n), 1); }, put: (t, n) => t.members.push(n), make: name => ({ name: name.replace('Groupe', 'Équipe'), members: [] }), onChange: save, onClose: () => equipes(box) });
+      take: (t, n) => { t.members.splice(t.members.indexOf(n), 1); }, put: (t, n) => t.members.push(n), make: name => ({ name: name.replace('Groupe', 'Équipe'), members: [] }), onChange: () => { save(); escPub(P.cls); }, onClose: () => equipes(box) });
     if ($('#edel')) $('#edel').onclick = () => { if (!confirm('Supprimer les équipes de la classe ?')) return; E.equipes[P.cls] = []; P.eq = ''; save(); equipes(box); };
   }
 
   /* ---------- 2/ & 3/ Passage : mode + observables ---------- */
   function passage(box) {
-    if (!DB.classes.length) { box.innerHTML = noClassMsg; return; }
-    if (!E.voies.length) { box.innerHTML = '<div class="card empty">Créez d\'abord une voie dans l\'onglet <b>🧗 Voies</b>.</div>'; return; }
+    if (!DB.classes.length) { box.innerHTML = noClassMsg; return escMount(box); }
+    if (!E.voies.length) { box.innerHTML = '<div class="card empty">Créez d\'abord une voie dans l\'onglet <b>🧗 Voies</b>.</div>'; return escMount(box); }
     if (!E.voies.some(w => w.id === P.voie)) P.voie = E.voies[0].id;
     if (!DB.classes.some(c => c.name === P.cls)) P.cls = DB.classes[0].name;
     const TM = teamsOf(P.cls); if (!TM.some(t => t.name === P.eq)) P.eq = '';
@@ -141,6 +151,7 @@ TOOL_IMPL.escalade = function (el) {
         <label>Voie</label><select id="vo">${E.voies.map(w => `<option value="${w.id}" ${w.id === P.voie ? 'selected' : ''}>${esc(w.cot)} — ${esc(w.nom)}</option>`).join('')}</select>
         ${img ? `<img src="${img}" id="vimg" style="width:100%;max-height:220px;object-fit:contain;border-radius:12px;background:#000;margin-top:8px;cursor:zoom-in">` : ''}
         <label>Mode de grimpe</label><div class="seg" id="md">${Object.entries(ESC_MODES).map(([k, l]) => `<button data-md="${k}" class="${P.mode === k ? 'on' : ''}">${l}</button>`).join('')}</div>
+        ${TM.length ? `<button class="btn btn-ghost btn-block" data-cfg="bare" style="margin-top:10px" id="eshare">📤 Proposer les cordées de ${esc(P.cls)} aux autres tablettes</button>` : ''}
         ${TM.length ? `<div data-cfg="bare"><label>📱 Tablette d'une équipe / cordée (les élèves ne verront que leur cordée)</label><select id="only"><option value="">Toutes</option>${TM.map(t => `<option>${esc(t.name)}</option>`).join('')}</select></div>` : ''}</div>
       <div class="card" style="margin-top:12px"><h3>Observables</h3>
         <label>Temps de grimpe</label>
@@ -174,6 +185,8 @@ TOOL_IMPL.escalade = function (el) {
       toast(`${n} : ${V.cot} ✔`);
       Object.assign(P, { pieds: 0, pme: 0, flu: 0, run: false, acc: 0 }); if (P.si < st.length - 1) P.si++;
       passage(box); };
+    if ($('#eshare')) $('#eshare').onclick = () => { escPub(P.cls, true); toast('📤 Cordées proposées : les autres tablettes peuvent « Rejoindre »'); passage(box); };
+    escMount(box);
     const last = E.passages.filter(p => p.classe === P.cls).slice(-6).reverse();
     $('#last').innerHTML = last.length ? rowsTable(last, false) : '<div class="empty">Aucun passage pour cette classe.</div>';
   }

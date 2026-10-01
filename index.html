@@ -51,6 +51,7 @@ h1,h2,h3{margin:0}
 .topbar h1{font-size:1.15rem;font-weight:800;letter-spacing:.2px;text-shadow:0 1px 2px rgba(0,0,0,.25)}
 .topbar .sub{font-size:.72rem;opacity:.9}
 .topbar .spacer{flex:1}
+.sub-title{font-size:.78rem;font-weight:900;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:14px 4px 8px;display:flex;align-items:center;gap:8px}.sub-title::after{content:'';flex:1;height:1px;background:var(--line)}
 .icon-btn{width:40px;height:40px;border-radius:12px;display:grid;place-items:center;background:rgba(255,255,255,.18);font-size:1.15rem}
 
 /* ---------- TABS (bottom nav) ---------- */
@@ -301,28 +302,31 @@ const CATS=[
   {id:'eval',   name:'Évaluation & suivi', desc:'Résultats, grilles, suivi', autre:1},
 ];
 const TOOLS=[
-  {id:'natation', cat:'perf', name:'Natation', desc:'Nager vite (indice de nage) · Savoir nager (test)', ready:true},
-  {id:'testvma',  cat:'perf', name:'Test VMA', desc:'Luc Léger, VAMEVAL, 45-15, Astrand', ready:true},
+  {id:'natation', cat:'perf', name:'Natation', desc:'Nager vite (indice de nage) · Savoir nager (test)', sub:'APSA', ready:true},
+  {id:'demifond', cat:'perf', name:'Demi-fond', desc:'Enchaînements de courses, projet, plots, écart projet / réalisé', sub:'APSA', ready:true},
+  {id:'combine',  cat:'perf', name:'Combiné athlétique', desc:'Duathlon / triathlon · course, saut, lancer', sub:'APSA', ready:true},
+  {id:'duathlon', cat:'perf', name:'Duathlon athlétique', desc:'Course + lancers · 3 étapes · pénalités', sub:'APSA', ready:true},
+  {id:'relais',   cat:'perf',name:'Relais',             desc:'Gestion des relais', sub:'APSA', ready:true},
+  {id:'wod',      cat:'perf', name:'Crosstraining / HYROX', desc:'Blocs, exercices N1-N4, run, time cap', sub:'APSA', ready:true},
+  {id:'testvma',  cat:'perf', name:'Test VMA', desc:'Luc Léger, VAMEVAL, 45-15, Astrand', sub:'Outils', ready:true},
+  {id:'vma',      cat:'perf',name:'VMA & allures',      desc:'Temps de passage selon % VMA', sub:'Outils', ready:true},
+  {id:'vitesse',  cat:'perf',name:'Vitesse de course',  desc:'Distance + temps → km/h', sub:'Outils', ready:true},
+  {id:'plots',    cat:'perf',name:'Écartement des plots',desc:'Placer les plots selon la VMA', sub:'Outils', ready:true},
+  {id:'hiit',     cat:'perf', name:'Timer HIIT / Tabata',desc:'Travail / repos / séries + bips', sub:'Outils', ready:true},
+  {id:'rm',       cat:'perf', name:'Calcul 1RM',         desc:'Charge max + % de travail', sub:'Outils', ready:true},
   {id:'test6e',   cat:'test6e', name:'Tests 6e', desc:'Endurance, force, vitesse + tests optionnels (équilibre, coordination, souplesse, endurance musculaire)', ready:true},
-  {id:'vma',      cat:'perf',name:'VMA & allures',      desc:'Temps de passage selon % VMA', ready:true},
-  {id:'vitesse',  cat:'perf',name:'Vitesse de course',  desc:'Distance + temps → km/h', ready:true},
-  {id:'demifond', cat:'perf', name:'Demi-fond', desc:'Enchaînements de courses, projet, plots, écart projet / réalisé', ready:true},
-  {id:'plots',    cat:'perf',name:'Écartement des plots',desc:'Placer les plots selon la VMA', ready:true},
-  {id:'combine',  cat:'perf', name:'Combiné athlétique', desc:'Duathlon / triathlon · course, saut, lancer', ready:true},
-  {id:'duathlon', cat:'perf', name:'Duathlon athlétique', desc:'Course + lancers · 3 étapes · pénalités', ready:true},
-  {id:'relais',   cat:'perf',name:'Relais',             desc:'Gestion des relais', ready:true},
   {id:'cross',    cat:'cross', name:'Cross du collège',   desc:'Courses, dossards QR, scan à l\'arrivée, classements', ready:true},
-  {id:'wod',      cat:'perf', name:'Crosstraining / HYROX', desc:'Blocs, exercices N1-N4, run, time cap', ready:true},
-  {id:'hiit',     cat:'perf', name:'Timer HIIT / Tabata',desc:'Travail / repos / séries + bips', ready:true},
-  {id:'rm',       cat:'perf', name:'Calcul 1RM',         desc:'Charge max + % de travail', ready:true},
 
   {id:'acrosport',cat:'art', name:'Acrosport', desc:'Banque de pyramides · duo, trio, quatuor · porteurs, hauteur, appuis', ready:true},
   {id:'gym', cat:'art', name:'Gymnastique', desc:'Sol, poutre, barres, barre fixe · tremplin, plinth, mini-trampoline', ready:true},
   {id:'parkour',  cat:'art', name:'Parkour', desc:'Sauter, franchir, tourner, freerun · maîtrise', ready:true},
 
-  {id:'match',    cat:'duel', name:'Gestion de match', desc:'Score, statistiques, observations, championnat, élimination, pyramide', ready:true},
-  {id:'marque',   cat:'duel', name:'Table de marque',    desc:'Score 2 équipes + chrono', ready:true},
-  {id:'lutte',    cat:'duel', name:'Lutte', desc:'Lutte au sol / debout · match, relais, tournoi · observations attaque / défense', ready:true},
+
+  {id:'match',    cat:'duel', name:'Gestion de match · Sports collectifs', desc:'Basket, handball, football, volley-ball, ultimate, rugby · stats, observations, tournois', sub:'Sports collectifs', ready:true},
+  {id:'marque',   cat:'duel', name:'Table de marque',    desc:'Score 2 équipes + chrono', sub:'Sports collectifs', ready:true},
+  {id:'matchr',   cat:'duel', name:'Gestion de match · Sports de raquette', desc:'Badminton, shortennis, tennis, tennis de table · Défi ATP, tournois', sub:'Sports de raquette', ready:true},
+  {id:'escrime',  cat:'duel', name:'Escrime', desc:'Touches, zones touchées, matchs, tournois', sub:'Sports de combat', ready:true},
+  {id:'lutte',    cat:'duel', name:'Lutte', desc:'Lutte au sol / debout · match, relais, tournoi · observations attaque / défense', sub:'Sports de combat', ready:true},
 
   {id:'co',       cat:'appn', name:'Course d\'orientation', desc:'Parcours, balises, séances, RK, bilan', ready:true},
   {id:'escalade', cat:'appn', name:'Escalade', desc:'Voies 3a-6c + photo · moulinette / tête · observables · vidéo', ready:true},
@@ -385,7 +389,9 @@ function renderTools(){
   if(currentCat==='fav') list=list.filter(t=>DB.favs.includes(t.id));
   else if(currentCat!=='all') list=list.filter(t=>t.cat===currentCat);
   let html='';
-  CATS.forEach(c=>{const l=list.filter(t=>t.cat===c.id); if(l.length) html+=`<div class="cat-title">${ico(c.tool&&ICONS[c.tool]?c.tool:'cat-'+c.id)}${c.name}</div><div class="grid">${l.map(toolCard).join('')}</div>`;});
+  CATS.forEach(c=>{const l=list.filter(t=>t.cat===c.id); if(!l.length) return;
+    const subs=[...new Set(l.map(t=>t.sub||''))];   // sous-groupes (APSA / Outils, collectifs / raquette / combat)
+    html+=`<div class="cat-title">${ico(c.tool&&ICONS[c.tool]?c.tool:'cat-'+c.id)}${c.name}</div>`+subs.map(sb=>`${sb?`<div class="sub-title">${esc(sb)}</div>`:''}<div class="grid">${l.filter(t=>(t.sub||'')===sb).map(toolCard).join('')}</div>`).join('');});
   document.getElementById('tools-list').innerHTML=html||'<div class="empty">Aucun outil trouvé.</div>';
 }
 document.getElementById('search').addEventListener('input',renderTools);
@@ -656,14 +662,52 @@ vma(el){
   $('#v').oninput=$('#p').oninput=upd; upd();
 },
 
-/* ---------- Vitesse de course ---------- */
+/* ---------- Vitesse de course ----------
+   Champs interdépendants : distance, temps, vitesse (ou VMA × %VMA).
+   Les 2 valeurs saisies le plus récemment parmi distance / temps / vitesse donnent la 3e. */
 vitesse(el){
-  el.innerHTML=`<div class="card"><div class="row"><div><label>Distance (m)</label><input id="d" type="number" value="400"></div><div><label>Min</label><input id="m" type="number" value="1"></div><div><label>Sec</label><input id="s" type="number" step="0.1" value="30"></div></div>
-    <div class="row"><div><label>VMA de l'élève (optionnel)</label><input id="v" type="number" step="0.5" placeholder="km/h"></div></div><div class="result" id="res"></div></div>`;
-  const $=s=>el.querySelector(s);
-  const upd=()=>{const d=+$('#d').value,t=(+$('#m').value||0)*60+(+$('#s').value||0);if(!d||!t)return;const kmh=d/t*3.6,v=+$('#v').value;
-    $('#res').innerHTML=`<div class="card"><b>${kmh.toFixed(2)}</b><small>km/h</small></div><div class="card"><b>${(d/t).toFixed(2)}</b><small>m/s</small></div><div class="card"><b>${fmt(t/d*1000*1000,false)}</b><small>allure / km</small></div>${v?`<div class="card"><b>${Math.round(kmh/v*100)} %</b><small>de la VMA</small></div>`:''}`;};
-  el.querySelectorAll('input').forEach(i=>i.oninput=upd); upd();
+  el.innerHTML=`<style>#vt input.calc{background:var(--grad-soft);border-color:var(--blue,#1E5BD8);font-weight:800}#vt .cl{font-size:.7rem;color:var(--blue,#1E5BD8);font-weight:800;margin-left:4px}</style>
+    <div class="card" id="vt"><p class="muted" style="margin:0 0 4px;font-size:.85rem">Remplissez <b>2 valeurs</b> parmi distance, temps et vitesse (la vitesse peut venir de la <b>VMA × %</b>) : la 3e est calculée <span class="cl">= calculé</span>.</p>
+    <div class="row"><div><label>Distance (m)<span class="cl" data-c="d"></span></label><input id="d" type="number" inputmode="decimal" value="400"></div>
+      <div><label>Temps<span class="cl" data-c="t"></span></label><div class="row" style="gap:6px"><input id="m" type="number" inputmode="numeric" placeholder="min" value="1"><input id="s" type="number" inputmode="decimal" step="0.1" placeholder="s" value="30"></div></div></div>
+    <div class="row"><div><label>Vitesse (km/h)<span class="cl" data-c="k"></span></label><input id="k" type="number" inputmode="decimal" step="0.1"></div>
+      <div><label>VMA (km/h)</label><input id="v" type="number" inputmode="decimal" step="0.5" placeholder="optionnel"></div>
+      <div><label>% VMA<span class="cl" data-c="p"></span></label><input id="p" type="number" inputmode="decimal" step="5" placeholder="%"></div></div>
+    <button class="btn btn-ghost btn-block" style="margin-top:10px" id="vz">↺ Tout effacer</button>
+    <div class="result" id="res"></div></div>`;
+  const $=s=>el.querySelector(s), num=id=>{const x=parseFloat(String($('#'+id).value).replace(',','.'));return isFinite(x)&&x>0?x:0;};
+  let order=['t','d'];                                     // saisies les plus récentes en premier
+  const rank=f=>{const i=order.indexOf(f);return i<0?1e9:i;};
+  const tVal=()=>{const m=parseFloat($('#m').value)||0,s=parseFloat(String($('#s').value).replace(',','.'))||0;return m*60+s;};
+  const setT=t=>{const m=Math.floor(t/60),s=t-m*60;$('#m').value=m;$('#s').value=Math.round(s*10)/10;};
+  const mark=c=>{['d','t','k','p'].forEach(f=>{const on=c.includes(f);(f==='t'?[$('#m'),$('#s')]:[$('#'+f)]).forEach(i=>i.classList.toggle('calc',on));el.querySelector(`[data-c="${f}"]`).textContent=on?'= calculé':'';});};
+  const solve=()=>{
+    const d=num('d'),t=tVal(),k0=num('k'),v=num('v'),p=num('p'),calc=[];
+    const pv=v&&p, rk=Math.min(k0?rank('k'):1e9,pv?rank('p'):1e9);
+    const tri=[['d',d?rank('d'):1e9],['t',t?rank('t'):1e9],['k',rk]].sort((a,b)=>a[1]-b[1]);
+    let D=d,T=t,K=0,fromP=false;
+    const kIn=()=>pv&&rank('p')<rank('k')?(calc.push('k'),fromP=true,v*p/100):k0;
+    if(tri[1][1]<1e9){                                     // 2 valeurs connues : la 3e est calculée
+      const miss=tri[2][0];
+      if(miss==='k'){K=d/t*3.6;calc.push('k');}
+      else{K=kIn(); if(miss==='d'){D=K/3.6*t;calc.push('d');} else {T=d/(K/3.6);calc.push('t');}}
+    } else if(tri[0][0]==='k'&&rk<1e9) K=kIn();
+    if(calc.includes('k')&&K) $('#k').value=Math.round(K*100)/100;
+    if(calc.includes('d')) $('#d').value=Math.round(D*10)/10;
+    if(calc.includes('t')&&isFinite(T)) setT(T);
+    if(v&&K&&!fromP){$('#p').value=Math.round(K/v*1000)/10;calc.push('p');}
+    mark(calc);
+    if(!(D&&T&&K)){$('#res').innerHTML='';return;}
+    $('#res').innerHTML=`<div class="card"><b>${K.toFixed(2)}</b><small>km/h</small></div><div class="card"><b>${(K/3.6).toFixed(2)}</b><small>m/s</small></div><div class="card"><b>${fmt(3600/K*1000,false)}</b><small>allure / km</small></div><div class="card"><b>${Math.round(D)} m</b><small>en ${fmt(T*1000,false)}</small></div>${v?`<div class="card"><b>${Math.round(K/v*100)} %</b><small>de la VMA</small></div>`:''}`;
+  };
+  const touch=f=>{order=[f,...order.filter(x=>x!==f)];
+    const empty=f==='t'?!tVal():f==='v'?false:!num(f); if(empty) order=order.filter(x=>x!==f);
+    if(f==='k') order=order.filter(x=>x!=='p');            // vitesse tapée : le % devient calculé
+    if(f==='p') order=order.filter(x=>x!=='k');
+    solve();};
+  [['d','d'],['m','t'],['s','t'],['k','k'],['v','v'],['p','p']].forEach(([id,f])=>$('#'+id).oninput=()=>touch(f));
+  $('#vz').onclick=()=>{['d','m','s','k','v','p'].forEach(i=>$('#'+i).value='');order=[];mark([]);$('#res').innerHTML='';};
+  solve();
 },
 
 /* ---------- Écartement des plots ---------- */
@@ -702,10 +746,10 @@ function exportData(){
 }
 function importData(inp){
   const f=inp.files[0];if(!f)return;const r=new FileReader();
-  r.onload=()=>{try{const d=JSON.parse(r.result);DB=Object.assign({favs:[],recent:[],classes:[],dispenses:[],oublis:{},journal:[],grilles:[],suivi:{},debrief:[],annee:DB.annee},d);save();renderHome();toast('Données restaurées ✔');if(typeof renderPlusYear==='function')renderPlusYear();}catch(e){toast('Fichier invalide');}inp.value='';};
+  r.onload=()=>{try{const d=JSON.parse(r.result);DB=Object.assign({favs:[],recent:[],classes:[],dispenses:[],oublis:{},journal:[],grilles:[],suivi:{},debrief:[],annee:DB.annee},d);window.teamInstall&&teamInstall();save();renderHome();toast('Données restaurées ✔');if(typeof renderPlusYear==='function')renderPlusYear();}catch(e){toast('Fichier invalide');}inp.value='';};
   r.readAsText(f);
 }
-function resetAll(){ if(confirm('Effacer toutes les données (classes, favoris…) ?')){DB={favs:[],recent:[],classes:[],dispenses:[],oublis:{},journal:[],grilles:[],suivi:{},debrief:[],annee:DB.annee};save();renderHome();toast('Données effacées');} }
+function resetAll(){ if(confirm('Effacer toutes les données (classes, favoris…) ?')){DB={favs:[],recent:[],classes:[],dispenses:[],oublis:{},journal:[],grilles:[],suivi:{},debrief:[],annee:DB.annee};window.teamInstall&&teamInstall();save();renderHome();toast('Données effacées');} }
 
 /* Démarrage */
 renderHome();
@@ -751,6 +795,7 @@ if('serviceWorker' in navigator && location.protocol==='https:'){ navigator.serv
 <script src="js/roue.js"></script>
 <script src="js/dessin.js"></script>
 <script src="js/profpin.js"></script>
+<script src="js/team.js"></script>
 <script src="js/musique.js"></script>
 </body>
 </html>

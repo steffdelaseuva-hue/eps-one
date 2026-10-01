@@ -220,7 +220,7 @@ const dfPhDur = (c, ph) => ph.rest != null ? c.rests[ph.rest].d : c.runs[ph.r].k
    L'OUTIL
    ========================================================= */
 TOOL_IMPL.demifond = function (el) {
-  const D = dfDB();
+  const D = liveDB(dfDB);   // toujours l'objet synchronisé actuel
   let tab = D.current ? 'live' : 'prep', rk = 'ecart', iv = null, lastSig = '', unit = 'nat';
   const cur = () => dfDB().current;
   const started = C => C && C.live && (C.live.st !== 'idle' || C.live.w > 0 || C.groups.some(g => g.res && Object.keys(g.res).length));

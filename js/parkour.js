@@ -25,7 +25,7 @@ document.head.insertAdjacentHTML('beforeend', `<style>
 </style>`);
 
 TOOL_IMPL.parkour = function (el) {
-  const D = DB.parkour; D.list = D.list || []; D.customEx = D.customEx || []; D.evals = D.evals || []; D.cycle = D.cycle || 1;
+  const D = liveDB(() => DB.parkour); D.list = D.list || []; D.customEx = D.customEx || []; D.evals = D.evals || []; D.cycle = D.cycle || 1;
   let cls = DB.lastClass && DB.classes.some(c => c.name === DB.lastClass) ? DB.lastClass : (DB.classes[0]?.name || ''), si = 0, at = 0, niv = 1, exi = 0, ratings = {};
   const ateliers = () => PK_DATA[D.cycle] || [];
   const famsOf = () => [...new Set(ateliers().map(a => a.f))];

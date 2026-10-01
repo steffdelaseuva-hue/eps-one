@@ -310,8 +310,16 @@ document.head.insertAdjacentHTML('beforeend', `<style>
 
 const RLA_BOX = '<details class="card" style="margin-top:12px"><summary style="font-weight:800;cursor:pointer">🏉 Ligne d\'avantage : recueil individuel (recule / avance / bloque)</summary><div id="rla-host" style="margin-top:10px"></div></details>';
 
-TOOL_IMPL.match = function (el) {
-  let S = { sport: 'handball', a: 'Équipe A', b: 'Équipe B', type: 'temps', dur: 10, target: 21, ecart: true, bonus: [1, 2, 5], stats: true, zones: false, nz: 4, ia: 0, ib: 1, obsOn: false, obsN: 2, role: (DB.tablette && DB.tablette.match && DB.tablette.match.role) || 'table' };
+/* Trois cartes, un seul outil : sports collectifs · sports de raquette · escrime (données communes : matchs, tournois) */
+const MATCH_GRP = { col: ['basket', 'handball', 'football', 'volley', 'ultimate', 'rugby'], raq: RACKET, esc: ['escrime'] };
+window.matchToolOf = sp => RACKET.includes(sp) ? 'matchr' : sp === 'escrime' ? 'escrime' : 'match';
+ICONS.matchr = '<ellipse cx="9" cy="8.5" rx="5" ry="6" transform="rotate(-40 9 8.5)"/><path d="M12.5 12.5l7 7M6 6l6 5M5.5 10l6-4.5"/><circle cx="18.5" cy="5.5" r="2"/>';
+ICONS.escrime = '<path d="M4 20 18 6M20 20 6 6"/><path d="M15.5 3.5l5 5M3.5 15.5l5 5M8.5 3.5l-5 5M20.5 15.5l-5 5"/>';
+TOOL_IMPL.matchr = el => TOOL_IMPL.match(el, 'raq');
+TOOL_IMPL.escrime = el => TOOL_IMPL.match(el, 'esc');
+TOOL_IMPL.match = function (el, grp = 'col') {
+  const GS = MATCH_GRP[grp] || MATCH_GRP.col, inG = sp => GS.includes(sp);
+  let S = { sport: GS.includes('handball') ? 'handball' : GS[0], a: 'Équipe A', b: 'Équipe B', type: 'temps', dur: 10, target: 21, ecart: true, bonus: [1, 2, 5], stats: true, zones: false, nz: 4, ia: 0, ib: 1, obsOn: false, obsN: 2, role: (DB.tablette && DB.tablette.match && DB.tablette.match.role) || 'table' };
   let selPl = null;
   let M = null, iv = null;
   const SP = () => SPORTS[S.sport];
@@ -321,14 +329,14 @@ TOOL_IMPL.match = function (el) {
     clearInterval(iv); M = null; S.view = null;
     const sp = SP(), lt = S.tid && TR().find(x => x.id === S.tid), lr = lt && S.rid && lt.rencontres.find(r => r.id === S.rid);
     if (S.tid && !lt) S.tid = S.rid = null;                     // tournoi supprimé entre-temps
-    const recent = TR().filter(x => x.date >= Date.now() - 7 * 864e5).sort((x, y) => y.date - x.date);
+    const recent = TR().filter(x => inG(x.sport) && x.date >= Date.now() - 7 * 864e5).sort((x, y) => y.date - x.date);
     el.innerHTML = `${lt ? `<div class="card" style="margin-bottom:12px;border:2px solid #B8912A"><h3>🏆 ${esc(lt.nom)}</h3>
         <div class="mo-vs" style="margin:6px 0"><span style="background:#B8912A">${esc(S.a)}</span><span class="muted" style="color:var(--muted);padding:0">vs</span><span style="background:#1E5BD8">${esc(S.b)}</span></div>
         <div class="muted" style="text-align:center;font-size:.85rem">${S.defi ? tFmt(lt) === 'atp' ? `🎾 ${S.libre ? `Match libre ATP · ${esc(S.defi.challenger)} vs ${esc(S.defi.defie)}` : `Défi ATP · ${esc(S.defi.challenger)} défie ${esc(S.defi.defie)}`}${S.arb ? ' · arbitre : ' + esc(S.arb) : ''} · compte pour le classement` : `🔺 Défi de la pyramide · ${esc(S.defi.challenger)} défie ${esc(S.defi.defie)} · compte pour le classement` : lr ? `${tFmt(lt) === 'elim' ? `🏅 ${elimName(lt, lr.round)} · le vainqueur se qualifie` : `Rencontre du tour ${lr.round}${lr.g ? ' · ' + esc(lr.g) : ''} · compte pour le classement`}` : 'Match amical · hors classement'} · ${esc(SPORTS[lt.sport]?.name || '')}</div>
         <button class="btn btn-grad btn-block" style="margin-top:10px;padding:16px;font-size:1.1rem" id="go2">▶ Lancer le match</button>
         <div class="row" style="margin-top:8px"><button class="btn btn-ghost" id="tl-bk">← Retour au tournoi</button><button class="btn btn-ghost" data-cfg="bare" id="tl-x">✕ Délier du tournoi</button></div></div>` : ''}
       ${recent.length ? `<div class="card" style="margin-bottom:12px"><h3>🏆 Tournois en cours</h3>${recent.map(x => `<button class="tn-it" data-tv="${x.id}"><span style="font-size:1.6rem" title="${TFMT[tFmt(x)].n}">${TFMT[tFmt(x)].i}</span><span style="flex:1"><b>${esc(x.nom)}</b><div class="muted" style="font-size:.8rem">${TFMT[tFmt(x)].n} · ${esc(SPORTS[x.sport]?.name || x.sport)}${x.classe ? ' · ' + esc(x.classe) : ''} · ${x.teams.length} ${tFmt(x) === 'atp' ? 'joueurs' : 'équipes'} · ${esc(tProgress(x))} · ${new Date(x.date).toLocaleDateString('fr-FR')}</div></span><span style="font-size:1.3rem">›</span></button>`).join('')}</div>` : ''}
-      <div class="card" data-cfg><h3>Sport</h3><div class="tog" id="sp">${Object.entries(SPORTS).map(([k, x]) => `<button data-s="${k}" class="${k === S.sport ? 'on' : ''}">${x.name}</button>`).join('')}</div></div>
+      <div class="card" data-cfg style="${GS.length < 2 ? 'display:none' : ''}"><h3>Sport</h3><div class="tog" id="sp">${Object.entries(SPORTS).filter(([k]) => inG(k)).map(([k, x]) => `<button data-s="${k}" class="${k === S.sport ? 'on' : ''}">${x.name}</button>`).join('')}</div></div>
       <div class="court" style="margin-top:12px;background:${courtSVG(S.sport).bg}"><svg viewBox="${courtSVG(S.sport).vb}">${courtSVG(S.sport).svg}</svg></div>
       <div class="card" data-cfg style="margin-top:12px"><h3>Équipes</h3>
         <details id="mt-d" ${DB.classes.length && !DB.matchTeams ? 'open' : ''}><summary style="font-weight:800;cursor:pointer">👥 Constituer les équipes avec les élèves d'une classe</summary><div id="mt-host" style="margin-top:6px"></div></details>
@@ -350,8 +358,8 @@ TOOL_IMPL.match = function (el) {
       </div>
       ${S.sport === 'rugby' ? RLA_BOX : ''}
       <button class="btn btn-grad btn-block" style="margin-top:14px;padding:16px;font-size:1.05rem" id="go">▶ Lancer le match</button>
-      <div class="section-title"><h2>Historique des matchs</h2>${DB.matchs.length ? '<button class="link" id="hx">Exporter CSV</button>' : ''}</div>
-      <div class="card" style="padding:0">${DB.matchs.length ? DB.matchs.slice().reverse().slice(0, 15).map((m, j) => { const i = DB.matchs.length - 1 - j;
+      ${(window.eleveMode && eleveMode()) ? '<div class="card muted" style="margin-top:14px;text-align:center">🔒 Historique des matchs réservé à l\'enseignant</div>' : ''}<div class="section-title" style="${(window.eleveMode && eleveMode()) ? 'display:none' : ''}"><h2>Historique des matchs</h2>${DB.matchs.length ? '<button class="link" id="hx">Exporter CSV</button>' : ''}</div>
+      <div class="card" style="padding:0;${(window.eleveMode && eleveMode()) ? 'display:none' : ''}">${DB.matchs.length ? DB.matchs.map((m, i) => [m, i]).reverse().filter(([m]) => inG(m.sport)).slice(0, 15).map(([m, i]) => {
         return `<div class="list-item"><div style="flex:1"><b>${m.obsOnly ? `👁 Observations · ${esc(m.a)} vs ${esc(m.b)}` : `${esc(m.a)} ${m.sa} – ${m.sb} ${esc(m.b)}`}</b>${m.tid ? `<span class="tn-tag">🏆 ${esc((TR().find(x => x.id === m.tid) || {}).nom || m.tn || 'Tournoi')}${m.defi && !m.obsOnly ? m.libre ? ' · libre' : ' · défi' : m.tid && !m.rid && !m.obsOnly ? ' · amical' : ''}</span>` : ''}<div class="muted">${esc(SPORTS[m.sport]?.name || m.sport)} · ${new Date(m.date).toLocaleDateString('fr-FR')} ${new Date(m.date).toLocaleTimeString('fr-FR').slice(0, 5)}</div></div><button class="btn btn-ghost" data-v="${i}">👁</button><button class="btn btn-ghost" data-cfg="bare" data-x="${i}">🗑</button></div>`; }).join('') : '<div class="empty">Aucun match enregistré.</div>'}</div>`;
     const $ = s => el.querySelector(s);
     const keep = () => { S.a = $('#na').value.trim() || 'Équipe A'; S.b = $('#nb').value.trim() || 'Équipe B';

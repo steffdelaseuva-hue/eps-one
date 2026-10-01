@@ -15,8 +15,13 @@ if (!document.getElementById('gv-ath')) document.head.insertAdjacentHTML('before
 .gv-big{font-size:1.2rem;padding:16px;margin-top:12px}
 </style>`);
 /* Objectifs affichés sous les boutons d'étape (aide pour les élèves) */
-const DUA_OBJ = ['15 points de lancers · 6 tours en relais', '20 points · 8 tours en relais', '30 points · 8 tours en binômes'];
-const duaObj = k => `<small style="display:block;font-weight:600;font-size:.72rem;opacity:.75;margin-top:3px;line-height:1.2">${DUA_OBJ[k]}</small>`;
+/* Points de lancers à atteindre (en groupe) avant de pouvoir courir : réglables à la préparation */
+const DUA_SEUIL = [15, 20, 30];
+const duaSeuil = (c, e) => { const v = c && Array.isArray(c.seuil) ? +c.seuil[e] : NaN; return v > 0 ? v : DUA_SEUIL[e]; };
+/* Tours comptés en commun (une seule case pour le binôme / groupe) : étape 3 par défaut */
+const duaCommun = (c, e) => c && Array.isArray(c.tc) ? !!c.tc[e] : e === 2;
+const DUA_OBJ = ['6 tours en relais', '8 tours en relais', '8 tours en binômes'];
+const duaObj = (k, c) => `<small style="display:block;font-weight:600;font-size:.72rem;opacity:.75;margin-top:3px;line-height:1.2">${duaSeuil(c, k)} points de lancers · ${DUA_OBJ[k]}</small>`;
 const dmss = s => { if (s == null || isNaN(s)) return '–'; s = Math.round(s); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
 
 /* ---- Potentiel VMA et coefficient de performance / maîtrise ---- */
@@ -58,7 +63,7 @@ function duaVmaSync(cls, force) {
 
 TOOL_IMPL.duathlon = function (el) {
   let tab = 'seance', iv, rk = 'temps';
-  const D = DB.duathlon;
+  const D = liveDB(() => DB.duathlon = DB.duathlon || { seances: [], current: null });   // toujours l'objet synchronisé actuel
   function frame() {
     el.innerHTML = `<div class="co-tabs">${[['seance', '⏱ Épreuve'], ['resultats', '📊 Résultats']].map(([k, l]) => `<button data-tab="${k}" class="${tab === k ? 'on' : ''}">${l}</button>`).join('')}</div><div id="d-body"></div>`;
     el.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => { tab = b.dataset.tab; frame(); });
@@ -70,7 +75,7 @@ TOOL_IMPL.duathlon = function (el) {
   const mem = (g, e, n) => g.etapes[e].m[n];
   const stepOf = (c, g, e) => {
     const E = g.etapes[e], ms = g.members.map(n => E.m[n]);
-    const pts = ms.reduce((a, m) => a + m.pts, 0), tours = ms.reduce((a, m) => a + m.tours, 0);
+    const pts = ms.reduce((a, m) => a + m.pts, 0), tours = duaCommun(c, e) ? (E.tc || 0) : ms.reduce((a, m) => a + m.tours, 0);
     const inval = ms.reduce((a, m) => a + m.inval, 0), penC = ms.reduce((a, m) => a + m.penC, 0);
     const temps = E.dep && E.arr ? (E.arr - E.dep) / 1000 : null;
     const penS = c.optC ? penC * c.secC : 0;
@@ -131,6 +136,10 @@ TOOL_IMPL.duathlon = function (el) {
         <div id="olw"><label>Tours de petite boucle par lancer non valide</label><input id="bo" type="number" min="1" value="${c.boucles}"></div>
         <label style="display:flex;gap:8px;align-items:center;margin-top:12px"><input type="checkbox" id="oc" ${c.optC ? 'checked' : ''} style="width:auto"> Pénalité de course (secondes ajoutées)</label>
         <div id="ocw"><label>Secondes par pénalité</label><input id="sc" type="number" min="1" value="${c.secC}"></div>
+        <label>🎯 Points de lancers à atteindre en groupe avant de courir</label><div class="row">${[0, 1, 2].map(k => `<div><label style="margin-top:0;font-size:.8rem">Étape ${k + 1}</label><input id="se${k}" type="number" min="1" value="${duaSeuil(c, k)}"></div>`).join('')}</div>
+        <p class="muted" style="margin:4px 0 0;font-size:.8rem">Tant que le groupe n'a pas atteint ces points, les boutons ＋/− des tours sont bloqués.</p>
+        <label>🏃 Tours comptés en commun (une seule case pour le binôme / groupe)</label><div class="row">${[0, 1, 2].map(k => `<label style="display:flex;gap:6px;align-items:center;margin:4px 0;font-weight:700;color:var(--text)"><input type="checkbox" id="tc${k}" ${duaCommun(c, k) ? 'checked' : ''} style="width:auto"> Étape ${k + 1}</label>`).join('')}</div>
+        <p class="muted" style="margin:2px 0 0;font-size:.8rem">Coché : les élèves qui courent ensemble cochent <b>un seul</b> compteur de tours (ex. étape 3 : 8 tours en binôme, pas 8 + 8).</p>
         <label>Distance d'épreuve (m) — pour le coefficient de maîtrise</label><input id="di" type="number" min="100" step="100" value="${c.dist || DUA_DIST}"></div>
       <div class="card" data-cfg style="margin-top:12px"><h3>Groupes</h3><label style="margin-top:0">Taille des groupes</label><div class="seg" id="sz">${[[2, 'Duos'], [3, 'Trios'], [4, 'Quatuors']].map(([n, l]) => `<button data-n="${n}">${l}</button>`).join('')}</div><div id="cmp" style="margin-top:6px"></div></div>
       <div id="vmac"></div>`;
@@ -139,7 +148,7 @@ TOOL_IMPL.duathlon = function (el) {
     $('#ol').onchange = $('#oc').onchange = vis; vis();
     mountComposer($('#cmp'), { id: 'dua', modes: ['random', 'hetero', 'homo'], button: '▶ Former les groupes et commencer',
       onTeams: teams => {
-        const cfg = { optL: $('#ol').checked, boucles: Math.max(1, +$('#bo').value || 1), optC: $('#oc').checked, secC: Math.max(1, +$('#sc').value || 10), dist: Math.max(100, +$('#di').value || DUA_DIST) };
+        const cfg = { optL: $('#ol').checked, boucles: Math.max(1, +$('#bo').value || 1), optC: $('#oc').checked, secC: Math.max(1, +$('#sc').value || 10), dist: Math.max(100, +$('#di').value || DUA_DIST), seuil: [0, 1, 2].map(k => Math.max(1, +$('#se' + k).value || DUA_SEUIL[k])), tc: [0, 1, 2].map(k => $('#tc' + k).checked) };
         D.lastCfg = cfg;
         const blank = () => ({ pts: 0, tours: 0, inval: 0, penC: 0 }), cls = $('#dua-cls')?.value || '';
         D.current = { id: Date.now().toString(36), date: Date.now(), nom: $('#nm').value.trim() || 'Duathlon', classe: cls, cfg, etape: 0,
@@ -152,38 +161,48 @@ TOOL_IMPL.duathlon = function (el) {
     const vc = () => vmaCard($('#vmac'), $('#dua-cls')?.value || '');
     if ($('#dua-cls')) $('#dua-cls').addEventListener('change', vc); vc();
     partMount(box, 'duathlon', p => join(box, p));
+    if (typeof partOutboxCard === 'function') { const ob = document.createElement('div'); box.prepend(ob); partOutboxCard(ob, 'duathlon', () => D.seances, rec => D.seances.push(rec)); }
   }
 
   /* ---- Épreuve en direct ---- */
   function live(box) {
     const C = D.current, c = C.cfg;
-    const hasData = g => g.etapes.some(E => E.dep || Object.values(E.m).some(m => m.pts || m.tours || m.inval || m.penC));
+    const hasData = g => g.etapes.some(E => E.dep || E.tc || Object.values(E.m).some(m => m.pts || m.tours || m.inval || m.penC));
     const saveSeance = () => {
       // seuls les groupes ayant des résultats sont enregistrés (une tablette par groupe → pas de lignes vides)
       const done = C.groups.filter(hasData); if (!done.length) return toast('Aucun groupe n\'a de résultat');
       if (C.only != null && done.some(g => g.etapes.some(E => E.dep && !E.arr)) && !confirm('Une étape n\'est pas terminée (pas d\'arrivée). Enregistrer quand même ?')) return;
       const rec = { ...C, id: C.id + '-' + Math.random().toString(36).slice(2, 6), groups: done }; delete rec.only; delete rec.joined;   // id unique par tablette (fusion de synchro par id)
-      D.seances.push(rec); D.current = null;
+      D.seances.push(rec); const wasGroup = C.only != null; D.current = null;
+      if (typeof partOutboxAdd === 'function') partOutboxAdd('duathlon', rec, `${done.map(g => g.name).join(', ')} · ${C.nom}`);
       // synthèse « Résultats des élèves » : une ligne par élève des groupes enregistrés
-      done.forEach(g => { const T = totalOf(c, g), R = potOf(C, g, T), vt = R.manque ? ' · VMA manquante' : ` · potentiel VMA ${duaFr(R.pot)} km/h${R.coef != null ? ` · coef. maîtrise ${duaPct(R.coef)} (${duaFr(R.vReal)} km/h sur ${duaFr((c.dist || DUA_DIST) / 1000, 2)} km)` : ''}`; g.members.forEach(n => { const P = [0, 1, 2].reduce((a, e) => { const m = g.etapes[e].m[n] || {}; a.pts += m.pts || 0; a.tours += m.tours || 0; return a; }, { pts: 0, tours: 0 });
+      done.forEach(g => { const T = totalOf(c, g), R = potOf(C, g, T), vt = R.manque ? ' · VMA manquante' : ` · potentiel VMA ${duaFr(R.pot)} km/h${R.coef != null ? ` · coef. maîtrise ${duaPct(R.coef)} (${duaFr(R.vReal)} km/h sur ${duaFr((c.dist || DUA_DIST) / 1000, 2)} km)` : ''}`; g.members.forEach(n => { const P = [0, 1, 2].reduce((a, e) => { const m = g.etapes[e].m[n] || {}; a.pts += m.pts || 0; a.tours += duaCommun(c, e) ? (g.etapes[e].tc || 0) : (m.tours || 0); return a; }, { pts: 0, tours: 0 });
         saveResult({ tool: 'duathlon', label: 'Duathlon athlétique', classe: C.classe, eleve: n, valeur: T.temps != null ? `${dmss(T.temps)} (temps groupe)` : `${dmss(T.partiel)} (${T.done}/3 étapes)`,
           detail: `${g.name} · groupe ${T.pts} pts · ${T.tours} tours · perso ${P.pts} pts · ${P.tours} tours${T.boucles ? ` · ${T.boucles} boucle(s)` : ''}${T.penS ? ` · +${T.penS} s` : ''}${vt}` }); }); });
-      save(); clearInterval(iv); toast('Duathlon enregistré ✔'); tab = 'resultats'; frame(); };
+      save(); clearInterval(iv); const s0 = typeof partSync === 'function' && partSync(); if (s0 && s0.send) s0.send(); toast('Duathlon enregistré ✔'); tab = wasGroup ? 'seance' : 'resultats'; frame(); };
+    // Suivi des tablettes des groupes : résultats reçus pour cette séance (même séance partagée = même identifiant)
+    const recvHTML = () => { if (C.joined || !partGet(C.id) && !D.seances.some(r => String(r.id).startsWith(C.id + '-'))) return '';
+      const got = new Set(D.seances.filter(r => String(r.id).startsWith(C.id + '-')).flatMap(r => (r.groups || []).map(g => g.name)));
+      return `<div class="card" style="margin-top:12px"><h3 style="margin-top:0">📥 Résultats reçus des tablettes : ${C.groups.filter(g => got.has(g.name)).length} / ${C.groups.length}</h3>
+        <div style="display:flex;flex-wrap:wrap;gap:6px">${C.groups.map(g => `<span class="pill" style="font-size:.85rem;padding:6px 10px;${got.has(g.name) ? 'background:rgba(27,158,90,.15);color:#1B9E5A' : ''}">${got.has(g.name) ? '✅' : '⏳'} ${esc(g.name)}</span>`).join('')}</div>
+        <p class="muted" style="font-size:.78rem;margin:8px 0 0">⏳ = pas encore reçu : le groupe doit toucher « 💾 Enregistrer », et sa tablette avoir du réseau.</p></div>`; };
     const etT = E => E.dep ? ((E.arr || Date.now()) - E.dep) / 1000 : 0;
     // Vue « un seul groupe » : ce que voient les élèves sur leur tablette
     const drawGroup = () => {
       const gi = C.only, g = C.groups[gi], e = C.etape, E = g.etapes[e], s = stepOf(c, g, e), T = totalOf(c, g);
-      const L = [['pts', '🎯 Points lancers'], ['tours', '🏃 Tours'], ...(c.optL ? [['inval', '❌ Lancers non valides']] : []), ...(c.optC ? [['penC', '⚠️ Pénalités course']] : [])];
+      const L = [['pts', '🎯 Points lancers'], ...(c.optL ? [['inval', '❌ Lancers non valides']] : []), ...(duaCommun(c, e) ? [] : [['tours', '🏃 Tours']]), ...(c.optC ? [['penC', '⚠️ Pénalités course']] : [])], sv = duaSeuil(c, e), lock = s.pts < sv, com = duaCommun(c, e);
       box.innerHTML = `<div class="card" style="text-align:center"><div style="font-weight:900;font-size:1.3rem">${esc(g.name)}</div><div class="muted">${g.members.map(esc).join(', ')}</div>
-          <div class="seg" style="margin-top:10px">${[0, 1, 2].map(k => `<button data-e="${k}" class="${k === e ? 'on' : ''}" style="padding:12px 4px">Étape ${k + 1}${g.etapes[k].arr ? ' ✅' : ''}${duaObj(k)}</button>`).join('')}</div>
+          <div class="seg" style="margin-top:10px">${[0, 1, 2].map(k => `<button data-e="${k}" class="${k === e ? 'on' : ''}" style="padding:12px 4px">Étape ${k + 1}${g.etapes[k].arr ? ' ✅' : ''}${duaObj(k, c)}</button>`).join('')}</div>
           <div class="gv-clock" data-live="${gi}" style="color:${E.arr ? '#1B9E5A' : 'inherit'}">${dmss(etT(E))}</div>
           ${!E.dep ? `<button class="btn btn-grad btn-block gv-big" data-go="${gi}">▶ Départ — étape ${e + 1}</button>` : ''}
           ${E.dep && !E.arr ? `<button class="btn btn-danger btn-block gv-big" data-fin="${gi}">🏁 Arrivée — étape ${e + 1}</button>` : ''}
           ${E.arr ? `<div style="margin-top:8px;font-weight:800">✅ Étape ${e + 1} : ${dmss(s.total)}${s.penS ? ` (dont ${s.penS} s de pénalité)` : ''} <button class="link" data-undo="${gi}">↺ annuler</button></div>` : ''}
+          <div style="margin-top:10px;padding:10px;border-radius:12px;font-weight:800;${lock ? 'background:rgba(220,38,38,.1);color:var(--danger)' : 'background:rgba(27,158,90,.12);color:#1B9E5A'}">${lock ? `🔒 Course bloquée : ${s.pts} / ${sv} points de lancers` : `✅ ${sv} points atteints : la course est ouverte !`}</div>
+          ${com ? `<div class="gv-cnt" style="margin-top:12px;${lock ? 'opacity:.6' : ''}"><span class="l" style="font-size:1.1rem">🏃 Tours ${g.members.length === 2 ? 'du binôme' : 'du groupe'}${lock ? ' 🔒' : ''}<br><small class="muted" style="font-weight:600">un tour = le ${g.members.length === 2 ? 'binôme' : 'groupe'} a couru ensemble</small></span><button class="btn btn-ghost" data-tcd="${gi}"${lock ? ' disabled style="opacity:.35"' : ''}>−</button><b style="font-size:1.6rem">${E.tc || 0}</b><button class="btn btn-grad" data-tci="${gi}"${lock ? ' disabled style="opacity:.35"' : ''}>+</button></div>` : ''}
           ${c.optL && s.boucles ? `<div style="margin-top:8px;font-weight:800;color:var(--danger)">🔁 ${s.boucles} petite(s) boucle(s) de pénalité</div>` : ''}</div>
         ${g.members.map((n, mi) => { const m = mem(g, e, n);
           return `<div class="card" style="margin-top:10px"><b style="font-size:1.2rem">${esc(n)}</b>
-            ${L.map(([k, l]) => `<div class="gv-cnt"><span class="l">${l}</span><button class="btn btn-ghost" data-dec="${gi}|${mi}|${k}">−</button><b>${m[k]}</b><button class="btn ${k === 'pts' || k === 'tours' ? 'btn-grad' : 'btn-ghost'}" data-inc="${gi}|${mi}|${k}">+</button></div>`).join('')}</div>`; }).join('')}
+            ${L.map(([k, l]) => { const off = k === 'tours' && lock ? ' disabled style="opacity:.35"' : ''; return `<div class="gv-cnt"${k === 'tours' && lock ? ' style="opacity:.6"' : ''}><span class="l">${l}${k === 'tours' && lock ? ' 🔒' : ''}</span><button class="btn btn-ghost" data-dec="${gi}|${mi}|${k}"${off}>−</button><b>${m[k]}</b><button class="btn ${k === 'pts' || k === 'tours' ? 'btn-grad' : 'btn-ghost'}" data-inc="${gi}|${mi}|${k}"${off}>+</button></div>`; }).join('')}</div>`; }).join('')}
         <div class="card" style="margin-top:10px;text-align:center"><b>Groupe · étape ${e + 1}</b> : ${s.pts} pts · ${s.tours} tours${c.optL ? ` · ${s.inval} lancer(s) ✗` : ''}
           <div class="muted" style="margin-top:4px">Cumul ${T.done}/3 étapes : <b style="color:var(--text)">${dmss(T.partiel)}</b> · ${T.pts} pts · ${T.tours} tours</div></div>
         ${T.done === 3 ? (() => { const R = potOf(C, g, T); return `<div class="card" style="margin-top:10px;text-align:center"><b style="font-size:1.1rem">⚡ Bilan des 3 étapes</b>
@@ -202,7 +221,14 @@ TOOL_IMPL.duathlon = function (el) {
       all('[data-go]').forEach(b => b.onclick = () => { C.groups[+b.dataset.go].etapes[e].dep = Date.now(); beep(1300, .3); keep(); redraw(); });
       all('[data-fin]').forEach(b => b.onclick = () => { C.groups[+b.dataset.fin].etapes[e].arr = Date.now(); beep(1000, .3); keep(); redraw(); });
       all('[data-undo]').forEach(b => b.onclick = () => { C.groups[+b.dataset.undo].etapes[e].arr = null; keep(); redraw(); });
-      const upd = (key, d) => { const [gi, mi, k] = key.split('|'), g = C.groups[+gi]; const m = g.etapes[e].m[g.members[+mi]]; m[k] = Math.max(0, m[k] + d); if (d > 0 && C.only != null) beep(900, .05); keep(); redraw(); };
+      const upd = (key, d) => { const [gi, mi, k] = key.split('|'), g = C.groups[+gi]; const m = g.etapes[e].m[g.members[+mi]], sv = duaSeuil(c, e), before = stepOf(c, g, e).pts;
+        if (k === 'tours' && before < sv) return toast(`🔒 Tours bloqués : ${before} / ${sv} points de lancers`);
+        m[k] = Math.max(0, m[k] + d); if (k === 'pts' && before < sv && stepOf(c, g, e).pts >= sv) { toast(`✅ ${sv} points : la course est ouverte !`); [0, 150].forEach(t => setTimeout(() => beep(1400, .12), t)); } if (d > 0 && C.only != null) beep(900, .05); keep(); redraw(); };
+      const updT = (gi, d) => { const g = C.groups[+gi], E = g.etapes[e], sv = duaSeuil(c, e), p = stepOf(c, g, e).pts;
+        if (p < sv) return toast(`🔒 Tours bloqués : ${p} / ${sv} points de lancers`);
+        E.tc = Math.max(0, (E.tc || 0) + d); if (d > 0 && C.only != null) beep(900, .05); keep(); redraw(); };
+      all('[data-tci]').forEach(b => b.onclick = () => updT(b.dataset.tci, 1));
+      all('[data-tcd]').forEach(b => b.onclick = () => updT(b.dataset.tcd, -1));
       all('[data-inc]').forEach(b => b.onclick = () => upd(b.dataset.inc, 1));
       all('[data-dec]').forEach(b => b.onclick = () => upd(b.dataset.dec, -1));
       all('[data-pts]').forEach(i => i.onchange = () => { const [gi, mi] = i.dataset.pts.split('|'), g = C.groups[+gi]; g.etapes[e].m[g.members[+mi]].pts = Math.max(0, +i.value || 0); keep(); redraw(); });
@@ -212,18 +238,19 @@ TOOL_IMPL.duathlon = function (el) {
       if (C.only != null && C.groups[C.only]) return drawGroup();
       const e = C.etape;
       box.innerHTML = `<div class="card"><b>${esc(C.nom)}</b><div class="muted">${esc(C.classe)} · ${C.groups.length} groupes${c.optL ? ` · ${c.boucles} boucle(s) par lancer non valide` : ''}${c.optC ? ` · pénalité course ${c.secC} s` : ''} · distance ${duaFr((c.dist || DUA_DIST) / 1000, 2)} km</div>
-          <label>Étape</label><div class="seg" id="et">${[0, 1, 2].map(k => `<button data-e="${k}" class="${k === e ? 'on' : ''}">Étape ${k + 1}${duaObj(k)}</button>`).join('')}</div>
+          <label>Étape</label><div class="seg" id="et">${[0, 1, 2].map(k => `<button data-e="${k}" class="${k === e ? 'on' : ''}">Étape ${k + 1}${duaObj(k, c)}</button>`).join('')}</div>
           <button class="btn btn-grad btn-block" style="margin-top:10px" id="all">🚩 Départ groupé — étape ${e + 1}</button><button class="btn btn-ghost btn-block" data-cfg="bare" style="margin-top:8px" id="edg">✏️ Modifier les groupes / participants (absent, blessé…)</button>
           ${C.groups.length > 1 ? `<div data-cfg="bare"><label>📱 Tablette d'un groupe (les élèves ne verront que leur groupe)</label><select id="only"><option value="">Tous les groupes</option>${C.groups.map((g, i) => `<option value="${i}">${esc(g.name)}</option>`).join('')}</select></div>` : ''}</div>
         ${C.groups.map((g, gi) => { const E = g.etapes[e], s = stepOf(c, g, e), T = totalOf(c, g);
           return `<div class="run ${E.arr ? 'fin' : E.dep ? 'go' : ''}"><div class="run-h"><b>${esc(g.name)}</b><span class="run-t" data-live="${gi}">${s.temps != null ? dmss(s.temps) : E.dep ? '…' : '0:00'}</span></div>
             <div class="row" style="margin-top:6px">${E.dep ? '' : `<button class="btn btn-grad" data-go="${gi}">▶ Départ</button>`}${E.dep && !E.arr ? `<button class="btn btn-danger" data-fin="${gi}">🏁 Arrivée</button>` : ''}${E.arr ? `<button class="btn btn-ghost" data-undo="${gi}">↺ Annuler l'arrivée</button>` : ''}</div>
-            <div class="sheet-table" style="margin-top:8px"><table><tr><th>Élève</th><th>Pts</th><th>Tours</th>${c.optL ? '<th>Lancers ✗</th>' : ''}${c.optC ? '<th>Pén.</th>' : ''}</tr>
-              ${g.members.map((n, mi) => { const m = mem(g, e, n), cell = (k, v) => `<td><div style="display:flex;align-items:center;gap:4px;justify-content:center"><button class="btn btn-ghost" style="padding:4px 9px" data-dec="${gi}|${mi}|${k}">−</button><b style="min-width:22px;text-align:center">${v}</b><button class="btn btn-ghost" style="padding:4px 9px" data-inc="${gi}|${mi}|${k}">+</button></div></td>`;
-                return `<tr><td><b>${esc(n)}</b></td>${cell('pts', m.pts)}${cell('tours', m.tours)}${c.optL ? cell('inval', m.inval) : ''}${c.optC ? cell('penC', m.penC) : ''}</tr>`; }).join('')}
-              <tr><td><b>Groupe</b></td><td><b>${s.pts}</b></td><td><b>${s.tours}</b></td>${c.optL ? `<td><b>${s.inval}</b> → <b>${s.boucles}</b> boucle(s)</td>` : ''}${c.optC ? `<td><b>+${s.penS} s</b></td>` : ''}</tr></table></div>
+            <div class="sheet-table" style="margin-top:8px"><table><tr><th>Élève</th><th>Pts</th>${c.optL ? '<th>Lancers ✗</th>' : ''}<th>Tours${s.pts < duaSeuil(c, e) ? ' 🔒' : ''}</th>${c.optC ? '<th>Pén.</th>' : ''}</tr>
+              ${g.members.map((n, mi) => { const m = mem(g, e, n), off = k => k === 'tours' && s.pts < duaSeuil(c, e) ? ' disabled style="padding:4px 9px;opacity:.35"' : ' style="padding:4px 9px"', cell = (k, v) => `<td><div style="display:flex;align-items:center;gap:4px;justify-content:center"><button class="btn btn-ghost" data-dec="${gi}|${mi}|${k}"${off(k)}>−</button><b style="min-width:22px;text-align:center">${v}</b><button class="btn btn-ghost" data-inc="${gi}|${mi}|${k}"${off(k)}>+</button></div></td>`;
+                return `<tr><td><b>${esc(n)}</b></td>${cell('pts', m.pts)}${c.optL ? cell('inval', m.inval) : ''}${duaCommun(c, e) ? '<td class="muted">↓</td>' : cell('tours', m.tours)}${c.optC ? cell('penC', m.penC) : ''}</tr>`; }).join('')}
+              <tr><td><b>Groupe</b></td><td><b>${s.pts}</b>${s.pts < duaSeuil(c, e) ? `<div class="muted" style="font-size:.7rem">/ ${duaSeuil(c, e)}</div>` : ' ✅'}</td>${c.optL ? `<td><b>${s.inval}</b> → <b>${s.boucles}</b> boucle(s)</td>` : ''}<td>${duaCommun(c, e) ? (() => { const lk = s.pts < duaSeuil(c, e), d = lk ? ' disabled style="padding:4px 9px;opacity:.35"' : ' style="padding:4px 9px"'; return `<div style="display:flex;align-items:center;gap:4px;justify-content:center"><button class="btn btn-ghost" data-tcd="${gi}"${d}>−</button><b style="min-width:22px;text-align:center">${s.tours}</b><button class="btn btn-ghost" data-tci="${gi}"${d}>+</button></div><div class="muted" style="font-size:.7rem">en commun</div>`; })() : `<b>${s.tours}</b>`}</td>${c.optC ? `<td><b>+${s.penS} s</b></td>` : ''}</tr></table></div>
             <div class="muted" style="font-size:.82rem;margin-top:6px">Étape ${e + 1} : ${s.total != null ? `<b style="color:var(--text)">${dmss(s.total)}</b>${s.penS ? ` (dont ${s.penS} s de pénalité)` : ''}` : '—'} · Cumul ${T.done}/3 étapes : <b style="color:var(--text)">${dmss(T.partiel)}</b> · ${T.pts} pts · ${T.tours} tours</div>
             <div class="muted" style="font-size:.82rem;margin-top:4px">${potTxt(potOf(C, g, T))}</div></div>`; }).join('')}
+        <div id="dua-recv">${recvHTML()}</div>
         <div id="vmac"></div>
         <div class="section-title"><h2>Classement provisoire</h2></div>${table(C)}
         <div class="row" style="margin-top:12px"><button class="btn btn-grad" data-cfg="bare" id="save">💾 Terminer et enregistrer</button><button class="btn btn-ghost" data-cfg="bare" id="cancel">Abandonner</button></div>`;
@@ -244,6 +271,7 @@ TOOL_IMPL.duathlon = function (el) {
       $('#cancel').onclick = () => { if (confirm('Abandonner cette épreuve ?')) { partAskRemove(C); D.current = null; save(); clearInterval(iv); prepare(box); } };
     };
     const tick = () => { if (!box.isConnected || !D.current) return clearInterval(iv);
+      { const rv = box.querySelector('#dua-recv'); if (rv && (tick.n = (tick.n || 0) + 1) % 4 === 0) { const h = recvHTML(); if (rv.innerHTML !== h) rv.innerHTML = h; } }
       C.groups.forEach((g, gi) => { const E = g.etapes[C.etape], l = box.querySelector(`[data-live="${gi}"]`); if (l && E.dep && !E.arr) l.textContent = dmss((Date.now() - E.dep) / 1000); }); };
     draw(); clearInterval(window._duaTick); iv = window._duaTick = setInterval(tick, 500);
   }
@@ -286,7 +314,7 @@ TOOL_IMPL.duathlon = function (el) {
         'Distance (m)', 'VMA élève (km/h)', 'Potentiel VMA (km/h)', 'VMA moyenne (km/h)', 'Vitesse réalisée (km/h)', 'Coef. maîtrise (%)'],
       ...S.flatMap(C => C.groups.flatMap(g => { const T = totalOf(C.cfg, g), R = potOf(C, g, T), f = x => x == null ? '' : duaFr(x, 2);
         return [0, 1, 2].flatMap(e => g.members.map(n => { const m = g.etapes[e].m[n];
-          return [C.nom, new Date(C.date).toLocaleDateString('fr-FR'), C.classe, g.name, n, e + 1, m.pts, m.tours, C.cfg.optL ? m.inval : '', C.cfg.optL ? m.inval * C.cfg.boucles : '', C.cfg.optC ? m.penC : '', dmss(T.st[e].total), T.temps != null ? dmss(T.temps) : '',
+          return [C.nom, new Date(C.date).toLocaleDateString('fr-FR'), C.classe, g.name, n, e + 1, m.pts, duaCommun(C.cfg, e) ? (g.etapes[e].tc || 0) : m.tours, C.cfg.optL ? m.inval : '', C.cfg.optL ? m.inval * C.cfg.boucles : '', C.cfg.optC ? m.penC : '', dmss(T.st[e].total), T.temps != null ? dmss(T.temps) : '',
             C.cfg.dist || DUA_DIST, f(vmaOf(g, n, C.classe)), R.manque ? 'VMA manquante' : f(R.pot), R.manque ? '' : f(R.vMoy), f(R.vReal), R.coef != null ? Math.round(R.coef * 100) : '']; })); }))]));
   }
 

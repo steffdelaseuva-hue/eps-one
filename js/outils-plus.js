@@ -75,7 +75,15 @@ const csv = rows => rows.map(r => r.map(v => { v = String(v ?? ''); return /[;"\
 function classNameSelect(id, withAll) {
   return `<select id="${id}">${withAll ? '<option value="">Toutes les classes</option>' : ''}${DB.classes.map(c => `<option value="${esc(c.name)}">${esc(c.name)}</option>`).join('')}</select>`;
 }
-const studentsOf = name => (DB.classes.find(c => c.name === name) || (DB.classesAll || []).find(c => c.name === name) || { students: [] }).students;
+/* Accès « vivant » à une rubrique de DB : la synchronisation remplace DB.xxx par un nouvel objet
+   quand des données arrivent d'une autre tablette. Un outil ouvert qui gardait l'ancien objet
+   écrivait alors dans le vide (ex. résultats d'un groupe perdus). Ce proxy relit toujours DB.xxx. */
+const liveDB = get => new Proxy({}, {
+  get: (_, p) => get()[p], set: (_, p, v) => { get()[p] = v; return true; }, deleteProperty: (_, p) => { delete get()[p]; return true; },
+  has: (_, p) => p in get(), ownKeys: () => Reflect.ownKeys(get()),
+  getOwnPropertyDescriptor: (_, p) => { const d = Reflect.getOwnPropertyDescriptor(get(), p); if (d) d.configurable = true; return d; } });
+const allCls = () => (window.dbGet ? dbGet('classes') : DB.classes) || [];   // mode Équipe : toutes les classes de l'équipe
+const studentsOf = name => (allCls().find(c => c.name === name) || (DB.classesAll || []).find(c => c.name === name) || { students: [] }).students;
 /* « Autres classes du collège » (hors EPS) : rangées dans DB.classesAll, visibles seulement dans Mes classes et le Cross */
 const otherClasses = () => (DB.classesAll = DB.classesAll || []);
 const noClassMsg = '<div class="card empty">Créez d\'abord une classe dans l\'outil <b>🗂 Mes classes</b>.<br><br><button class="btn btn-grad" onclick="closeTool();openTool(\'classes\')">Ouvrir Mes classes</button></div>';
@@ -250,19 +258,23 @@ dispenses(el) {
     el.querySelectorAll('[data-d]').forEach(b => b.onclick = () => { if (confirm('Supprimer ?')) { DB.dispenses.splice(b.dataset.d, 1); save(); draw(); } });
   };
   el.innerHTML = `<div class="card" data-cfg><h3>Nouvelle dispense</h3>
-    <div class="row"><div><label>Classe</label>${DB.classes.length ? classNameSelect('cl') : '<input id="cl" placeholder="ex : 6E1">'}</div><div><label>Élève</label><input id="el" list="eleves" placeholder="Nom de l'élève"><datalist id="eleves"></datalist></div></div>
+    <div class="row"><div><label>Classe</label>${DB.classes.length ? classNameSelect('cl') : '<input id="cl" placeholder="ex : 6E1">'}</div><div><label>Élève</label><select id="els"></select><input id="el" placeholder="Nom de l'élève" style="display:none;margin-top:6px"></div></div>
     <div class="row"><div><label>Type</label><select id="ty"><option>Partielle</option><option>Totale</option></select></div><div><label>Du</label><input id="db" type="date" value="${today()}"></div><div><label>Au</label><input id="fn" type="date"></div></div>
     <label>Remarque (activités possibles, aménagements…)</label><input id="nt">
     <button class="btn btn-grad btn-block" style="margin-top:12px" id="add">＋ Enregistrer</button></div>
     <div style="margin-top:14px"><label>Filtrer</label>${classNameSelect('fc', true)}</div><div id="lists"></div>`;
   const $ = s => el.querySelector(s);
-  const fillDl = () => $('#eleves').innerHTML = studentsOf($('#cl').value).map(n => `<option value="${esc(n)}">`).join('');
+  // Liste des élèves de la classe choisie (un <select> : la « datalist » ne s'affiche pas sur iPhone/iPad)
+  const fillDl = () => { const st = studentsOf($('#cl').value), sel = $('#els'), inp = $('#el'), act = new Set(DB.dispenses.filter(d => d.classe === $('#cl').value && (!d.fin || d.fin >= today())).map(d => d.eleve));
+    sel.innerHTML = st.length ? `<option value="">— Choisir l'élève (${st.length}) —</option>${st.map(n => `<option value="${esc(n)}">${esc(n)}${act.has(n) ? ' · déjà dispensé·e' : ''}</option>`).join('')}<option value="__autre">✏️ Autre élève (saisie libre)</option>` : '';
+    sel.style.display = st.length ? '' : 'none'; inp.style.display = st.length ? 'none' : ''; inp.value = ''; };
+  $('#els').onchange = () => { const o = $('#els').value === '__autre'; $('#el').style.display = o ? '' : 'none'; if (o) $('#el').focus(); };
   $('#cl').onchange = fillDl; fillDl();
   $('#fc').onchange = draw;
   $('#add').onclick = () => {
-    const eleve = $('#el').value.trim(); if (!eleve) return toast('Nom de l\'élève requis');
+    const sv = $('#els').style.display !== 'none' ? $('#els').value : '__autre', eleve = (sv === '__autre' ? $('#el').value : sv).trim(); if (!eleve) return toast('Choisissez l\'élève');
     DB.dispenses.push({ classe: $('#cl').value, eleve, type: $('#ty').value, debut: $('#db').value, fin: $('#fn').value, note: $('#nt').value.trim() });
-    save(); $('#el').value = ''; $('#nt').value = ''; $('#fn').value = ''; toast('Dispense enregistrée ✔'); draw();
+    save(); $('#nt').value = ''; $('#fn').value = ''; fillDl(); toast('Dispense enregistrée ✔'); draw();
   };
   draw();
 },

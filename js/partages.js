@@ -1,7 +1,7 @@
 /* =========================================================
    EPS ONE — Séances partagées entre tablettes
    Une séance lancée sur une tablette (Duathlon, Combiné, Crosstraining,
-   Course d'orientation) publie un MODÈLE (groupes + épreuve, sans
+   Course d'orientation, Demi-fond, Sauvetage, Escalade, Natation) publie un MODÈLE (groupes + épreuve, sans
    résultats) dans DB.partages (synchronisé). Les autres tablettes du
    même compte peuvent la « Rejoindre » puis suivre un groupe.
    La séance en cours (current / only) reste propre à chaque tablette.
@@ -63,4 +63,41 @@ function partPickGroup(box, groups, onPick, indiv) {
     ${groups.map((g, i) => `<button class="btn btn-grad btn-block" data-pg="${i}" style="margin-top:10px;padding:16px;font-size:1.2rem;text-align:left;display:block">${esc(g.name)}${!indiv && g.members && g.members.length ? `<div style="font-size:.85rem;font-weight:600;opacity:.9">${g.members.map(esc).join(', ')}</div>` : ''}</button>`).join('')}
     <button class="btn btn-ghost btn-block" data-cfg="bare" data-pg="" style="margin-top:14px;padding:16px;font-size:1.1rem">👩‍🏫 Tous les ${indiv ? 'élèves' : 'groupes'} (tablette enseignant)</button>`;
   box.querySelectorAll('[data-pg]').forEach(b => b.onclick = () => onPick(b.dataset.pg === '' ? null : +b.dataset.pg));
+}
+
+/* =========================================================
+   Envois de cette tablette (fin de séance)
+   Chaque résultat enregistré sur la tablette est noté dans DB.envois
+   (propre à l'appareil, jamais synchronisé) avec une copie de secours.
+   La carte montre, groupe par groupe : ✅ envoyé · ⏳ en attente · ⚠️ absent
+   (copie de secours → « Renvoyer »), et l'état de la synchronisation.
+   ========================================================= */
+const partSync = () => (window.cloudInfo && cloudInfo()) || (window.syncInfo && syncInfo()) || null;
+function partOutboxAdd(tool, rec, label) {
+  const L = Array.isArray(DB.envois) ? DB.envois : [];
+  L.push({ tool, id: rec.id, date: Date.now(), label, rec: JSON.parse(JSON.stringify(rec)) });
+  DB.envois = L.slice(-40); save();
+}
+function partOutboxCard(host, tool, list, restore) {
+  let iv = null;
+  const draw = () => {
+    if (!host.isConnected) { clearInterval(iv); return; }
+    const E = (Array.isArray(DB.envois) ? DB.envois : []).filter(e => e.tool === tool && Date.now() - e.date < 7 * 864e5).reverse();
+    if (!E.length) { host.innerHTML = ''; return; }
+    const S = partSync(), have = new Set(list().map(r => r.id)), sent = S && !S.pending && S.status !== 'error' && S.status !== 'sync';
+    const net = !S ? '📱 Pas de synchronisation : les résultats restent sur cette tablette'
+      : S.status === 'error' ? `⚠️ ${esc(S.name)} : ${esc(S.err || 'erreur d\'envoi')}`
+      : S.status === 'sync' ? '⏳ Envoi en cours…' : S.pending ? `⏳ ${S.pending} rubrique(s) à envoyer (réseau ?)` : `✅ Tout est envoyé sur ${esc(S.name)}`;
+    host.innerHTML = `<div class="card" style="margin-bottom:12px;border:2px solid ${sent ? '#1B9E5A' : 'var(--gold,#E8B931)'}"><h3 style="margin-top:0">📤 Envois de cette tablette</h3>
+      <div style="font-weight:800;margin:4px 0 8px;color:${sent ? '#1B9E5A' : S && S.status === 'error' ? 'var(--danger)' : 'inherit'}">${net}</div>
+      ${E.slice(0, 8).map((e, i) => { const ok = have.has(e.id);
+        return `<div style="display:flex;gap:8px;align-items:center;padding:8px 0;border-top:1px solid var(--line)"><div style="flex:1;min-width:0"><b>${esc(e.label || 'Résultats')}</b>
+          <div class="muted" style="font-size:.8rem">${new Date(e.date).toLocaleString('fr-FR', { weekday: 'short', hour: '2-digit', minute: '2-digit' })}</div></div>
+          <span style="font-weight:800;white-space:nowrap">${!ok ? '⚠️ absent' : !S ? '📱 enregistré' : sent ? '✅ envoyé' : '⏳ en attente'}</span>
+          ${!ok ? `<button class="btn btn-grad" style="flex:0 0 auto;padding:8px 12px" data-ob="${i}">🔁 Renvoyer</button>` : ''}</div>`; }).join('')}
+      ${S && (S.pending || S.status === 'error') ? '<button class="btn btn-grad btn-block" style="margin-top:8px" id="ob-send">📤 Envoyer maintenant</button>' : ''}</div>`;
+    host.querySelectorAll('[data-ob]').forEach(b => b.onclick = () => { const e = E[+b.dataset.ob]; if (!list().some(r => r.id === e.id)) restore(JSON.parse(JSON.stringify(e.rec))); save(); toast('Résultats remis en place ✔ · envoi…'); const s = partSync(); if (s) s.send(); draw(); });
+    const sb = host.querySelector('#ob-send'); if (sb) sb.onclick = async () => { const s = partSync(); if (!s) return; sb.disabled = true; sb.textContent = '⏳ Envoi…'; try { await s.send(); } catch (e) {} draw(); };
+  };
+  draw(); iv = setInterval(draw, 2500);
 }

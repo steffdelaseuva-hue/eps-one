@@ -54,16 +54,17 @@ function natationVite(el) {
       DB.natation.push({ date: Date.now(), classe: $('#cl')?.value || '', eleve, d, t: Math.round(t * 100) / 100, c }); save(); toast(`${eleve} : enregistré ✔`);
       run = false; acc = 0; { const e = $('#el'); if (e.tagName === 'SELECT') { if (e.selectedIndex < e.options.length - 1) e.selectedIndex++; } else e.value = ''; } $('#c').value = 0; $('#mm').value = ''; $('#ss').value = ''; $('#go').textContent = '▶ Départ'; $('#tm').textContent = '00:00,00'; res(); list(); };
     const list = () => {
-      const cur = $('#fl').value, names = [...new Set(DB.natation.map(r => r.eleve))].sort();
+      const own = r => !(window.eleveMode && eleveMode()) || r.classe === ($('#cl')?.value || '');   // mode élève : seulement la classe en cours
+      const cur = $('#fl').value, names = [...new Set(DB.natation.filter(own).map(r => r.eleve))].sort();
       $('#fl').innerHTML = '<option value="">Tous les élèves</option>' + names.map(n => `<option ${n === cur ? 'selected' : ''}>${esc(n)}</option>`).join('');
-      const rows = DB.natation.map((r, i) => ({ ...r, i })).filter(r => !$('#fl').value || r.eleve === $('#fl').value).reverse();
+      const rows = DB.natation.map((r, i) => ({ ...r, i })).filter(r => own(r) && (!$('#fl').value || r.eleve === $('#fl').value)).reverse();
       $('#ls').innerHTML = rows.length ? `<table><tr><th>Élève</th><th>Date</th><th>Dist.</th><th>Temps</th><th>Coups</th><th>m/s</th><th>m/coup</th><th>coups/min</th><th>Indice 25 m</th><th></th></tr>
         ${rows.map(r => { const x = calc(r.d, r.t, r.c); return `<tr><td><b>${esc(r.eleve)}</b></td><td>${new Date(r.date).toLocaleDateString('fr-FR')}</td><td>${r.d} m</td><td>${fmt(r.t * 1000)}</td><td>${r.c || '–'}</td><td>${n2(x.v)}</td><td>${n2(x.amp)}</td><td>${x.freq ? Math.round(x.freq) : '–'}</td><td><b>${natI(natIndice(r.d, r.t, r.c))}</b></td><td><button class="btn btn-ghost" style="padding:4px 8px" data-x="${r.i}" data-cfg="bare">✕</button></td></tr>`; }).join('')}</table>`
         : '<div class="empty">Aucun résultat enregistré.</div>';
       $('#ls').querySelectorAll('[data-x]').forEach(b => b.onclick = () => { if (confirm('Supprimer ?')) { DB.natation.splice(+b.dataset.x, 1); save(); list(); } });
     };
     $('#fl').onchange = list;
-    $('#exp').onclick = () => { if (!DB.natation.length) return toast('Rien à exporter');
+    $('#exp').onclick = () => { if ((window.eleveMode && eleveMode())) return profAsk(() => { profUnlock(); $('#exp').click(); }, 'Export réservé à l\'enseignant'); if (!DB.natation.length) return toast('Rien à exporter');
       download(`natation-${new Date().toISOString().slice(0, 10)}.csv`, csv([['Élève', 'Classe', 'Date', 'Distance (m)', 'Temps', 'Coups de bras', 'Vitesse (m/s)', 'Temps au 100 m', 'Distance par coup de bras (m)', 'Coups de bras / min', 'Indice de nage 25 m'],
         ...DB.natation.map(r => { const x = calc(r.d, r.t, r.c); return [r.eleve, r.classe, new Date(r.date).toLocaleDateString('fr-FR'), r.d, fmt(r.t * 1000), r.c, n2(x.v), fmt(x.t100 * 1000), n2(x.amp), x.freq ? Math.round(x.freq) : '', natI(natIndice(r.d, r.t, r.c)).replace('–', '')]; })])); };
     res(); list();
@@ -115,7 +116,7 @@ function natationMulti(el, n) {
       if (!k) return toast('Aucun temps à enregistrer'); save(); toast(`${k} nageur(s) enregistré(s) ✔`);
       const next = Math.max(...S.lanes.map(L => L.si)) + 1;
       S.lanes.forEach((L, i) => Object.assign(L, { si: st.length ? (next + i) % st.length : 0, t0: 0, acc: 0, run: false, c: 0 })); draw(); };
-    const R = DB.natation.slice(-8).reverse();
+    const R = DB.natation.filter(r => !(window.eleveMode && eleveMode()) || r.classe === S.cls).slice(-8).reverse();
     $('#mls').innerHTML = R.length ? `<table><tr><th>Élève</th><th>Dist.</th><th>Temps</th><th>Coups</th><th>Indice 25 m</th></tr>${R.map(r => `<tr><td><b>${esc(r.eleve)}</b></td><td>${r.d} m</td><td>${fmt(r.t * 1000)}</td><td>${r.c || '–'}</td><td><b>${natI(natIndice(r.d, r.t, r.c))}</b></td></tr>`).join('')}</table>
       <p class="muted" style="font-size:.75rem;margin:6px 0 0">Tous les résultats, avec l'export CSV, sont visibles en mode « 1 nageur ».</p>` : '<div class="empty">Aucun résultat enregistré.</div>';
   };
@@ -270,6 +271,27 @@ function natationTabSavoir(el, T, back) {
   draw();
 }
 
+/* Séance partagée : le prof forme des groupes (lignes d'eau) et les propose aux autres tablettes */
+const natShareId = cls => 'nat-' + cls + '-' + new Date().toDateString();
+function natShareCard(host, frame) {
+  const cls = natCls(); if (!cls || typeof partPublish !== 'function') return;
+  const st = studentsOf(cls), cur = partGet(natShareId(cls)); let n = cur?.tpl?.groups?.length || Math.max(2, DB.natLanes || 2);
+  const grp = k => Array.from({ length: k }, (_, i) => ({ name: `Ligne ${i + 1}`, members: st.filter((_, j) => j % k === i) })).filter(g => g.members.length);
+  const draw = () => { host.innerHTML = `<details class="card" data-cfg style="margin-bottom:12px"><summary style="font-weight:800;cursor:pointer">📤 Une tablette par ligne d'eau${cur ? ' · <span style="color:#1B9E5A">proposée ✓</span>' : ''}</summary>
+      <p class="muted" style="font-size:.82rem;margin:6px 0 0">Répartit les élèves de <b>${esc(cls)}</b> en lignes et les propose aux autres tablettes : chacune touche « ▶ Rejoindre » puis sa ligne.</p>
+      <label>Nombre de lignes</label><div class="seg">${[2, 3, 4, 5, 6].map(k => `<button data-ns="${k}" class="${k === n ? 'on' : ''}">${k}</button>`).join('')}</div>
+      <div class="muted" style="font-size:.8rem;margin-top:6px">${grp(n).map(g => `<b>${g.name}</b> : ${g.members.map(esc).join(', ')}`).join('<br>')}</div>
+      <button class="btn btn-grad btn-block" style="margin-top:10px" id="nshare">📤 Proposer ${n} lignes aux autres tablettes</button></details>`;
+    host.querySelectorAll('[data-ns]').forEach(b => b.onclick = () => { n = +b.dataset.ns; draw(); host.querySelector('details').open = true; });
+    host.querySelector('#nshare').onclick = () => { const G = grp(n); if (!G.length) return toast('Classe vide');
+      partRemove(natShareId(cls)); partPublish('natation', natShareId(cls), { nom: 'Natation · ' + cls, classe: cls, ng: G.length, ep: 'lignes d\'eau', tpl: { cls, groups: G } }, true);
+      toast(`📤 ${G.length} lignes proposées aux autres tablettes`); frame(); }; };
+  draw();
+}
+const natJoin = (box, p, frame) => { const T = p.tpl; if (!T || !T.groups) return;
+  partPickGroup(box, T.groups, i => { if (i == null) { if (DB.tablette?.natation) DB.tablette.natation.on = false; save(); return frame(); }
+    natTabSet({ cls: T.cls, label: T.groups[i].name, noms: [...T.groups[i].members], on: true }); DB.lastClass = T.cls; save(); frame(); }); };
+
 TOOL_IMPL.natation = function (el) {
   let mode = DB.natMode || 'vite', stop = null;
   const frame = () => {
@@ -292,6 +314,9 @@ TOOL_IMPL.natation = function (el) {
       if (DB.classes.length) natTabPicker(box.querySelector('#nat-tp'), 1, frame);
       stop = natationSavoir(box.querySelector('#nat-s'));
     }
+    // séance partagée : proposer des lignes / rejoindre une séance d'une autre tablette
+    const sh = document.createElement('div'); box.prepend(sh); natShareCard(sh, frame);
+    if (typeof partMount === 'function') partMount(box, 'natation', p => natJoin(box, p, frame));
   };
   frame();
   return () => { if (stop) stop(); };

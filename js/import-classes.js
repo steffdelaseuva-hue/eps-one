@@ -3,6 +3,8 @@
    Lecture hors ligne : .csv, .txt, .xlsx (Excel), .xls (export HTML)
    ========================================================= */
 
+const TPF = () => window.teamProfOf ? teamProfOf() : undefined;   // mode Équipe : enseignant actif
+
 /* ---------- Lecture des fichiers ---------- */
 function decodeText(buf) {
   let t = new TextDecoder('utf-8').decode(buf);
@@ -160,8 +162,8 @@ function openClassImport(el, sheets, fileName, back, dest0) {
       let nc = 0, ne = 0;
       out.forEach((names, cls) => {
         const ex = DB.classes.find(x => x.name === cls) || otherClasses().find(x => x.name === cls);
-        if (dest === 'unss') { const o = {}; names.forEach(x => { if (orig[x]) o[x] = orig[x]; }); if (ex) ex.orig = { ...(ex.orig || {}), ...o }; else { DB.classes.push({ name: cls, students: names, unss: 1, orig: o }); nc++; ne += names.length; return; } }
-        if (!ex) { (dest === 'all' ? otherClasses() : DB.classes).push({ name: cls, students: names }); nc++; ne += names.length; }
+        if (dest === 'unss') { const o = {}; names.forEach(x => { if (orig[x]) o[x] = orig[x]; }); if (ex) ex.orig = { ...(ex.orig || {}), ...o }; else { DB.classes.push({ name: cls, students: names, unss: 1, orig: o, ...(TPF() ? { prof: TPF() } : {}) }); nc++; ne += names.length; return; } }
+        if (!ex) { (dest === 'all' ? otherClasses() : DB.classes).push({ name: cls, students: names, ...(dest !== 'all' && TPF() ? { prof: TPF() } : {}) }); nc++; ne += names.length; }
         else if ($('#mg').checked) { const add = names.filter(x => !ex.students.includes(x)); ex.students.push(...add); ne += add.length; }
         else { ex.students = names; ne += names.length; }
       });
@@ -175,9 +177,9 @@ function openClassImport(el, sheets, fileName, back, dest0) {
 /* ---------- Outil « Mes classes » (remplace la version d'origine) ---------- */
 TOOL_IMPL.classes = function (el) {
   const draw = () => {
-    const O = otherClasses(), EPS = DB.classes.map((c, i) => ({ c, i })).filter(x => !x.c.unss), UN = DB.classes.map((c, i) => ({ c, i })).filter(x => x.c.unss);
+    const TEAM = window.teamOn && teamOn(), O = otherClasses(), EPS = DB.classes.map((c, i) => ({ c, i })).filter(x => !x.c.unss), UN = DB.classes.map((c, i) => ({ c, i })).filter(x => x.c.unss);
     const origTxt = c => { const v = [...new Set(Object.values(c.orig || {}))].sort((a, b) => a.localeCompare(b, 'fr', { numeric: true })); return v.length ? ' · ' + esc(v.join(', ')) : ''; };
-    const item = (c, i, kind) => `<div class="list-item"><div style="flex:1;min-width:0"><b>${esc(c.name)}</b><div class="muted">${c.students.length} élèves${kind === 'unss' ? origTxt(c) : ''}</div></div><div class="row" style="flex:0 0 auto;gap:6px;flex-wrap:nowrap">${kind !== 'all' ? `<button class="btn btn-grad" style="padding:9px 11px;white-space:nowrap;font-size:.85rem" data-a="${i}" title="Ajouter un élève">＋ Élève</button>` : ''}${kind === 'unss' ? '' : `<button class="btn btn-ghost" style="padding:9px 10px;white-space:nowrap;font-size:.8rem" data-mv="${kind}:${i}" title="${kind === 'eps' ? 'Déplacer vers Autres classes' : 'Déplacer vers Mes classes EPS'}">${kind === 'eps' ? '→ 🏫' : '→ 🏃 EPS'}</button>`}<button class="btn btn-ghost" style="padding:9px 10px" data-e="${kind}:${i}">✏️</button><button class="btn btn-ghost" style="padding:9px 10px" data-d="${kind}:${i}">🗑</button></div></div>`;
+    const item = (c, i, kind) => `<div class="list-item"><div style="flex:1;min-width:0"><b>${esc(c.name)}</b><div class="muted">${c.students.length} élèves${kind === 'unss' ? origTxt(c) : ''}</div>${kind !== 'all' && TEAM ? `<select data-pf="${i}" style="margin-top:6px;padding:6px 8px;font-size:.82rem;width:auto;max-width:100%"><option value="">👥 Commune (toute l'équipe)</option>${teamProfs().map(p => `<option value="${esc(p.id)}" ${c.prof === p.id ? 'selected' : ''}>👤 ${esc(p.name)}</option>`).join('')}</select>` : ''}</div><div class="row" style="flex:0 0 auto;gap:6px;flex-wrap:nowrap">${kind !== 'all' ? `<button class="btn btn-grad" style="padding:9px 11px;white-space:nowrap;font-size:.85rem" data-a="${i}" title="Ajouter un élève">＋ Élève</button>` : ''}${kind === 'unss' ? '' : `<button class="btn btn-ghost" style="padding:9px 10px;white-space:nowrap;font-size:.8rem" data-mv="${kind}:${i}" title="${kind === 'eps' ? 'Déplacer vers Autres classes' : 'Déplacer vers Mes classes EPS'}">${kind === 'eps' ? '→ 🏫' : '→ 🏃 EPS'}</button>`}<button class="btn btn-ghost" style="padding:9px 10px" data-e="${kind}:${i}">✏️</button><button class="btn btn-ghost" style="padding:9px 10px" data-d="${kind}:${i}">🗑</button></div></div>`;
     el.innerHTML = `<div class="card" style="display:flex;align-items:center;gap:12px;background:var(--grad-soft)"><div style="flex:1"><div class="muted">Année scolaire</div><b style="font-size:1.15rem;white-space:nowrap">${esc(DB.annee || '')}</b></div><button class="btn btn-grad" style="flex:0 0 auto;font-size:.85rem;padding:10px 12px" id="ny">🗓 Nouvelle année</button></div>
       <div class="card" style="margin-top:12px"><h3>Importer des classes</h3><p class="muted" style="margin:4px 0 10px">Fichier CSV ou Excel (.xlsx) : export Pronote, ENT ou tableur. Une ou plusieurs classes à la fois. Fichier Numbers : l'app vous indique comment l'exporter en Excel.</p>
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:8px"><button class="btn btn-grad" id="imp">📥 Mes classes EPS</button><button class="btn btn-ghost" id="imp3">📥 Liste UNSS / AS</button><button class="btn btn-ghost" id="imp2">📥 Autres classes du collège</button></div><input type="file" id="f" accept=".csv,.txt,.xlsx,.xls,.numbers,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" hidden></div>
@@ -185,8 +187,8 @@ TOOL_IMPL.classes = function (el) {
       <label>Élèves (un par ligne, ou collés depuis un tableur)</label><textarea id="cl" placeholder="DUPONT Léa&#10;MARTIN Hugo"></textarea>
       <label>Ranger dans</label><div class="seg" id="ndst"><button data-nd="eps" class="on">🏃 Classe EPS</button><button data-nd="unss">🏅 UNSS / AS</button><button data-nd="all">🏫 Autres classes</button></div>
       <button class="btn btn-grad btn-block" style="margin-top:10px" id="add">＋ Enregistrer la classe</button></div>
-      <div class="section-title"><h2>🏃 Mes classes EPS (${EPS.length})</h2></div>
-      <p class="muted" style="margin:-4px 4px 8px;font-size:.8rem">Classes proposées dans tous les outils.</p>
+      <div class="section-title"><h2>🏃 ${TEAM ? 'Classes EPS de l\'équipe' : 'Mes classes EPS'} (${EPS.length})</h2></div>
+      <p class="muted" style="margin:-4px 4px 8px;font-size:.8rem">${TEAM ? 'Choisissez l\'enseignant de chaque classe : il ne voit que les siennes (et les classes communes) dans les outils.' : 'Classes proposées dans tous les outils.'}</p>
       <div class="card" style="padding:0">${EPS.length ? EPS.map(x => item(x.c, x.i, 'eps')).join('') : '<div class="empty">Aucune classe enregistrée.</div>'}</div>
       <div class="section-title"><h2>🏅 UNSS / AS (${UN.length})</h2></div>
       <p class="muted" style="margin:-4px 4px 8px;font-size:.8rem">Groupes d'élèves de plusieurs classes (ex. « UNSS mercredi »), proposés dans tous les outils comme une classe.</p>
@@ -210,7 +212,7 @@ TOOL_IMPL.classes = function (el) {
     $('#add').onclick = () => { const name = $('#cn').value.trim(), st = namesFrom('cl');
       if (!name || !st.length) return toast('Nom et élèves requis');
       const ex = DB.classes.find(c => c.name === name) || otherClasses().find(c => c.name === name);
-      if (ex) ex.students = st; else L(nd).push(nd === 'unss' ? { name, students: st, unss: 1 } : { name, students: st });
+      if (ex) ex.students = st; else L(nd).push({ name, students: st, ...(nd === 'unss' ? { unss: 1 } : {}), ...(nd !== 'all' && TPF() ? { prof: TPF() } : {}) });
       save(); toast('Classe enregistrée ✔'); draw(); };
     el.querySelectorAll('[data-a]').forEach(b => b.onclick = () => {
       const c = DB.classes[b.dataset.a], n = (prompt(`Nouvel élève en ${c.name} (NOM Prénom) :`) || '').trim().replace(/\s+/g, ' ');
@@ -222,6 +224,7 @@ TOOL_IMPL.classes = function (el) {
     el.querySelectorAll('[data-d]').forEach(b => b.onclick = () => { if (confirm('Supprimer cette classe ?')) { const { i, A } = ref(b.dataset.d); A.splice(i, 1); save(); draw(); } });
     el.querySelectorAll('[data-e]').forEach(b => b.onclick = () => { const { k, i, A } = ref(b.dataset.e), c = A[i]; $('#cn').value = c.name; $('#cl').value = c.students.join('\n');
       nd = k === 'eps' && c.unss ? 'unss' : k; el.querySelectorAll('[data-nd]').forEach(x => x.classList.toggle('on', x.dataset.nd === nd)); $('#cn').scrollIntoView({ behavior: 'smooth' }); });
+    el.querySelectorAll('[data-pf]').forEach(sl => sl.onchange = () => { const c = DB.classes[+sl.dataset.pf]; if (sl.value) c.prof = sl.value; else delete c.prof; save(); toast(`${c.name} → ${sl.value ? teamProfs().find(p => p.id === sl.value).name : 'commune'}`); });
     if ($('#delall')) $('#delall').onclick = () => { if (!confirm(`Supprimer les ${otherClasses().length} autres classes du collège ?\nVos classes EPS sont conservées.`)) return; DB.classesAll = []; save(); draw(); };
   };
   draw();

@@ -4,9 +4,20 @@
    ========================================================= */
 /* Page Ko-fi : laisser vide tant qu'elle n'existe pas (le bouton est alors masqué) */
 const KOFI_URL = 'https://ko-fi.com/epsone';
-const APP_VERSION = '12.9';
+const APP_VERSION = '14.0';
 const APP_URL = 'https://steffdelaseuva-hue.github.io/eps-one/';
 const CHANGELOG = [
+  { v: '14.0', items: ['Correction importante : quand une autre tablette envoyait ses résultats pendant la séance, l\'outil ouvert pouvait enregistrer dans une ancienne copie des données (résultats d\'un groupe perdus). Corrigé dans Duathlon, Demi-fond, Sauvetage, Escalade, Acrosport, Parkour', 'Fenêtre « Groupes de la séance » : bouton ✔ Terminé toujours visible en haut, défilement conservé'] },
+  { v: '13.9', items: ['Synchronisation Dropbox / Google Drive : plusieurs tablettes qui envoient en même temps ne peuvent plus effacer l\'envoi d\'une autre (écriture conditionnelle Dropbox, double vérification Drive)', 'Duathlon : carte « 📤 Envois de cette tablette » (✅ envoyé · ⏳ en attente · ⚠️ absent → 🔁 Renvoyer, copie de secours sur la tablette)', 'Duathlon : suivi « 📥 Résultats reçus des tablettes » groupe par groupe sur la tablette enseignant'] },
+  { v: '13.8', items: ['Mode élève (🔒) : onglets « 📊 Résultats / Bilan » des outils protégés par le code (y compris quand l\'outil y bascule après un enregistrement)', 'Mode élève : listes de résultats limitées à la classe en cours (Natation, Lutte), historique des matchs masqué, export protégé'] },
+  { v: '13.7', items: ['Mode élève (🔒) : les élèves restent dans l\'outil ouvert — quitter l\'outil, en ouvrir un autre ou changer d\'onglet (Accueil / Outils / Plus) demande le code enseignant'] },
+  { v: '13.6', items: ['Duathlon étape 3 (binômes) : un seul compteur de tours pour le binôme (8 tours en binôme, et non 8 + 8) — réglable par étape à la préparation'] },
+  { v: '13.5', items: ['Escalade : les cordées sont proposées aux autres tablettes (« ▶ Rejoindre » puis choix de la cordée)', 'Natation : « Une tablette par ligne d\'eau » — le prof répartit la classe en 2 à 6 lignes, chaque tablette rejoint sa ligne'] },
+  { v: '13.4', items: ['Duathlon : les tours (＋/−) sont bloqués tant que le groupe n\'a pas atteint les points de lancers de l\'étape (15 / 20 / 30, réglables), message « course ouverte » dès qu\'ils sont atteints', 'Duathlon : lancers non valides placés juste sous les points de lancers'] },
+  { v: '13.3', items: ['Activités de performance : sous-groupes APSA et Outils', 'Activités de duel : Sports collectifs (Gestion de match + Table de marque), Sports de raquette (carte dédiée) et Sports de combat (Escrime et Lutte en cartes séparées) — matchs, tournois et historiques conservés'] },
+  { v: '13.2', items: ['Dispenses : liste déroulante des élèves de la classe choisie (fonctionne sur iPhone/iPad), élèves déjà dispensés signalés, saisie libre possible'] },
+  { v: '13.1', items: ['Vitesse de course : distance, temps, vitesse, VMA et % VMA interdépendants (2 valeurs saisies → la 3e est calculée, ex. VMA + % + durée → distance)'] },
+  { v: '13.0', items: ['Nouveau mode « Équipe EPS » pour les lots de tablettes partagées (Plus → Équipe EPS) : « Qui fait cours ? », code perso par enseignant, chacun retrouve ses classes et ses favoris', 'Mes classes : choix de l\'enseignant de chaque classe (ou classe commune)', 'Conseil de stockage pour les équipes : Dropbox (connexion durable sur tablettes partagées)'] },
   { v: '12.9', items: ['Nouvel outil Lutte (activités de duel) : lutte au sol / debout, match 1c1, relais (je gagne je reste / les deux sortent), tournoi à élimination, avec observation ou résultats simples ; points attaque (passage arrière, sortie, mise en danger, tombé chronométré), pénalités, formes de corps, observables du défenseur, barème modifiable ; règle d\'or « NE PAS FAIRE MAL ! »'] },
   { v: '12.8', items: ['Page « Mentions légales » (Plus → Aide & infos, À propos, page Confidentialité)'] },
   { v: '12.7', items: ['Démarrage instantané même sans réseau (cache d\'abord, mise à jour en arrière-plan) et bandeau « Nouvelle version prête »','Référencement : titre, description, aperçu de partage, sitemap.xml, robots.txt, données structurées'] },
@@ -313,14 +324,14 @@ function openNewYear(back) {
         <button class="btn btn-grad btn-block" style="margin-top:12px" id="go">🚀 Démarrer l'année</button></div>`;
     const $ = s => el.querySelector(s), opt = k => $(`[data-k="${k}"]`).checked;
     $('#bk').onclick = () => {
-      download(`eps-one-sauvegarde-${DB.annee}.json`, JSON.stringify({ ...DB, exportDate: new Date().toISOString() }, null, 2), 'application/json');
+      download(`eps-one-sauvegarde-${DB.annee}.json`, JSON.stringify({ ...JSON.parse(JSON.stringify(DB)), exportDate: new Date().toISOString() }, null, 2), 'application/json');
       saved = true; $('#bks').textContent = '✔ Sauvegarde téléchargée'; };
     $('#go').onclick = () => {
       const ny = $('#ny').value.trim() || next;
       if (!saved && !confirm('Vous n\'avez pas téléchargé de sauvegarde. Continuer quand même ?')) return;
       if (!confirm(`Démarrer l'année ${ny} ?\nLes éléments cochés seront définitivement effacés de cet appareil.`)) return;
       if (opt('classes')) {
-        DB.classes = opt('keepNames') ? DB.classes.map(c => ({ name: c.name, students: [] })) : [];
+        dbSet('classes', opt('keepNames') ? (dbGet('classes') || []).map(c => ({ name: c.name, students: [], ...(c.prof ? { prof: c.prof } : {}), ...(c.unss ? { unss: 1 } : {}) })) : []);
         DB.classesAll = opt('keepNames') ? (DB.classesAll || []).map(c => ({ name: c.name, students: [] })) : [];
         try { const S = JSON.parse(localStorage.getItem('chronos-eps-v1')); if (Array.isArray(S)) { S.forEach(c => c.name = ''); localStorage.setItem('chronos-eps-v1', JSON.stringify(S)); } } catch (e) {}
       }
@@ -366,7 +377,8 @@ function renderPlus() {
     <div class="menu-sec">Données & partage</div>
     <div class="card" style="padding:0" data-cfg>
       ${item('update', 'grad', 'Stockage & synchronisation', `<span id="sync-sub">${window.syncStatusText ? window.syncStatusText() : 'Mode : stockage local'}</span>`, 'openSync()')}
-      ${item('lock', 'navy', 'Code enseignant', DB.profPin ? 'Code défini · protège les réglages des outils' : 'Protéger les réglages des outils face aux élèves', 'openProfPin()')}
+      ${item('lock', 'navy', 'Code enseignant', (window.curPin ? curPin() : DB.profPin) ? 'Code défini · protège les réglages des outils' : 'Protéger les réglages des outils face aux élèves', 'openProfPin()')}
+      ${item('team', 'grad', 'Équipe EPS · tablettes partagées', window.teamOn && teamOn() ? `Mode Équipe · ${teamProfs().length} enseignant(s)${activeProf() ? ' · ' + esc(activeProf().name) : ''}` : 'Plusieurs collègues sur le même lot de tablettes', 'openTeam()')}
       ${window.isEpsAdmin && window.isEpsAdmin() ? item('lock', 'gold', 'Accès des collègues', 'Valider ou retirer les accès à EPS ONE', 'openAccessAdmin()') : ''}
       ${item('save', 'blue', 'Exporter mes données', 'Fichier de sauvegarde JSON', 'exportData()')}
       ${item('restore', 'blue', 'Importer une sauvegarde', 'Restaurer depuis un fichier JSON', "document.getElementById('imp').click()")}

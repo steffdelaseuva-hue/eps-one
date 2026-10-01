@@ -211,7 +211,7 @@ const svProjOf = (C, g, w) => { const c = C.cfg; if (svGrpProj(C)) return (g.pro
    L'OUTIL
    ========================================================= */
 TOOL_IMPL.sauvetage = function (el) {
-  const D = svDB();
+  const D = liveDB(svDB);   // toujours l'objet synchronisé actuel
   let tab = D.current ? 'live' : 'prep', rk = 'ecart', iv = null, openRec = null;
   const openEt = new Set([0]), view = {};
   const cur = () => svDB().current;

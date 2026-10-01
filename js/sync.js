@@ -84,10 +84,11 @@ function merge3(base, loc, rem) {
 /* Données propres à chaque appareil (jamais synchronisées) : séances EN COURS, équipes du match
    en cours, réglages d'affichage… Ainsi plusieurs tablettes peuvent utiliser le même outil en même
    temps (2 terrains, plusieurs voies…) ; seuls les résultats ENREGISTRÉS sont fusionnés. */
-const LOCAL_TOP = new Set(['recent', 'lastClass', 'natLanes', 'natMode', 'acroFiltre', 'matchTeams', 'tablette']); // tablette : réglages propres à chaque appareil (groupe suivi…)
+const LOCAL_TOP = new Set(['recent', 'recentBy', 'envois', 'lastClass', 'natLanes', 'natMode', 'acroFiltre', 'matchTeams', 'tablette']); // tablette : réglages propres à chaque appareil (groupe suivi…)
 const LOCAL_SUB = { co: ['current'], duathlon: ['current', 'lastCfg'], combine: ['current'], demifond: ['current', 'lastCfg', 'calc'], sauvetage: ['current', 'lastCfg'], wod: ['current'], escalade: ['defi', 'lastVoie', 'lastMode', 'filt'], gym: ['filt'], lutte: ['current'] };
 const syncKeys = () => Object.keys(DB).filter(k => !LOCAL_TOP.has(k));
-function outb(k, v = DB[k]) {                                   // version envoyée (sans l'état local)
+const dbG = k => window.dbGet ? window.dbGet(k) : DB[k], dbS = (k, v) => window.dbSet ? window.dbSet(k, v) : (DB[k] = v);
+function outb(k, v = dbG(k)) {                                   // version envoyée (sans l'état local)
   v = v ?? null; const sub = LOCAL_SUB[k]; if (!sub || !isObj(v)) return v;
   const o = { ...v }; sub.forEach(f => delete o[f]); return o;
 }
@@ -114,7 +115,7 @@ async function pushChanged() {
         const j = JSON.stringify(out ?? null); if (j.length > 700000) throw new Error(`Rubrique « ${k} » trop volumineuse pour la synchronisation`);
         t = Date.now(); tx.set(ref, { c: await encrypt(j), t, dev: meta.dev });
       });
-      if (!jeq(out, outb(k))) { applying = true; DB[k] = withLocal(k, out); applying = false; changedLocal = true; }
+      if (!jeq(out, outb(k))) { applying = true; dbS(k, withLocal(k, out)); applying = false; changedLocal = true; }
       setBase(k, out); meta.keys[k] = { h: hash(JSON.stringify(out ?? null)), t };
     }
     S.status = 'ok'; S.err = ''; S.last = meta.last = Date.now();
@@ -128,6 +129,7 @@ const PUSH_EVERY = 10000;
 // Tablette de collecte : rien n'est envoyé pendant la séance, seulement sur demande (bouton « Envoyer les relevés »)
 // ou quand la tablette se met en veille / quitte l'app, pour ne rien perdre.
 const pendingCount = () => S.user ? syncKeys().filter(k => meta.keys[k]?.h !== hash(JSON.stringify(outb(k)))).length : 0;
+window.syncInfo = () => S.user && syncAllowed() ? { name: 'EPS ONE', pending: pendingCount(), status: S.status, err: S.err, send: () => pushChanged() } : null;
 function drawSendPill() {
   let b = document.getElementById('sync-pill'); const n = meta.collect && S.user && syncAllowed() ? pendingCount() : 0;
   if (!n) { if (b) b.remove(); return; }
@@ -155,7 +157,7 @@ async function applyRemote(k, r) {
   const local = outb(k), m = meta.keys[k], dirty = m && m.h !== hash(JSON.stringify(local));
   const out = !m ? (replaceOnce || local == null ? rv : mergeData(local, rv)) : dirty ? merge3(getBase(k), local, rv) : rv;
   setBase(k, rv);
-  applying = true; DB[k] = withLocal(k, out); applying = false;
+  applying = true; dbS(k, withLocal(k, out)); applying = false;
   meta.keys[k] = { h: dirty || !m ? (jeq(out, rv) ? hash(JSON.stringify(rv)) : 'x') : hash(JSON.stringify(rv)), t: r.t };
   return !jeq(out, local);
 }
@@ -218,7 +220,7 @@ async function startSync() {
         try { v = typeof r.c === 'string' ? await decrypt(r.c) : r.v; } catch (e) { continue; }
         if (typeof v !== 'string') continue;
         if (LOCAL_TOP.has(d.id)) continue;
-        try { const rv = outb(d.id, JSON.parse(v)); DB[d.id] = DB[d.id] === undefined ? rv : withLocal(d.id, mergeData(outb(d.id), rv)); } catch (e) {}
+        try { const rv = outb(d.id, JSON.parse(v)); dbS(d.id, dbG(d.id) === undefined ? rv : withLocal(d.id, mergeData(outb(d.id), rv))); } catch (e) {}
       }
       _save(); meta.keys = {}; meta.linked = true; saveMeta();
       if (ok === null) await writeCheck();
@@ -277,6 +279,7 @@ const accessOK = () => freeOn() || driveOn() || S.access === 'admin' || S.access
 const gdOffer = () => { const L = window.EPS_CLOUDS ? window.EPS_CLOUDS() : []; if (!L.length) return '';
   return `<div class="card" style="margin-top:12px"><h3>☁️ Avec mon cloud</h3>
         <p class="muted" style="margin:4px 0 0">Accès immédiat. Vos données sont enregistrées sur <b>votre propre</b> cloud (${L.map(c => c.name).join(', ')}), dans un dossier réservé à EPS ONE, et synchronisées entre vos appareils.</p>
+        <p class="muted" style="margin:6px 0 0;font-size:.82rem">👥 Équipe EPS avec des tablettes partagées : <b>Dropbox est conseillé</b> (connexion durable), avec un compte commun à l'équipe. Puis Plus → Équipe EPS.</p>
         <p class="muted" style="margin:6px 0 0;font-size:.82rem">⚠️ Assurez-vous que le fournisseur choisi est conforme à la réglementation de votre établissement.</p>
         ${gateCloud ? L.map(c => `<button class="btn btn-grad btn-block" data-cloud="${c.id}" style="margin-top:10px;display:flex;align-items:center;justify-content:center;gap:10px"><span style="display:inline-flex;background:#fff;border-radius:8px;padding:3px">${c.icon.replace('1.3em;height:1.3em', '26px;height:26px')}</span>${c.name}</button>`).join('')
           : '<button class="btn btn-grad btn-block" style="margin-top:10px" id="gt-cloud">Continuer avec mon cloud</button>'}</div>`; };
@@ -497,7 +500,7 @@ function drawPanel(el) {
 window.openSync = () => openPanel('Stockage & synchronisation', el => {
   el.insertAdjacentHTML('beforeend', SYNC_INTRO() + '<div class="section-title"><h2>☁️ Compte EPS ONE</h2></div>');
   const d = document.createElement('div'); el.appendChild(d); drawPanel(d);
-  if (window.cloudRender && window.EPS_CLOUDS && window.EPS_CLOUDS().length) { el.insertAdjacentHTML('beforeend', '<div class="section-title"><h2>☁️ Mon propre cloud</h2></div>'); const g = document.createElement('div'); el.appendChild(g); window.cloudRender(g); } });
+  if (window.cloudRender && window.EPS_CLOUDS && window.EPS_CLOUDS().length) { el.insertAdjacentHTML('beforeend', '<div class="section-title"><h2>☁️ Mon propre cloud</h2></div><p class="muted" style="margin:-4px 4px 8px;font-size:.82rem">👥 Équipe avec des tablettes partagées : <b>Dropbox conseillé</b> (la connexion reste active durablement), avec un compte commun à l\'équipe. Voir Plus → Équipe EPS.</p>'); const g = document.createElement('div'); el.appendChild(g); window.cloudRender(g); } });
 // Outils partagés avec le module Google Drive
 window.EPS_SYNC_LIB = { merge3: (...a) => merge3(...a), mergeData: (...a) => mergeData(...a), outb: (...a) => outb(...a), withLocal: (...a) => withLocal(...a), hash: x => hash(x), syncKeys: () => syncKeys(), jeq: (a, b) => jeq(a, b),
   accessOK: () => accessOK(), gate: () => gate(), stopFirebase: () => { unsub && unsub(); unsub = null; clearTimeout(pushTimer); pushTimer = null; }, resumeFirebase: () => { if (S.user && syncAllowed()) resumeSync(); }, refreshUI: () => refreshUI() };

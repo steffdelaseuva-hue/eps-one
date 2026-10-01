@@ -22,6 +22,7 @@
     const getBase = k => { try { return BASE[k] != null ? JSON.parse(BASE[k]) : undefined; } catch (e) { return undefined; } };
     const setBase = (k, v) => { BASE[k] = JSON.stringify(v ?? null); };
     const C = { status: 'off', err: '', last: meta.last || null, busy: false };
+    const sleep = ms => new Promise(r => setTimeout(r, ms));
     const valOf = f => { try { return JSON.parse(f.v); } catch (e) { return undefined; } };
 
     let applying = false;
@@ -36,7 +37,7 @@
         let rv = valOf(doc); if (rv === undefined) continue; rv = L().outb(k, rv);
         const local = L().outb(k), m = meta.keys[k], dirty = m && m.h !== L().hash(JSON.stringify(local));
         const out = !m ? (local == null ? rv : L().mergeData(local, rv)) : dirty ? L().merge3(getBase(k), local, rv) : rv;
-        setBase(k, rv); applying = true; DB[k] = L().withLocal(k, out); applying = false;
+        setBase(k, rv); applying = true; (window.dbSet ? dbSet(k, L().withLocal(k, out)) : (DB[k] = L().withLocal(k, out))); applying = false;
         meta.keys[k] = { h: L().jeq(out, rv) ? L().hash(JSON.stringify(rv)) : 'x', t: doc.t };
         if (!L().jeq(out, local)) changed = true;
       }
@@ -55,16 +56,26 @@
         if (!(await P.ensure())) throw new Error(`Reconnexion à ${P.name} nécessaire`);
         const files = await P.list(), byKey = Object.fromEntries(files.map(f => [f.key, f]));
         for (const k of keys) {
-          const f = byKey[k]; let base = getBase(k), local = L().outb(k), remote = f ? valOf(await P.read(f.id)) : undefined, out, t, id = f && f.id;
-          for (let attempt = 0; attempt < 3; attempt++) {
+          const f = byKey[k]; let base = getBase(k), local = L().outb(k), remote = f ? valOf(await P.read(f.id)) : undefined, out, t, id = f && f.id, rev = f && f.mt, ok = false;
+          // Plusieurs tablettes peuvent envoyer en même temps (fin de séance) : aucune ne doit effacer l'envoi d'une autre.
+          for (let attempt = 0; attempt < 8 && !ok; attempt++) {
             out = remote === undefined ? local : L().merge3(base, local, L().outb(k, remote));
-            t = Date.now(); const w = await P.write(k, id, { t, dev: meta.dev, v: JSON.stringify(out ?? null) }); id = w.id; meta.mt[k] = w.mt;
-            // une autre tablette a-t-elle écrit en même temps ?
-            const back = await P.read(id); if (back.dev === meta.dev && back.t === t) break;
+            t = Date.now(); let w;
+            try { w = await P.write(k, id, { t, dev: meta.dev, v: JSON.stringify(out ?? null) }, rev); }
+            catch (e) { if (!e.conflict) throw e;                        // écriture conditionnelle refusée : une autre tablette vient d'écrire
+              await sleep(300 + Math.random() * 900);
+              const fl = (await P.list()).find(x => x.key === k); if (!fl) continue;
+              base = remote === undefined ? undefined : L().outb(k, remote); local = out; id = fl.id; rev = fl.mt; remote = valOf(await P.read(fl.id)); continue; }
+            id = w.id; rev = w.mt; meta.mt[k] = w.mt;
+            if (P.cas) { ok = true; break; }                              // Dropbox : écriture conditionnelle (aucun écrasement possible)
+            // Google Drive : on laisse aux autres tablettes le temps d'écrire, puis on vérifie que notre envoi est toujours là
+            await sleep(900 + Math.random() * 1600);
+            const back = await P.read(id); if (back.dev === meta.dev && back.t === t) { ok = true; break; }
             base = remote === undefined ? undefined : L().outb(k, remote); local = out; remote = valOf(back);
           }
+          if (!ok) throw new Error('Envoi simultané de plusieurs tablettes : réessayez dans un instant');
           setBase(k, out); meta.keys[k] = { h: L().hash(JSON.stringify(out ?? null)), t };
-          if (!L().jeq(out, L().outb(k))) { applying = true; DB[k] = L().withLocal(k, out); window.save(); applying = false; }
+          if (!L().jeq(out, L().outb(k))) { applying = true; (window.dbSet ? dbSet(k, L().withLocal(k, out)) : (DB[k] = L().withLocal(k, out))); window.save(); applying = false; }
         }
         C.status = 'ok'; C.err = ''; C.last = meta.last = Date.now();
       } catch (e) { C.status = 'error'; C.err = e.message; }
@@ -121,7 +132,7 @@
       await pull(); await push(); toast(`${P.name} activé ✔`);
     }
     async function connect() { C.err = ''; try { if ((await P.authorize()) === 'redirect') return; await activate(); } catch (e) { C.err = e.message; toast(e.message); } L() && L().refreshUI(); draw(); }
-    const E = { P, on, C, collect: () => !!meta.collect, pull, push, pill, connect, activate, draw: h => { if (h) host = h; draw(); } };
+    const E = { P, on, C, collect: () => !!meta.collect, pull, push, pill, connect, activate, info: () => ({ name: P.name, pending: pending().length, status: C.busy ? 'sync' : C.status, err: C.err, send: sendNow }), draw: h => { if (h) host = h; draw(); } };
     ENGINES[P.id] = E;
     return E;
   }
@@ -231,8 +242,12 @@
         return out.filter(e => e['.tag'] === 'file' && /^epsone_.*\.json$/.test(e.name)).map(e => ({ id: e.id, key: KEY(e.name), mt: e.rev }));
       },
       read: async id => { const r = await api(CONT + '/2/files/download', { headers: { 'Dropbox-API-Arg': arg({ path: id }) } }); if (!r.ok) await fail(r, 'lecture'); return JSON.parse(await r.text()); },
-      write: async (k, id, obj) => {
-        const r = await api(CONT + '/2/files/upload', { headers: { 'Content-Type': 'application/octet-stream', 'Dropbox-API-Arg': arg({ path: '/' + FN(k), mode: 'overwrite', mute: true }) }, body: JSON.stringify(obj) });
+      cas: true,
+      write: async (k, id, obj, rev) => {
+        // écriture conditionnelle : refusée (409) si une autre tablette a modifié le fichier depuis notre lecture
+        const mode = rev ? { '.tag': 'update', update: rev } : { '.tag': 'add' };
+        const r = await api(CONT + '/2/files/upload', { headers: { 'Content-Type': 'application/octet-stream', 'Dropbox-API-Arg': arg({ path: '/' + FN(k), mode, autorename: false, mute: true }) }, body: JSON.stringify(obj) });
+        if (r.status === 409) { const e = new Error('Dropbox : conflit d\'écriture'); e.conflict = true; throw e; }
         if (!r.ok) await fail(r, 'envoi');
         const j = await r.json(); return { id: j.id, mt: j.rev };
       },
@@ -252,6 +267,7 @@
   /* =================== Accès communs =================== */
   const list = () => Object.values(ENGINES);
   window.EPS_CLOUDS = () => list().filter(e => e.P.configured()).map(e => ({ id: e.P.id, name: e.P.name, icon: e.P.icon }));
+  window.cloudInfo = () => { const e = list().find(x => x.on()); return e ? e.info() : null; };
   window.cloudActive = () => { const e = list().find(x => x.on()); return e ? { id: e.P.id, name: e.P.name } : null; };
   window.cloudConnect = id => ENGINES[id] && ENGINES[id].connect();
   window.gdConnect = () => window.cloudConnect('gdrive');

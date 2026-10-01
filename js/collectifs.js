@@ -264,7 +264,7 @@ if (!document.getElementById('cl-css')) document.head.insertAdjacentHTML('before
       $('#cc').onchange = () => { cls = $('#cc').value; if (DB.classes.some(c => c.name === cls)) { DB.lastClass = cls; save(); } draw(); };
       el.querySelectorAll('[data-per]').forEach(b => b.onclick = () => { per = b.dataset.per; draw(); });
       el.querySelectorAll('[data-act]').forEach(b => b.onclick = () => { act = b.dataset.act; draw(); });
-      el.querySelectorAll('[data-om]').forEach(b => b.onclick = () => { const id = b.dataset.om; openTool('match');
+      el.querySelectorAll('[data-om]').forEach(b => b.onclick = () => { const id = b.dataset.om, tn = (DB.tournois || []).find(x => x.id === id); openTool(window.matchToolOf && tn ? matchToolOf(tn.sport) : 'match');
         setTimeout(() => { const x = document.querySelector(`#screen-body [data-tv="${CSS.escape(id)}"]`); if (x) x.click(); else toast('Tournoi disponible dans l\'historique de Gestion de match'); }, 60); });
       if ($('#cl-multi')) $('#cl-multi').onclick = () => { multi = !multi; sel.clear(); draw(); };
       if (multi) {

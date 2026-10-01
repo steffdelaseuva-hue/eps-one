@@ -235,12 +235,13 @@ function editGroupsPanel(title, ad) {
   const stash = {};                                    // données des élèves retirés (restaurées s'ils reviennent)
   let sel = null;                                      // { g: index ou -1 (non placés), n }
   const o = document.createElement('div');
-  o.style.cssText = 'position:fixed;inset:0;z-index:300;background:rgba(7,18,42,.72);display:grid;place-items:center;padding:12px';
+  o.style.cssText = 'position:fixed;inset:0;z-index:300;background:rgba(7,18,42,.72);display:grid;place-items:center;padding:calc(10px + env(safe-area-inset-top)) 10px calc(10px + env(safe-area-inset-bottom))';
   const chip = (g, n) => { const on = sel && sel.g === g && sel.n === n;
     return `<button data-s="${g}" data-n="${esc(n)}" style="padding:6px 10px;border-radius:10px;border:1.5px solid ${on ? 'transparent' : 'var(--line)'};background:${on ? 'var(--grad)' : 'var(--card)'};color:${on ? '#fff' : 'inherit'};font-weight:700;font-size:.85rem;cursor:pointer">${esc(n)}</button>`; };
   const render = () => {
     const L = ad.list(), placed = new Set(L.flatMap(g => ad.names(g))), free = (ad.cls ? studentsOf(ad.cls) : []).filter(n => !placed.has(n));
-    o.innerHTML = `<div class="card" data-cfg="bare" style="max-width:640px;width:100%;max-height:92vh;overflow:auto"><h3>${esc(title)}</h3>
+    const sc = o.firstElementChild ? o.firstElementChild.scrollTop : 0;   // garder la position de défilement à chaque changement
+    o.innerHTML = `<div class="card" data-cfg="bare" style="max-width:640px;width:100%;max-height:calc(100dvh - 20px - env(safe-area-inset-top) - env(safe-area-inset-bottom));overflow:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding-top:0"><div style="position:sticky;top:0;z-index:3;background:var(--card);display:flex;align-items:center;gap:8px;padding:14px 0 8px;margin:0 0 4px;border-bottom:1px solid var(--line)"><h3 style="flex:1;margin:0;min-width:0">${esc(title)}</h3><button class="btn btn-grad" style="flex:0 0 auto;width:auto;padding:9px 14px" id="gok2" data-free>✔ Terminé</button></div>
       <p class="muted" style="margin:4px 0 10px;font-size:.82rem">${ad.indiv ? 'Touchez un élève, puis « Non placés / absents » pour le retirer, ou un élève non placé puis « Participants » pour l\'ajouter.' : 'Touchez un élève, puis le groupe de destination, ou « Non placés / absents » pour le retirer (absent, blessé…).'}</p>
       <div class="teams" style="margin-top:0">${ad.indiv
         ? `<div class="card team" data-d="new" style="cursor:pointer"><h3><span>Participants</span><span class="muted">${L.length}</span></h3><div style="display:flex;flex-wrap:wrap;gap:5px">${L.map((g, i) => chip(i, ad.names(g)[0] || '?')).join('') || '<span class="muted">—</span>'}</div></div>`
@@ -267,7 +268,8 @@ function editGroupsPanel(title, ad) {
     o.querySelectorAll('[data-del]').forEach(b => b.onclick = e => { e.stopPropagation(); const L2 = ad.list(), g = L2[+b.dataset.del];
       if (!confirm(`Supprimer ${g.name} ? Ses élèves passent dans « Non placés ».`)) return; ad.names(g).slice().forEach(n => { stash[n] = ad.take(g, n); }); L2.splice(+b.dataset.del, 1); done(); });
     const nw = o.querySelector('#gnew'); if (nw) nw.onclick = () => { const L2 = ad.list(); L2.push(ad.make('Groupe ' + (L2.length + 1))); done(); };
-    o.querySelector('#gok').onclick = () => { o.remove(); ad.onClose && ad.onClose(); };
+    o.querySelector('#gok').onclick = o.querySelector('#gok2').onclick = () => { o.remove(); ad.onClose && ad.onClose(); };
+    if (sc) o.firstElementChild.scrollTop = sc;
   };
   render(); document.body.appendChild(o);
 }

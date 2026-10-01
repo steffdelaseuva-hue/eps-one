@@ -348,8 +348,8 @@ tr:nth-child(-n+4) td{font-weight:700}`,
 
     /* ---------- 👥 Inscriptions ---------- */
     function inscr(box, E) {
-      if (!DB.classes.length && !otherClasses().length) { box.innerHTML = noClassMsg; return; }
-      const K = compute(E), mine = new Set(DB.classes.filter(c => !c.unss).map(c => c.name)), allN = [...new Set([...DB.classes.filter(c => !c.unss), ...otherClasses()].map(c => c.name))];
+      if (!allCls().length && !otherClasses().length) { box.innerHTML = noClassMsg; return; }
+      const K = compute(E), mine = new Set(DB.classes.filter(c => !c.unss).map(c => c.name)), allN = [...new Set([...allCls().filter(c => !c.unss), ...otherClasses()].map(c => c.name))];
       if (!E.classes.includes(insCls)) insCls = sortCls(E, E.classes)[0] || '';
       const S = K.S, noSx = S.filter(s => !s.st && !K.cOf.get(s.k)).length;
       box.innerHTML = `<div class="card" data-cfg><b>Classes participantes (${E.classes.length}/${MAXCL})</b><p class="muted" style="margin:4px 0 0;font-size:.8rem">Niveau déduit du 1er chiffre du nom de la classe (modifiable). ${MAXST} élèves max par classe. Toutes les classes : 🏃 vos classes EPS et 🏫 les autres classes du collège (Mes classes).</p>

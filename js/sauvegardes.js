@@ -9,7 +9,7 @@ ICONS.resultats = '<rect x="4" y="3.5" width="16" height="17" rx="2.5"/><path d=
 const lastClass = () => (DB.classes.find(c => c.name === DB.lastClass) || DB.classes[0] || {}).name || '';
 /* r.key (facultatif) : anti-doublon — un résultat de même clé remplace le précédent (même id sur toutes les tablettes) */
 function saveResult(r) {
-  const o = { date: Date.now(), ...r };
+  const o = { date: Date.now(), ...r }; const tp = window.teamProfOf && teamProfOf(); if (tp && !o.prof) o.prof = tp;   // mode Équipe : enseignant qui a saisi
   if (r.key) { o.id = 'r:' + r.key; const i = DB.resultats.findIndex(x => x.id === o.id || x.key === r.key); if (i >= 0) { DB.resultats[i] = o; save(); window.syncFlush && window.syncFlush(); return 'maj'; } }
   DB.resultats.push(o); save(); window.syncFlush && window.syncFlush(); return 'new';
 }
