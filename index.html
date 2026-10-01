@@ -754,6 +754,7 @@ function resetAll(){ if(confirm('Effacer toutes les données (classes, favoris�
 /* Démarrage */
 renderHome();
 const h=location.hash.slice(1); if(['outils','plus'].includes(h)) go(h);
+if(h==='equipe'||h==='aide') setTimeout(()=>{ if(typeof openHowTo==='function') openHowTo(h==='equipe'?'equipe':null); },600);   // liens à partager : #equipe, #aide
 if('serviceWorker' in navigator && location.protocol==='https:'){ navigator.serviceWorker.register('sw.js').catch(()=>{});
   // nouvelle version téléchargée en arrière-plan : proposer de l'appliquer
   let hadCtrl=!!navigator.serviceWorker.controller; navigator.serviceWorker.addEventListener('controllerchange',()=>{ if(!hadCtrl){hadCtrl=true;return;}

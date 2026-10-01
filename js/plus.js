@@ -4,9 +4,11 @@
    ========================================================= */
 /* Page Ko-fi : laisser vide tant qu'elle n'existe pas (le bouton est alors masqué) */
 const KOFI_URL = 'https://ko-fi.com/epsone';
-const APP_VERSION = '14.1';
+const APP_VERSION = '14.3';
 const APP_URL = 'https://steffdelaseuva-hue.github.io/eps-one/';
 const CHANGELOG = [
+  { v: '14.3', items: ['« Comment ça marche ? » : étape à part « 👥 Équipe EPS · tablettes partagées » (6 étapes)', 'Liens directs à partager : …/eps-one/#equipe (ouvre cette étape) et …/eps-one/#aide'] },
+  { v: '14.2', items: ['« Comment ça marche ? » : le mode Équipe EPS (tablettes partagées) est présenté à l\'étape 3'] },
   { v: '14.1', items: ['Gestion de match · sports collectifs : Défi ATP retiré (format individuel)', 'Escrime : « 🤺 Tournoi style ATP »', 'Lutte : nouveau « 🤼 Tournoi style ATP » (classement aux points, défis jusqu\'à 6 places au-dessus, arbitrage +0,5, partagé entre tablettes)', 'Dispenses : bouton ✏️ pour modifier une dispense enregistrée'] },
   { v: '14.0', items: ['Correction importante : quand une autre tablette envoyait ses résultats pendant la séance, l\'outil ouvert pouvait enregistrer dans une ancienne copie des données (résultats d\'un groupe perdus). Corrigé dans Duathlon, Demi-fond, Sauvetage, Escalade, Acrosport, Parkour', 'Fenêtre « Groupes de la séance » : bouton ✔ Terminé toujours visible en haut, défilement conservé'] },
   { v: '13.9', items: ['Synchronisation Dropbox / Google Drive : plusieurs tablettes qui envoient en même temps ne peuvent plus effacer l\'envoi d\'une autre (écriture conditionnelle Dropbox, double vérification Drive)', 'Duathlon : carte « 📤 Envois de cette tablette » (✅ envoyé · ⏳ en attente · ⚠️ absent → 🔁 Renvoyer, copie de secours sur la tablette)', 'Duathlon : suivi « 📥 Résultats reçus des tablettes » groupe par groupe sur la tablette enseignant'] },
@@ -410,16 +412,19 @@ renderHome();
 
 
 /* ---------- « Comment ça marche ? » (accueil) ---------- */
-window.openHowTo = () => openPanel('Comment ça marche ?', el => {
+window.openHowTo = to => openPanel('Comment ça marche ?', el => {
   const step = (n, t, d, btn) => `<div class="card" style="display:flex;gap:14px;align-items:flex-start;margin-top:12px">
       <div style="flex:0 0 38px;height:38px;border-radius:50%;background:var(--grad);color:#fff;display:grid;place-items:center;font-weight:900;font-size:1.1rem">${n}</div>
       <div style="flex:1;min-width:0"><b style="font-size:1.05rem">${t}</b><p class="muted" style="margin:4px 0 0;line-height:1.45">${d}</p>${btn || ''}</div></div>`;
   const b = (label, fn) => `<button class="btn btn-ghost" style="margin-top:10px" onclick="${fn}">${label}</button>`;
-  el.innerHTML = `<p style="margin:0 0 4px;line-height:1.5">EPS ONE réunit vos outils de cours dans une seule app, <b>sans compte obligatoire</b> et <b>sans publicité</b>. En 5 étapes :</p>
+  el.innerHTML = `<p style="margin:0 0 4px;line-height:1.5">EPS ONE réunit vos outils de cours dans une seule app, <b>sans compte obligatoire</b> et <b>sans publicité</b>. En 6 étapes :</p>
     ${step(1, '📥 Importez ou créez vos classes', 'Fichier Pronote / ENT (CSV ou Excel) ou saisie à la main. Rangez-les en <b>classes EPS</b>, <b>UNSS / AS</b> ou <b>autres classes</b> (cross).', b('📥 Mes classes', "openImportClasses()"))}
     ${step(2, '🧰 Utilisez les outils', 'Chronos, matchs, cross, HYROX, acrosport, gym, demi-fond… Vos classes sont déjà dedans : choisissez la classe, les élèves et les groupes apparaissent.', b('Ouvrir les OUTILS →', "closeTool();go('outils')"))}
     ${step(3, '📶 Hors ligne ou en synchro entre tablettes', 'Sans réseau, tout fonctionne et reste sur l\'appareil. Avec la synchronisation (votre cloud ou un compte EPS ONE), chaque groupe peut avoir sa tablette et les résultats arrivent en direct sur la vôtre.', b('🔄 Synchronisation', "openSync()"))}
-    ${step(4, '🔒 Confiez les tablettes aux élèves', 'Créez votre <b>code enseignant</b> : les élèves utilisent les outils (chronos, coches, projets…) mais ne peuvent pas modifier vos réglages. Le bouton 🔒/🔓 en haut verrouille avant de passer la tablette.', b('🔒 Code enseignant', "openProfPin()"))}
-    ${step(5, '📊 Retrouvez les résultats', 'Les résultats de chaque outil arrivent dans <b>Résultats des élèves</b> (individuel) et <b>Résultats collectifs</b> (groupes, tournois), exportables en CSV.', b('📊 Résultats des élèves', "openTool('resultats')"))}
-    <p class="muted" style="margin:14px 2px 0;font-size:.85rem">Astuce : installez l'app sur l'écran d'accueil (Plus → Installer l'application) et ajoutez vos outils préférés en ☆ favoris.</p>`;
+    <div id="howto-equipe">${step(4, '👥 Équipe EPS · tablettes partagées', 'Plusieurs collègues sur le <b>même lot de tablettes</b>, avec un seul compte pour l\'équipe (Dropbox conseillé). En début de cours, chacun touche <b>son nom</b> (« Qui fait cours ? ») et tape <b>son code</b> : il retrouve ses classes et ses favoris, sans se déconnecter. Un collègue seul dans son établissement n\'en a pas besoin.', b('👥 Régler l\'équipe', "openTeam()"))}</div>
+    ${step(5, '🔒 Confiez les tablettes aux élèves', 'Créez votre <b>code enseignant</b> : les élèves utilisent les outils (chronos, coches, projets…) mais ne peuvent pas modifier vos réglages. Le bouton 🔒/🔓 en haut verrouille avant de passer la tablette.', b('🔒 Code enseignant', "openProfPin()"))}
+    ${step(6, '📊 Retrouvez les résultats', 'Les résultats de chaque outil arrivent dans <b>Résultats des élèves</b> (individuel) et <b>Résultats collectifs</b> (groupes, tournois), exportables en CSV.', b('📊 Résultats des élèves', "openTool('resultats')"))}
+    <p class="muted" style="margin:14px 2px 0;font-size:.85rem">🔗 Lien direct vers une étape à envoyer aux collègues : <b>…/eps-one/#equipe</b> (équipe) ou <b>…/eps-one/#aide</b> (cette page).</p>
+    <p class="muted" style="margin:8px 2px 0;font-size:.85rem">Astuce : installez l'app sur l'écran d'accueil (Plus → Installer l'application) et ajoutez vos outils préférés en ☆ favoris.</p>`;
+  if (to) setTimeout(() => { const x = el.querySelector('#howto-' + to); if (x) { x.scrollIntoView({ behavior: 'smooth', block: 'start' }); x.firstElementChild.style.boxShadow = '0 0 0 3px var(--blue,#1E5BD8)'; } }, 250);
 });
