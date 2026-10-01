@@ -4,9 +4,10 @@
    ========================================================= */
 /* Page Ko-fi : laisser vide tant qu'elle n'existe pas (le bouton est alors masqué) */
 const KOFI_URL = 'https://ko-fi.com/epsone';
-const APP_VERSION = '14.6';
+const APP_VERSION = '14.7';
 const APP_URL = 'https://steffdelaseuva-hue.github.io/eps-one/';
 const CHANGELOG = [
+  { v: '14.7', items: ['Équipe EPS : bouton 😀 dédié pour choisir l\'avatar (photo, Memoji, émoji), légende des boutons'] },
   { v: '14.6', items: ['Escrime : préparation en 4 étapes (assaut, tournoi style ATP, championnat, élimination, pyramide · déroulement · tireurs · réglages)'] },
   { v: '14.5', items: ['Sports collectifs : préparation en 4 étapes (forme · déroulement · équipes · réglages) et match en « résultats simples »', 'Équipe EPS : avatar de chaque enseignant (photo, capture de son Memoji ou émoji) à la place des initiales'] },
   { v: '14.4', items: ['Sports de raquette : préparation en 4 étapes comme la Lutte — 1. sport et forme de pratique (match, Défi ATP, championnat, élimination, pyramide) · 2. déroulement (avec observation / résultats simples) · 3. joueurs ou équipes · 4. réglages', 'Match isolé en « résultats simples » : on saisit seulement le score final'] },
