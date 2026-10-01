@@ -28,7 +28,7 @@ function tStand(t, g) {
 /* ---------- Formats de tournoi ---------- */
 const TFMT = { poule: { i: '🔁', n: 'Championnat (poule)', d: 'Tout le monde se rencontre · classement aux points · une poule par niveau (« Niveau 1 · … »)' },
   elim: { i: '🏅', n: 'Élimination directe', d: 'Tableau à élimination · exempts qualifiés d\'office · le vainqueur passe au tour suivant' },
-  pyramide: { i: '🔺', n: 'Pyramide des victoires', d: 'On défie une équipe de la ligne juste au-dessus (ou de sa ligne) · victoire = on prend sa place' },
+  pyramide: { i: '🔺', n: 'Défis pyramide', d: 'On défie une équipe de la ligne juste au-dessus (ou de sa ligne) · victoire = on prend sa place' },
   atp: { i: '🎾', n: 'Défi ATP (individuel)', d: 'Classement individuel aux points · on défie un des 6 joueurs juste au-dessus · battre mieux classé rapporte plus · arbitrage +0,5' } };
 const tFmt = t => TFMT[t.format] ? t.format : 'poule';
 const RACKET = ['badminton', 'tennis', 'shortennis', 'tt'];
