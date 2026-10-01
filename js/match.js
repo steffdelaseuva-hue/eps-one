@@ -324,7 +324,8 @@ TOOL_IMPL.matchr = el => TOOL_IMPL.match(el, 'raq');
 TOOL_IMPL.escrime = el => TOOL_IMPL.match(el, 'esc');
 TOOL_IMPL.match = function (el, grp = 'col') {
   const GS = MATCH_GRP[grp] || MATCH_GRP.col, inG = sp => GS.includes(sp);
-  let S = { sport: GS.includes('handball') ? 'handball' : GS[0], a: 'Équipe A', b: 'Équipe B', type: 'temps', dur: 10, target: 21, ecart: true, bonus: [1, 2, 5], stats: true, zones: false, nz: 4, ia: 0, ib: 1, obsOn: false, obsN: 2, role: (DB.tablette && DB.tablette.match && DB.tablette.match.role) || 'table' };
+  const NEW = grp === 'raq';   // préparation « à la Lutte » : 1 forme · 2 déroulement · 3 joueurs · 4 réglages (sports de raquette d'abord)
+  let S = { forme: 'match', sai: 'obs', sport: GS.includes('handball') ? 'handball' : GS[0], a: 'Équipe A', b: 'Équipe B', type: 'temps', dur: 10, target: 21, ecart: true, bonus: [1, 2, 5], stats: true, zones: false, nz: 4, ia: 0, ib: 1, obsOn: false, obsN: 2, role: (DB.tablette && DB.tablette.match && DB.tablette.match.role) || 'table' };
   let selPl = null;
   let M = null, iv = null;
   const SP = () => SPORTS[S.sport];
@@ -399,6 +400,72 @@ TOOL_IMPL.match = function (el, grp = 'col') {
     if ($('#hx')) $('#hx').onclick = () => download(`matchs-${new Date().toISOString().slice(0, 10)}.csv`, csv([
       ['Date', 'Sport', 'Équipe A', 'Score A', 'Score B', 'Équipe B', 'Tirs A', 'Marqués A', 'Pertes A', 'Passes déc. A', 'Bonus A', 'Tirs B', 'Marqués B', 'Pertes B', 'Passes déc. B', 'Bonus B', 'Joueurs A', 'Joueurs B'],
       ...DB.matchs.map(m => [new Date(m.date).toLocaleString('fr-FR'), SPORTS[m.sport]?.name || m.sport, m.a, m.sa, m.sb, m.b, ...[0, 1].flatMap(t => { const s = m.stats[t]; return [s.tirs, s.marques, s.pertes, s.passes, s.bonus]; }), (m.pa || []).join(', '), (m.pb || []).join(', ')])]));
+    if (NEW && !lt) wizard();
+
+    /* ----- Préparation en 4 étapes (comme l'outil Lutte) ----- */
+    function wizard() {
+      const FO = { match: { i: '🏸', n: 'Match 1 contre 1 (ou double)', d: 'Un match isolé · score, chrono, observations' },
+        atp: { i: atpI(S.sport), n: atpN(S.sport).replace(' (individuel)', ''), d: 'Classement individuel aux points · on défie un des 6 joueurs juste au-dessus · arbitrer : +0,5 · partagé entre tablettes' },
+        poule: { i: TFMT.poule.i, n: TFMT.poule.n, d: 'Tout le monde se rencontre · classement aux points · partagé entre tablettes' },
+        elim: { i: TFMT.elim.i, n: TFMT.elim.n, d: 'Tableau avec exempts · le vainqueur passe au tour suivant' },
+        pyramide: { i: TFMT.pyramide.i, n: TFMT.pyramide.n, d: 'On défie la ligne juste au-dessus · victoire = on prend sa place' } };
+      const SI = { badminton: '🏸', shortennis: '🎾', tennis: '🎾', tt: '🏓', escrime: '🤺' };
+      const SD = { obs: { i: '👁', n: 'Avec observation', d: 'Score en direct sur la tablette, chrono, observations individuelles' },
+        simple: { i: '✍️', n: 'Libre · résultats simples', d: 'On joue sur le terrain, puis on saisit seulement le vainqueur et le score' } };
+      if (!FO[S.forme]) S.forme = 'match';
+      const tour = ['poule', 'elim', 'pyramide'].includes(S.forme), sdOK = !tour;
+      if (!sdOK) S.sai = 'obs';
+      const tl = (obj, cur, attr) => `<div class="tn-fmts">${Object.keys(obj).map(k => `<button class="tn-fmt ${cur === k ? 'on' : ''}" data-${attr}="${k}" style="min-height:0"><span class="i">${obj[k].i}</span><b>${obj[k].n}</b><small>${obj[k].d}</small></button>`).join('')}</div>`;
+      const sportCard = el.querySelector('#sp') && el.querySelector('#sp').closest('.card'), court = el.querySelector('.court'),
+        eq = el.querySelector('#na').closest('.card'), rg = el.querySelector('#ty').closest('.card'), go = el.querySelector('#go');
+      if (sportCard) sportCard.remove(); if (court) court.style.display = 'none';
+      ['#atp-new', '#mt-tn'].forEach(q => { const x = el.querySelector(q); if (x) x.style.display = 'none'; });
+      const c1 = document.createElement('div'); c1.className = 'card'; c1.setAttribute('data-cfg', ''); c1.style.marginTop = '12px';
+      c1.innerHTML = `<h3>1. Sport et forme de pratique</h3>${GS.length > 1 ? `<div class="tn-fmts" style="margin-bottom:10px">${GS.map(k => `<button class="tn-fmt ${k === S.sport ? 'on' : ''}" data-s="${k}" style="min-height:0"><span class="i">${SI[k] || '🏆'}</span><b>${esc(SPORTS[k].name)}</b></button>`).join('')}</div>` : ''}
+        <label>Forme de pratique</label>${tl(FO, S.forme, 'fo')}`;
+      const c2 = document.createElement('div'); c2.className = 'card'; c2.setAttribute('data-cfg', ''); c2.style.marginTop = '12px';
+      c2.innerHTML = `<h3>2. Déroulement</h3>${sdOK ? tl(SD, S.sai, 'sd') : '<p class="muted" style="margin:4px 0 0">Les matchs du tournoi se jouent sur les tablettes avec le score en direct (une tablette par terrain).</p>'}`;
+      eq.before(c1); eq.before(c2);
+      const h3 = eq.querySelector('h3'); if (h3) h3.textContent = '3. Joueurs ou équipes (simple ou double)';
+      if (S.forme === 'atp') { eq.style.display = 'none'; const n3 = document.createElement('div'); n3.className = 'card'; n3.style.marginTop = '12px';
+        n3.innerHTML = '<h3>3. Joueurs</h3><p class="muted" style="margin:4px 0 0">Les élèves de la classe (absents décochés) sont choisis à l\'écran suivant, après « Créer le tournoi ».</p>'; eq.after(n3); }
+      if (tour && !T()) { const p = document.createElement('p'); p.className = 'muted'; p.style.cssText = 'font-size:.85rem;margin:8px 0 0;font-weight:700;color:var(--danger)'; p.textContent = '⚠️ Formez d\'abord les équipes (ou joueurs) avec la classe : un tournoi en demande au moins 2.'; eq.appendChild(p); }
+      const rh = rg.querySelector('h3'); if (rh) rh.textContent = '4. Réglages du match';
+      if (S.sai === 'simple') { const ob = rg.querySelector('#ob'); if (ob) ob.closest('label').style.display = 'none'; const w = rg.querySelector('#obw'); if (w) w.style.display = 'none';
+        rh.insertAdjacentHTML('afterend', '<p class="muted" style="margin:2px 0 6px;font-size:.82rem">✍️ Résultats simples : les règles servent de repère (temps ou points) ; seul le score final est saisi.</p>'); }
+      go.textContent = S.forme === 'match' ? (S.sai === 'simple' ? '✍️ Saisir le résultat du match' : '▶ Lancer le match') : '✔ Créer le tournoi';
+      c1.querySelectorAll('[data-s]').forEach(b => b.onclick = () => { keep(); S.sport = b.dataset.s; const sp = SP(); S.type = sp.type; if (sp.dur) S.dur = sp.dur; if (sp.target) S.target = sp.target; S.ecart = !!sp.ecart; if (!sp.zones) S.zones = false; setup(); });
+      el.querySelectorAll('[data-fo]').forEach(b => b.onclick = () => { keep(); S.forme = b.dataset.fo; setup(); });
+      el.querySelectorAll('[data-sd]').forEach(b => b.onclick = () => { keep(); S.sai = b.dataset.sd; setup(); });
+      go.onclick = () => { keep();
+        if (S.forme === 'match') return S.sai === 'simple' ? simpleMatch() : goL();
+        if (!encOk()) return; unlinkT();
+        if (S.forme === 'atp') return createAtp({ cls: T() ? T().cls : '', saisie: S.sai });
+        const t = T(); if (!t || t.teams.length < 2) return toast('Formez d\'abord au moins 2 équipes (étape 3)');
+        createT(t, S.forme); };
+    }
+  }
+
+  /* ----- Match isolé en « résultats simples » : vainqueur + score, sans chrono ----- */
+  function simpleMatch() {
+    clearInterval(iv); M = null; let w = null, xa = '', xb = '';
+    const pa = T() ? [...membersOf(S.ia)] : [], pb = T() ? [...membersOf(S.ib)] : [];
+    const draw = () => {
+      el.innerHTML = `<div class="card" style="text-align:center"><div class="muted" style="font-weight:800;font-size:.85rem">${esc(SP().name)} · ✍️ résultats simples</div>
+          <div class="mo-vs" style="margin:10px 0"><span style="background:#B8912A">${esc(S.a)}</span><span class="muted" style="color:var(--muted);padding:0">vs</span><span style="background:#1E5BD8">${esc(S.b)}</span></div>
+          <h3 style="margin:6px 0 0">Score final</h3>
+          <div class="row" style="margin-top:6px"><div><label>${esc(S.a)}</label><input id="sm-a" type="number" inputmode="numeric" min="0" value="${esc(xa)}" style="text-align:center;font-size:1.6rem;font-weight:900"></div>
+            <div><label>${esc(S.b)}</label><input id="sm-b" type="number" inputmode="numeric" min="0" value="${esc(xb)}" style="text-align:center;font-size:1.6rem;font-weight:900"></div></div>
+          <p class="muted" style="font-size:.8rem;margin:8px 0 0">Le vainqueur est déduit du score.</p></div>
+        <button class="btn btn-grad btn-block" id="sm-ok" style="margin-top:14px;padding:17px;font-size:1.15rem">✔ Valider le résultat</button>
+        <button class="btn btn-ghost btn-block" id="sm-bk" style="margin-top:8px">← Retour</button>`;
+      const $ = q => el.querySelector(q);
+      $('#sm-bk').onclick = setup;
+      $('#sm-ok').onclick = () => { xa = $('#sm-a').value; xb = $('#sm-b').value; if (xa === '' || xb === '') return toast('Saisissez les deux scores');
+        const rec = { id: tuid(), date: Date.now(), sport: S.sport, a: S.a, b: S.b, sa: Math.max(0, Math.round(+xa || 0)), sb: Math.max(0, Math.round(+xb || 0)), duree: 0, nz: 0, pa, pb, obs: null, coll: false, stats: stats([], 0), ev: [], simple: true };
+        summary(rec, false); };
+    };
+    draw(); window.scrollTo(0, 0);
   }
 
   /* ----- Observations individuelles (2 à 4 joueurs) ----- */
@@ -526,11 +593,11 @@ TOOL_IMPL.match = function (el, grp = 'col') {
     playT(L.T0, r.a, r.b, rid, null, null, false, L.id, true); };
   const afterSave = m => { unlinkT(); if (m.tid && TR().some(x => x.id === m.tid)) tview(m.tid); else setup(); };
   const curRegles = () => ({ type: S.type, dur: S.dur, target: S.target, ecart: S.ecart, bonus: [...S.bonus], stats: S.stats, zones: S.zones, nz: S.nz, obsOn: S.obsOn, obsN: S.obsN });
-  function createT(tm) {
+  function createT(tm, fmt0) {
     const seen = {}, teams = tm.teams.filter(x => x.name || x.members.length).map((x, i) => { let n = (x.name || '').trim() || 'Équipe ' + (i + 1); if (seen[n]) n += ' (' + (++seen[n]) + ')'; else seen[n] = 1; return { name: n, members: [...x.members] }; });
     if (teams.length < 2) return toast('Au moins 2 équipes');
     const def = `Tournoi ${tm.cls ? tm.cls + ' · ' : '· '}${SP().name}`, names = teams.map(x => x.name), G = tPoules(names), gk = Object.keys(G);
-    const C = { nom: def, format: 'poule', v: 3, n: 2, d: 1, mx: false };
+    const C = { nom: def, format: ['poule', 'elim', 'pyramide'].includes(fmt0) ? fmt0 : 'poule', v: 3, n: 2, d: 1, mx: false };
     const $ = q => el.querySelector(q);
     const keepC = () => { C.nom = $('#c-nom').value; if ($('#c-v')) { C.v = +$('#c-v').value || 0; C.n = +$('#c-n').value || 0; C.d = +$('#c-d').value || 0; } if ($('#c-mx')) C.mx = $('#c-mx').checked; };
     const draw = () => {
@@ -577,7 +644,7 @@ TOOL_IMPL.match = function (el, grp = 'col') {
   /* ----- Défi ATP : création (élèves d'une classe, absents décochés) ----- */
   function createAtp(o = {}) {
     clearInterval(iv); M = null; S.view = null;
-    const C = { cls: DB.classes.some(c => c.name === o.cls) ? o.cls : o.txt ? '' : (DB.classes[0] || {}).name || '', off: new Set(), start: 100, cf: true, saisie: 'obs', txt: o.txt || '' };
+    const C = { cls: DB.classes.some(c => c.name === o.cls) ? o.cls : o.txt ? '' : (DB.classes[0] || {}).name || '', off: new Set(), start: 100, cf: true, saisie: o.saisie === 'simple' ? 'simple' : 'obs', txt: o.txt || '' };
     const def = () => `Défi ATP ${C.cls ? C.cls + ' · ' : '· '}${SP().name}`;
     C.nom = def();
     const $ = q => el.querySelector(q);
@@ -1093,6 +1160,7 @@ TOOL_IMPL.match = function (el, grp = 'col') {
       save(); window.syncFlush && window.syncFlush(); toast('Match enregistré ✔'); afterSave(m); };
     $('#nw').onclick = () => { const e = myEnc(); if (!confirm(`Quitter sans enregistrer ?${e ? '\n' + encMsg(e) : ''}`)) return; relEnc(); setup(); };
     $('#rs').onclick = () => { // revenir au match (ex. fin par erreur)
+      if (m.simple && !M) return simpleMatch();   // résultat simple : retour à la saisie du score
       const saved = M; start(true); M.ev = saved.ev; M.acc = saved.acc; M.pa = saved.pa; M.pb = saved.pb; M.obs = saved.obs; drawObs(); M.poss = saved.poss; M.over = false; paint(); tick(); };
   }
 

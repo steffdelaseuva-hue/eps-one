@@ -4,9 +4,10 @@
    ========================================================= */
 /* Page Ko-fi : laisser vide tant qu'elle n'existe pas (le bouton est alors masqué) */
 const KOFI_URL = 'https://ko-fi.com/epsone';
-const APP_VERSION = '14.3';
+const APP_VERSION = '14.4';
 const APP_URL = 'https://steffdelaseuva-hue.github.io/eps-one/';
 const CHANGELOG = [
+  { v: '14.4', items: ['Sports de raquette : préparation en 4 étapes comme la Lutte — 1. sport et forme de pratique (match, Défi ATP, championnat, élimination, pyramide) · 2. déroulement (avec observation / résultats simples) · 3. joueurs ou équipes · 4. réglages', 'Match isolé en « résultats simples » : on saisit seulement le score final'] },
   { v: '14.3', items: ['« Comment ça marche ? » : étape à part « 👥 Équipe EPS · tablettes partagées » (6 étapes)', 'Liens directs à partager : …/eps-one/#equipe (ouvre cette étape) et …/eps-one/#aide'] },
   { v: '14.2', items: ['« Comment ça marche ? » : le mode Équipe EPS (tablettes partagées) est présenté à l\'étape 3'] },
   { v: '14.1', items: ['Gestion de match · sports collectifs : Défi ATP retiré (format individuel)', 'Escrime : « 🤺 Tournoi style ATP »', 'Lutte : nouveau « 🤼 Tournoi style ATP » (classement aux points, défis jusqu\'à 6 places au-dessus, arbitrage +0,5, partagé entre tablettes)', 'Dispenses : bouton ✏️ pour modifier une dispense enregistrée'] },
