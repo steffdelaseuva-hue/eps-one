@@ -32,7 +32,12 @@ const TFMT = { poule: { i: '🔁', n: 'Championnat (poule)', d: 'Tout le monde s
   atp: { i: '🎾', n: 'Défi ATP (individuel)', d: 'Classement individuel aux points · on défie un des 6 joueurs juste au-dessus · battre mieux classé rapporte plus · arbitrage +0,5' } };
 const tFmt = t => TFMT[t.format] ? t.format : 'poule';
 const RACKET = ['badminton', 'tennis', 'shortennis', 'tt'];
-const fmtOrder = sport => RACKET.includes(sport) ? ['atp', 'poule', 'elim', 'pyramide'] : ['poule', 'elim', 'pyramide', 'atp'];
+// Défi ATP : individuel → raquettes et escrime seulement (pas en sports collectifs)
+const atpOK = sport => RACKET.includes(sport) || sport === 'escrime';
+const atpI = sport => sport === 'escrime' ? '🤺' : RACKET.includes(sport) ? '🎾' : '🏆';
+const atpN = sport => sport === 'escrime' ? 'Tournoi « style ATP » (individuel)' : 'Défi ATP (individuel)';
+const fmtI = (k, sport) => k === 'atp' ? atpI(sport) : TFMT[k].i, fmtN = (k, sport) => k === 'atp' ? atpN(sport) : TFMT[k].n;
+const fmtOrder = sport => RACKET.includes(sport) ? ['atp', 'poule', 'elim', 'pyramide'] : atpOK(sport) ? ['atp', 'poule', 'elim', 'pyramide'] : ['poule', 'elim', 'pyramide'];
 /* Défi ATP : barème selon l'écart (points du gagnant − points du perdant, avant le match) */
 const atpGain = e => e < -10 ? 6 : e < -5 ? 5 : e < 0 ? 4 : e < 5 ? 3 : e < 10 ? 2 : 1;
 const ATP_BAR = [['−11 ou moins', 6], ['−10 à −6', 5], ['−5 à −1', 4], ['0 à 4', 3], ['5 à 9', 2], ['10 ou plus', 1]];
@@ -332,16 +337,16 @@ TOOL_IMPL.match = function (el, grp = 'col') {
     const recent = TR().filter(x => inG(x.sport) && x.date >= Date.now() - 7 * 864e5).sort((x, y) => y.date - x.date);
     el.innerHTML = `${lt ? `<div class="card" style="margin-bottom:12px;border:2px solid #B8912A"><h3>🏆 ${esc(lt.nom)}</h3>
         <div class="mo-vs" style="margin:6px 0"><span style="background:#B8912A">${esc(S.a)}</span><span class="muted" style="color:var(--muted);padding:0">vs</span><span style="background:#1E5BD8">${esc(S.b)}</span></div>
-        <div class="muted" style="text-align:center;font-size:.85rem">${S.defi ? tFmt(lt) === 'atp' ? `🎾 ${S.libre ? `Match libre ATP · ${esc(S.defi.challenger)} vs ${esc(S.defi.defie)}` : `Défi ATP · ${esc(S.defi.challenger)} défie ${esc(S.defi.defie)}`}${S.arb ? ' · arbitre : ' + esc(S.arb) : ''} · compte pour le classement` : `🔺 Défi de la pyramide · ${esc(S.defi.challenger)} défie ${esc(S.defi.defie)} · compte pour le classement` : lr ? `${tFmt(lt) === 'elim' ? `🏅 ${elimName(lt, lr.round)} · le vainqueur se qualifie` : `Rencontre du tour ${lr.round}${lr.g ? ' · ' + esc(lr.g) : ''} · compte pour le classement`}` : 'Match amical · hors classement'} · ${esc(SPORTS[lt.sport]?.name || '')}</div>
+        <div class="muted" style="text-align:center;font-size:.85rem">${S.defi ? tFmt(lt) === 'atp' ? `${atpI(lt.sport)} ${S.libre ? `Match libre ATP · ${esc(S.defi.challenger)} vs ${esc(S.defi.defie)}` : `Défi ATP · ${esc(S.defi.challenger)} défie ${esc(S.defi.defie)}`}${S.arb ? ' · arbitre : ' + esc(S.arb) : ''} · compte pour le classement` : `🔺 Défi de la pyramide · ${esc(S.defi.challenger)} défie ${esc(S.defi.defie)} · compte pour le classement` : lr ? `${tFmt(lt) === 'elim' ? `🏅 ${elimName(lt, lr.round)} · le vainqueur se qualifie` : `Rencontre du tour ${lr.round}${lr.g ? ' · ' + esc(lr.g) : ''} · compte pour le classement`}` : 'Match amical · hors classement'} · ${esc(SPORTS[lt.sport]?.name || '')}</div>
         <button class="btn btn-grad btn-block" style="margin-top:10px;padding:16px;font-size:1.1rem" id="go2">▶ Lancer le match</button>
         <div class="row" style="margin-top:8px"><button class="btn btn-ghost" id="tl-bk">← Retour au tournoi</button><button class="btn btn-ghost" data-cfg="bare" id="tl-x">✕ Délier du tournoi</button></div></div>` : ''}
-      ${recent.length ? `<div class="card" style="margin-bottom:12px"><h3>🏆 Tournois en cours</h3>${recent.map(x => `<button class="tn-it" data-tv="${x.id}"><span style="font-size:1.6rem" title="${TFMT[tFmt(x)].n}">${TFMT[tFmt(x)].i}</span><span style="flex:1"><b>${esc(x.nom)}</b><div class="muted" style="font-size:.8rem">${TFMT[tFmt(x)].n} · ${esc(SPORTS[x.sport]?.name || x.sport)}${x.classe ? ' · ' + esc(x.classe) : ''} · ${x.teams.length} ${tFmt(x) === 'atp' ? 'joueurs' : 'équipes'} · ${esc(tProgress(x))} · ${new Date(x.date).toLocaleDateString('fr-FR')}</div></span><span style="font-size:1.3rem">›</span></button>`).join('')}</div>` : ''}
+      ${recent.length ? `<div class="card" style="margin-bottom:12px"><h3>🏆 Tournois en cours</h3>${recent.map(x => `<button class="tn-it" data-tv="${x.id}"><span style="font-size:1.6rem" title="${fmtN(tFmt(x), x.sport)}">${fmtI(tFmt(x), x.sport)}</span><span style="flex:1"><b>${esc(x.nom)}</b><div class="muted" style="font-size:.8rem">${fmtN(tFmt(x), x.sport)} · ${esc(SPORTS[x.sport]?.name || x.sport)}${x.classe ? ' · ' + esc(x.classe) : ''} · ${x.teams.length} ${tFmt(x) === 'atp' ? 'joueurs' : 'équipes'} · ${esc(tProgress(x))} · ${new Date(x.date).toLocaleDateString('fr-FR')}</div></span><span style="font-size:1.3rem">›</span></button>`).join('')}</div>` : ''}
       <div class="card" data-cfg style="${GS.length < 2 ? 'display:none' : ''}"><h3>Sport</h3><div class="tog" id="sp">${Object.entries(SPORTS).filter(([k]) => inG(k)).map(([k, x]) => `<button data-s="${k}" class="${k === S.sport ? 'on' : ''}">${x.name}</button>`).join('')}</div></div>
       <div class="court" style="margin-top:12px;background:${courtSVG(S.sport).bg}"><svg viewBox="${courtSVG(S.sport).vb}">${courtSVG(S.sport).svg}</svg></div>
       <div class="card" data-cfg style="margin-top:12px"><h3>Équipes</h3>
         <details id="mt-d" ${DB.classes.length && !DB.matchTeams ? 'open' : ''}><summary style="font-weight:800;cursor:pointer">👥 Constituer les équipes avec les élèves d'une classe</summary><div id="mt-host" style="margin-top:6px"></div></details>
         ${teamsBlock()}
-        ${RACKET.includes(S.sport) || DB.classes.length ? `<button class="btn ${RACKET.includes(S.sport) ? 'btn-grad' : 'btn-ghost'} btn-block" style="margin-top:10px;padding:13px" id="atp-new">🎾 Créer un Défi ATP (classement individuel des élèves, partagé avec les tablettes)</button>` : ''}
+        ${atpOK(S.sport) ? `<button class="btn btn-grad btn-block" style="margin-top:10px;padding:13px" id="atp-new">${atpI(S.sport)} Créer un ${S.sport === 'escrime' ? 'tournoi « style ATP »' : 'Défi ATP'} (classement individuel des élèves, partagé avec les tablettes)</button>` : ''}
         <div class="row"><div><label>Nom équipe A</label><input id="na" value="${esc(S.a)}"></div><div><label>Nom équipe B</label><input id="nb" value="${esc(S.b)}"></div></div></div>
       <div class="card" data-cfg style="margin-top:12px"><h3>Règles du match</h3>
         <div class="tog" id="ty"><button data-t="temps" class="${S.type === 'temps' ? 'on' : ''}">⏱ Match au temps</button><button data-t="points" class="${S.type === 'points' ? 'on' : ''}">🎯 Match au point</button></div>
@@ -540,8 +545,8 @@ TOOL_IMPL.match = function (el, grp = 'col') {
       el.innerHTML = `<button class="btn btn-ghost" id="c-bk">← Annuler</button>
         <div class="card" data-cfg style="margin-top:10px;border-top:6px solid #B8912A"><h3>🏆 Nouveau tournoi · ${esc(SP().name)}</h3>
           <label>Nom du tournoi (visible sur toutes les tablettes)</label><input id="c-nom" value="${esc(C.nom)}" style="font-weight:800;font-size:1.05rem">
-          <label>Format du tournoi</label><div class="tn-fmts">${fmtOrder(S.sport).map(k => { const f = TFMT[k], rec = k === 'atp' && RACKET.includes(S.sport);
-            return `<button class="tn-fmt ${C.format === k ? 'on' : ''} ${rec ? 'rec' : ''}" data-fmt="${k}"><span class="i">${f.i}</span><b>${f.n}${rec ? '<span class="tn-tag">conseillé raquettes</span>' : ''}</b><small>${f.d}${k === 'atp' ? ' · participants : les élèves de la classe' : ''}</small></button>`; }).join('')}</div>
+          <label>Format du tournoi</label><div class="tn-fmts">${fmtOrder(S.sport).map(k => { const f = { ...TFMT[k], i: fmtI(k, S.sport), n: fmtN(k, S.sport) }, rec = k === 'atp' && atpOK(S.sport);
+            return `<button class="tn-fmt ${C.format === k ? 'on' : ''} ${rec ? 'rec' : ''}" data-fmt="${k}"><span class="i">${f.i}</span><b>${f.n}${rec ? `<span class="tn-tag">conseillé ${S.sport === 'escrime' ? 'escrime' : 'raquettes'}</span>` : ''}</b><small>${f.d}${k === 'atp' ? ' · participants : les élèves de la classe' : ''}</small></button>`; }).join('')}</div>
           ${opts}</div>
         ${C.format === 'poule' && gk.length > 1 ? gk.map(g => `<div class="card" style="margin-top:12px;padding:10px 14px"><h3 style="margin:0">${esc(g || 'Autres équipes')} · ${G[g].length} équipes</h3>${list(G[g])}</div>`).join('')
           : `<div class="card" style="margin-top:12px;padding:10px 14px"><h3 style="margin:0">Équipes · ${teams.length}</h3>${list(names)}</div>`}
@@ -582,7 +587,7 @@ TOOL_IMPL.match = function (el, grp = 'col') {
     const draw = () => {
       const st = all(), n = players().length;
       el.innerHTML = `<button class="btn btn-ghost" id="a-bk">← Annuler</button>
-        <div class="card" data-cfg style="margin-top:10px;border-top:6px solid #B8912A"><h3>🎾 Nouveau Défi ATP · ${esc(SP().name)}</h3>
+        <div class="card" data-cfg style="margin-top:10px;border-top:6px solid #B8912A"><h3>${atpI(S.sport)} Nouveau ${S.sport === 'escrime' ? 'tournoi « style ATP »' : 'Défi ATP'} · ${esc(SP().name)}</h3>
           <p class="muted" style="font-size:.85rem;margin:0 0 4px">Classement individuel aux points, partagé avec les tablettes. On défie un des <b>6 joueurs classés juste au-dessus</b> ; battre mieux classé que soi rapporte plus (barème selon l'écart de points). Arbitrer un match : +0,5 pt.</p>
           <label>Nom (visible sur toutes les tablettes)</label><input id="a-nom" value="${esc(C.nom)}" style="font-weight:800;font-size:1.05rem">
           <div class="row"><div><label>Points de départ (chaque joueur)</label><input id="a-st" type="number" min="0" value="${C.start}" style="font-weight:800;font-size:1.05rem"></div></div>
@@ -809,7 +814,7 @@ TOOL_IMPL.match = function (el, grp = 'col') {
         <table class="atp-tb"><tr><th>Écart</th><th>Gagnant</th><th>Perdant</th></tr>${ATP_BAR.map(([e, g]) => `<tr><td style="text-align:left"><b>${e}</b></td><td class="atp-up">+${g}</td><td class="atp-dn">−${g}</td></tr>`).join('')}</table>
         <p class="muted" style="font-size:.85rem;margin:8px 0 0">Exemple : un joueur à 103 pts bat un joueur à 97 pts → écart 6 → gagnant <b>+2</b> / perdant <b>−2</b>.<br>Battre un joueur mieux classé rapporte plus ; perdre contre un joueur bien moins classé coûte plus. Match nul : aucun point échangé. Arbitre : +0,5 pt. On peut défier un des 6 joueurs classés juste au-dessus de soi (le n°1 ne défie personne).</p></details>
       ${encHtml}
-      <div class="section-title"><h2>🎾 Lancer un défi</h2></div>
+      <div class="section-title"><h2>${atpI(t.sport)} Lancer un défi</h2></div>
       <div class="card" style="border:2px solid #B8912A">${flow}</div>
       <div class="section-title"><h2>Historique des défis</h2></div>
       <div class="card" style="padding:0">${log.length ? log.slice().reverse().map(l => `<div class="list-item"><div style="flex:1"><b>${esc(l.c)}</b> <span class="muted">(#${l.from})</span> ${l.lib ? 'vs' : 'défie'} <b>${esc(l.d)}</b> <span class="muted">(#${l.to})</span> ${tags(l)}
@@ -894,8 +899,8 @@ TOOL_IMPL.match = function (el, grp = 'col') {
     const amic = DB.matchs.filter(m => m.tid === t.id && !m.rid && !m.defi && !m.obsOnly).length;
     const opt = sel => t.teams.map((x, i) => `<option value="${i}" ${i === sel ? 'selected' : ''}>${esc(x.name)}</option>`).join('');
     el.innerHTML = `<span data-tvroot="${esc(t.id)}" hidden></span><button class="btn btn-ghost" id="t-bk">← Gestion de match</button>
-      <div class="card" style="margin-top:10px;border-top:6px solid #B8912A"><h3>${TFMT[f].i} ${esc(t.nom)}</h3>
-        <div class="muted" style="font-size:.85rem">${TFMT[f].n} · ${esc(SPORTS[t.sport]?.name || t.sport)}${t.classe ? ' · ' + esc(t.classe) : ''} · ${new Date(t.date).toLocaleDateString('fr-FR')} · ${t.teams.length} ${f === 'atp' ? 'joueurs' : 'équipes'}${amic ? ` · ${amic} match${amic > 1 ? 's' : ''} amica${amic > 1 ? 'ux' : 'l'}` : ''}</div>
+      <div class="card" style="margin-top:10px;border-top:6px solid #B8912A"><h3>${fmtI(f, t.sport)} ${esc(t.nom)}</h3>
+        <div class="muted" style="font-size:.85rem">${fmtN(f, t.sport)} · ${esc(SPORTS[t.sport]?.name || t.sport)}${t.classe ? ' · ' + esc(t.classe) : ''} · ${new Date(t.date).toLocaleDateString('fr-FR')} · ${t.teams.length} ${f === 'atp' ? 'joueurs' : 'équipes'}${amic ? ` · ${amic} match${amic > 1 ? 's' : ''} amica${amic > 1 ? 'ux' : 'l'}` : ''}</div>
         <div class="muted" style="font-size:.78rem;margin-top:4px">${V.info}</div>${t.regles ? `<div class="muted" style="font-size:.78rem;margin-top:2px">⚙️ ${t.regles.type === 'temps' ? `Match au temps · ${t.regles.dur} min` : `Match en ${t.regles.target} points${t.regles.ecart ? ' (2 pts d\'écart)' : ''}`}${t.regles.bonus.length ? ' · bonus ' + t.regles.bonus.map(v => '+' + v).join(' ') : ' · sans bonus'}${t.regles.obsOn ? ` · observations ${t.regles.obsN} joueurs` : ''}</div>` : ''}</div>
       ${V.html}
       <div class="section-title"><h2>Match libre</h2></div>

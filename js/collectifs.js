@@ -94,8 +94,8 @@ if (!document.getElementById('cl-css')) document.head.insertAdjacentHTML('before
         body = rankTable(rows, 'Points', false);
       }
       body += `<button class="btn btn-ghost btn-block" style="margin-top:10px" data-om="${esc(t.id)}">🏆 Ouvrir dans Gestion de match</button>`;
-      return { kind: 'tournoi', date: last, icon: TFMT[f].i, title: t.nom || 'Tournoi', event: t.nom || 'Tournoi',
-        sub: `${TFMT[f].n} · ${esc(sportN(t.sport))} · ${dFr(t.date)}${last > (t.date || 0) && dFr(last) !== dFr(t.date) ? ' → ' + dFr(last) : ''} · ${M.length} ${f === 'atp' ? 'joueurs' : 'équipes'}`,
+      return { kind: 'tournoi', date: last, icon: fmtI(f, t.sport), title: t.nom || 'Tournoi', event: t.nom || 'Tournoi',
+        sub: `${fmtN(f, t.sport)} · ${esc(sportN(t.sport))} · ${dFr(t.date)}${last > (t.date || 0) && dFr(last) !== dFr(t.date) ? ' → ' + dFr(last) : ''} · ${M.length} ${f === 'atp' ? 'joueurs' : 'équipes'}`,
         lead, body, rows: csvRows(rows) };
     });
   }

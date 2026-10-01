@@ -246,22 +246,24 @@ photo(el) {
 
 /* ---------- Dispenses ---------- */
 dispenses(el) {
+  let edit = null;   // dispense en cours de modification
   const draw = () => {
     const f = el.querySelector('#fc')?.value ?? '';
     const list = DB.dispenses.filter(d => !f || d.classe === f).sort((a, b) => (b.fin || '9').localeCompare(a.fin || '9'));
     const actives = list.filter(d => !d.fin || d.fin >= today()), passees = list.filter(d => d.fin && d.fin < today());
     const item = d => `<div class="list-item"><div style="flex:1"><b>${esc(d.eleve)}</b> <span class="muted">${esc(d.classe || '')}</span><br>
       <span class="pill ${d.type === 'Totale' ? 'warn' : ''}">${d.type}</span> <span class="muted">du ${frDate(d.debut)}${d.fin ? ' au ' + frDate(d.fin) : ' (sans date de fin)'}</span>
-      ${d.note ? `<div class="muted">${esc(d.note)}</div>` : ''}</div><button class="btn btn-ghost" data-cfg="bare" data-d="${DB.dispenses.indexOf(d)}">🗑</button></div>`;
+      ${d.note ? `<div class="muted">${esc(d.note)}</div>` : ''}</div><button class="btn btn-ghost" data-cfg="bare" data-ed="${DB.dispenses.indexOf(d)}" aria-label="Modifier">✏️</button><button class="btn btn-ghost" data-cfg="bare" data-d="${DB.dispenses.indexOf(d)}">🗑</button></div>`;
     el.querySelector('#lists').innerHTML = `<div class="section-title"><h2>En cours (${actives.length})</h2></div><div class="card" style="padding:0">${actives.map(item).join('') || '<div class="empty">Aucune dispense en cours.</div>'}</div>
       <div class="section-title"><h2>Terminées (${passees.length})</h2></div><div class="card" style="padding:0">${passees.map(item).join('') || '<div class="empty">—</div>'}</div>`;
-    el.querySelectorAll('[data-d]').forEach(b => b.onclick = () => { if (confirm('Supprimer ?')) { DB.dispenses.splice(b.dataset.d, 1); save(); draw(); } });
+    el.querySelectorAll('[data-d]').forEach(b => b.onclick = () => { if (confirm('Supprimer ?')) { const x = DB.dispenses[+b.dataset.d]; if (x === edit) stopEdit(); DB.dispenses.splice(b.dataset.d, 1); save(); draw(); } });
+    el.querySelectorAll('[data-ed]').forEach(b => b.onclick = () => startEdit(DB.dispenses[+b.dataset.ed]));
   };
-  el.innerHTML = `<div class="card" data-cfg><h3>Nouvelle dispense</h3>
+  el.innerHTML = `<div class="card" data-cfg id="dform"><h3 id="dtitle">Nouvelle dispense</h3>
     <div class="row"><div><label>Classe</label>${DB.classes.length ? classNameSelect('cl') : '<input id="cl" placeholder="ex : 6E1">'}</div><div><label>Élève</label><select id="els"></select><input id="el" placeholder="Nom de l'élève" style="display:none;margin-top:6px"></div></div>
     <div class="row"><div><label>Type</label><select id="ty"><option>Partielle</option><option>Totale</option></select></div><div><label>Du</label><input id="db" type="date" value="${today()}"></div><div><label>Au</label><input id="fn" type="date"></div></div>
     <label>Remarque (activités possibles, aménagements…)</label><input id="nt">
-    <button class="btn btn-grad btn-block" style="margin-top:12px" id="add">＋ Enregistrer</button></div>
+    <button class="btn btn-grad btn-block" style="margin-top:12px" id="add">＋ Enregistrer</button><button class="btn btn-ghost btn-block" style="margin-top:8px;display:none" id="dcancel">Annuler la modification</button></div>
     <div style="margin-top:14px"><label>Filtrer</label>${classNameSelect('fc', true)}</div><div id="lists"></div>`;
   const $ = s => el.querySelector(s);
   // Liste des élèves de la classe choisie (un <select> : la « datalist » ne s'affiche pas sur iPhone/iPad)
@@ -271,9 +273,20 @@ dispenses(el) {
   $('#els').onchange = () => { const o = $('#els').value === '__autre'; $('#el').style.display = o ? '' : 'none'; if (o) $('#el').focus(); };
   $('#cl').onchange = fillDl; fillDl();
   $('#fc').onchange = draw;
+  const stopEdit = () => { edit = null; $('#dtitle').textContent = 'Nouvelle dispense'; $('#add').textContent = '＋ Enregistrer'; $('#dcancel').style.display = 'none'; $('#nt').value = ''; $('#fn').value = ''; $('#db').value = today(); $('#ty').value = 'Partielle'; fillDl(); };
+  const startEdit = d => { if (!d) return; edit = d;
+    if ($('#cl').tagName === 'SELECT' && ![...$('#cl').options].some(o => o.value === d.classe)) $('#cl').insertAdjacentHTML('beforeend', `<option>${esc(d.classe)}</option>`);
+    $('#cl').value = d.classe || ''; fillDl();
+    if ([...$('#els').options].some(o => o.value === d.eleve)) $('#els').value = d.eleve; else { if ($('#els').options.length) $('#els').value = '__autre'; $('#el').style.display = ''; $('#el').value = d.eleve; }
+    $('#ty').value = d.type; $('#db').value = d.debut || ''; $('#fn').value = d.fin || ''; $('#nt').value = d.note || '';
+    $('#dtitle').textContent = `Modifier la dispense · ${d.eleve}`; $('#add').textContent = '💾 Enregistrer les modifications'; $('#dcancel').style.display = '';
+    $('#dform').scrollIntoView({ behavior: 'smooth', block: 'start' }); };
+  $('#dcancel').onclick = stopEdit;
   $('#add').onclick = () => {
     const sv = $('#els').style.display !== 'none' ? $('#els').value : '__autre', eleve = (sv === '__autre' ? $('#el').value : sv).trim(); if (!eleve) return toast('Choisissez l\'élève');
-    DB.dispenses.push({ classe: $('#cl').value, eleve, type: $('#ty').value, debut: $('#db').value, fin: $('#fn').value, note: $('#nt').value.trim() });
+    const o = { classe: $('#cl').value, eleve, type: $('#ty').value, debut: $('#db').value, fin: $('#fn').value, note: $('#nt').value.trim() };
+    if (edit && DB.dispenses.includes(edit)) { Object.assign(edit, o); save(); stopEdit(); toast('Dispense modifiée ✔'); return draw(); }
+    DB.dispenses.push(o);
     save(); $('#nt').value = ''; $('#fn').value = ''; fillDl(); toast('Dispense enregistrée ✔'); draw();
   };
   draw();

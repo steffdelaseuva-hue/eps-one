@@ -23,6 +23,7 @@ const LU_T = { sol: { i: '🧎', n: 'Lutte au sol', d: 'À genoux · retourner l
   debout: { i: '🧍', n: 'Lutte debout', d: 'Face à face · amener au sol, faire sortir de la zone · défense : lâcher, esquiver' } };
 const LU_FP = { match: { i: '🤼', n: 'Match 1 contre 1', d: 'Deux lutteurs et un arbitre · combat isolé' },
   relais: { i: '🔁', n: 'Relais en équipe', d: '2 équipes, ordre de passage · score d\'équipe = somme des points' },
+  atp: { i: '🤼', n: 'Tournoi « style ATP »', d: 'Classement individuel aux points · on défie un des 6 lutteurs classés juste au-dessus · battre mieux classé rapporte plus · arbitrer : +0,5' },
   tournoi: { i: '🏅', n: 'Tournoi à élimination', d: 'Tableau avec exempts · le vainqueur passe au tour suivant · une tablette par tapis' } };
 const LU_SAI = { obs: { i: '👁', n: 'Avec observation', d: 'Chrono, points 1 · 10 · 100, pénalités, défense, formes de corps' },
   simple: { i: '✍️', n: 'Libre · résultats simples', d: 'On lutte, puis on saisit seulement le vainqueur (et le score si on veut)' } };
@@ -115,8 +116,27 @@ function luRankT(s, E) {
   return s.players.map(p => ({ n: p, rank: p === champ ? 1 : out[p] ? 2 ** (R - out[p]) + 1 : null, out: out[p] || null }))
     .sort((x, y) => (x.rank || 99) - (y.rank || 99) || x.n.localeCompare(y.n, 'fr'));
 }
+/* Tournoi « style ATP » : classement rejoué à partir des combats enregistrés (barème de Gestion de match : atpGain) */
+const luGain = e => typeof atpGain === 'function' ? atpGain(e) : e < -10 ? 6 : e < -5 ? 5 : e < 0 ? 4 : e < 5 ? 3 : e < 10 ? 2 : 1;
+const luP = x => { const r = Math.round(x * 10) / 10; return (Number.isInteger(r) ? '' + r : r.toFixed(1)).replace('.', ','); };
+function luAtp(s) {
+  const st = {}; (s.players || []).forEach(n => { st[n] = { n, pts: +s.start || 100, v: 0, d: 0, nul: 0, arb: 0, last: null }; });
+  const rank = () => Object.values(st).sort((a, b) => b.pts - a.pts || b.v - a.v || a.n.localeCompare(b.n, 'fr'));
+  const seen = new Set(), log = [];
+  LU().combats.filter(m => m.sid === s.id && !m.obsOnly).sort((x, y) => (x.date || 0) - (y.date || 0)).forEach(m => {
+    if (m.enc) { if (seen.has(m.enc)) return; seen.add(m.enc); }
+    const C = st[m.a], D = st[m.b]; if (!C || !D || m.a === m.b) return;
+    const R = rank(), l = { m, c: m.a, d: m.b, from: R.indexOf(C) + 1, to: R.indexOf(D) + 1, w: null, g: 0, arb: null };
+    if (m.w) { const [W, L] = m.w === 'a' ? [C, D] : [D, C]; l.w = W.n; l.g = luGain(W.pts - L.pts); W.pts += l.g; L.pts -= l.g; W.v++; L.d++; W.last = l.g; L.last = -l.g; }
+    else { C.nul++; D.nul++; C.last = D.last = 0; }
+    const A = m.arb && m.arb !== m.a && m.arb !== m.b && st[m.arb]; if (A) { A.pts += .5; A.arb++; A.last = .5; l.arb = A.n; }
+    log.push(l); });
+  return { ranks: rank(), st, log };
+}
+const luTargets = (ranks, i) => i > 0 ? ranks.slice(Math.max(0, i - 6), i) : [];
 function luProgress(s) {
   const e = luEnc(s).length, ec = e ? ` · ⏳ ${e} en cours` : '';
+  if (s.kind === 'atp') { const A = luAtp(s); return `${A.log.length} défi${A.log.length > 1 ? 's' : ''} · 1er : ${A.ranks[0] ? A.ranks[0].n + ' (' + luP(A.ranks[0].pts) + ' pts)' : '—'}${ec}`; }
   if (s.kind === 'relais') { const st = luRel(s); return `${st.k} combat${st.k > 1 ? 's' : ''} · ${s.teams[0].name} ${st.pts[0]} – ${st.pts[1]} ${s.teams[1].name}${st.done ? ' · terminé' : ''}${ec}`; }
   const E = luElim(s), fin = E[E.length - 1][0], n = E.flat().filter(x => !x.bye && x.w != null).length;
   return `${n}/${Math.max(0, s.players.length - 1)} combats${ec}${fin && fin.w ? ' · 🏆 ' + fin.w : ''}`;
@@ -216,7 +236,7 @@ document.head.insertAdjacentHTML('beforeend', `<style>
 
 TOOL_IMPL.lutte = function (el) {
   const luCls = () => (DB.classes.find(c => c.name === DB.lastClass) || DB.classes[0] || {}).name || '';
-  const S = { forme: 'match', saisie: 'obs', cls: luCls(), a: '', b: '', view: null, barOpen: false };
+  const S = { forme: 'match', saisie: 'obs', cls: luCls(), a: '', b: '', view: null, barOpen: false, atpC: '' };
   let M = null, iv = null, hold = null;
   const $ = q => el.querySelector(q);
   const role = () => (DB.tablette && DB.tablette.lutte && DB.tablette.lutte.role) === 'obs' ? 'obs' : 'arb';
@@ -228,7 +248,7 @@ TOOL_IMPL.lutte = function (el) {
     : `<div class="lu-gold"><span class="ic">✋</span><span>Règle d'or : NE PAS FAIRE MAL !<small>Règle incontournable, avant tout le reste</small></span></div>`;
   const safety = open => `<details class="card lu-safe" style="margin-top:10px" ${open ? 'open' : ''}><summary>🛡 Sécurité avant de lutter</summary><ul>${LU_SAFE.map(x => `<li>${esc(x)}</li>`).join('')}</ul></details>`;
   const tiles = (obj, cur, attr, keys) => `<div class="tn-fmts">${(keys || Object.keys(obj)).map(k => { const x = obj[k]; return `<button class="tn-fmt ${cur === k ? 'on' : ''}" data-${attr}="${k}" style="min-height:0"><span class="i">${x.i}</span><b>${x.n}</b><small>${x.d}</small></button>`; }).join('')}</div>`;
-  const kindLbl = o => o.kind === 'relais' ? `🔁 ${esc(o.sn || 'Relais')}${o.lbl ? ' · ' + esc(o.lbl) : ''}` : o.kind === 'tournoi' ? `🏅 ${esc(o.sn || 'Tournoi')}${o.lbl ? ' · ' + esc(o.lbl) : ''}` : '🤼 Match 1 contre 1';
+  const kindLbl = o => o.kind === 'atp' ? `🤼 ${esc(o.sn || 'Tournoi « style ATP »')}${o.lbl ? ' · ' + esc(o.lbl) : ''}` : o.kind === 'relais' ? `🔁 ${esc(o.sn || 'Relais')}${o.lbl ? ' · ' + esc(o.lbl) : ''}` : o.kind === 'tournoi' ? `🏅 ${esc(o.sn || 'Tournoi')}${o.lbl ? ' · ' + esc(o.lbl) : ''}` : '🤼 Match 1 contre 1';
   const findS = id => LU().seances.find(x => x.id === id);
   /* combat « à moi » (lancé sur cette tablette) */
   const curO = () => M ? M.o : (LU().current && LU().current.o) || null;
@@ -247,7 +267,7 @@ TOOL_IMPL.lutte = function (el) {
         <div class="mo-vs" style="margin:6px 0"><span style="background:#B8912A">${esc(cur.o.a)}</span><span class="muted" style="color:var(--muted);padding:0">vs</span><span style="background:#1E5BD8">${esc(cur.o.b)}</span></div>
         <div class="muted" style="text-align:center;font-size:.85rem">${kindLbl(cur.o)} · ${LU_T[cur.o.R.type].n}</div>
         <div class="row" style="margin-top:10px"><button class="btn btn-grad" id="lu-res" style="flex:2;padding:15px">▶ Reprendre</button><button class="btn btn-ghost" id="lu-abd">✕ Abandonner</button></div></div>` : ''}
-      ${rec.length ? `<div class="card" style="margin-top:12px"><h3>🏆 Relais et tournois en cours</h3>${rec.map(s => `<button class="tn-it" data-sv="${esc(s.id)}"><span style="font-size:1.6rem">${s.kind === 'relais' ? '🔁' : '🏅'}</span><span style="flex:1"><b>${esc(s.nom)}</b><div class="muted" style="font-size:.8rem">${LU_T[s.type].n}${s.classe ? ' · ' + esc(s.classe) : ''} · ${s.saisie === 'simple' ? '✍️ résultats simples' : '👁 avec observation'} · ${esc(luProgress(s))} · ${luDate(s.date)}</div></span><span style="font-size:1.3rem">›</span></button>`).join('')}</div>` : ''}
+      ${rec.length ? `<div class="card" style="margin-top:12px"><h3>🏆 Relais et tournois en cours</h3>${rec.map(s => `<button class="tn-it" data-sv="${esc(s.id)}"><span style="font-size:1.6rem">${s.kind === 'relais' ? '🔁' : s.kind === 'atp' ? '🤼' : '🏅'}</span><span style="flex:1"><b>${esc(s.nom)}</b><div class="muted" style="font-size:.8rem">${LU_T[s.type].n}${s.classe ? ' · ' + esc(s.classe) : ''} · ${s.saisie === 'simple' ? '✍️ résultats simples' : '👁 avec observation'} · ${esc(luProgress(s))} · ${luDate(s.date)}</div></span><span style="font-size:1.3rem">›</span></button>`).join('')}</div>` : ''}
       <div class="card" data-cfg style="margin-top:12px"><h3>Type de lutte</h3>${tiles(LU_T, T, 'lt')}
         <p class="muted" style="font-size:.82rem;margin:8px 0 0">📍 ${esc(R.depart)}</p></div>
       <div class="card" style="margin-top:12px"><h3>Forme de pratique</h3>${tiles(LU_FP, S.forme, 'fp')}
@@ -282,6 +302,8 @@ TOOL_IMPL.lutte = function (el) {
   function fpHTML() {
     if (S.forme === 'relais') return `<button class="btn btn-grad btn-block" data-cfg="bare" id="lu-crel" style="padding:15px;font-size:1.05rem">🔁 Créer un relais en équipe</button>
       <p class="muted" style="font-size:.8rem;margin:6px 0 0">Partagé avec vos autres tablettes · ordre de passage · « je gagne je reste » ou « les deux sortent ».</p>`;
+    if (S.forme === 'atp') return `<button class="btn btn-grad btn-block" data-cfg="bare" id="lu-catp" style="padding:15px;font-size:1.05rem">🤼 Créer un tournoi « style ATP »</button>
+      <p class="muted" style="font-size:.8rem;margin:6px 0 0">Partagé avec vos autres tablettes : classement individuel aux points, chacun défie un lutteur classé juste au-dessus.</p>`;
     if (S.forme === 'tournoi') return `<button class="btn btn-grad btn-block" data-cfg="bare" id="lu-ctn" style="padding:15px;font-size:1.05rem">🏅 Créer un tournoi à élimination</button>
       <p class="muted" style="font-size:.8rem;margin:6px 0 0">Partagé avec vos autres tablettes : chaque tablette (un tapis) lance un combat du tableau.</p>`;
     if (S.cls && !DB.classes.some(c => c.name === S.cls)) S.cls = '';
@@ -297,6 +319,7 @@ TOOL_IMPL.lutte = function (el) {
   function wireFp() {
     if ($('#lu-crel')) $('#lu-crel').onclick = () => createRelais();
     if ($('#lu-ctn')) $('#lu-ctn').onclick = () => createTournoi();
+    if ($('#lu-catp')) $('#lu-catp').onclick = () => createAtp();
     const keepN = () => { if ($('#lu-a')) { S.a = $('#lu-a').value; S.b = $('#lu-b').value; } if ($('#lu-ai')) { S.a = $('#lu-ai').value.trim(); S.b = $('#lu-bi').value.trim(); } };
     if ($('#lu-cls')) $('#lu-cls').onchange = () => { S.cls = $('#lu-cls').value; if (S.cls) { DB.lastClass = S.cls; save(); } S.a = S.b = ''; $('#lu-fp').innerHTML = fpHTML(); wireFp(); };
     if ($('#lu-a')) $('#lu-a').onchange = $('#lu-b').onchange = keepN;
@@ -669,11 +692,81 @@ TOOL_IMPL.lutte = function (el) {
     draw(); top();
   }
 
+  /* ===================== Tournoi « style ATP » ===================== */
+  function createAtp() {
+    stop(); const c = luCfg(), T = c.type;
+    const C = { cls: DB.classes.some(x => x.name === S.cls) ? S.cls : luCls(), off: new Set(), saisie: S.saisie, txt: '', nom: '', start: 100 };
+    const def = () => `Tournoi ATP ${C.cls ? C.cls + ' · ' : ''}${LU_T[T].n.toLowerCase()}`;
+    C.nom = def();
+    const all = () => C.cls ? [...new Set(studentsOf(C.cls))] : [];
+    const players = () => C.cls ? all().filter(n => !C.off.has(n)) : [...new Set(C.txt.split('\n').map(x => x.trim()).filter(Boolean))];
+    const keepC = () => { C.nom = $('#a-nom').value; C.start = Math.max(0, Math.round(+$('#a-st').value || 0)); if ($('#a-txt')) C.txt = $('#a-txt').value; };
+    const draw = () => {
+      const st = all(), n = players().length;
+      el.innerHTML = `<button class="btn btn-ghost" id="a-bk">← Annuler</button>
+        <div class="card" data-cfg style="margin-top:10px;border-top:6px solid #B8912A"><h3>🤼 Nouveau tournoi « style ATP » · ${LU_T[T].n}</h3>
+          <p class="muted" style="font-size:.85rem;margin:0 0 4px">Classement individuel aux points, partagé avec les tablettes. On défie un des <b>6 lutteurs classés juste au-dessus</b> ; battre mieux classé rapporte plus (barème selon l'écart de points). Arbitrer un combat : +0,5 pt.</p>
+          <label>Nom (visible sur toutes les tablettes)</label><input id="a-nom" value="${esc(C.nom)}" style="font-weight:800;font-size:1.05rem">
+          <label>Points de départ</label><input id="a-st" type="number" min="0" value="${C.start}">
+          <label>Déroulement des combats</label>${tiles(LU_SAI, C.saisie, 'as')}
+          <p class="muted" style="font-size:.82rem;margin:8px 0 0">${n >= 2 ? n + ' lutteurs' : 'Au moins 2 lutteurs'} · ${esc(luRulesLine(luSnap(T)))}.</p></div>
+        <div class="card" data-cfg style="margin-top:12px"><h3>Lutteurs <span class="muted" style="font-size:.9rem;margin-left:6px">${n}${C.cls ? ' / ' + st.length : ''}</span></h3>
+          ${DB.classes.length ? `<label>Classe</label><select id="a-cls">${DB.classes.map(x => `<option value="${esc(x.name)}" ${x.name === C.cls ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}<option value="" ${C.cls ? '' : 'selected'}>✏️ Saisir les noms…</option></select>` : ''}
+          ${C.cls ? `<p class="muted" style="font-size:.82rem;margin:8px 0 0">Touchez un élève <b>absent</b> pour le décocher.</p>
+            <div class="atp-ck">${st.map((x, i) => `<button class="pl-chip ${C.off.has(x) ? '' : 'sel'}" data-ab="${i}">${C.off.has(x) ? '' : '✓ '}${esc(x)}</button>`).join('')}</div>`
+            : `<label>Un lutteur par ligne</label><textarea id="a-txt" rows="8">${esc(C.txt)}</textarea>`}</div>
+        <button class="btn btn-grad btn-block" data-cfg="bare" id="a-ok" style="margin-top:14px;padding:17px;font-size:1.15rem">✔ Créer le tournoi</button>`;
+      $('#a-bk').onclick = home;
+      el.querySelectorAll('[data-as]').forEach(b => b.onclick = () => { keepC(); C.saisie = b.dataset.as; draw(); });
+      if ($('#a-cls')) $('#a-cls').onchange = () => { keepC(); const wasDef = C.nom === def(); C.cls = $('#a-cls').value; C.off = new Set(); if (wasDef) C.nom = def(); draw(); };
+      if ($('#a-txt')) $('#a-txt').oninput = () => { C.txt = $('#a-txt').value; };
+      el.querySelectorAll('[data-ab]').forEach(b => b.onclick = () => { keepC(); const x = st[+b.dataset.ab]; C.off.has(x) ? C.off.delete(x) : C.off.add(x); draw(); });
+      $('#a-ok').onclick = () => { keepC(); const ps = players(); if (ps.length < 2) return toast('Au moins 2 lutteurs');
+        const s = { id: luId(), date: Date.now(), kind: 'atp', nom: C.nom.trim() || def(), classe: C.cls || '', type: T, saisie: C.saisie, players: shuffle(ps), start: C.start, regles: luSnap(T), enCours: [] };
+        LU().seances.push(s); flush(); beep(1200, .15); toast(`Tournoi ATP créé ✔ ${ps.length} lutteurs`); sview(s.id); };
+    };
+    draw(); top();
+  }
+  function vAtp(s) {
+    const A = luAtp(s), enc = luEnc(s), busy = new Set(enc.flatMap(e => [e.a, e.b]));
+    if (!A.st[S.atpC]) S.atpC = '';
+    const ci = A.ranks.findIndex(x => x.n === S.atpC), tg = ci >= 0 ? luTargets(A.ranks, ci) : [];
+    const sg = x => x == null ? '' : x > 0 ? `<span style="color:#1B9E5A">+${luP(x)}</span>` : x < 0 ? `<span style="color:var(--danger)">−${luP(-x)}</span>` : '=';
+    el.innerHTML = `${headCard(s, `${A.log.length} défi${A.log.length > 1 ? 's' : ''} · départ ${luP(+s.start || 100)} pts`)}
+      ${encCard(s)}
+      <div class="section-title"><h2>🤼 Lancer un défi</h2></div>
+      <div class="card" style="border:2px solid #B8912A">${role() === 'obs' ? '<div class="muted" style="text-align:center">👁 Tablette observateur : attendez que l\'arbitre lance le combat, puis « Observer ce combat ».</div>' : `
+        <b>1. Qui lance le défi ?</b>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px">${A.ranks.map((x, i) => `<button class="btn ${x.n === S.atpC ? 'btn-grad' : 'btn-ghost'}" data-ac="${esc(x.n)}" style="flex:0 0 auto;width:auto;padding:9px 12px;${busy.has(x.n) ? 'opacity:.4' : ''}" ${busy.has(x.n) ? 'disabled' : ''}>${i + 1}. ${esc(x.n)}${busy.has(x.n) ? ' ⏳' : ''}</button>`).join('')}</div>
+        ${S.atpC ? `<div style="margin-top:12px"><b>2. ${esc(S.atpC)} défie :</b> <span class="muted" style="font-size:.8rem">un des 6 lutteurs classés juste au-dessus</span>
+          ${ci === 0 ? '<p class="muted" style="margin:6px 0 0">🥇 1er du classement : il attend d\'être défié.</p>' : `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin-top:8px">${tg.map(x => { const k = A.ranks.indexOf(x) + 1, b = busy.has(x.n);
+            return `<button class="btn ${b ? 'btn-ghost' : 'btn-grad'}" data-ad="${esc(x.n)}" ${b ? 'disabled style="opacity:.5"' : ''}>⚔️ ${k}. ${esc(x.n)}<br><small style="font-weight:600">${luP(x.pts)} pts${b ? ' · en combat' : ''}</small></button>`; }).join('')}</div>`}</div>` : ''}`}</div>
+      <div class="section-title"><h2>Classement</h2></div>
+      <div class="card sheet-table"><table><tr><th>#</th><th>Lutteur</th><th>Pts</th><th>V</th><th>N</th><th>D</th><th>Arb.</th><th>Dernier</th></tr>
+        ${A.ranks.map((x, i) => `<tr${busy.has(x.n) ? ' style="opacity:.7"' : ''}><td><b>${i + 1}</b></td><td><b>${esc(x.n)}</b>${busy.has(x.n) ? ' ⏳' : ''}</td><td><b>${luP(x.pts)}</b></td><td>${x.v}</td><td>${x.nul}</td><td>${x.d}</td><td>${x.arb}</td><td>${sg(x.last)}</td></tr>`).join('')}</table></div>
+      <details class="card" style="margin-top:10px"><summary style="font-weight:800;cursor:pointer">📏 Barème (écart de points avant le combat)</summary>
+        <p class="muted" style="font-size:.85rem;margin:8px 0 0">Gagnant − perdant : −11 ou moins → <b>6</b> · −10 à −6 → <b>5</b> · −5 à −1 → <b>4</b> · 0 à 4 → <b>3</b> · 5 à 9 → <b>2</b> · 10 ou plus → <b>1</b>. Le gagnant prend ces points au perdant. Égalité : aucun point. Arbitre : +0,5.</p></details>
+      <div class="section-title"><h2>Défis joués (${A.log.length})</h2></div>
+      <div class="card" style="padding:0">${A.log.length ? A.log.slice().reverse().map(l => `<div class="list-item"><div style="flex:1;min-width:0"><b>${esc(l.c)} (${l.from}e) ⚔️ ${esc(l.d)} (${l.to}e)</b>
+          <div class="muted" style="font-size:.8rem">${l.w ? `🏆 ${esc(l.w)} +${luP(l.g)}${luHow(l.m) ? ' · ' + luHow(l.m) : ''}` : '🤝 Égalité'}${l.arb ? ` · arbitre ${esc(l.arb)} +0,5` : ''} · ${luHm(l.m.date)}</div></div>
+          <button class="btn btn-ghost" data-lv="${esc(l.m.id)}" aria-label="Voir">👁</button></div>`).join('') : '<div class="empty">Aucun défi joué pour l\'instant.</div>'}</div>
+      ${profCard(s, A.log.length ? '<div class="row" style="margin-top:10px"><button class="btn btn-ghost" id="s-undo">↶ Annuler le dernier défi</button></div>' : '')}`;
+    el.querySelectorAll('[data-ac]').forEach(b => b.onclick = () => { S.atpC = S.atpC === b.dataset.ac ? '' : b.dataset.ac; keepY(() => sview(s.id)); });
+    el.querySelectorAll('[data-ad]').forEach(b => b.onclick = () => launch(s.id, 'atp', S.atpC, b.dataset.ad, 'défi'));
+    if ($('#s-undo')) $('#s-undo').onclick = () => { const l = A.log[A.log.length - 1]; if (!l || !confirm(`Annuler le dernier défi (${l.c} – ${l.d}) ?\nIl sera supprimé, ainsi que les résultats des élèves associés.`)) return; luDelCombat(l.m.id); keepY(() => sview(s.id)); };
+    $('#s-csv').onclick = () => download(csvName('tournoi-atp-lutte', s), csv([['Rang', 'Lutteur', 'Points', 'Victoires', 'Nuls', 'Défaites', 'Arbitrages'], ...A.ranks.map((x, i) => [i + 1, x.n, luP(x.pts), x.v, x.nul, x.d, x.arb]),
+      [], ['Défiant', 'Rang', 'Défié', 'Rang', 'Vainqueur', 'Points gagnés', 'Issue', 'Arbitre'], ...A.log.map(l => [l.c, l.from, l.d, l.to, l.w || 'égalité', l.g || 0, luHow(l.m), l.arb || ''])]));
+  }
+
   /* ===================== Séance partagée (relais / tournoi) ===================== */
   const myEnc = () => { const o = curO(); return o && o.own && o.enc ? o.enc : null; };
   function launch(sid, rid, a, b, lbl) {
     const s = findS(sid); if (!s) { toast('Séance introuvable'); return home(); }
-    if (s.kind === 'tournoi') { const n = luElim(s).flat().find(x => x.id === rid);
+    if (s.kind === 'atp') { const A = luAtp(s), i = A.ranks.findIndex(x => x.n === a);
+      if (i < 0 || !luTargets(A.ranks, i).some(x => x.n === b)) { toast('Le classement a changé : ce défi n\'est plus possible'); S.atpC = ''; return sview(sid); }
+      if (luEnc(s).some(e => [e.a, e.b].some(x => x === a || x === b))) { toast('Un de ces lutteurs est déjà en combat'); return sview(sid); }
+      rid = 'atp-' + luId(); S.atpC = ''; }
+    else if (s.kind === 'tournoi') { const n = luElim(s).flat().find(x => x.id === rid);
       if (!n || n.a == null || n.b == null || !((n.a === a && n.b === b) || (n.a === b && n.b === a))) { toast('Le tableau a changé : ce combat n\'est plus à jouer'); return sview(sid); } }
     else { const st = luRel(s); if (!st.next || rid !== 'k' + st.k || st.next.a !== a || st.next.b !== b) { toast('Le relais a avancé : ce combat n\'est plus à jouer'); return sview(sid); } }
     const mine = myEnc(), other = luEnc(s).find(e => e.rid === rid && e.id !== mine);
@@ -701,7 +794,7 @@ TOOL_IMPL.lutte = function (el) {
   };
   const headCard = (s, info) => `<span data-luroot="${esc(s.id)}" hidden></span><button class="btn btn-ghost" id="s-bk">← Lutte</button>
     ${gold(true).replace('lu-gold sm', 'lu-gold sm" style="margin-top:10px')}
-    <div class="card" style="margin-top:10px;border-top:6px solid #B8912A"><h3>${s.kind === 'relais' ? '🔁' : '🏅'} ${esc(s.nom)}</h3>
+    <div class="card" style="margin-top:10px;border-top:6px solid #B8912A"><h3>${s.kind === 'relais' ? '🔁' : s.kind === 'atp' ? '🤼' : '🏅'} ${esc(s.nom)}</h3>
       <div class="muted" style="font-size:.85rem">${LU_T[s.type].n}${s.kind === 'relais' ? ' · ' + LU_VAR[s.variant].n : ` · ${s.players.length} lutteurs`}${s.classe ? ' · ' + esc(s.classe) : ''} · ${s.saisie === 'simple' ? '✍️ résultats simples' : '👁 avec observation'} · ${luDate(s.date)}</div>
       <div class="muted" style="font-size:.78rem;margin-top:4px">⚙️ ${esc(luRulesLine(s.regles))}${info ? ' · ' + info : ''}</div></div>`;
   const profCard = (s, extra) => `<details class="card" data-cfg="bare" style="margin-top:14px"><summary data-prof style="font-weight:800;cursor:pointer">🔒 Enseignant</summary>
@@ -710,7 +803,7 @@ TOOL_IMPL.lutte = function (el) {
   const csvName = (p, s) => `${p}-${s.nom}.csv`.replace(/[^\w.-]+/g, '-');
   function sview(id) {
     stop(); M = null; const s = findS(id); if (!s) { toast('Séance introuvable'); return home(); }
-    S.view = id; s.kind === 'relais' ? vRelais(s) : vTournoi(s);
+    S.view = id; s.kind === 'relais' ? vRelais(s) : s.kind === 'atp' ? vAtp(s) : vTournoi(s);
     $('#s-bk').onclick = home;
     el.querySelectorAll('[data-lv]').forEach(b => b.onclick = () => { const m = LU().combats.find(x => x.id === b.dataset.lv); if (m) summary(m, true); });
     $('#s-del').onclick = () => { if (!confirm(`Supprimer « ${s.nom} » sur toutes les tablettes ?\nLes combats enregistrés restent dans l'historique.`)) return;

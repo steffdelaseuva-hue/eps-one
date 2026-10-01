@@ -4,9 +4,10 @@
    ========================================================= */
 /* Page Ko-fi : laisser vide tant qu'elle n'existe pas (le bouton est alors masqué) */
 const KOFI_URL = 'https://ko-fi.com/epsone';
-const APP_VERSION = '14.0';
+const APP_VERSION = '14.1';
 const APP_URL = 'https://steffdelaseuva-hue.github.io/eps-one/';
 const CHANGELOG = [
+  { v: '14.1', items: ['Gestion de match · sports collectifs : Défi ATP retiré (format individuel)', 'Escrime : « 🤺 Tournoi style ATP »', 'Lutte : nouveau « 🤼 Tournoi style ATP » (classement aux points, défis jusqu\'à 6 places au-dessus, arbitrage +0,5, partagé entre tablettes)', 'Dispenses : bouton ✏️ pour modifier une dispense enregistrée'] },
   { v: '14.0', items: ['Correction importante : quand une autre tablette envoyait ses résultats pendant la séance, l\'outil ouvert pouvait enregistrer dans une ancienne copie des données (résultats d\'un groupe perdus). Corrigé dans Duathlon, Demi-fond, Sauvetage, Escalade, Acrosport, Parkour', 'Fenêtre « Groupes de la séance » : bouton ✔ Terminé toujours visible en haut, défilement conservé'] },
   { v: '13.9', items: ['Synchronisation Dropbox / Google Drive : plusieurs tablettes qui envoient en même temps ne peuvent plus effacer l\'envoi d\'une autre (écriture conditionnelle Dropbox, double vérification Drive)', 'Duathlon : carte « 📤 Envois de cette tablette » (✅ envoyé · ⏳ en attente · ⚠️ absent → 🔁 Renvoyer, copie de secours sur la tablette)', 'Duathlon : suivi « 📥 Résultats reçus des tablettes » groupe par groupe sur la tablette enseignant'] },
   { v: '13.8', items: ['Mode élève (🔒) : onglets « 📊 Résultats / Bilan » des outils protégés par le code (y compris quand l\'outil y bascule après un enregistrement)', 'Mode élève : listes de résultats limitées à la classe en cours (Natation, Lutte), historique des matchs masqué, export protégé'] },
