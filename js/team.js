@@ -52,6 +52,31 @@ ICONS.team = '<circle cx="9" cy="8" r="3.2"/><path d="M3 19.5c0-3.3 2.7-6 6-6s6 
   const COLS = ['#1E5BD8', '#C9A227', '#16A34A', '#DC2626', '#7C3AED', '#0891B2', '#EA580C', '#DB2777'];
   const col = p => COLS[Math.max(0, teamProfs().indexOf(p)) % COLS.length];
   const ini = n => (n || '?').replace(/^(M\.|Mme|Mr|Mlle)\s*/i, '').trim().split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase();
+  /* Avatar : photo (ex. capture de son Memoji), émoji choisi, ou initiales */
+  const av = (p, st = '') => p && p.ava && /^data:image\//.test(p.ava) ? `<span class="team-av" style="background:#fff;overflow:hidden;${st}"><img src="${p.ava}" alt="" style="width:100%;height:100%;object-fit:cover"></span>`
+    : p && p.emo ? `<span class="team-av" style="background:var(--grad-soft);${st}"><span style="font-size:1.55em;line-height:1">${esc(p.emo)}</span></span>`
+    : `<span class="team-av" style="background:${p ? col(p) : '#64748B'};${st}">${p ? esc(ini(p.name)) : '?'}</span>`;
+  const EMO = ['🧑‍🏫', '👨‍🏫', '👩‍🏫', '🧔', '👨', '👩', '🧑', '👱‍♂️', '👱‍♀️', '👨‍🦰', '👩‍🦰', '👨‍🦱', '👩‍🦱', '👨‍🦳', '👩‍🦳', '👨‍🦲', '🧑‍🦲', '🧓', '👴', '👵', '🧕', '👲', '🤠', '😎', '🤓', '🥸', '😄', '🙂', '😁', '🦸', '🦸‍♀️', '🧙', '🏃', '🏃‍♀️', '🤸', '🏋️', '🚴', '🏊', '⛹️', '🤾', '🧗', '🤺', '🐯', '🦁', '🐺', '🦊', '🐻', '🐼', '🦅', '🐬', '⚽', '🏀', '🏐', '🏉', '🎾', '🏸', '🏓', '🥇'];
+  // Photo réduite à 128 px (JPEG) : légère à synchroniser
+  const readAva = file => new Promise((ok, ko) => { const u = URL.createObjectURL(file), im = new Image();
+    im.onload = () => { const S2 = 128, c = document.createElement('canvas'), k = Math.max(S2 / im.width, S2 / im.height), w = im.width * k, h = im.height * k; c.width = c.height = S2;
+      const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, S2, S2); g.drawImage(im, (S2 - w) / 2, (S2 - h) / 2, w, h); URL.revokeObjectURL(u); ok(c.toDataURL('image/jpeg', .8)); };
+    im.onerror = () => { URL.revokeObjectURL(u); ko(new Error('Image illisible')); }; im.src = u; });
+  function pickAva(p, done) {
+    const o = document.createElement('div'); o.id = 'ava-ov'; o.style.cssText = 'position:fixed;inset:0;z-index:460;background:rgba(7,18,42,.7);display:flex;padding:16px;overflow:auto';
+    o.innerHTML = `<div class="card" style="margin:auto;max-width:460px;width:100%"><div style="display:flex;align-items:center;gap:10px">${av(p)}<h3 style="flex:1;margin:0">Avatar de ${esc(p.name)}</h3><button class="btn btn-ghost" style="flex:0 0 auto;width:auto" id="av-x">✕</button></div>
+      <label class="btn btn-grad btn-block" style="display:block;text-align:center;cursor:pointer;margin-top:12px">📷 Photo ou capture de son Memoji<input id="av-f" type="file" accept="image/*" hidden></label>
+      <p class="muted" style="font-size:.78rem;margin:6px 0 0">Memoji : dans Messages, envoyez-vous votre Memoji (autocollant), enregistrez l'image, puis choisissez-la ici.</p>
+      <label>Ou un émoji</label><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(46px,1fr));gap:6px">${EMO.map(e => `<button class="btn btn-ghost" style="font-size:1.6rem;padding:6px 0" data-em="${e}">${e}</button>`).join('')}</div>
+      <button class="btn btn-ghost btn-block" style="margin-top:12px" id="av-i">Revenir aux initiales</button></div>`;
+    document.body.appendChild(o);
+    const fin = () => { o.remove(); save(); refresh(); done && done(); };
+    o.querySelector('#av-x').onclick = () => o.remove();
+    o.querySelector('#av-i').onclick = () => { delete p.ava; delete p.emo; fin(); };
+    o.querySelectorAll('[data-em]').forEach(b => b.onclick = () => { p.emo = b.dataset.em; delete p.ava; fin(); });
+    o.querySelector('#av-f').onchange = async e => { const f = e.target.files[0]; if (!f) return; try { p.ava = await readAva(f); delete p.emo; fin(); } catch (er) { toast(er.message); } };
+  }
+  window.teamAvatar = av;
   const nbCls = p => (dbGet('classes') || []).filter(c => c.prof === p.id).length;
   const refresh = () => { try { renderHome(); renderTools(); } catch (e) {} try { renderPlus(); } catch (e) {} chip(); };
 
@@ -74,7 +99,7 @@ ICONS.team = '<circle cx="9" cy="8" r="3.2"/><path d="M3 19.5c0-3.3 2.7-6 6-6s6 
     if (!c) { c = document.createElement('button'); c.id = 'team-chip'; c.type = 'button'; c.onclick = () => openWho();
       const sp = document.querySelector('.topbar .spacer'); if (sp) sp.after(c); else return; }
     const p = activeProf();
-    c.innerHTML = p ? `<span class="team-av" style="background:${col(p)}">${esc(ini(p.name))}</span><span>${esc(p.name)}</span>` : `<span class="team-av" style="background:#64748B">?</span><span>Qui fait cours ?</span>`;
+    c.innerHTML = p ? `${av(p)}<span>${esc(p.name)}</span>` : `${av(null)}<span>Qui fait cours ?</span>`;
     c.title = 'Changer d\'enseignant';
   }
 
@@ -90,7 +115,7 @@ ICONS.team = '<circle cx="9" cy="8" r="3.2"/><path d="M3 19.5c0-3.3 2.7-6 6-6s6 
     const cur = activeProf(), o = document.createElement('div'); o.id = 'who-ov';
     o.innerHTML = `<div class="wb" role="dialog" aria-modal="true"><div style="text-align:center"><div style="font-size:1.8rem">👋</div><h2 style="margin:2px 0 0">Qui fait cours ?</h2>
       <p class="muted" style="margin:4px 0 0;font-size:.85rem">Touchez votre nom puis tapez votre code : vous retrouvez vos classes et vos favoris.</p></div>
-      <div class="wg">${teamProfs().map((p, i) => `<button class="wp ${p === cur ? 'on' : ''}" data-i="${i}"><span class="team-av" style="background:${col(p)}">${esc(ini(p.name))}</span><span>${esc(p.name)}</span>${p.pin ? '' : '<small class="muted" style="font-weight:600">1re fois : créer mon code</small>'}</button>`).join('')}</div>
+      <div class="wg">${teamProfs().map((p, i) => `<button class="wp ${p === cur ? 'on' : ''}" data-i="${i}">${av(p)}<span>${esc(p.name)}</span>${p.pin ? '' : '<small class="muted" style="font-weight:600">1re fois : créer mon code</small>'}</button>`).join('')}</div>
       ${cur ? `<button class="btn btn-ghost btn-block" style="margin-top:14px" id="who-keep">Continuer avec ${esc(cur.name)} · mode élève 🔒</button>` : ''}
       <button class="link" style="display:block;margin:12px auto 0" id="who-x">${cur ? 'Fermer' : 'Plus tard'}</button></div>`;
     document.body.appendChild(o);
@@ -105,7 +130,7 @@ ICONS.team = '<circle cx="9" cy="8" r="3.2"/><path d="M3 19.5c0-3.3 2.7-6 6-6s6 
       const on = teamOn(), cur = activeProf();
       el.innerHTML = `<div class="card doc"><p style="margin:0;line-height:1.5">Pour une équipe EPS qui partage <b>un lot de tablettes</b> : un seul compte pour toute l'équipe. En début de cours, chaque collègue touche <b>son nom</b> (« Qui fait cours ? ») et tape <b>son code perso</b> : il retrouve <b>ses classes</b> et ses favoris, et son code protège les réglages. Pas de déconnexion entre deux cours.</p></div>
         ${on ? `<div class="section-title"><h2>Enseignants (${teamProfs().length})</h2></div>
-        <div class="card" style="padding:0">${teamProfs().map((p, i) => `<div class="list-item"><span class="team-av" style="background:${col(p)};width:40px;height:40px;font-size:.95rem">${esc(ini(p.name))}</span>
+        <div class="card" style="padding:0">${teamProfs().map((p, i) => `<div class="list-item"><button class="btn" data-ava="${i}" title="Changer l\'avatar" style="all:unset;cursor:pointer;position:relative">${av(p, 'width:44px;height:44px;font-size:1rem')}<span style="position:absolute;right:-4px;bottom:-4px;font-size:.75rem">✏️</span></button>
           <div style="flex:1;min-width:0;margin-left:10px"><b>${esc(p.name)}</b>${p === cur ? ' <span class="pill">sur cet appareil</span>' : ''}<div class="muted" style="font-size:.8rem">${nbCls(p)} classe(s) · ${p.pin ? '🔒 code défini' : '⚠️ code à créer à la 1re connexion'}</div></div>
           <div class="row" style="flex:0 0 auto;gap:6px"><button class="btn btn-ghost" style="padding:9px 10px" data-rn="${i}" title="Renommer">✏️</button><button class="btn btn-ghost" style="padding:9px 10px" data-pk="${i}" title="Effacer le code (oublié)">🔑</button><button class="btn btn-ghost" style="padding:9px 10px" data-rm="${i}" title="Retirer">🗑</button></div></div>`).join('')}</div>
         <div class="card" style="margin-top:10px"><label style="margin-top:0">Ajouter un collègue</label><div class="row"><input id="tm-n" placeholder="ex : Mme Durand"><button class="btn btn-grad" style="flex:0 0 auto" id="tm-add">＋ Ajouter</button></div>
@@ -138,6 +163,7 @@ ICONS.team = '<circle cx="9" cy="8" r="3.2"/><path d="M3 19.5c0-3.3 2.7-6 6-6s6 
       $('#tm-add').onclick = () => { const n = $('#tm-n').value.trim(); if (!n) return toast('Nom requis');
         if (teamProfs().some(p => p.name.toLowerCase() === n.toLowerCase())) return toast('Ce nom existe déjà');
         DB.team.profs.push({ id: uid(), name: n }); save(); toast(`${n} ajouté·e ✔`); refresh(); panel(); };
+      el.querySelectorAll('[data-ava]').forEach(b => b.onclick = () => pickAva(teamProfs()[+b.dataset.ava], panel));
       el.querySelectorAll('[data-rn]').forEach(b => b.onclick = () => { const p = teamProfs()[+b.dataset.rn], n = (prompt('Nom affiché :', p.name) || '').trim(); if (!n) return; p.name = n; save(); refresh(); panel(); });
       el.querySelectorAll('[data-pk]').forEach(b => b.onclick = () => { const p = teamProfs()[+b.dataset.pk]; if (!p.pin) return toast('Aucun code pour l\'instant');
         if (!confirm(`Effacer le code de ${p.name} ?\n(code oublié : il en choisira un nouveau à sa prochaine connexion)`)) return; delete p.pin; save(); refresh(); panel(); });

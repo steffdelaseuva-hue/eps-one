@@ -4,9 +4,11 @@
    ========================================================= */
 /* Page Ko-fi : laisser vide tant qu'elle n'existe pas (le bouton est alors masqué) */
 const KOFI_URL = 'https://ko-fi.com/epsone';
-const APP_VERSION = '14.4';
+const APP_VERSION = '14.6';
 const APP_URL = 'https://steffdelaseuva-hue.github.io/eps-one/';
 const CHANGELOG = [
+  { v: '14.6', items: ['Escrime : préparation en 4 étapes (assaut, tournoi style ATP, championnat, élimination, pyramide · déroulement · tireurs · réglages)'] },
+  { v: '14.5', items: ['Sports collectifs : préparation en 4 étapes (forme · déroulement · équipes · réglages) et match en « résultats simples »', 'Équipe EPS : avatar de chaque enseignant (photo, capture de son Memoji ou émoji) à la place des initiales'] },
   { v: '14.4', items: ['Sports de raquette : préparation en 4 étapes comme la Lutte — 1. sport et forme de pratique (match, Défi ATP, championnat, élimination, pyramide) · 2. déroulement (avec observation / résultats simples) · 3. joueurs ou équipes · 4. réglages', 'Match isolé en « résultats simples » : on saisit seulement le score final'] },
   { v: '14.3', items: ['« Comment ça marche ? » : étape à part « 👥 Équipe EPS · tablettes partagées » (6 étapes)', 'Liens directs à partager : …/eps-one/#equipe (ouvre cette étape) et …/eps-one/#aide'] },
   { v: '14.2', items: ['« Comment ça marche ? » : le mode Équipe EPS (tablettes partagées) est présenté à l\'étape 3'] },

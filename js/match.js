@@ -324,7 +324,7 @@ TOOL_IMPL.matchr = el => TOOL_IMPL.match(el, 'raq');
 TOOL_IMPL.escrime = el => TOOL_IMPL.match(el, 'esc');
 TOOL_IMPL.match = function (el, grp = 'col') {
   const GS = MATCH_GRP[grp] || MATCH_GRP.col, inG = sp => GS.includes(sp);
-  const NEW = grp === 'raq';   // préparation « à la Lutte » : 1 forme · 2 déroulement · 3 joueurs · 4 réglages (sports de raquette d'abord)
+  const NEW = true;   // les 3 cartes (collectifs, raquette, escrime)   // préparation « à la Lutte » : 1 forme · 2 déroulement · 3 joueurs · 4 réglages (sports de raquette d'abord)
   let S = { forme: 'match', sai: 'obs', sport: GS.includes('handball') ? 'handball' : GS[0], a: 'Équipe A', b: 'Équipe B', type: 'temps', dur: 10, target: 21, ecart: true, bonus: [1, 2, 5], stats: true, zones: false, nz: 4, ia: 0, ib: 1, obsOn: false, obsN: 2, role: (DB.tablette && DB.tablette.match && DB.tablette.match.role) || 'table' };
   let selPl = null;
   let M = null, iv = null;
@@ -404,12 +404,14 @@ TOOL_IMPL.match = function (el, grp = 'col') {
 
     /* ----- Préparation en 4 étapes (comme l'outil Lutte) ----- */
     function wizard() {
-      const FO = { match: { i: '🏸', n: 'Match 1 contre 1 (ou double)', d: 'Un match isolé · score, chrono, observations' },
+      const RAQ = grp === 'raq', ESC = grp === 'esc';
+      const FO = { match: ESC ? { i: '🤺', n: 'Assaut 1 contre 1', d: 'Un assaut isolé · touches, zones touchées, chrono' } : RAQ ? { i: '🏸', n: 'Match 1 contre 1 (ou double)', d: 'Un match isolé · score, chrono, observations' } : { i: '⚔️', n: 'Match entre 2 équipes', d: 'Un match isolé · score, chrono, statistiques, observations' },
         atp: { i: atpI(S.sport), n: atpN(S.sport).replace(' (individuel)', ''), d: 'Classement individuel aux points · on défie un des 6 joueurs juste au-dessus · arbitrer : +0,5 · partagé entre tablettes' },
         poule: { i: TFMT.poule.i, n: TFMT.poule.n, d: 'Tout le monde se rencontre · classement aux points · partagé entre tablettes' },
         elim: { i: TFMT.elim.i, n: TFMT.elim.n, d: 'Tableau avec exempts · le vainqueur passe au tour suivant' },
         pyramide: { i: TFMT.pyramide.i, n: TFMT.pyramide.n, d: 'On défie la ligne juste au-dessus · victoire = on prend sa place' } };
-      const SI = { badminton: '🏸', shortennis: '🎾', tennis: '🎾', tt: '🏓', escrime: '🤺' };
+      if (!atpOK(S.sport)) delete FO.atp;
+      const SI = { badminton: '🏸', shortennis: '🎾', tennis: '🎾', tt: '🏓', escrime: '🤺', basket: '🏀', handball: '🤾', football: '⚽', volley: '🏐', ultimate: '🥏', rugby: '🏉' };
       const SD = { obs: { i: '👁', n: 'Avec observation', d: 'Score en direct sur la tablette, chrono, observations individuelles' },
         simple: { i: '✍️', n: 'Libre · résultats simples', d: 'On joue sur le terrain, puis on saisit seulement le vainqueur et le score' } };
       if (!FO[S.forme]) S.forme = 'match';
@@ -426,14 +428,14 @@ TOOL_IMPL.match = function (el, grp = 'col') {
       const c2 = document.createElement('div'); c2.className = 'card'; c2.setAttribute('data-cfg', ''); c2.style.marginTop = '12px';
       c2.innerHTML = `<h3>2. Déroulement</h3>${sdOK ? tl(SD, S.sai, 'sd') : '<p class="muted" style="margin:4px 0 0">Les matchs du tournoi se jouent sur les tablettes avec le score en direct (une tablette par terrain).</p>'}`;
       eq.before(c1); eq.before(c2);
-      const h3 = eq.querySelector('h3'); if (h3) h3.textContent = '3. Joueurs ou équipes (simple ou double)';
+      const h3 = eq.querySelector('h3'); if (h3) h3.textContent = ESC ? '3. Tireurs (ou équipes)' : RAQ ? '3. Joueurs ou équipes (simple ou double)' : '3. Équipes';
       if (S.forme === 'atp') { eq.style.display = 'none'; const n3 = document.createElement('div'); n3.className = 'card'; n3.style.marginTop = '12px';
         n3.innerHTML = '<h3>3. Joueurs</h3><p class="muted" style="margin:4px 0 0">Les élèves de la classe (absents décochés) sont choisis à l\'écran suivant, après « Créer le tournoi ».</p>'; eq.after(n3); }
-      if (tour && !T()) { const p = document.createElement('p'); p.className = 'muted'; p.style.cssText = 'font-size:.85rem;margin:8px 0 0;font-weight:700;color:var(--danger)'; p.textContent = '⚠️ Formez d\'abord les équipes (ou joueurs) avec la classe : un tournoi en demande au moins 2.'; eq.appendChild(p); }
+      if (tour && !T()) { const p = document.createElement('p'); p.className = 'muted'; p.style.cssText = 'font-size:.85rem;margin:8px 0 0;font-weight:700;color:var(--danger)'; p.textContent = RAQ ? '⚠️ Formez d\'abord les équipes (ou joueurs) avec la classe : un tournoi en demande au moins 2.' : '⚠️ Formez d\'abord les équipes avec la classe : un tournoi en demande au moins 2.'; eq.appendChild(p); }
       const rh = rg.querySelector('h3'); if (rh) rh.textContent = '4. Réglages du match';
       if (S.sai === 'simple') { const ob = rg.querySelector('#ob'); if (ob) ob.closest('label').style.display = 'none'; const w = rg.querySelector('#obw'); if (w) w.style.display = 'none';
         rh.insertAdjacentHTML('afterend', '<p class="muted" style="margin:2px 0 6px;font-size:.82rem">✍️ Résultats simples : les règles servent de repère (temps ou points) ; seul le score final est saisi.</p>'); }
-      go.textContent = S.forme === 'match' ? (S.sai === 'simple' ? '✍️ Saisir le résultat du match' : '▶ Lancer le match') : '✔ Créer le tournoi';
+      go.textContent = S.forme === 'match' ? (S.sai === 'simple' ? `✍️ Saisir le résultat ${ESC ? 'de l\'assaut' : 'du match'}` : `▶ Lancer ${ESC ? 'l\'assaut' : 'le match'}`) : '✔ Créer le tournoi';
       c1.querySelectorAll('[data-s]').forEach(b => b.onclick = () => { keep(); S.sport = b.dataset.s; const sp = SP(); S.type = sp.type; if (sp.dur) S.dur = sp.dur; if (sp.target) S.target = sp.target; S.ecart = !!sp.ecart; if (!sp.zones) S.zones = false; setup(); });
       el.querySelectorAll('[data-fo]').forEach(b => b.onclick = () => { keep(); S.forme = b.dataset.fo; setup(); });
       el.querySelectorAll('[data-sd]').forEach(b => b.onclick = () => { keep(); S.sai = b.dataset.sd; setup(); });
