@@ -104,7 +104,12 @@ TOOL_IMPL.testvma = function (el) {
     let n = 3; const ph = el.querySelector('#ph'); ph.className = 'phase ph-prep';
     const step = () => { if (n > 0) { ph.textContent = 'Départ dans ' + n; beep(660, .12); n--; pre = setTimeout(step, 1000); }
       else { pre = null; begin(); } };
-    voice('Attention… départ dans 3 secondes'); step();
+    // la voix annonce d'abord, le décompte 3-2-1 commence quand elle a fini de parler
+    if (el.querySelector('#vx')?.checked && window.speechSynthesis) {
+      let started = false; const go = () => { if (started || !el.isConnected) return; started = true; clearTimeout(pre); pre = setTimeout(step, 250); };
+      ph.textContent = 'Attention…'; pre = setTimeout(go, 4500);   // sécurité si la fin de la voix n'est pas signalée
+      say('Attention… départ dans 3 secondes', 1.05, go);
+    } else step();
   }
   function begin() {
     const c = cfg(); cyc45 = -1; plots45 = []; E = 0; bips = 0; stageSeen = 0; lastMark = -1; phase = '';

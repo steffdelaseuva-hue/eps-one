@@ -4,9 +4,10 @@
    ========================================================= */
 /* Page Ko-fi : laisser vide tant qu'elle n'existe pas (le bouton est alors masqué) */
 const KOFI_URL = 'https://ko-fi.com/epsone';
-const APP_VERSION = '16.1';
+const APP_VERSION = '16.3';
 const APP_URL = 'https://steffdelaseuva-hue.github.io/eps-one/';
 const CHANGELOG = [
+  { v: '16.3', items: ['Test VMA : la voix annonce d\'abord « Attention… départ dans 3 secondes », puis le décompte 3-2-1 commence (il ne démarre plus pendant l\'annonce)'] },
   { v: '16.1', items: ['Acrosport · Sécurité : chaque prise de mains a maintenant son dessin (porteur en bleu, voltigeur en or) pour voir clairement où et comment placer les mains'] },
   { v: '16.0', items: ['Parkour : la fluidité devient un niveau de maîtrise — 3 appuis entre les éléments = très satisfaisant, 4 = satisfaisant, 5 = fragile, 6 et + = insuffisant (niveau global = moyenne des liaisons)', 'Parkour : suppression d\'un coup à chaque étape (« 🗑 Tout supprimer » les éléments, « Tout retirer » de l\'enchaînement, « Tout effacer » les validations), 🗑 sur l\'enchaînement enregistré, remise à zéro de l\'élève ou de la classe — avec « ↶ Annuler »', 'Acrosport : un seul filtre « Renversé (ATR) » regroupe les voltigeurs renversés et semi-renversés'] },
   { v: '15.9', items: ['Parkour niveau 2 : à l\'étape ③ Validation, le prof touche le nombre d\'appuis observés entre chaque élément de l\'enchaînement (3, 4, 5, 6+) et règle l\'objectif → « Fluidité validée » ou « Trop d\'appuis »'] },
