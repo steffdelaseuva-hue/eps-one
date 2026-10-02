@@ -4,9 +4,11 @@
    ========================================================= */
 /* Page Ko-fi : laisser vide tant qu'elle n'existe pas (le bouton est alors masqué) */
 const KOFI_URL = 'https://ko-fi.com/epsone';
-const APP_VERSION = '15.7';
+const APP_VERSION = '15.9';
 const APP_URL = 'https://steffdelaseuva-hue.github.io/eps-one/';
 const CHANGELOG = [
+  { v: '15.9', items: ['Parkour niveau 2 : à l\'étape ③ Validation, le prof touche le nombre d\'appuis observés entre chaque élément de l\'enchaînement (3, 4, 5, 6+) et règle l\'objectif → « Fluidité validée » ou « Trop d\'appuis »'] },
+  { v: '15.8', items: ['Acrosport : 44 nouvelles pyramides (duos, trios, quatuors) avec un niveau de référence A → D, nouvelle position « Voltigeur à l\'équerre », nouvelles postures (pont, fente, allongé, à genoux sur les talons…) ; le filtre « Renversé » inclut les semi-renversés', 'Acrosport : onglet « 🛡️ Sécurité » — règle d\'or, zones d\'appui autorisées / interdites, rôles porteur / voltigeur / pareur, prises de mains', 'Parkour : 3 étapes ① Choisir ses éléments · ② Créer son enchaînement · ③ Validation ; en niveau 2 (4e), fluidité réglable (3, 4, 5 ou 6+ appuis entre les éléments) et validée'] },
   { v: '15.7', items: ['Nouvel outil « Tests 2nde (évaluations nationales) » : endurance (Luc Léger), force (saut en longueur sans élan), vitesse (50 m) — même fonctionnement que les Tests 6e (sessions début / fin d\'année, tableau, bilan, export CSV)'] },
   { v: '15.6', items: ['Acrosport : niveau de difficulté A (facile) · B (moyen) · C (difficile) · D (très difficile) sur chaque pyramide — calculé automatiquement (appuis des porteurs, nombre d\'étages, position du voltigeur, combinaisons), modifiable à la main dans la fiche (bouton « Auto » pour revenir au calcul) ; nouveau filtre « Niveau de difficulté »'] },
   { v: '15.5', items: ['Lutte : bouton « 🗑 Supprimer tous les relais et tournois en cours » et, dans un relais à plusieurs zones, « Supprimer toutes les zones de ce relais »'] },

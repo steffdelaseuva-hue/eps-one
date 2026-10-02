@@ -6,6 +6,10 @@
    horizontale, semi-renversé, renversé), hauteur, appuis au sol.
    Liaisons dynamiques avec vidéo.
    ========================================================= */
+if (!document.getElementById('ac-css')) document.head.insertAdjacentHTML('beforeend', `<style id="ac-css">
+.ac-tabs{flex-wrap:wrap}.ac-tabs button{flex:1 1 28%;min-width:0;font-size:.82rem;padding:10px 4px}
+.ac-gold{display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:16px;background:linear-gradient(135deg,#D23B2F,#8E1B1B);color:#fff;font-weight:900;font-size:1.1rem;line-height:1.15;box-shadow:var(--shadow)}
+.ac-gold .ic{font-size:1.9rem;line-height:1}.ac-gold small{display:block;font-weight:700;font-size:.78rem;opacity:.95;margin-top:3px}</style>`);
 ICONS.acrosport = '<circle cx="8" cy="12.5" r="1.6"/><path d="M4 21v-4l4-2 4 2v4M8 15v-1"/><circle cx="12" cy="4" r="1.6"/><path d="M12 6v4M9 7.5l3 1 3-1M12 10l-2 3.5M12 10l2 3.5"/><circle cx="16" cy="12.5" r="1.6"/><path d="M12 21v-4M16 15v-1M20 21v-4l-4-2"/>';
 
 /* ---------- Poses (repère : sol y = 0, y vers le haut, personne debout ≈ 90) ---------- */
@@ -65,6 +69,46 @@ const AC = (() => {
     // appui renversé (ATR), mains en x,y
     atr: (x, y, o) => ({ j: P([x, y + 26], [x, y + 35], [x, y + 64], [x - (o.split ? 12 : 1), y + 88], [x - (o.split ? 26 : 2), y + 112], [x + (o.split ? 12 : 1), y + 88], [x + (o.split ? 26 : 2), y + 112], [[x - 5, y + 18], [x - 4, y], [x + 5, y + 18], [x + 4, y]]), sol: y === 0 ? 2 : 0 }),
   };
+  /* Pose « libre » par angles (degrés, 0 = vers l'avant, 90 = vers le haut ; m = sens) :
+     tr tronc (bassin→épaules), t1/s1 cuisse/jambe 1, t2/s2 cuisse/jambe 2, u1/a1 bras/avant-bras 1, u2/a2 bras 2.
+     at : articulation placée en (x, y) — 'p' bassin, 'f1' pied, 'm1' main, 'n' épaules, 'k1' genou… */
+  const K = (x, y, o, d, sol, at = 'p') => {
+    const m = o.m || 1, R = Math.PI / 180, go = (q, a, l) => [q[0] + m * Math.cos(a * R) * l, q[1] + Math.sin(a * R) * l];
+    const p = [0, 0], n = go(p, d.tr, 28), h = go(n, d.hd == null ? d.tr : d.hd, 9);
+    const k1 = go(p, d.t1, 25), f1 = go(k1, d.s1, 26), k2 = go(p, d.t2 == null ? d.t1 : d.t2, 25), f2 = go(k2, d.s2 == null ? d.s1 : d.s2, 26);
+    let ar;
+    if (o.a && !d.fixArms) ar = arms(n, o.a, m);
+    else { const e1 = go(n, d.u1, 17), m1 = go(e1, d.a1 == null ? d.u1 : d.a1, 17), e2 = go(n, d.u2 == null ? d.u1 : d.u2, 17), m2 = go(e2, d.a2 == null ? (d.u2 == null ? d.a1 == null ? d.u1 : d.a1 : d.u2) : d.a2, 17); ar = [e1, m1, e2, m2]; }
+    const J = { h, n, p, k1, f1, k2, f2, e1: ar[0], m1: ar[1], e2: ar[2], m2: ar[3] }, A0 = J[o.at || at], dx = x - A0[0], dy = y - A0[1];
+    Object.keys(J).forEach(k => { J[k] = [J[k][0] + dx, J[k][1] + dy]; });
+    return { j: J, sol };
+  };
+  Object.assign(poses, {
+    // ----- porteurs -----
+    // pont / table renversée : ventre vers le haut, mains et pieds au sol (x,y = pieds)
+    pont: (x, y, o) => { const r = K(x, y, o, { tr: 180, hd: 190, t1: -8, s1: -88, t2: -8, s2: -92, u1: -97, a1: -97, fixArms: 1 }, 4, 'f1'); r.top = r.j.p; return r; },
+    // allongé sur le dos, jambes fléchies pieds au sol (x,y = bassin)
+    dosf: (x, y, o) => K(x, y + 5, o, { tr: 180, t1: 58, s1: -55, u1: 95, a1: 90 }, 3),
+    // allongé sur le dos à plat, bras tendus vers le haut (x,y = bassin)
+    allonge: (x, y, o) => K(x, y + 5, o, { tr: 180, t1: -2, s1: 0, u1: 92, a1: 90 }, 1),
+    // fente avant : cuisse avant horizontale, jambe arrière tendue (x,y = pied avant)
+    fente: (x, y, o) => { const r = K(x, y, o, { tr: 92, t1: 0, s1: -90, t2: -122, s2: -168, u1: 30, a1: 40 }, 2, 'f1'); r.top = r.j.k1; return r; },
+    // à genoux assis sur les talons (x,y = genoux)
+    talons: (x, y, o) => K(x, y, o, { tr: 90, t1: -42, s1: 180, u1: 20, a1: 60 }, 2, 'k1'),
+    // assis jambes tendues (x,y = bassin)
+    assisl: (x, y, o) => K(x, y + 6, o, { tr: 100, t1: -4, s1: -6, u1: 10, a1: 10 }, 3),
+    // ----- voltigeurs -----
+    // équerre (assis en V, x,y = bassin)
+    equerre: (x, y, o) => K(x, y, o, { tr: 112, t1: 38, s1: 38, u1: 30, a1: 30 }, y === 0 ? 1 : 0),
+    // pompe / planche faciale vers le sol : mains en x,y, corps horizontal, pieds posés ou tenus
+    pompe: (x, y, o) => K(x, y, o, { tr: -4, hd: 0, t1: 176, s1: 176, u1: -90, a1: -90, fixArms: 1 }, y === 0 ? 2 : 0, 'm1'),
+    // équerre en appui sur les mains (x,y = mains)
+    equerrem: (x, y, o) => K(x, y, o, { tr: 98, t1: 6, s1: 6, u1: -82, a1: -88, fixArms: 1 }, y === 0 ? 2 : 0, 'm1'),
+    // planche faciale (ventre vers le haut, x,y = bassin)
+    planchef: (x, y, o) => K(x, y, o, { tr: 180, hd: 185, t1: 0, s1: 0, u1: 175, a1: 178 }, 0),
+    // pike / carpé renversé : mains en x,y, bassin haut, jambes horizontales tenues
+    carpe: (x, y, o) => K(x, y, o, { tr: -92, hd: -92, t1: 2, s1: 2, u1: -90, a1: -90, fixArms: 1 }, y === 0 ? 2 : 0, 'm1'),
+  });
   return poses;
 })();
 
@@ -141,9 +185,59 @@ const ACRO = [
   { id: 'q8', n: 'La table et l\'ATR', eff: 4, por: ['horizontal', 'debout'], h: 2, p: [{ r: 'p', s: 'table', x: -50, y: 0 }, { r: 'v', s: 'stand', x: -48, y: 35, a: 'side' }, { r: 'v', s: 'atr', x: 30, y: 0, split: 1 }, { r: 'p', s: 'stand', x: 56, y: 0, m: -1, a: 'upfront' }],
     c: 'Un duo en hauteur, un duo au sol : figures tenues 3 secondes.' },
 ];
+/* Banque enrichie (dessins originaux) : nv = niveau de référence proposé (A → D), modifiable dans la fiche */
+ACRO.push(
+  // ===== DUOS =====
+  {"id": "nd1", "n": "La planche aux pieds tenus", "eff": 2, "por": ["horizontal"], "h": 2, "nv": "A", "p": [{"r": "p", "s": "allonge", "x": 0, "y": 0, "m": 1}, {"r": "v", "s": "pompe", "at": "f1", "on": [0, "m1", 0, 0], "m": -1}], "c": "Porteur allongé, bras tendus verrouillés, il tient les chevilles ; voltigeur gainé, mains à l'aplomb des épaules."},
+  {"id": "nd2", "n": "L'avion sur les genoux", "eff": 2, "por": ["horizontal"], "h": 2, "nv": "B", "p": [{"r": "p", "s": "dosf", "x": 0, "y": 0, "grip": {"i": 1, "j": "n"}}, {"r": "v", "s": "planche", "on": [0, "k1", 4, 3], "m": -1}], "c": "Bassin du voltigeur posé sur les genoux du porteur, qui tient ses mains ; corps gainé, regard devant."},
+  {"id": "nd3", "n": "La planche faciale", "eff": 2, "por": ["horizontal"], "h": 2, "nv": "C", "p": [{"r": "p", "s": "dos", "x": 0, "y": 0, "grip": {"i": 1, "j": "n"}}, {"r": "v", "s": "planchef", "on": [0, "f1", 0, 3]}], "c": "Pieds du porteur sous le bas du dos du voltigeur, ventre vers le haut ; montée accompagnée par un pareur."},
+  {"id": "nd4", "n": "L'avion sur les mains", "eff": 2, "por": ["horizontal"], "h": 2, "nv": "D", "p": [{"r": "p", "s": "allonge", "x": 0, "y": 0}, {"r": "v", "s": "planche", "on": [0, "m1", 6, 3], "a": "side"}], "c": "Mains du porteur sous le bassin du voltigeur, bras verrouillés ; voltigeur très gainé, bras écartés. Pareur conseillé."},
+  {"id": "nd5", "n": "L'équerre face à face", "eff": 2, "por": ["assis"], "h": 1, "nv": "A", "p": [{"r": "p", "s": "assis", "x": 0, "y": 0, "grip": {"i": 1, "j": "f1"}}, {"r": "v", "s": "equerre", "x": 92, "y": 0, "m": -1}], "c": "Le porteur assis tient les chevilles ; le voltigeur garde le dos droit, jambes tendues."},
+  {"id": "nd6", "n": "L'équerre sur les pieds", "eff": 2, "por": ["horizontal"], "h": 2, "nv": "B", "p": [{"r": "p", "s": "dos", "x": 0, "y": 0}, {"r": "v", "s": "equerre", "on": [0, "f1", -2, 3], "a": "up"}], "c": "Voltigeur assis sur les pieds du porteur, jambes tendues devant ; le porteur verrouille les genoux."},
+  {"id": "nd7", "n": "L'équerre en appui sur les genoux", "eff": 2, "por": ["horizontal"], "h": 2, "nv": "C", "p": [{"r": "p", "s": "dosf", "x": 0, "y": 0, "grip": {"i": 1, "j": "k1"}}, {"r": "v", "s": "equerrem", "on": [0, "k1", 0, 3]}], "c": "Mains du voltigeur sur les genoux du porteur, bras tendus ; le porteur tient les tibias pour stabiliser."},
+  {"id": "nd8", "n": "L'équerre sur les mains", "eff": 2, "por": ["horizontal"], "h": 2, "nv": "D", "p": [{"r": "p", "s": "allonge", "x": 0, "y": 0}, {"r": "v", "s": "equerre", "on": [0, "m1", 0, 3], "a": "side"}], "c": "Le porteur tient le voltigeur sous les fesses, bras verrouillés à la verticale. Pareur obligatoire."},
+  {"id": "nd9", "n": "Le semi-renversé à genoux", "eff": 2, "por": ["assis"], "h": 1, "nv": "A", "p": [{"r": "p", "s": "talons", "x": -60, "y": 0, "grip": {"i": 1, "j": "f1"}}, {"r": "v", "s": "semi", "x": 0, "y": 0, "ang": 30}], "c": "Porteur assis sur les talons, dos droit, il tient les chevilles ; voltigeur gainé, mains au sol."},
+  {"id": "nd10", "n": "L'ATR tenu en fente", "eff": 2, "por": ["debout"], "h": 1, "nv": "B", "p": [{"r": "v", "s": "atr", "x": 0, "y": 0}, {"r": "p", "s": "fente", "x": 28, "y": 0, "m": -1, "grip": {"i": 0, "j": "f1"}}], "c": "Le porteur en fente saisit les chevilles ; le voltigeur repousse le sol, épaules au-dessus des mains."},
+  {"id": "nd11", "n": "Le carpé sur les épaules", "eff": 2, "por": ["assis"], "h": 1, "nv": "C", "p": [{"r": "v", "s": "carpe", "x": 0, "y": 0}, {"r": "p", "s": "genoux", "x": 54, "y": 0, "m": -1, "a": "up"}], "c": "Jambes tendues du voltigeur posées sur les épaules du porteur à genoux, qui tient les chevilles ; bassin au-dessus des épaules."},
+  {"id": "nd12", "n": "L'ATR sur les genoux", "eff": 2, "por": ["horizontal"], "h": 2, "nv": "D", "p": [{"r": "p", "s": "dosf", "x": 0, "y": 0, "grip": {"i": 1, "j": "n"}}, {"r": "v", "s": "atr", "on": [0, "k1", 0, 2]}], "c": "Mains du voltigeur sur les genoux du porteur, qui tient ses épaules ; montée par un pareur. Réservé aux élèves à l'aise à l'ATR."},
+  {"id": "nd13", "n": "Debout sur les cuisses", "eff": 2, "por": ["assis"], "h": 2, "nv": "A", "p": [{"r": "p", "s": "talons", "x": 0, "y": 0, "a": "hip"}, {"r": "v", "s": "stand", "on": [0, "p", 9, 2], "a": "up"}], "c": "Pieds du voltigeur sur les cuisses, près des hanches ; le porteur tient le bassin."},
+  {"id": "nd14", "n": "Debout sur la fente", "eff": 2, "por": ["debout"], "h": 2, "nv": "B", "p": [{"r": "p", "s": "fente", "x": 0, "y": 0, "a": "hip"}, {"r": "v", "s": "stand", "on": [0, "p", 9, 2], "a": "side"}], "c": "Pied du voltigeur sur la cuisse avant, près de la hanche ; le porteur tient la taille."},
+  {"id": "nd15", "n": "Debout sur le pont", "eff": 2, "por": ["horizontal"], "h": 2, "nv": "C", "p": [{"r": "p", "s": "pont", "x": 0, "y": 0}, {"r": "v", "s": "stand", "on": [0, "p", -2, 3], "a": "up"}], "c": "Pieds du voltigeur sur le bassin du porteur, jamais au milieu du ventre ; le porteur pousse fort sur ses appuis."},
+  {"id": "nd16", "n": "Debout sur les épaules en fente", "eff": 2, "por": ["debout"], "h": 2, "nv": "D", "p": [{"r": "p", "s": "fente", "x": 0, "y": 0, "a": "hip"}, {"r": "v", "s": "stand", "on": [0, "n", 0, 2], "a": "up"}], "c": "Montée par la cuisse avant puis les épaules ; le porteur tient les mollets. Pareur obligatoire."},
+  // ===== TRIOS =====
+  {"id": "nt1", "n": "La passerelle sur deux bancs", "eff": 3, "por": ["horizontal"], "h": 2, "nv": "A", "p": [{"r": "p", "s": "table", "x": -28, "y": 0, "m": -1}, {"r": "p", "s": "table", "x": 34, "y": 0, "m": 1}, {"r": "v", "s": "planche", "x": 0, "y": 37}], "c": "Épaules du voltigeur sur un banc, bassin et cuisses sur l'autre ; porteurs dos plat, bras tendus."},
+  {"id": "nt2", "n": "L'avion à deux porteurs allongés", "eff": 3, "por": ["horizontal"], "h": 2, "nv": "B", "p": [{"r": "p", "s": "allonge", "x": 9, "y": 0}, {"r": "p", "s": "allonge", "x": -4, "y": 0, "m": -1, "z": 1}, {"r": "v", "s": "planche", "x": 2, "y": 41}], "c": "Un porteur tient les épaules, l'autre les cuisses ; bras verrouillés, montée au même signal."},
+  {"id": "nt3", "n": "La planche faciale tenue", "eff": 3, "por": ["horizontal", "debout"], "h": 2, "nv": "C", "p": [{"r": "p", "s": "dos", "x": 0, "y": 0}, {"r": "v", "s": "planchef", "on": [0, "f1", 0, 3]}, {"r": "p", "s": "stand", "x": -90, "y": 0, "grip": {"i": 1, "j": "m1"}}], "c": "Pieds du porteur allongé sous le bas du dos ; le porteur debout tient les mains du voltigeur et équilibre."},
+  {"id": "nt4", "n": "L'avion porté à genoux", "eff": 3, "por": ["assis"], "h": 2, "nv": "D", "p": [{"r": "p", "s": "talons", "x": -40, "y": 0, "grip": {"i": 2, "j": "n"}}, {"r": "p", "s": "talons", "x": 44, "y": 0, "m": -1, "grip": {"i": 2, "j": "k1"}}, {"r": "v", "s": "planche", "x": 10, "y": 74, "m": -1}], "c": "Les porteurs à genoux tiennent épaules et genoux du voltigeur, bras tendus au-dessus de la tête. Pareur conseillé."},
+  {"id": "nt5", "n": "L'équerre entre deux assis", "eff": 3, "por": ["assis"], "h": 1, "nv": "A", "p": [{"r": "p", "s": "assis", "x": -62, "y": 0, "grip": {"i": 2, "j": "n"}}, {"r": "p", "s": "assis", "x": 96, "y": 0, "m": -1, "grip": {"i": 2, "j": "f1"}}, {"r": "v", "s": "equerre", "x": 0, "y": 0}], "c": "Un porteur soutient le dos, l'autre tient les chevilles ; voltigeur dos droit, jambes tendues."},
+  {"id": "nt6", "n": "L'équerre sur les genoux, mains tenues", "eff": 3, "por": ["horizontal", "assis"], "h": 2, "nv": "B", "p": [{"r": "p", "s": "dosf", "x": 0, "y": 0}, {"r": "v", "s": "equerre", "on": [0, "k1", -2, 3], "m": -1}, {"r": "p", "s": "genoux", "x": -45, "y": 0, "grip": {"i": 1, "j": "m1"}}], "c": "Voltigeur assis sur les genoux du porteur allongé ; le porteur à genoux tient ses mains."},
+  {"id": "nt7", "n": "L'équerre en appui sur deux bancs", "eff": 3, "por": ["horizontal"], "h": 2, "nv": "C", "p": [{"r": "p", "s": "table", "x": -30, "y": 0}, {"r": "p", "s": "table", "x": 30, "y": 0, "m": -1, "z": 1}, {"r": "v", "s": "equerrem", "x": -28, "y": 37}], "c": "Une main sur chaque bassin, bras tendus, jambes à l'horizontale ; porteurs épaule contre épaule."},
+  {"id": "nt8", "n": "L'équerre suspendue", "eff": 3, "por": ["debout"], "h": 2, "nv": "D", "p": [{"r": "p", "s": "fente", "x": -40, "y": 0, "grip": {"i": 2, "j": "n"}}, {"r": "p", "s": "fente", "x": 62, "y": 0, "m": -1, "grip": {"i": 2, "j": "f1"}}, {"r": "v", "s": "equerre", "x": 0, "y": 48, "a": "side"}], "c": "Les porteurs en fente tiennent le dos et les chevilles ; voltigeur très gainé. Pareur conseillé."},
+  {"id": "nt9", "n": "L'ATR tenu à deux", "eff": 3, "por": ["assis", "debout"], "h": 1, "nv": "A", "p": [{"r": "v", "s": "atr", "x": 0, "y": 0}, {"r": "p", "s": "genoux", "x": -30, "y": 0, "grip": {"i": 0, "j": "k1"}}, {"r": "p", "s": "stand", "x": 30, "y": 0, "m": -1, "grip": {"i": 0, "j": "f2"}}], "c": "Un porteur à genoux tient les cuisses, l'autre debout les chevilles ; montée jambe après jambe."},
+  {"id": "nt10", "n": "Le double semi-renversé à genoux", "eff": 3, "por": ["assis"], "h": 1, "nv": "B", "p": [{"r": "p", "s": "genoux", "x": 0, "y": 0, "a": "side"}, {"r": "v", "s": "semi", "x": -107, "y": 0, "m": -1, "ang": 16}, {"r": "v", "s": "semi", "x": 107, "y": 0, "ang": 16}], "c": "Porteur central assis sur les talons, il tient une cheville de chaque voltigeur ; voltigeurs gainés, mains au sol."},
+  {"id": "nt11", "n": "L'ATR sur les genoux du porteur assis", "eff": 3, "por": ["assis", "debout"], "h": 2, "nv": "C", "p": [{"r": "p", "s": "assis", "x": -30, "y": 0, "a": "hold"}, {"r": "v", "s": "atr", "on": [0, "k1", 2, 2]}, {"r": "p", "s": "stand", "x": 24, "y": 0, "m": -1, "grip": {"i": 1, "j": "f1"}}], "c": "Mains du voltigeur sur les genoux du porteur assis ; le porteur debout tient les chevilles."},
+  {"id": "nt12", "n": "L'ATR sur les cuisses", "eff": 3, "por": ["assis", "debout"], "h": 2, "nv": "D", "p": [{"r": "p", "s": "talons", "x": 0, "y": 0, "a": "hip"}, {"r": "v", "s": "atr", "on": [0, "p", 10, 2]}, {"r": "p", "s": "stand", "x": 36, "y": 0, "m": -1, "grip": {"i": 1, "j": "f1"}}], "c": "Mains du voltigeur sur les cuisses du porteur à genoux ; le porteur debout tient les chevilles. Réservé aux élèves à l'aise à l'ATR."},
+  {"id": "nt13", "n": "La statue, mains tenues", "eff": 3, "por": ["assis", "debout"], "h": 2, "nv": "A", "p": [{"r": "p", "s": "talons", "x": 0, "y": 0, "a": "hip"}, {"r": "v", "s": "stand", "on": [0, "p", 9, 2], "grip": {"i": 2, "j": "m1"}}, {"r": "p", "s": "stand", "x": 50, "y": 0, "m": -1, "a": "upfront"}], "c": "Pieds sur les cuisses du porteur à genoux, mains dans celles du porteur debout ; on monte et on descend lentement."},
+  {"id": "nt14", "n": "Debout sur deux fentes", "eff": 3, "por": ["debout"], "h": 2, "nv": "B", "p": [{"r": "p", "s": "fente", "x": -2, "y": 0, "a": "hip"}, {"r": "p", "s": "fente", "x": 2, "y": 0, "m": -1, "a": "hip"}, {"r": "v", "s": "stand", "x": 0, "y": 28, "wide": 1, "a": "side"}], "c": "Un pied sur chaque cuisse avant, près de la hanche ; les porteurs tiennent les genoux du voltigeur."},
+  {"id": "nt15", "n": "Debout sur le pont et le banc", "eff": 3, "por": ["horizontal"], "h": 2, "nv": "C", "p": [{"r": "p", "s": "pont", "x": -14, "y": 0}, {"r": "p", "s": "table", "x": 30, "y": 0, "m": -1}, {"r": "v", "s": "stand", "x": 0, "y": 33, "wide": 1, "a": "up"}], "c": "Un pied sur le bassin du pont, l'autre sur le bassin du banc ; jamais au milieu du dos."},
+  {"id": "nt16", "n": "Debout sur les épaules, pareur", "eff": 3, "por": ["debout"], "h": 2, "nv": "D", "p": [{"r": "p", "s": "fente", "x": 0, "y": 0, "a": "hip"}, {"r": "v", "s": "stand", "on": [0, "n", 0, 2], "grip": {"i": 2, "j": "m1"}}, {"r": "p", "s": "stand", "x": 44, "y": 0, "m": -1, "a": "upfront"}], "c": "Montée par la cuisse puis les épaules ; le 3e élève tient les mains du voltigeur et pare la chute."},
+  // ===== QUATUORS =====
+  {"id": "nq1", "n": "La passerelle et le pareur", "eff": 4, "por": ["horizontal"], "h": 2, "nv": "A", "p": [{"r": "p", "s": "table", "x": -28, "y": 0, "m": -1}, {"r": "p", "s": "table", "x": 34, "y": 0}, {"r": "v", "s": "planche", "x": 0, "y": 37}, {"r": "p", "s": "stand", "x": 100, "y": 0, "grip": {"i": 2, "j": "m1"}, "m": -1}], "c": "Voltigeur allongé sur deux bancs ; le 4e élève, debout, tient ses mains et l'aide à monter et descendre."},
+  {"id": "nq2", "n": "L'avion et la planche aux pieds tenus", "eff": 4, "por": ["horizontal"], "h": 2, "nv": "B", "p": [{"r": "p", "s": "dos", "x": -60, "y": 0}, {"r": "v", "s": "planche", "on": [0, "f1", 0, 3]}, {"r": "p", "s": "allonge", "x": 20, "y": 0, "m": -1}, {"r": "v", "s": "pompe", "at": "f1", "on": [2, "m1", 0, 0]}], "c": "Deux duos côte à côte : l'avion et la planche aux pieds tenus, montée et descente au même signal."},
+  {"id": "nq3", "n": "L'avion porté et le pareur", "eff": 4, "por": ["assis", "debout"], "h": 2, "nv": "C", "p": [{"r": "p", "s": "talons", "x": -40, "y": 0, "grip": {"i": 2, "j": "n"}}, {"r": "p", "s": "fente", "x": 60, "y": 0, "m": -1, "grip": {"i": 2, "j": "k1"}}, {"r": "v", "s": "planche", "x": 10, "y": 74, "m": -1}, {"r": "p", "s": "genoux", "x": 5, "y": 0, "z": 1, "a": "up"}], "c": "Porteur à genoux aux épaules, porteur en fente aux genoux ; le 4e élève, à genoux dessous, pare la chute."},
+  {"id": "nq4", "n": "L'avion sur deux paires de mains", "eff": 4, "por": ["horizontal", "debout"], "h": 2, "nv": "D", "p": [{"r": "p", "s": "allonge", "x": 9, "y": 0}, {"r": "p", "s": "allonge", "x": -4, "y": 0, "m": -1, "z": 1}, {"r": "v", "s": "planche", "x": 2, "y": 41, "a": "side"}, {"r": "p", "s": "stand", "x": -80, "y": 0, "a": "front"}], "c": "Deux porteurs allongés, bras verrouillés, tiennent épaules et cuisses ; le 4e élève pare devant. Montée au signal."},
+  {"id": "nq5", "n": "L'équerre sur les genoux de deux assis", "eff": 4, "por": ["assis"], "h": 2, "nv": "A", "p": [{"r": "p", "s": "assis", "x": -30, "y": 0, "a": "hold"}, {"r": "p", "s": "assis", "x": 34, "y": 0, "m": -1, "a": "hold"}, {"r": "v", "s": "equerre", "x": -6, "y": 30, "a": "up"}, {"r": "p", "s": "stand", "x": -70, "y": 0, "grip": {"i": 2, "j": "n"}}], "c": "Voltigeur assis sur les genoux joints des deux porteurs ; le 4e élève le tient aux épaules."},
+  {"id": "nq6", "n": "Les équerres en appui", "eff": 4, "por": ["horizontal"], "h": 2, "nv": "C", "p": [{"r": "p", "s": "dosf", "x": -50, "y": 0, "grip": {"i": 1, "j": "k1"}}, {"r": "v", "s": "equerrem", "on": [0, "k1", 0, 3]}, {"r": "p", "s": "dosf", "x": 60, "y": 0, "grip": {"i": 3, "j": "k1"}}, {"r": "v", "s": "equerrem", "on": [2, "k1", 0, 3]}], "c": "Deux duos synchronisés : mains sur les genoux du porteur, jambes à l'horizontale, tenue 3 secondes."},
+  {"id": "nq7", "n": "L'ATR et le carpé", "eff": 4, "por": ["assis", "debout"], "h": 1, "nv": "B", "p": [{"r": "v", "s": "atr", "x": -40, "y": 0}, {"r": "p", "s": "stand", "x": -12, "y": 0, "m": -1, "grip": {"i": 0, "j": "f1"}}, {"r": "v", "s": "carpe", "x": 40, "y": 0}, {"r": "p", "s": "genoux", "x": 94, "y": 0, "m": -1, "a": "up"}], "c": "Un ATR tenu aux chevilles et un carpé sur les épaules d'un porteur à genoux, montés au même signal."},
+  {"id": "nq8", "n": "L'ATR sur les cuisses, double parade", "eff": 4, "por": ["assis", "debout"], "h": 2, "nv": "D", "p": [{"r": "p", "s": "talons", "x": 0, "y": 0, "a": "hip"}, {"r": "v", "s": "atr", "on": [0, "p", 10, 2]}, {"r": "p", "s": "stand", "x": 36, "y": 0, "m": -1, "grip": {"i": 1, "j": "f1"}}, {"r": "p", "s": "stand", "x": -34, "y": 0, "z": 1, "grip": {"i": 1, "j": "f2"}}], "c": "Mains sur les cuisses du porteur à genoux ; deux porteurs debout tiennent chacun une cheville."},
+  {"id": "nq9", "n": "La statue sur les cuisses et les pompes", "eff": 4, "por": ["assis", "horizontal"], "h": 2, "nv": "A", "p": [{"r": "p", "s": "talons", "x": 0, "y": 0, "a": "hip"}, {"r": "v", "s": "stand", "on": [0, "p", 9, 2], "a": "up"}, {"r": "p", "s": "allonge", "x": 75, "y": 0, "m": -1}, {"r": "v", "s": "pompe", "at": "f1", "on": [2, "m1", 0, 0]}], "c": "Un duo statue sur les cuisses et un duo planche aux pieds tenus, tenus 3 secondes."},
+  {"id": "nq10", "n": "Debout sur la fente et la planche", "eff": 4, "por": ["debout", "horizontal"], "h": 2, "nv": "C", "p": [{"r": "p", "s": "fente", "x": 0, "y": 0, "a": "hip"}, {"r": "v", "s": "stand", "on": [0, "p", 9, 2], "a": "up"}, {"r": "p", "s": "allonge", "x": 50, "y": 0, "m": -1}, {"r": "v", "s": "pompe", "at": "f1", "on": [2, "m1", 0, 0]}], "c": "Le voltigeur debout sur la cuisse du porteur en fente ; derrière, un duo planche aux pieds tenus."},
+  {"id": "nq11", "n": "Debout sur les épaules et double parade", "eff": 4, "por": ["debout"], "h": 2, "nv": "D", "p": [{"r": "p", "s": "fente", "x": 0, "y": 0, "a": "hip"}, {"r": "v", "s": "stand", "on": [0, "n", 0, 2], "a": "side"}, {"r": "p", "s": "stand", "x": 44, "y": 0, "m": -1, "a": "upfront"}, {"r": "p", "s": "stand", "x": -44, "y": 0, "a": "upfront"}], "c": "Montée par la cuisse puis les épaules ; deux pareurs, bras levés, restent prêts à saisir le voltigeur."},
+  {"id": "nq12", "n": "Debout sur deux fentes, mains tenues", "eff": 4, "por": ["debout"], "h": 2, "nv": "B", "p": [{"r": "p", "s": "fente", "x": -2, "y": 0, "a": "hip"}, {"r": "p", "s": "fente", "x": 2, "y": 0, "m": -1, "a": "hip"}, {"r": "v", "s": "stand", "x": 0, "y": 28, "wide": 1, "grip": {"i": 3, "j": "m1"}}, {"r": "p", "s": "stand", "x": 60, "y": 0, "m": -1, "a": "upfront"}], "c": "Un pied sur chaque cuisse ; le 4e élève tient les mains du voltigeur pour la montée et la descente."},
+);
 /* Position du voltigeur, déduite des postures des voltigeurs de la figure */
-const ACRO_VOL = { debout: 'Debout', horizontale: 'À l\'horizontale', semi: 'Semi-renversé', renverse: 'Renversé' };
-const ACRO_VOL_OF = { stand: 'debout', arab: 'debout', epaules: 'debout', genoux: 'debout', siege: 'debout', planche: 'horizontale', table: 'horizontale', dos: 'horizontale', brouette: 'semi', semi: 'semi', atr: 'renverse' };
+const ACRO_VOL = { debout: 'Debout / redressé', horizontale: 'À l\'horizontale', equerre: 'À l\'équerre', semi: 'Semi-renversé', renverse: 'Renversé (ATR)' };
+const ACRO_VOL_OF = { stand: 'debout', arab: 'debout', epaules: 'debout', genoux: 'debout', siege: 'debout', planche: 'horizontale', table: 'horizontale', dos: 'horizontale', brouette: 'semi', semi: 'semi', atr: 'renverse', equerre: 'equerre', equerrem: 'equerre', planchef: 'horizontale', pompe: 'horizontale', carpe: 'semi' };
 const acroVol = f => [...new Set(f.p.filter(q => q.r === 'v').map(q => ACRO_VOL_OF[q.s]).filter(Boolean))];
 /* ---------- Niveau de difficulté A (facile) → D (très difficile) ----------
    Calcul automatique : stabilité des porteurs (appuis au sol), hauteur
@@ -151,8 +245,8 @@ const acroVol = f => [...new Set(f.p.filter(q => q.r === 'v').map(q => ACRO_VOL_
    et combinaisons (renversé en hauteur…). Modifiable à la main : DB.acro.niv[id]. */
 const ACRO_NIV = { A: 'Facile', B: 'Moyen', C: 'Difficile', D: 'Très difficile' };
 const ACRO_NIV_COL = { A: '#1E9E5A', B: '#E0A100', C: '#E06A1E', D: '#C62828' };
-const ACRO_STAB = { table: 4, dos: 4, assis: 3, trep: 3, genoux: 2, stand: 2, arab: 1, brouette: 2, semi: 2, atr: 1, planche: 1, siege: 1, epaules: 1 };   // appuis « utiles » d'un porteur
-const ACRO_VOLPTS = { debout: 0, horizontale: 1, semi: 2, renverse: 3 };
+const ACRO_STAB = { table: 4, dos: 4, assis: 3, trep: 3, genoux: 2, stand: 2, arab: 1, brouette: 2, semi: 2, atr: 1, planche: 1, siege: 1, epaules: 1, pont: 4, dosf: 4, allonge: 4, fente: 2, talons: 3, assisl: 3 };   // appuis « utiles » d'un porteur
+const ACRO_VOLPTS = { debout: 0, horizontale: 1, equerre: 1.5, semi: 2, renverse: 3 };
 function acroScore(f) {
   const por = f.p.filter(q => q.r === 'p'), vol = f.p.filter(q => q.r === 'v');
   const stab = por.length ? Math.min(...por.map(q => ACRO_STAB[q.s] || 2)) : 4;   // le porteur le moins stable fait la difficulté
@@ -161,19 +255,22 @@ function acroScore(f) {
   const haut = h >= 3 ? 4 : h === 2 ? 1 : 0;
   const vp = vol.map(q => ACRO_VOLPTS[ACRO_VOL_OF[q.s]] || 0), vMax = vp.length ? Math.max(...vp) : 0;
   let bonus = 0;
-  if (vol.some(q => q.y > 0 && ['semi', 'atr'].includes(q.s))) bonus += 2.5;   // renversé / semi en hauteur (porté)
+  if (acroBuild(f).some(b => b.q.r === 'v' && b.q.y > 0 && ['semi', 'atr', 'carpe'].includes(b.q.s))) bonus += 2.5;   // renversé / semi en hauteur (porté)
   if (vol.some(q => q.s === 'arab')) bonus += .5;                                                                 // équilibre sur un pied
   return { app, haut, vol: vMax, bonus, stab, total: app + haut + vMax + bonus };
 }
 const acroAutoNiv = f => { const t = acroScore(f).total; return t <= 2 ? 'A' : t <= 3.5 ? 'B' : t <= 6 ? 'C' : 'D'; };
-const acroNiv = f => (DB.acro && DB.acro.niv && DB.acro.niv[f.id]) || acroAutoNiv(f);
-const acroNivMan = f => !!(DB.acro && DB.acro.niv && DB.acro.niv[f.id]);
-const acroNivBadge = (f, big) => { const n = acroNiv(f); return `<span title="Niveau ${n} : ${ACRO_NIV[n]}${acroNivMan(f) ? ' (modifié)' : ' (auto)'}" style="display:inline-grid;place-items:center;min-width:${big ? 34 : 24}px;height:${big ? 34 : 24}px;border-radius:8px;background:${ACRO_NIV_COL[n]};color:#fff;font-weight:900;font-size:${big ? '1.1rem' : '.85rem'}">${n}${acroNivMan(f) ? '<sup style="font-size:.55em">✋</sup>' : ''}</span>`; };
+const acroNivRaw = f => DB.acro && DB.acro.niv && DB.acro.niv[f.id];   // 'A'…'D' = classé à la main · 'auto' = calcul forcé
+const acroNiv = f => { const r = acroNivRaw(f); return r && r !== 'auto' ? r : r === 'auto' ? acroAutoNiv(f) : f.nv || acroAutoNiv(f); };
+const acroNivMan = f => { const r = acroNivRaw(f); return !!r && r !== 'auto'; };
+const acroNivBadge = (f, big) => { const n = acroNiv(f); return `<span title="Niveau ${n} : ${ACRO_NIV[n]}${acroNivMan(f) ? ' (modifié)' : ''}" style="display:inline-grid;place-items:center;min-width:${big ? 34 : 24}px;height:${big ? 34 : 24}px;border-radius:8px;background:${ACRO_NIV_COL[n]};color:#fff;font-weight:900;font-size:${big ? '1.1rem' : '.85rem'}">${n}${acroNivMan(f) ? '<sup style="font-size:.55em">✋</sup>' : ''}</span>`; };
 const ACRO_POR = { horizontal: 'Horizontal (banc, dos)', assis: 'Assis', debout: 'Debout', trepied: 'Trépied' };
 const ACRO_EFF = { 2: 'Duo', 3: 'Trio', 4: 'Quatuor' };
 
 function acroBuild(f) {
-  const B = f.p.map(q => ({ q, ...AC[q.s](q.x, q.y, q) }));
+  // q.on = [i, 'articulation', dx, dy] : placé par rapport à une articulation d'une personne déjà construite
+  const B = []; f.p.forEach(q => { let x = q.x, y = q.y; if (q.on && B[q.on[0]]) { const t = B[q.on[0]].j[q.on[1]]; x = t[0] + (q.on[2] || 0); y = t[1] + (q.on[3] || 0); }
+    B.push({ q: q.on ? { ...q, x, y } : q, ...AC[q.s](x, y, q) }); });
   B.forEach(b => {   // bras dirigés vers une prise : [x, y] ou { i: personne, j: articulation }
     const g = b.q.grip; if (!g) return; const t = Array.isArray(g) ? g : B[g.i] && B[g.i] !== b && B[g.i].j[g.j]; if (!t) return;
     const n = b.j.n, dx = t[0] - n[0], dy = t[1] - n[1], L = Math.hypot(dx, dy) || 1, bd = Math.max(2, 14 - L / 4), e = [(n[0] + t[0]) / 2 - dy / L * bd, (n[1] + t[1]) / 2 + dx / L * bd];
@@ -244,15 +341,17 @@ const acroZoom = src => { const o = document.createElement('div'); o.style.cssTe
 
 /* ---------- Création de pyramide (éditeur glisser-déposer) ---------- */
 const ACRO_POSES = { stand: 'Debout', arab: 'Arabesque (1 pied)', genoux: 'À genoux', assis: 'Assis, jambes fléchies', siege: 'Assis sur un appui', trep: 'Trépied (chevalier)',
-  table: 'À 4 pattes (banc)', dos: 'Sur le dos, jambes en l\'air', planche: 'Planche (horizontal)', epaules: 'Sur les épaules (de face)', brouette: 'Brouette', semi: 'Semi-renversé (mains au sol)', atr: 'ATR (renversé)' };
-const ACRO_POSES_P = ['stand', 'trep', 'table', 'dos', 'assis', 'genoux'];
-const ACRO_POR_OF = { stand: 'debout', trep: 'trepied', table: 'horizontal', dos: 'horizontal', assis: 'assis', genoux: 'assis' };
+  table: 'À 4 pattes (banc)', dos: 'Sur le dos, jambes en l\'air', planche: 'Planche (horizontal)', epaules: 'Sur les épaules (de face)', brouette: 'Brouette', semi: 'Semi-renversé (mains au sol)', atr: 'ATR (renversé)',
+  pont: 'Pont (ventre vers le haut)', dosf: 'Allongé, jambes fléchies', allonge: 'Allongé, bras tendus en l\'air', fente: 'Fente avant', talons: 'À genoux assis sur les talons', assisl: 'Assis, jambes tendues',
+  equerre: 'Équerre (assis en V)', equerrem: 'Équerre en appui sur les mains', planchef: 'Planche faciale (ventre en haut)', pompe: 'Planche en appui sur les mains', carpe: 'Carpé renversé (jambes horizontales)' };
+const ACRO_POSES_P = ['stand', 'trep', 'table', 'dos', 'assis', 'genoux', 'pont', 'dosf', 'allonge', 'fente', 'talons', 'assisl'];
+const ACRO_POR_OF = { stand: 'debout', trep: 'trepied', table: 'horizontal', dos: 'horizontal', assis: 'assis', genoux: 'assis', pont: 'horizontal', dosf: 'horizontal', allonge: 'horizontal', fente: 'debout', talons: 'assis', assisl: 'assis' };
 const ACRO_ARMS = { '': 'Auto', up: 'En l\'air', side: 'Écartés', front: 'Devant', upfront: 'Devant en haut', hold: 'Tenir (bas)', hip: 'Aux hanches' };
 const ACRO_GRIP_J = { f1: 'les chevilles', m1: 'les mains', p: 'le bassin', k1: 'les genoux', n: 'les épaules' };
 const acroLevels = p => { const ys = [...p.map(q => q.y)].sort((a, b) => a - b); let L = 0, last = -99; ys.forEach(y => { if (y > last + 20) { L++; last = y; } }); return Math.max(1, Math.min(3, L)); };
 
 function acroEditor(src, onSave) {
-  const F0 = src ? JSON.parse(JSON.stringify(src)) : { n: '', c: '', p: [{ r: 'p', s: 'table', x: 0, y: 0 }, { r: 'v', s: 'stand', x: 2, y: 35, a: 'up' }] };
+  const F0 = src ? { ...JSON.parse(JSON.stringify(src)), p: acroBuild(src).map(b => { const q = { ...b.q, x: Math.round(b.q.x), y: Math.round(b.q.y) }; delete q.on; return q; }) } : { n: '', c: '', p: [{ r: 'p', s: 'table', x: 0, y: 0 }, { r: 'v', s: 'stand', x: 2, y: 35, a: 'up' }] };
   const E = { n: F0.n || '', c: F0.c || '', p: F0.p.map(q => ({ ...q })) };
   let sel = E.p.length - 1;
   const X0 = -170, X1 = 170, YT = 230, SC = { x0: X0, W: X1 - X0, H: YT + 10 };
@@ -361,12 +460,12 @@ TOOL_IMPL.acrosport = function (el) {
     const gs = cls ? groups() : []; if (gi >= gs.length) gi = 0;
     el.innerHTML = `${DB.classes.length ? `<div class="card"><div class="row"><div data-cfg="bare"><label style="margin-top:0">Classe</label><select id="acl">${DB.classes.map(c => `<option ${c.name === cls ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</select></div>
         <div><label style="margin-top:0">Groupe</label><select id="agr">${gs.length ? gs.map((g, k) => `<option value="${k}" ${k === gi ? 'selected' : ''}>${esc(g.name)} (${g.seq.length})</option>`).join('') : '<option>— aucun groupe —</option>'}</select></div></div></div>` : ''}
-      <div class="co-tabs" style="margin-top:12px">${[['groupes', '👥 Groupes'], ['banque', '📚 Pyramides'], ['liaisons', '🔗 Liaisons'], ['enchainement', '🎬 Enchaînement']].map(([k, l]) => `<button data-tab="${k}" class="${tab === k ? 'on' : ''}">${l}</button>`).join('')}</div><div id="ab"></div>`;
+      <div class="co-tabs ac-tabs" style="margin-top:12px">${[['groupes', '👥 Groupes'], ['banque', '📚 Pyramides'], ['liaisons', '🔗 Liaisons'], ['enchainement', '🎬 Enchaînement'], ['securite', '🛡️ Sécurité']].map(([k, l]) => `<button data-tab="${k}" class="${tab === k ? 'on' : ''}">${l}</button>`).join('')}</div><div id="ab"></div>`;
     el.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => { tab = b.dataset.tab; frame(); });
     const $ = s => el.querySelector(s);
     if ($('#acl')) $('#acl').onchange = e => { cls = e.target.value; DB.lastClass = cls; gi = 0; save(); frame(); };
     if ($('#agr') && gs.length) $('#agr').onchange = e => { gi = +e.target.value; frame(); };
-    ({ groupes: tabGroupes, banque: tabBanque, liaisons: tabLiaisons, enchainement: tabEnch })[tab]($('#ab'));
+    ({ groupes: tabGroupes, banque: tabBanque, liaisons: tabLiaisons, enchainement: tabEnch, securite: tabSecu })[tab]($('#ab'));
   }
 
   /* ---------- Groupes (modifiables) ---------- */
@@ -412,7 +511,7 @@ TOOL_IMPL.acrosport = function (el) {
   /* ---------- Banque de pyramides ---------- */
   const chips = (key, opts) => `<div class="tog">${opts.map(([v, l]) => `<button data-f="${key}" data-v="${v}" class="${String(F[key]) === String(v) ? 'on' : ''}">${l}</button>`).join('')}</div>`;
   function tabBanque(box) {
-    const list = acroAll().filter(f => (+F.eff === 0 || f.eff === +F.eff) && (!F.por || f.por.includes(F.por)) && (!F.vol || acroVol(f).includes(F.vol)) && (+F.h === 0 || f.h === +F.h) && appOk(acroAppuis(f), F.app) && (!F.niv || acroNiv(f) === F.niv));
+    const list = acroAll().filter(f => (+F.eff === 0 || f.eff === +F.eff) && (!F.por || f.por.includes(F.por)) && (!F.vol || acroVol(f).includes(F.vol) || (F.vol === 'renverse' && acroVol(f).includes('semi'))) && (+F.h === 0 || f.h === +F.h) && appOk(acroAppuis(f), F.app) && (!F.niv || acroNiv(f) === F.niv));
     const g = G();
     box.innerHTML = `<button class="btn btn-grad btn-block" data-cfg="bare" id="acnew" style="margin-bottom:12px">✏️ Créer une pyramide</button><div class="card">
         <label style="margin-top:0">Effectif</label>${chips('eff', [[0, 'Tous'], [2, 'Duo'], [3, 'Trio'], [4, 'Quatuor']])}
@@ -455,18 +554,58 @@ TOOL_IMPL.acrosport = function (el) {
       if (id === 'accp') { o.remove(); acroEditor({ ...JSON.parse(JSON.stringify(f)), n: f.n + ' (variante)', custom: 0 }, saveCustom); }
       if (id === 'acdel' && confirm(`Supprimer « ${f.n} » ?`)) { o.remove(); A.custom = (A.custom || []).filter(x => x.id !== f.id); save(); toast('Pyramide supprimée'); frame(); } };
     let chg = 0;
-    const nivBox = () => { const sc = acroScore(f), au = acroAutoNiv(f), cur = A.niv && A.niv[f.id];
+    const nivBox = () => { const sc = acroScore(f), au = acroAutoNiv(f), raw = A.niv && A.niv[f.id], man = raw && raw !== 'auto', isAuto = raw === 'auto' || (!raw && !f.nv);
       const vl = Object.keys(ACRO_VOLPTS).find(k => ACRO_VOLPTS[k] === sc.vol);
+      const how = man ? `Classé à la main${f.nv ? ` (référence : ${f.nv}` : ` (calcul auto : ${au}`})` : isAuto ? 'Calcul automatique' : 'Niveau de référence de la banque';
       o.querySelector('#acniv').innerHTML = `<div style="border:1.5px solid var(--line);border-radius:12px;padding:10px">
         <div style="display:flex;align-items:center;gap:10px">${acroNivBadge(f, true)}<div><b>Niveau ${acroNiv(f)} · ${ACRO_NIV[acroNiv(f)]}</b>
-          <div class="muted" style="font-size:.78rem">${cur ? `Classé à la main (calcul auto : ${au})` : 'Calcul automatique'}</div></div></div>
-        <p class="muted" style="margin:8px 0 6px;font-size:.78rem">Auto : porteur le moins stable ${sc.stab} appui${sc.stab > 1 ? 's' : ''} · ${f.h} étage${f.h > 1 ? 's' : ''} · voltigeur ${ACRO_VOL[vl] || '—'}${sc.bonus ? ' · combinaison difficile' : ''}</p>
-        <div class="tog">${Object.keys(ACRO_NIV).map(k => `<button data-niv="${k}" class="${cur === k ? 'on' : ''}">${k}</button>`).join('')}<button data-niv="" class="${cur ? '' : 'on'}">Auto (${au})</button></div></div>`;
+          <div class="muted" style="font-size:.78rem">${how}</div></div></div>
+        <p class="muted" style="margin:8px 0 6px;font-size:.78rem">Calcul auto (${au}) : porteur le moins stable ${sc.stab} appui${sc.stab > 1 ? 's' : ''} · ${f.h} étage${f.h > 1 ? 's' : ''} · voltigeur ${ACRO_VOL[vl] || '—'}${sc.bonus ? ' · combinaison difficile' : ''}</p>
+        <div class="tog">${Object.keys(ACRO_NIV).map(k => `<button data-niv="${k}" class="${man && raw === k ? 'on' : ''}">${k}</button>`).join('')}
+          ${f.nv ? `<button data-niv="" class="${!raw ? 'on' : ''}">Réf. (${f.nv})</button>` : ''}<button data-niv="${f.nv ? 'auto' : ''}" class="${isAuto ? 'on' : ''}">Auto (${au})</button></div></div>`;
       o.querySelectorAll('[data-niv]').forEach(b => b.onclick = e => { e.stopPropagation(); const v = b.dataset.niv; A.niv = A.niv || {};
-        if (v) A.niv[f.id] = v; else delete A.niv[f.id]; chg = 1; save(); toast(v ? `Niveau ${v} enregistré ✔` : `Retour au niveau automatique (${au})`); nivBox(); }); };
+        if (v) A.niv[f.id] = v; else delete A.niv[f.id]; chg = 1; save();
+        toast(v === 'auto' || (!v && !f.nv) ? `Niveau automatique (${au})` : v ? `Niveau ${v} enregistré ✔` : `Niveau de référence (${f.nv})`); nivBox(); }); };
     document.body.appendChild(o); nivBox();
     const obs = new MutationObserver(() => { if (!o.isConnected) { obs.disconnect(); if (chg) frame(); } }); obs.observe(document.body, { childList: true });
   };
+
+  /* ---------- Sécurité : règle d'or, zones d'appui, rôles, prises de mains ---------- */
+  function tabSecu(box) {
+    const j = acroBuild({ p: [{ r: 'p', s: 'table', x: 0, y: 0 }] })[0].j, X = x => (x + 50).toFixed(1), Y = y => (62 - y).toFixed(1);
+    const L = (...k) => `<polyline points="${k.map(n => X(j[n][0]) + ',' + Y(j[n][1])).join(' ')}"/>`;
+    const mid = [(j.n[0] + j.p[0]) / 2, (j.n[1] + j.p[1]) / 2];
+    const zones = `<svg viewBox="0 0 100 70" style="width:100%;max-width:260px;display:block;margin:6px auto">
+      <line x1="0" y1="62" x2="100" y2="62" stroke="var(--line)" stroke-width="2"/>
+      <g stroke="#1E5BD8" fill="none" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">${L('m1', 'e1', 'n', 'e2', 'm2')}${L('f1', 'k1', 'p', 'k2', 'f2')}${L('n', 'p')}<circle cx="${X(j.h[0])}" cy="${Y(j.h[1])}" r="5" fill="#1E5BD8" stroke="none"/></g>
+      <circle cx="${X(j.p[0])}" cy="${Y(j.p[1] + 3)}" r="6" fill="#1E9E5A" opacity=".9"/><circle cx="${X(j.n[0])}" cy="${Y(j.n[1] + 3)}" r="6" fill="#1E9E5A" opacity=".9"/>
+      <g stroke="#C62828" stroke-width="3.5" stroke-linecap="round"><line x1="${+X(mid[0]) - 5}" y1="${+Y(mid[1] + 3) - 5}" x2="${+X(mid[0]) + 5}" y2="${+Y(mid[1] + 3) + 5}"/><line x1="${+X(mid[0]) + 5}" y1="${+Y(mid[1] + 3) - 5}" x2="${+X(mid[0]) - 5}" y2="${+Y(mid[1] + 3) + 5}"/></g></svg>`;
+    const PRISES = [
+      ['🤝', 'Main dans la main', 'Paumes l\'une contre l\'autre, pouces croisés.', 'Équilibres faciles, éventails, liaisons.'],
+      ['🔗', 'Poignet contre poignet', 'Chacun saisit le poignet de l\'autre : la prise la plus solide, elle ne glisse pas.', 'Montées, voltigeur suspendu ou tiré.'],
+      ['🪑', 'Chaise à 4 mains', 'Chaque porteur tient son propre poignet droit et le poignet gauche de l\'autre : on forme un carré.', 'Chaise à porteurs, voltigeur assis.'],
+      ['🫴', 'Coupelle (courte échelle)', 'Doigts croisés, paumes vers le haut, bras serrés contre le corps : le voltigeur y pose un pied.', 'Montée sur les épaules ou sur un porteur debout.'],
+      ['🦶', 'Prise aux chevilles', 'Mains autour des chevilles, pouces vers le haut, bras tendus.', 'ATR, semi-renversés, brouette.'],
+      ['🦵', 'Prise aux mollets / tibias', 'Mains plaquées sur les mollets, juste sous le genou, pour bloquer les jambes.', 'Voltigeur debout sur les épaules ou les cuisses.'],
+      ['🫳', 'Prise au bassin', 'Mains de chaque côté du bassin, sur les os des hanches (pas sur le ventre).', 'Voltigeur debout sur les cuisses, montées.'],
+      ['💪', 'Prise aux épaules', 'Paumes sous ou sur les épaules, bras verrouillés.', 'Avions, planches portées, ATR sur les genoux.'],
+      ['🙌', 'Appui main sur épaule', 'Le voltigeur pose ses mains à plat sur les épaules du porteur, doigts vers l\'avant.', 'Montées, équilibres en appui.'],
+      ['🖐️', 'Pied dans la main', 'Le porteur offre sa main à plat, bras verrouillé ; le voltigeur y pose la plante du pied.', 'Figures de niveau C / D, avec pareur.'],
+    ];
+    box.innerHTML = `<div class="ac-gold"><span class="ic">🛡️</span><span>Règle d'or : JAMAIS D'APPUI SUR LA COLONNE !<small>Appuis sur le bassin et les épaules · on monte et on descend sans sauter</small></span></div>
+      <div class="card" style="margin-top:12px"><h3 style="margin:0">Où poser les pieds et les mains ?</h3>${zones}
+        <p style="margin:4px 0;line-height:1.45"><b style="color:#1E9E5A">● Autorisé :</b> bassin, épaules, cuisses près de la hanche (porteur en chevalier ou en fente), pieds et mains du porteur.<br>
+        <b style="color:#C62828">✕ Interdit :</b> milieu du dos, ventre, nuque, tête, articulations (genoux, coudes) et cuisses près du genou.</p></div>
+      <div class="card" style="margin-top:12px"><h3 style="margin:0 0 6px">Les rôles</h3>
+        <p style="margin:6px 0;line-height:1.45"><b style="color:#1E5BD8">Porteur :</b> dos plat et gainé, bras tendus et verrouillés, appuis larges et stables ; il ne bouge pas tant que le voltigeur n'est pas redescendu.</p>
+        <p style="margin:6px 0;line-height:1.45"><b style="color:#C9A227">Voltigeur :</b> gainé de la tête aux pieds ; il monte et descend lentement, par le même chemin, sans sauter ni donner d'à-coups.</p>
+        <p style="margin:6px 0;line-height:1.45"><b>Pareur :</b> tout près de la zone de chute, mains prêtes, il ne quitte pas le voltigeur des yeux ; il parle (« 1, 2, 3… hop ! ») pour synchroniser.</p></div>
+      <div class="card" style="margin-top:12px"><h3 style="margin:0 0 6px">Montée, tenue, descente</h3>
+        <ul style="margin:0;padding-left:18px;line-height:1.5"><li>Annoncer chaque étape à voix haute : « Prêt ? Je monte… Je descends. »</li><li>Tenir la figure <b>3 secondes</b>, immobile.</li><li>Descendre <b>sans sauter</b>, en contrôlant, à l'inverse de la montée.</li><li>Une douleur, un déséquilibre : on dit « stop » et on redescend tout de suite.</li><li>Tapis sous les figures à 2 étages et plus ; pareur obligatoire pour les niveaux C et D.</li></ul></div>
+      <div class="section-title"><h2>✋ Les prises de mains</h2></div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px">${PRISES.map(([i, n, d, u]) => `<div class="card" style="padding:12px"><div style="display:flex;gap:10px;align-items:center"><span style="font-size:1.8rem">${i}</span><b>${n}</b></div>
+        <p style="margin:6px 0 4px;font-size:.88rem;line-height:1.4">${d}</p><p class="muted" style="margin:0;font-size:.78rem">Pour : ${u}</p></div>`).join('')}</div>`;
+  }
 
   /* ---------- Liaisons dynamiques (vidéos) ---------- */
   let liEdit = null;                                   // id de la liaison modifiée, 'new' pour une nouvelle
