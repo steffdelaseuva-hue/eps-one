@@ -4,9 +4,10 @@
    ========================================================= */
 /* Page Ko-fi : laisser vide tant qu'elle n'existe pas (le bouton est alors masqué) */
 const KOFI_URL = 'https://ko-fi.com/epsone';
-const APP_VERSION = '15.6';
+const APP_VERSION = '15.7';
 const APP_URL = 'https://steffdelaseuva-hue.github.io/eps-one/';
 const CHANGELOG = [
+  { v: '15.7', items: ['Nouvel outil « Tests 2nde (évaluations nationales) » : endurance (Luc Léger), force (saut en longueur sans élan), vitesse (50 m) — même fonctionnement que les Tests 6e (sessions début / fin d\'année, tableau, bilan, export CSV)'] },
   { v: '15.6', items: ['Acrosport : niveau de difficulté A (facile) · B (moyen) · C (difficile) · D (très difficile) sur chaque pyramide — calculé automatiquement (appuis des porteurs, nombre d\'étages, position du voltigeur, combinaisons), modifiable à la main dans la fiche (bouton « Auto » pour revenir au calcul) ; nouveau filtre « Niveau de difficulté »'] },
   { v: '15.5', items: ['Lutte : bouton « 🗑 Supprimer tous les relais et tournois en cours » et, dans un relais à plusieurs zones, « Supprimer toutes les zones de ce relais »'] },
   { v: '15.4', items: ['Combiné · saisie des résultats prof : colonne « 🎯 Projet » pour chaque course (temps visé ou distance visée) → écart au projet calculé'] },

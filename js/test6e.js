@@ -86,8 +86,14 @@ if (!document.getElementById('t6-css')) document.head.insertAdjacentHTML('before
 @media (max-width:480px){.t6-row .ins{order:3;flex-basis:100%}.t6-row input{width:70px}.t6-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.t6-c .big{font-size:1.6rem}}
 </style>`);
 
-const t6DB = () => { const D = DB.test6e = DB.test6e || {}; D.cfg = D.cfg || {}; D.sessions = D.sessions || {}; return D; };
-const T6_BASE = [
+/* Même outil pour la Seconde (évaluations nationales 2nde : Luc Léger, saut sans élan, 50 m) :
+   T6_MODE choisit la batterie et les données (DB.test6e / DB.test2nde). */
+let T6_MODE = '6e';
+const T6_K = () => T6_MODE === '2nde' ? 'test2nde' : 'test6e';
+const T6_NAME = () => T6_MODE === '2nde' ? 'Tests 2nde' : 'Tests 6e';
+const T6_VD = () => T6_MODE === '2nde' ? 50 : 30;   // distance du test de vitesse
+const t6DB = () => { const k = T6_K(), D = DB[k] = DB[k] || {}; D.cfg = D.cfg || {}; D.sessions = D.sessions || {}; return D; };
+const T6_BASE6 = [
   { id: 'leger', mand: true, kind: 'leger', name: 'Endurance', sub: 'Test Léger', unit: 'km/h', dec: 1, hb: true,
     help: 'Navette 20 m (Luc Léger). On note le <b>numéro du dernier palier</b> et la <b>VMA</b> (vitesse du dernier palier terminé).' },
   { id: 'saut', mand: true, kind: 'essais', name: 'Force', sub: 'Saut pieds joints', unit: 'm', dec: 2, hb: true,
@@ -103,6 +109,9 @@ const T6_BASE = [
   { id: 'chaise', kind: 'chrono', name: 'Endurance musc.', sub: 'Chaise contre le mur', unit: 's', dec: 1, hb: true, maxKey: 'chaise',
     help: 'Position de la <b>chaise contre le mur</b> (dos au mur, cuisses à l\'horizontale, genoux à 90°) <b>le plus longtemps possible</b>.' },
 ];
+const T6_BASE2 = T6_BASE6.map(t => t.id === 'saut' ? { ...t, sub: 'Saut sans élan', help: 'Saut en longueur <b>sans élan, départ pieds joints</b>. Mesure en mètres (ex. 2,05) jusqu\'à la trace la plus proche de la ligne. <b>Meilleur essai retenu.</b>' }
+  : t.id === 'vitesse' ? { ...t, sub: '50 m', help: 'Courir <b>50 m plat en ligne droite, le plus vite possible</b>. Temps en secondes (ex. 7,84). <b>Meilleur essai retenu.</b> Saisie au clavier ou petit chrono ⏱ (Départ / Arrivée).' } : t).filter(t => t.mand);   // pas de test optionnel en 2nde
+const T6B = () => T6_MODE === '2nde' ? T6_BASE2 : T6_BASE6;
 const T6_OPT = ['equilibre', 'coordination', 'souplesse', 'chaise'];
 function t6Cfg() {
   const c = t6DB().cfg;
@@ -112,7 +121,7 @@ function t6Cfg() {
     lbl: c.lbl || {}, souplesseHb: c.souplesseHb !== false };
 }
 const t6Tests = (all) => { const c = t6Cfg();
-  return T6_BASE.map(t => ({ ...t, ...(c.lbl[t.id] || {}), hb: t.id === 'souplesse' ? c.souplesseHb : t.hb, max: t.maxKey ? c.max[t.maxKey] : t.id === 'coordination' ? c.max.coordination : null,
+  return T6B().map(t => ({ ...t, ...(c.lbl[t.id] || {}), hb: t.id === 'souplesse' ? c.souplesseHb : t.hb, max: t.maxKey ? c.max[t.maxKey] : t.id === 'coordination' ? c.max.coordination : null,
     n: t.kind === 'essais' ? c.essais[t.id] : 1 })).filter(t => all || t.mand || c.opt[t.id]); };
 const t6Fr = (n, d) => n == null || n === '' || !isFinite(n) ? '' : (+n).toFixed(d).replace('.', ',');
 const t6Num = s => { s = String(s ?? '').trim().replace(/\s/g, '').replace(',', '.'); if (s === '' || s === '-' || s === '+') return null; const n = +s; return isFinite(n) ? n : null; };
@@ -132,7 +141,7 @@ const T6_UNDO = [];
 const t6Clone = x => x == null ? undefined : JSON.parse(JSON.stringify(x));
 const t6Best = (t, e) => { const v = (e || []).filter(x => x != null && isFinite(x)); return v.length ? (t.hb ? Math.max(...v) : Math.min(...v)) : null; };
 
-TOOL_IMPL.test6e = function (el) {
+function t6Tool(el) {
   if (!DB.classes.length) { el.innerHTML = noClassMsg; return; }
   let cls = (DB.classes.find(c => c.name === DB.lastClass) || DB.classes[0]).name;
   let sid = null, tab = 'grid', passId = 'saut', cmpId = null, who = '', hideDone = false;
@@ -484,7 +493,7 @@ TOOL_IMPL.test6e = function (el) {
       ${c ? `<div class="card t6-tbl" style="margin-top:10px"><table><tr><th>Élève</th>${TT.map(t => `<th>${esc(t.name)}<small>${esc(t.unit)}</small></th>`).join('')}</tr>
         ${st.map(e => `<tr><td title="${esc(e)}">${esc(e)}</td>${TT.map(t => { const a = getR(e, t.id, s), p = getR(e, t.id, c);
           return `<td style="white-space:nowrap;font-size:.82rem">${t6Val(t, p) || '—'} → <b>${t6Val(t, a) || '—'}</b> ${t6Has(a) && t6Has(p) ? delta(t, a.v, p.v) : ''}</td>`; }).join('')}</tr>`).join('')}</table></div>
-        <p class="muted" style="margin:6px 2px 0;font-size:.76rem">Vert = progrès (plus loin, plus longtemps, plus de lancers ; temps plus court au 30 m).</p>` : ''}
+        <p class="muted" style="margin:6px 2px 0;font-size:.76rem">Vert = progrès (plus loin, plus longtemps, plus de lancers ; temps plus court au ${T6_VD()} m).</p>` : ''}
       <div class="section-title"><h2>👤 Fiche élève</h2></div>
       <div class="card"><select id="t6who"><option value="">Choisir un élève…</option>${st.map(e => `<option ${e === who ? 'selected' : ''}>${esc(e)}</option>`).join('')}</select>
         ${who ? `<div style="margin-top:8px">${TT.map(t => { const a = getR(who, t.id, s), p = c && getR(who, t.id, c), S = statsOf(t, s);
@@ -512,16 +521,16 @@ TOOL_IMPL.test6e = function (el) {
     const agg = (lab, f) => { const row = [lab]; TT.forEach(t => { const S = statsOf(t, s);
       if (t.kind === 'leger') row.push(lab === 'Moyenne' && S.pal != null ? t6Fr(S.pal, 1) : '', S.n ? t6Fr(f(S), 1) : '');
       else { if (t.kind === 'essais') for (let j = 0; j < t.n; j++) row.push(''); row.push(S.n ? t6Fr(f(S), t.dec) : ''); } }); return row; };
-    const rows = [[`Tests 6e — ${cls} — ${s.nom || ''} — ${t6Date(s.date)}`], head, ...st.map(cellsOf), [],
+    const rows = [[`${T6_NAME()} — ${cls} — ${s.nom || ''} — ${t6Date(s.date)}`], head, ...st.map(cellsOf), [],
       agg('Moyenne', S => S.moy), agg('Min', S => S.min), agg('Max', S => S.max)];
-    download(`tests-6e-${cls}-${s.date}.csv`.replace(/[^\w.-]+/g, '-'), csv(rows)); toast('CSV exporté');
+    download(`${T6_MODE === '2nde' ? 'tests-2nde' : 'tests-6e'}-${cls}-${s.date}.csv`.replace(/[^\w.-]+/g, '-'), csv(rows)); toast('CSV exporté');
   }
   function sendResults() {
     const s = cur(), TT = t6Tests(); if (!s) return toast('Aucun résultat à envoyer');
     let n = 0, maj = 0;
     students().forEach(e => TT.forEach(t => { const r = getR(e, t.id); if (!r || (!r.abs && r.v == null && !(t.kind === 'leger' && r.palier != null))) return;
       const det = [t.sub, t.kind === 'essais' && r.e && !r.abs ? 'essais ' + r.e.map(x => t6Fr(x, t.dec) || '—').join(' / ') : '', `${s.nom || 'session'} du ${t6Date(s.date)}`].filter(Boolean).join(' · ');
-      const res = saveResult({ key: `test6e|${cls}|${e}|${t.id}`, tool: 'test6e', label: `Tests 6e — ${t.name}`, classe: cls, eleve: e, valeur: `${t.name} : ${t6Long(t, r)}`, detail: det });
+      const res = saveResult({ key: `${T6_K()}|${cls}|${e}|${t.id}`, tool: T6_K(), label: `${T6_NAME()} — ${t.name}`, classe: cls, eleve: e, valeur: `${t.name} : ${t6Long(t, r)}`, detail: det });
       n++; if (res === 'maj') maj++; }));
     toast(n ? `📤 ${n} résultat(s) envoyé(s)${maj ? ` (${maj} mis à jour)` : ''}` : 'Aucun résultat à envoyer');
   }
@@ -529,18 +538,19 @@ TOOL_IMPL.test6e = function (el) {
   /* ---------- ⚙️ Réglages (verrouillés par le code enseignant) ---------- */
   function drawCfg(b) {
     const c = t6Cfg(), TT = t6Tests(true), L = sessionsOf(cls), raw = t6DB().cfg;
+    const six = T6_MODE !== '2nde';
     b.innerHTML = `<div data-cfg>
-      <div class="card"><b>Tests optionnels utilisés</b><p class="muted" style="margin:2px 0 6px;font-size:.8rem">Endurance, force et vitesse sont obligatoires.</p>
-        ${T6_OPT.map(id => { const t = TT.find(x => x.id === id); return `<label style="display:flex;gap:10px;align-items:center;margin:8px 0;cursor:pointer"><input type="checkbox" data-opt="${id}" ${c.opt[id] ? 'checked' : ''} style="width:auto"> <span><b>${esc(t.name)}</b> <span class="muted">— ${esc(t.sub)}</span></span></label>`; }).join('')}</div>
-      <div class="card" style="margin-top:10px"><b>Nombre d'essais (meilleur retenu)</b>
-        <label>Force — saut pieds joints</label><div class="t6-seg">${[2, 3].map(n => `<button data-ess="saut" data-n="${n}" class="${c.essais.saut === n ? 'on' : ''}">${n} essais</button>`).join('')}</div>
-        <label>Vitesse — 30 m</label><div class="t6-seg">${[1, 2, 3].map(n => `<button data-ess="vitesse" data-n="${n}" class="${c.essais.vitesse === n ? 'on' : ''}">${n} essai${n > 1 ? 's' : ''}</button>`).join('')}</div></div>
-      <div class="card" style="margin-top:10px"><b>Durées</b><div class="row">
+      ${six ? `<div class="card"><b>Tests optionnels utilisés</b><p class="muted" style="margin:2px 0 6px;font-size:.8rem">Endurance, force et vitesse sont obligatoires.</p>
+        ${T6_OPT.map(id => { const t = TT.find(x => x.id === id); return `<label style="display:flex;gap:10px;align-items:center;margin:8px 0;cursor:pointer"><input type="checkbox" data-opt="${id}" ${c.opt[id] ? 'checked' : ''} style="width:auto"> <span><b>${esc(t.name)}</b> <span class="muted">— ${esc(t.sub)}</span></span></label>`; }).join('')}</div>` : ''}
+      <div class="card" style="${six ? 'margin-top:10px' : ''}"><b>Nombre d'essais (meilleur retenu)</b>
+        <label>Force — ${six ? 'saut pieds joints' : 'saut sans élan'}</label><div class="t6-seg">${[2, 3].map(n => `<button data-ess="saut" data-n="${n}" class="${c.essais.saut === n ? 'on' : ''}">${n} essais</button>`).join('')}</div>
+        <label>Vitesse — ${T6_VD()} m</label><div class="t6-seg">${[1, 2, 3].map(n => `<button data-ess="vitesse" data-n="${n}" class="${c.essais.vitesse === n ? 'on' : ''}">${n} essai${n > 1 ? 's' : ''}</button>`).join('')}</div></div>
+      ${six ? `<div class="card" style="margin-top:10px"><b>Durées</b><div class="row">
         <div><label>Équilibre — max (s)</label><input type="number" inputmode="numeric" data-max="equilibre" value="${c.max.equilibre}"></div>
         <div><label>Chaise — max (s)</label><input type="number" inputmode="numeric" data-max="chaise" value="${c.max.chaise}"></div>
-        <div><label>Coordination — durée (s)</label><input type="number" inputmode="numeric" data-max="coordination" value="${c.max.coordination}"></div></div></div>
-      <div class="card" style="margin-top:10px"><b>Intitulés des tests</b><p class="muted" style="margin:2px 0 0;font-size:.8rem">Pour la souplesse, adaptez aussi l'unité et le sens si votre test est différent.</p>
-        ${TT.map(t => `<div style="margin-top:10px"><div class="muted" style="font-size:.72rem;font-weight:800;text-transform:uppercase">${esc(T6_BASE.find(x => x.id === t.id).name)}</div><div class="t6-lbl">
+        <div><label>Coordination — durée (s)</label><input type="number" inputmode="numeric" data-max="coordination" value="${c.max.coordination}"></div></div></div>` : ''}
+      <div class="card" style="margin-top:10px"><b>Intitulés des tests</b>${six ? '<p class="muted" style="margin:2px 0 0;font-size:.8rem">Pour la souplesse, adaptez aussi l\'unité et le sens si votre test est différent.</p>' : ''}
+        ${TT.map(t => `<div style="margin-top:10px"><div class="muted" style="font-size:.72rem;font-weight:800;text-transform:uppercase">${esc(T6B().find(x => x.id === t.id).name)}</div><div class="t6-lbl">
           <input data-lbl="${t.id}" data-f="name" value="${esc(t.name)}" aria-label="Nom"><input data-lbl="${t.id}" data-f="sub" value="${esc(t.sub)}" aria-label="Détail"></div>
           ${t.id === 'souplesse' ? `<div class="t6-lbl"><div><label>Unité</label><input data-lbl="souplesse" data-f="unit" value="${esc(t.unit)}"></div><div><label>Meilleur résultat</label><select id="t6hb"><option value="1" ${c.souplesseHb ? 'selected' : ''}>le plus grand</option><option value="0" ${c.souplesseHb ? '' : 'selected'}>le plus petit</option></select></div></div>` : ''}</div>`).join('')}
         ${Object.keys(raw.lbl || {}).length ? '<button class="btn btn-ghost btn-block" style="margin-top:10px" id="t6lr">↺ Intitulés d\'origine</button>' : ''}</div>
@@ -552,7 +562,7 @@ TOOL_IMPL.test6e = function (el) {
     b.querySelectorAll('[data-ess]').forEach(x => x.onclick = () => { set('essais', { ...(raw.essais || {}), [x.dataset.ess]: +x.dataset.n }); drawCfg(b); });
     b.querySelectorAll('[data-max]').forEach(x => x.onchange = () => { const v = Math.round(t6Num(x.value)); if (!(v > 0)) { x.value = c.max[x.dataset.max]; return; } set('max', { ...(raw.max || {}), [x.dataset.max]: v }); });
     b.querySelectorAll('[data-lbl]').forEach(x => x.onchange = () => { const L2 = { ...(raw.lbl || {}) }, id = x.dataset.lbl, v = x.value.trim(); L2[id] = { ...(L2[id] || {}) };
-      if (v && v !== T6_BASE.find(y => y.id === id)[x.dataset.f]) L2[id][x.dataset.f] = v; else delete L2[id][x.dataset.f]; if (!Object.keys(L2[id]).length) delete L2[id]; set('lbl', L2); });
+      if (v && v !== T6B().find(y => y.id === id)[x.dataset.f]) L2[id][x.dataset.f] = v; else delete L2[id][x.dataset.f]; if (!Object.keys(L2[id]).length) delete L2[id]; set('lbl', L2); });
     const hb = b.querySelector('#t6hb'); if (hb) hb.onchange = () => set('souplesseHb', hb.value === '1');
     const lr = b.querySelector('#t6lr'); if (lr) lr.onclick = () => { set('lbl', {}); set('souplesseHb', true); drawCfg(b); };
     b.querySelectorAll('[data-sn]').forEach(x => x.onchange = () => { const s = t6DB().sessions[x.dataset.sn]; if (s) { s.nom = x.value.trim() || 'Session'; save(); } });
@@ -565,3 +575,7 @@ TOOL_IMPL.test6e = function (el) {
   draw();
   return () => { clearInterval(iv); iv = null; clearTimeout(preT); Object.keys(live).forEach(k => delete live[k]); coord = null; };
 };
+
+TOOL_IMPL.test6e = el => { if (T6_MODE !== '6e') T6_UNDO.length = 0; T6_MODE = '6e'; t6Tool(el); };
+TOOL_IMPL.test2nde = el => { if (T6_MODE !== '2nde') T6_UNDO.length = 0; T6_MODE = '2nde'; t6Tool(el); };
+ICONS.test2nde = ICONS.test6e;
