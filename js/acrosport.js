@@ -236,8 +236,9 @@ ACRO.push(
   {"id": "nq12", "n": "Debout sur deux fentes, mains tenues", "eff": 4, "por": ["debout"], "h": 2, "nv": "B", "p": [{"r": "p", "s": "fente", "x": -2, "y": 0, "a": "hip"}, {"r": "p", "s": "fente", "x": 2, "y": 0, "m": -1, "a": "hip"}, {"r": "v", "s": "stand", "x": 0, "y": 28, "wide": 1, "grip": {"i": 3, "j": "m1"}}, {"r": "p", "s": "stand", "x": 60, "y": 0, "m": -1, "a": "upfront"}], "c": "Un pied sur chaque cuisse ; le 4e élève tient les mains du voltigeur pour la montée et la descente."},
 );
 /* Position du voltigeur, déduite des postures des voltigeurs de la figure */
-const ACRO_VOL = { debout: 'Debout / redressé', horizontale: 'À l\'horizontale', equerre: 'À l\'équerre', semi: 'Semi-renversé', renverse: 'Renversé (ATR)' };
-const ACRO_VOL_OF = { stand: 'debout', arab: 'debout', epaules: 'debout', genoux: 'debout', siege: 'debout', planche: 'horizontale', table: 'horizontale', dos: 'horizontale', brouette: 'semi', semi: 'semi', atr: 'renverse', equerre: 'equerre', equerrem: 'equerre', planchef: 'horizontale', pompe: 'horizontale', carpe: 'semi' };
+const ACRO_VOL = { debout: 'Debout / redressé', horizontale: 'À l\'horizontale', equerre: 'À l\'équerre', renverse: 'Renversé (ATR)' };   // semi-renversés regroupés avec les renversés
+const ACRO_VOL_OF = { stand: 'debout', arab: 'debout', epaules: 'debout', genoux: 'debout', siege: 'debout', planche: 'horizontale', table: 'horizontale', dos: 'horizontale', brouette: 'renverse', semi: 'renverse', atr: 'renverse', equerre: 'equerre', equerrem: 'equerre', planchef: 'horizontale', pompe: 'horizontale', carpe: 'renverse' };
+const ACRO_SEMI = ['semi', 'brouette', 'carpe'];   // semi-renversés : un peu moins difficiles que l'ATR dans le calcul du niveau
 const acroVol = f => [...new Set(f.p.filter(q => q.r === 'v').map(q => ACRO_VOL_OF[q.s]).filter(Boolean))];
 /* ---------- Niveau de difficulté A (facile) → D (très difficile) ----------
    Calcul automatique : stabilité des porteurs (appuis au sol), hauteur
@@ -253,7 +254,7 @@ function acroScore(f) {
   const h = +f.h || 1;
   const app = Math.max(0, 4 - stab) * (h > 1 ? 1 : .5);
   const haut = h >= 3 ? 4 : h === 2 ? 1 : 0;
-  const vp = vol.map(q => ACRO_VOLPTS[ACRO_VOL_OF[q.s]] || 0), vMax = vp.length ? Math.max(...vp) : 0;
+  const vp = vol.map(q => ACRO_SEMI.includes(q.s) ? 2 : ACRO_VOLPTS[ACRO_VOL_OF[q.s]] || 0), vMax = vp.length ? Math.max(...vp) : 0;
   let bonus = 0;
   if (acroBuild(f).some(b => b.q.r === 'v' && b.q.y > 0 && ['semi', 'atr', 'carpe'].includes(b.q.s))) bonus += 2.5;   // renversé / semi en hauteur (porté)
   if (vol.some(q => q.s === 'arab')) bonus += .5;                                                                 // équilibre sur un pied
@@ -338,6 +339,67 @@ function acroVideo(li) {
   o.querySelector('#avx').onclick = () => o.remove(); document.body.appendChild(o);
 }
 const acroZoom = src => { const o = document.createElement('div'); o.style.cssText = 'position:fixed;inset:0;z-index:320;background:rgba(0,0,0,.92);display:grid;place-items:center;padding:12px'; o.innerHTML = `<img src="${src}" style="max-width:100%;max-height:100%;object-fit:contain">`; o.onclick = () => o.remove(); document.body.appendChild(o); };
+
+/* Dessins des prises de mains (schémas originaux) — porteur bleu, voltigeur or */
+const acroGripSVG = (() => {
+  const B = '#1E5BD8', BH = '#6E9BF5', G = '#C9A227', GH = '#EBCB63', O = '#0B2A5B';
+  const limb = (x1, y1, x2, y2, c, w = 18) => `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${O}" stroke-width="${w + 3}" stroke-linecap="round"/><line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${c}" stroke-width="${w}" stroke-linecap="round"/>`;
+  // main qui entoure un segment (vue de côté) : centre cx,cy, angle a du segment, couleur, largeur du segment
+  const wrap = (cx, cy, a, c, w = 18, thumbSide = 1) => `<g transform="translate(${cx} ${cy}) rotate(${a})">
+    <rect x="-9" y="${-w / 2 - 5}" width="18" height="${w + 10}" rx="7" fill="${c}" stroke="${O}" stroke-width="1.5"/>
+    ${[-4.5, 0, 4.5].map(d => `<line x1="${d}" y1="${-w / 2 - 4}" x2="${d}" y2="${thumbSide > 0 ? w / 2 - 2 : -w / 2 + 6}" stroke="${O}" stroke-width="1.1" opacity=".7"/>`).join('')}
+    <ellipse cx="0" cy="${thumbSide * (w / 2 + 6)}" rx="8" ry="4.5" fill="${c}" stroke="${O}" stroke-width="1.5"/></g>`;
+  // main à plat (vue de dessus) : poignet en x,y, doigts vers l'angle a
+  const flat = (x, y, a, c, s = 1) => `<g transform="translate(${x} ${y}) rotate(${a}) scale(${s})">
+    ${[-10.5, -3.5, 3.5, 10.5].map((d, i) => `<rect x="${d - 3.2}" y="${-44 + (i === 0 || i === 3 ? 6 : 0)}" width="6.4" height="${22 - (i === 0 || i === 3 ? 4 : 0)}" rx="3.2" fill="${c}" stroke="${O}" stroke-width="1.4"/>`).join('')}
+    <rect x="-14" y="-26" width="28" height="26" rx="9" fill="${c}" stroke="${O}" stroke-width="1.5"/>
+    <rect x="12" y="-22" width="7" height="18" rx="3.5" transform="rotate(35 15 -12)" fill="${c}" stroke="${O}" stroke-width="1.4"/></g>`;
+  const svg = (inner, vb = '0 0 160 116') => `<svg viewBox="${vb}" style="width:100%;max-width:220px;display:block;margin:4px auto 0" role="img">${inner}</svg>`;
+  const lab = (x, y, t, c) => `<text x="${x}" y="${y}" font-size="9" font-weight="800" fill="${c}" text-anchor="middle">${t}</text>`;
+  const D = {
+    // 1. main dans la main : les deux avant-bras se rejoignent, mains serrées, pouces croisés
+    main: () => svg(limb(10, 70, 62, 58, B) + limb(150, 70, 98, 58, G) +
+      `<rect x="58" y="44" width="44" height="26" rx="12" fill="${GH}" stroke="${O}" stroke-width="1.5"/>
+       ${[66, 74, 82, 90].map(x => `<line x1="${x}" y1="46" x2="${x}" y2="62" stroke="${O}" stroke-width="1.1" opacity=".6"/>`).join('')}
+       <rect x="56" y="50" width="40" height="22" rx="11" fill="${BH}" stroke="${O}" stroke-width="1.5"/>
+       ${[64, 72, 80, 88].map(x => `<line x1="${x}" y1="56" x2="${x}" y2="70" stroke="${O}" stroke-width="1.1" opacity=".6"/>`).join('')}
+       <ellipse cx="80" cy="45" rx="12" ry="4.5" fill="${BH}" stroke="${O}" stroke-width="1.5"/><ellipse cx="80" cy="76" rx="12" ry="4.5" fill="${GH}" stroke="${O}" stroke-width="1.5"/>` + lab(26, 96, 'porteur', B) + lab(134, 96, 'voltigeur', G)),
+    // 2. poignet contre poignet : chacun entoure le poignet de l'autre
+    poignet: () => svg(limb(8, 64, 112, 50, B) + limb(152, 64, 48, 50, G) + wrap(100, 52, -8, BH, 18, 1) + wrap(60, 52, 8, GH, 18, -1) +
+      lab(80, 100, 'main ↔ poignet', O)),
+    // 3. chaise à 4 mains : vue de dessus, les 4 avant-bras forment un carré
+    chaise: () => svg(limb(30, 32, 112, 32, B, 14) + limb(48, 78, 130, 78, '#3E77E8', 14) + limb(40, 22, 40, 88, '#3E77E8', 14) + limb(120, 22, 120, 88, B, 14) +
+      wrap(40, 32, 90, BH, 14, 1) + wrap(120, 32, 90, BH, 14, -1) + wrap(40, 78, 90, '#9DBBF7', 14, 1) + wrap(120, 78, 90, '#9DBBF7', 14, -1) +
+      `<rect x="56" y="46" width="48" height="18" rx="8" fill="${GH}" opacity=".55"/>` + lab(80, 58, 'assise', '#7A5E10') + lab(80, 104, 'vue de dessus · 2 porteurs', O)),
+    // 4. coupelle : doigts croisés, paumes vers le haut, un pied posé dedans
+    coupelle: () => svg(limb(16, 92, 56, 74, B) + limb(144, 92, 104, 74, B) +
+      `<path d="M50 66 Q80 92 110 66 L110 78 Q80 104 50 78 Z" fill="${BH}" stroke="${O}" stroke-width="1.5"/>
+       ${[62, 70, 78, 86, 94].map((x, i) => `<line x1="${x}" y1="${70 + (i % 2) * 2}" x2="${x + (i % 2 ? -4 : 4)}" y2="${86}" stroke="${O}" stroke-width="1.2" opacity=".6"/>`).join('')}
+       <path d="M64 70 L64 40 Q64 34 70 34 L80 34 L80 58 Q96 58 100 66 L100 70 Z" fill="${G}" stroke="${O}" stroke-width="1.6"/>` +
+      lab(118, 30, 'pied', G) + lab(80, 112, 'doigts croisés, paumes en haut', B)),
+    // 5. chevilles : jambes du voltigeur verticales (ATR), mains du porteur autour des chevilles, pouces en haut
+    chevilles: () => svg(limb(68, 100, 68, 18, G, 16) + limb(92, 100, 92, 18, G, 16) +
+      `<path d="M60 18 L58 6 L78 6 L76 18 Z M84 18 L82 6 L102 6 L100 18 Z" fill="${G}" stroke="${O}" stroke-width="1.4"/>` +
+      limb(18, 60, 52, 34, B, 14) + limb(142, 60, 108, 34, B, 14) + wrap(66, 30, 90, BH, 16, -1) + wrap(94, 30, 90, BH, 16, 1)),
+    // 6. mollets : main plaquée sur le mollet, sous le genou
+    mollets: () => svg(limb(70, 4, 70, 46, G, 18) + limb(70, 46, 74, 100, G, 16) + `<circle cx="70" cy="46" r="6" fill="${O}" opacity=".35"/>` +
+      `<path d="M66 100 L100 100 Q102 108 94 108 L66 108 Z" fill="${G}" stroke="${O}" stroke-width="1.4"/>` +
+      limb(140, 86, 92, 64, B, 14) + wrap(74, 60, 2, BH, 18, 1) + lab(34, 49, 'genou', O) + `<line x1="46" y1="47" x2="62" y2="46" stroke="${O}" stroke-width="1"/>` + lab(124, 112, 'sous le genou', B)),
+    // 7. bassin : mains sur les côtés du bassin (os des hanches)
+    bassin: () => svg(`<path d="M50 8 L110 8 L114 52 Q116 64 104 70 L56 70 Q44 64 46 52 Z" fill="${GH}" stroke="${O}" stroke-width="1.6"/>` + limb(64, 70, 60, 106, G, 18) + limb(96, 70, 100, 106, G, 18) +
+      limb(10, 100, 36, 70, B, 14) + limb(150, 100, 124, 70, B, 14) + flat(38, 70, 25, BH, .8) + flat(122, 70, -25, BH, .8) + lab(80, 34, 'ventre : NON', '#C62828')),
+    // 8. épaules : paumes sous les épaules, bras verrouillés
+    epaules: () => svg(`<circle cx="80" cy="24" r="14" fill="${G}" stroke="${O}" stroke-width="1.6"/><path d="M42 48 Q80 34 118 48 L114 108 L46 108 Z" fill="${GH}" stroke="${O}" stroke-width="1.6"/>` +
+      limb(14, 110, 44, 78, B, 14) + limb(146, 110, 116, 78, B, 14) + flat(46, 78, 12, BH, .8) + flat(114, 78, -12, BH, .8) + lab(80, 96, 'voltigeur', '#7A5E10')),
+    // 9. appui main sur épaule : mains à plat sur les épaules du porteur, doigts vers l'avant
+    appuiep: () => svg(`<circle cx="80" cy="30" r="14" fill="${B}" stroke="${O}" stroke-width="1.6"/><path d="M36 58 Q80 42 124 58 L120 108 L40 108 Z" fill="${BH}" stroke="${O}" stroke-width="1.6"/>` +
+      limb(46, 2, 52, 46, G, 14) + limb(114, 2, 108, 46, G, 14) + flat(52, 44, 180, GH, .8) + flat(108, 44, 180, GH, .8) + lab(80, 104, 'porteur', '#fff')),
+    // 10. pied dans la main : main à plat, bras verrouillé, plante du pied posée
+    piedmain: () => svg(limb(80, 106, 80, 58, B, 18) + flat(80, 60, 0, BH, .9) +
+      `<path d="M58 30 L58 6 L74 6 L74 22 Q100 20 104 28 L104 32 L58 32 Z" fill="${G}" stroke="${O}" stroke-width="1.6"/>` + lab(120, 22, 'plante', G) + lab(122, 80, 'bras verrouillé', B)),
+  };
+  return k => (D[k] || (() => ''))();
+})();
 
 /* ---------- Création de pyramide (éditeur glisser-déposer) ---------- */
 const ACRO_POSES = { stand: 'Debout', arab: 'Arabesque (1 pied)', genoux: 'À genoux', assis: 'Assis, jambes fléchies', siege: 'Assis sur un appui', trep: 'Trépied (chevalier)',
@@ -511,7 +573,7 @@ TOOL_IMPL.acrosport = function (el) {
   /* ---------- Banque de pyramides ---------- */
   const chips = (key, opts) => `<div class="tog">${opts.map(([v, l]) => `<button data-f="${key}" data-v="${v}" class="${String(F[key]) === String(v) ? 'on' : ''}">${l}</button>`).join('')}</div>`;
   function tabBanque(box) {
-    const list = acroAll().filter(f => (+F.eff === 0 || f.eff === +F.eff) && (!F.por || f.por.includes(F.por)) && (!F.vol || acroVol(f).includes(F.vol) || (F.vol === 'renverse' && acroVol(f).includes('semi'))) && (+F.h === 0 || f.h === +F.h) && appOk(acroAppuis(f), F.app) && (!F.niv || acroNiv(f) === F.niv));
+    const list = acroAll().filter(f => (+F.eff === 0 || f.eff === +F.eff) && (!F.por || f.por.includes(F.por)) && (!F.vol || !ACRO_VOL[F.vol] || acroVol(f).includes(F.vol)) && (+F.h === 0 || f.h === +F.h) && appOk(acroAppuis(f), F.app) && (!F.niv || acroNiv(f) === F.niv));
     const g = G();
     box.innerHTML = `<button class="btn btn-grad btn-block" data-cfg="bare" id="acnew" style="margin-bottom:12px">✏️ Créer une pyramide</button><div class="card">
         <label style="margin-top:0">Effectif</label>${chips('eff', [[0, 'Tous'], [2, 'Duo'], [3, 'Trio'], [4, 'Quatuor']])}
@@ -555,12 +617,12 @@ TOOL_IMPL.acrosport = function (el) {
       if (id === 'acdel' && confirm(`Supprimer « ${f.n} » ?`)) { o.remove(); A.custom = (A.custom || []).filter(x => x.id !== f.id); save(); toast('Pyramide supprimée'); frame(); } };
     let chg = 0;
     const nivBox = () => { const sc = acroScore(f), au = acroAutoNiv(f), raw = A.niv && A.niv[f.id], man = raw && raw !== 'auto', isAuto = raw === 'auto' || (!raw && !f.nv);
-      const vl = Object.keys(ACRO_VOLPTS).find(k => ACRO_VOLPTS[k] === sc.vol);
+      const vl = sc.vol === 2 ? 'semi' : Object.keys(ACRO_VOLPTS).find(k => ACRO_VOLPTS[k] === sc.vol);
       const how = man ? `Classé à la main${f.nv ? ` (référence : ${f.nv}` : ` (calcul auto : ${au}`})` : isAuto ? 'Calcul automatique' : 'Niveau de référence de la banque';
       o.querySelector('#acniv').innerHTML = `<div style="border:1.5px solid var(--line);border-radius:12px;padding:10px">
         <div style="display:flex;align-items:center;gap:10px">${acroNivBadge(f, true)}<div><b>Niveau ${acroNiv(f)} · ${ACRO_NIV[acroNiv(f)]}</b>
           <div class="muted" style="font-size:.78rem">${how}</div></div></div>
-        <p class="muted" style="margin:8px 0 6px;font-size:.78rem">Calcul auto (${au}) : porteur le moins stable ${sc.stab} appui${sc.stab > 1 ? 's' : ''} · ${f.h} étage${f.h > 1 ? 's' : ''} · voltigeur ${ACRO_VOL[vl] || '—'}${sc.bonus ? ' · combinaison difficile' : ''}</p>
+        <p class="muted" style="margin:8px 0 6px;font-size:.78rem">Calcul auto (${au}) : porteur le moins stable ${sc.stab} appui${sc.stab > 1 ? 's' : ''} · ${f.h} étage${f.h > 1 ? 's' : ''} · voltigeur ${vl === 'semi' ? 'semi-renversé' : ACRO_VOL[vl] || '—'}${sc.bonus ? ' · combinaison difficile' : ''}</p>
         <div class="tog">${Object.keys(ACRO_NIV).map(k => `<button data-niv="${k}" class="${man && raw === k ? 'on' : ''}">${k}</button>`).join('')}
           ${f.nv ? `<button data-niv="" class="${!raw ? 'on' : ''}">Réf. (${f.nv})</button>` : ''}<button data-niv="${f.nv ? 'auto' : ''}" class="${isAuto ? 'on' : ''}">Auto (${au})</button></div></div>`;
       o.querySelectorAll('[data-niv]').forEach(b => b.onclick = e => { e.stopPropagation(); const v = b.dataset.niv; A.niv = A.niv || {};
@@ -581,16 +643,16 @@ TOOL_IMPL.acrosport = function (el) {
       <circle cx="${X(j.p[0])}" cy="${Y(j.p[1] + 3)}" r="6" fill="#1E9E5A" opacity=".9"/><circle cx="${X(j.n[0])}" cy="${Y(j.n[1] + 3)}" r="6" fill="#1E9E5A" opacity=".9"/>
       <g stroke="#C62828" stroke-width="3.5" stroke-linecap="round"><line x1="${+X(mid[0]) - 5}" y1="${+Y(mid[1] + 3) - 5}" x2="${+X(mid[0]) + 5}" y2="${+Y(mid[1] + 3) + 5}"/><line x1="${+X(mid[0]) + 5}" y1="${+Y(mid[1] + 3) - 5}" x2="${+X(mid[0]) - 5}" y2="${+Y(mid[1] + 3) + 5}"/></g></svg>`;
     const PRISES = [
-      ['🤝', 'Main dans la main', 'Paumes l\'une contre l\'autre, pouces croisés.', 'Équilibres faciles, éventails, liaisons.'],
-      ['🔗', 'Poignet contre poignet', 'Chacun saisit le poignet de l\'autre : la prise la plus solide, elle ne glisse pas.', 'Montées, voltigeur suspendu ou tiré.'],
-      ['🪑', 'Chaise à 4 mains', 'Chaque porteur tient son propre poignet droit et le poignet gauche de l\'autre : on forme un carré.', 'Chaise à porteurs, voltigeur assis.'],
-      ['🫴', 'Coupelle (courte échelle)', 'Doigts croisés, paumes vers le haut, bras serrés contre le corps : le voltigeur y pose un pied.', 'Montée sur les épaules ou sur un porteur debout.'],
-      ['🦶', 'Prise aux chevilles', 'Mains autour des chevilles, pouces vers le haut, bras tendus.', 'ATR, semi-renversés, brouette.'],
-      ['🦵', 'Prise aux mollets / tibias', 'Mains plaquées sur les mollets, juste sous le genou, pour bloquer les jambes.', 'Voltigeur debout sur les épaules ou les cuisses.'],
-      ['🫳', 'Prise au bassin', 'Mains de chaque côté du bassin, sur les os des hanches (pas sur le ventre).', 'Voltigeur debout sur les cuisses, montées.'],
-      ['💪', 'Prise aux épaules', 'Paumes sous ou sur les épaules, bras verrouillés.', 'Avions, planches portées, ATR sur les genoux.'],
-      ['🙌', 'Appui main sur épaule', 'Le voltigeur pose ses mains à plat sur les épaules du porteur, doigts vers l\'avant.', 'Montées, équilibres en appui.'],
-      ['🖐️', 'Pied dans la main', 'Le porteur offre sa main à plat, bras verrouillé ; le voltigeur y pose la plante du pied.', 'Figures de niveau C / D, avec pareur.'],
+      ['main', 'Main dans la main', 'Paumes l\'une contre l\'autre, pouces croisés.', 'Équilibres faciles, éventails, liaisons.'],
+      ['poignet', 'Poignet contre poignet', 'Chacun saisit le poignet de l\'autre : la prise la plus solide, elle ne glisse pas.', 'Montées, voltigeur suspendu ou tiré.'],
+      ['chaise', 'Chaise à 4 mains', 'Chaque porteur tient son propre poignet droit et le poignet gauche de l\'autre : on forme un carré.', 'Chaise à porteurs, voltigeur assis.'],
+      ['coupelle', 'Coupelle (courte échelle)', 'Doigts croisés, paumes vers le haut, bras serrés contre le corps : le voltigeur y pose un pied.', 'Montée sur les épaules ou sur un porteur debout.'],
+      ['chevilles', 'Prise aux chevilles', 'Mains autour des chevilles, pouces vers le haut, bras tendus.', 'ATR, semi-renversés, brouette.'],
+      ['mollets', 'Prise aux mollets / tibias', 'Mains plaquées sur les mollets, juste sous le genou, pour bloquer les jambes.', 'Voltigeur debout sur les épaules ou les cuisses.'],
+      ['bassin', 'Prise au bassin', 'Mains de chaque côté du bassin, sur les os des hanches (pas sur le ventre).', 'Voltigeur debout sur les cuisses, montées.'],
+      ['epaules', 'Prise aux épaules', 'Paumes sous ou sur les épaules, bras verrouillés.', 'Avions, planches portées, ATR sur les genoux.'],
+      ['appuiep', 'Appui main sur épaule', 'Le voltigeur pose ses mains à plat sur les épaules du porteur, doigts vers l\'avant.', 'Montées, équilibres en appui.'],
+      ['piedmain', 'Pied dans la main', 'Le porteur offre sa main à plat, bras verrouillé ; le voltigeur y pose la plante du pied.', 'Figures de niveau C / D, avec pareur.'],
     ];
     box.innerHTML = `<div class="ac-gold"><span class="ic">🛡️</span><span>Règle d'or : JAMAIS D'APPUI SUR LA COLONNE !<small>Appuis sur le bassin et les épaules · on monte et on descend sans sauter</small></span></div>
       <div class="card" style="margin-top:12px"><h3 style="margin:0">Où poser les pieds et les mains ?</h3>${zones}
@@ -602,8 +664,8 @@ TOOL_IMPL.acrosport = function (el) {
         <p style="margin:6px 0;line-height:1.45"><b>Pareur :</b> tout près de la zone de chute, mains prêtes, il ne quitte pas le voltigeur des yeux ; il parle (« 1, 2, 3… hop ! ») pour synchroniser.</p></div>
       <div class="card" style="margin-top:12px"><h3 style="margin:0 0 6px">Montée, tenue, descente</h3>
         <ul style="margin:0;padding-left:18px;line-height:1.5"><li>Annoncer chaque étape à voix haute : « Prêt ? Je monte… Je descends. »</li><li>Tenir la figure <b>3 secondes</b>, immobile.</li><li>Descendre <b>sans sauter</b>, en contrôlant, à l'inverse de la montée.</li><li>Une douleur, un déséquilibre : on dit « stop » et on redescend tout de suite.</li><li>Tapis sous les figures à 2 étages et plus ; pareur obligatoire pour les niveaux C et D.</li></ul></div>
-      <div class="section-title"><h2>✋ Les prises de mains</h2></div>
-      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px">${PRISES.map(([i, n, d, u]) => `<div class="card" style="padding:12px"><div style="display:flex;gap:10px;align-items:center"><span style="font-size:1.8rem">${i}</span><b>${n}</b></div>
+      <div class="section-title"><h2>✋ Les prises de mains</h2><span class="muted" style="font-size:.8rem"><b style="color:#1E5BD8">●</b> porteur · <b style="color:#C9A227">●</b> voltigeur</span></div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px">${PRISES.map(([i, n, d, u], k) => `<div class="card" style="padding:12px"><b>${k + 1}. ${n}</b>${acroGripSVG(i)}
         <p style="margin:6px 0 4px;font-size:.88rem;line-height:1.4">${d}</p><p class="muted" style="margin:0;font-size:.78rem">Pour : ${u}</p></div>`).join('')}</div>`;
   }
 

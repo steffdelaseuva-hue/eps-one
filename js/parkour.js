@@ -28,6 +28,7 @@ document.head.insertAdjacentHTML('beforeend', `<style>
 .pk-at button.on{background:var(--grad);color:#fff;border-color:transparent}
 </style>`);
 
+let PK_UNDO = null;   // dernière suppression : { label, evals, list, ench }
 TOOL_IMPL.parkour = function (el) {
   const D = liveDB(() => DB.parkour); D.list = D.list || []; D.customEx = D.customEx || []; D.evals = D.evals || []; D.cycle = D.cycle || 1; D.ench = D.ench || {};
   let cls = DB.lastClass && DB.classes.some(c => c.name === DB.lastClass) ? DB.lastClass : (DB.classes[0]?.name || ''), si = 0, at = 0, niv = 1, exi = 0, ratings = {}, step = 'choix';
@@ -53,11 +54,11 @@ TOOL_IMPL.parkour = function (el) {
         <label>Élément</label><div class="row"><select id="ex">${L.map((x, k) => `<option value="${k}" ${k === exi ? 'selected' : ''}>${esc(x.n)}</option>`).join('') || '<option value="">— aucun élément à ce niveau —</option>'}</select><button class="btn btn-ghost" style="flex:0 0 auto" id="addx" title="Élément non répertorié">✎</button></div>
         ${cur ? `<div class="muted" style="font-size:.78rem;margin-top:6px"><b>Critères de validation</b></div>${crit(cur) || '<div class="muted" style="font-size:.8rem">—</div>'}` : ''}
         <button class="btn btn-grad btn-block" style="margin-top:12px" id="addl" ${cur ? '' : 'disabled'}>＋ Ajouter cet élément</button></div>
-      <div class="card" style="margin-top:12px;padding:0"><div style="padding:12px 14px 4px"><b>Éléments choisis (${D.list.length})</b></div>
+      <div class="card" style="margin-top:12px;padding:0"><div style="padding:12px 14px 4px;display:flex;align-items:center;gap:8px"><b style="flex:1">Éléments choisis (${D.list.length})</b>${D.list.length ? '<button class="btn btn-ghost" data-cfg="bare" style="padding:6px 10px;font-size:.8rem" data-rz="list">🗑 Tout supprimer</button>' : ''}</div>
         ${D.list.length ? D.list.map((x, i) => `<div class="list-item"><div style="flex:1"><b>${esc(x.ex)}</b> <span class="muted">· ${esc(x.atelier || x.fam)} · niv. ${x.niv}</span></div><button class="btn btn-ghost" data-cfg="bare" style="padding:4px 9px" data-rml="${i}" title="Retirer">✕</button></div>`).join('') : '<div class="empty">Aucun élément choisi pour l\'instant.</div>'}</div>
       <button class="btn btn-grad btn-block" style="margin-top:12px;padding:15px" data-step="ench" ${D.list.length ? '' : 'disabled'}>② Créer son enchaînement →</button>` : ''}
       ${step === 'ench' ? `<div id="pk-ench" style="margin-top:12px"></div>` : ''}
-      ${step === 'valid' ? `<div class="card" style="margin-top:12px"><h3>③ Validation · ${esc(st[si] || '')}</h3>
+      ${step === 'valid' ? `<div class="card" style="margin-top:12px"><div style="display:flex;align-items:center;gap:8px"><h3 style="flex:1;margin:0">③ Validation · ${esc(st[si] || '')}</h3><button class="btn btn-ghost" data-cfg="bare" style="padding:6px 10px;font-size:.8rem" data-rz="valid">🗑 Tout effacer</button></div>
         ${D.list.length ? D.list.map((x, i) => { const r = rt(i), e = findEl(x); return `<div style="padding:10px 0;border-bottom:1px solid var(--line)">
           <div style="display:flex;align-items:center;gap:8px"><div style="flex:1"><b>${esc(x.ex)}</b> <span class="muted">· ${esc(x.atelier || x.fam)} · niv. ${x.niv}</span></div><button class="btn btn-ghost" data-cfg="bare" style="padding:4px 9px" data-rml="${i}" title="Retirer de la liste">✕</button></div>
           ${e && e.c.length ? `<details><summary class="muted" style="font-size:.78rem;cursor:pointer">Critères de validation</summary>${crit(e)}</details>` : ''}
@@ -73,7 +74,14 @@ TOOL_IMPL.parkour = function (el) {
       <div class="card sheet-table"><table><tr><th>Élève</th>${famsOf().map(f => `<th>${esc(f)}</th>`).join('')}</tr>
         ${st.map(n => `<tr><td><b>${esc(n)}</b></td>${famsOf().map(f => { const b = D.evals.filter(e => e.classe === cls && e.eleve === n && e.fam === f && e.m >= 2).sort((x, y) => y.niv - x.niv || y.m - x.m)[0];
           return `<td>${b ? `niv. ${b.niv}<br><span class="muted" style="font-size:.72rem">${esc(b.ex)}</span>` : '–'}</td>`; }).join('')}</tr>`).join('')}</table>
-        <p class="muted" style="font-size:.75rem;margin:6px 0 0">Plus haut niveau validé (maîtrise satisfaisante ou très satisfaisante) par famille.</p></div>` : ''}`;
+        <p class="muted" style="font-size:.75rem;margin:6px 0 0">Plus haut niveau validé (maîtrise satisfaisante ou très satisfaisante) par famille.</p></div>
+      ${PK_UNDO ? `<button class="btn btn-grad btn-block" style="margin-top:12px" id="pkundo">↶ Annuler : ${esc(PK_UNDO.label)}</button>` : ''}
+      <div class="card" data-cfg="bare" style="margin-top:12px"><b>🗑 Supprimer / remettre à zéro</b>
+        <div style="display:flex;flex-direction:column;gap:8px;margin-top:8px">
+          <button class="btn btn-ghost" data-rz="list" ${D.list.length ? '' : 'disabled'}>Vider les éléments choisis (${D.list.length})</button>
+          <button class="btn btn-ghost" data-rz="eleve" ${st[si] ? '' : 'disabled'}>Effacer les évaluations et l'enchaînement de ${esc(st[si] || '—')}</button>
+          <button class="btn btn-ghost" style="color:var(--danger)" data-rz="classe">Tout remettre à zéro pour la classe ${esc(cls)}</button></div>
+        <p class="muted" style="margin:6px 0 0;font-size:.75rem">Un bouton « ↶ Annuler » permet de revenir en arrière juste après.</p></div>` : ''}`;
     const $ = s => el.querySelector(s), all = s => el.querySelectorAll(s);
     all('[data-c]').forEach(b => b.onclick = () => { if (+b.dataset.c !== D.cycle && D.list.length && !confirm('Changer de cycle vide la liste d\'exercices de la séance. Continuer ?')) return; if (+b.dataset.c !== D.cycle) D.list = []; D.cycle = +b.dataset.c; at = 0; exi = 0; ratings = {}; save(); draw(); });
     if (!DB.classes.length) return;
@@ -83,8 +91,7 @@ TOOL_IMPL.parkour = function (el) {
     $('#nx').onclick = () => { si = Math.min(st.length - 1, si + 1); ratings = {}; draw(); };
     all('[data-step]').forEach(b => b.onclick = () => { step = b.dataset.step; draw(); });
     if (step === 'ench') enchainement(st[si], $('#pk-ench'));
-    const fE = () => enchOf(st[si]), fSave = E => { E.fluOk = fluCalc(E); E.date = E.date || Date.now(); save(); draw(); };
-    all('[data-fobj]').forEach(b => b.onclick = () => { const E = fE(); if (!E) return; E.obj = +b.dataset.fobj; fSave(E); });
+    const fE = () => enchOf(st[si]), fSave = E => { E.fluM = fluLevel(E); E.date = E.date || Date.now(); save(); draw(); };
     all('[data-fap]').forEach(b => b.onclick = () => { const E = fE(); if (!E) return; const [k, a] = b.dataset.fap.split('|').map(Number); E.app = E.app || []; E.app[k] = E.app[k] === a ? null : a; fSave(E); });
     all('[data-at]').forEach(b => b.onclick = () => { at = +b.dataset.at; exi = 0; draw(); });
     all('[data-n]').forEach(b => b.onclick = () => { niv = +b.dataset.n; exi = 0; draw(); });
@@ -92,7 +99,7 @@ TOOL_IMPL.parkour = function (el) {
     if ($('#addx')) $('#addx').onclick = () => { const n = (prompt(`Nouvel élément (${a.a}, niveau ${niv}) :`) || '').trim(); if (!n) return;
       if (!elems(a, niv).some(x => x.n === n)) { D.customEx.push({ cycle: D.cycle, a: a.a, v: niv, n }); save(); } exi = elems(a, niv).findIndex(x => x.n === n); draw(); };
     if ($('#addl')) $('#addl').onclick = () => { if (!cur) return; D.list.push({ cycle: D.cycle, fam: a.f, atelier: a.a, ex: cur.n, niv }); save(); toast('Élément ajouté ✔'); draw(); };
-    all('[data-rml]').forEach(b => b.onclick = () => { const i = +b.dataset.rml; D.list.splice(i, 1); const nr = {}; Object.keys(ratings).forEach(k => { k = +k; if (k < i) nr[k] = ratings[k]; else if (k > i) nr[k - 1] = ratings[k]; }); ratings = nr; save(); draw(); });
+    all('[data-rml]').forEach(b => b.onclick = () => { const i = +b.dataset.rml; snap(`« ${D.list[i].ex} » retiré`); D.list.splice(i, 1); const nr = {}; Object.keys(ratings).forEach(k => { k = +k; if (k < i) nr[k] = ratings[k]; else if (k > i) nr[k - 1] = ratings[k]; }); ratings = nr; save(); draw(); });
     all('[data-rm]').forEach(b => b.onclick = () => { const [i, k] = b.dataset.rm.split('|').map(Number); const r = rt(i); r.m = r.m === k ? null : k; draw(); });
     all('[data-rf]').forEach(b => b.onclick = () => { const [i, k] = b.dataset.rf.split('|').map(Number); const r = rt(i); r.flu = r.flu === k ? null : k; draw(); });
     if ($('#sv')) $('#sv').onclick = () => {
@@ -103,7 +110,18 @@ TOOL_IMPL.parkour = function (el) {
       done.forEach(({ x, r }) => D.evals.push({ date: Date.now(), classe: cls, eleve: st[si], cycle: D.cycle, fam: x.fam, atelier: x.atelier, ex: x.ex, niv: x.niv, m: r.m, flu: D.cycle === 2 ? r.flu : null }));
       save(); toast(`${st[si]} : ${done.length} élément(s) ✔`); ratings = {}; if (si < st.length - 1) si++; draw();
     };
-    all('[data-x]').forEach(b => b.onclick = () => { if (confirm('Supprimer cette évaluation ?')) { D.evals.splice(+b.dataset.x, 1); save(); draw(); } });
+    const snap = label => { PK_UNDO = { label, evals: JSON.parse(JSON.stringify(D.evals)), list: JSON.parse(JSON.stringify(D.list)), ench: JSON.parse(JSON.stringify(D.ench)) }; };
+    all('[data-x]').forEach(b => b.onclick = () => { if (confirm('Supprimer cette évaluation ?')) { snap('suppression d\'une évaluation'); D.evals.splice(+b.dataset.x, 1); save(); draw(); } });
+    all('[data-edel]').forEach(b => b.onclick = () => { const n = b.dataset.edel; if (!confirm(`Supprimer l'enchaînement de ${n} ?`)) return; snap(`enchaînement de ${n} supprimé`); delete (D.ench[cls] || {})[n]; save(); draw(); });
+    all('[data-rz]').forEach(b => b.onclick = () => { const k = b.dataset.rz, n = st[si];
+      const msg = k === 'list' ? 'Supprimer tous les éléments choisis ?' : k === 'valid' ? `Effacer toutes les validations de ${n} (maîtrise, fluidité, appuis) ?` : k === 'eleve' ? `Effacer toutes les évaluations et l'enchaînement de ${n} ?` : `Tout remettre à zéro pour la classe ${cls} (évaluations, enchaînements, éléments choisis) ?`;
+      if (!confirm(msg)) return;
+      if (k === 'list') { snap('liste des éléments vidée'); D.list = []; ratings = {}; }
+      if (k === 'valid') { snap(`validations de ${n} effacées`); D.evals = D.evals.filter(e => !(e.classe === cls && e.eleve === n)); const E = enchOf(n); if (E) { E.app = []; E.fluM = null; } ratings = {}; }
+      if (k === 'eleve') { snap(`${n} remis à zéro`); D.evals = D.evals.filter(e => !(e.classe === cls && e.eleve === n)); if (D.ench[cls]) delete D.ench[cls][n]; ratings = {}; }
+      if (k === 'classe') { snap(`classe ${cls} remise à zéro`); D.evals = D.evals.filter(e => e.classe !== cls); delete D.ench[cls]; D.list = []; ratings = {}; }
+      save(); toast('Supprimé — « ↶ Annuler » en bas de page'); draw(); });
+    if ($('#pkundo')) $('#pkundo').onclick = () => { const u = PK_UNDO; if (!u) return; D.evals = u.evals; D.list = u.list; D.ench = u.ench; PK_UNDO = null; save(); toast('↶ Annulé'); draw(); };
     $('#exp').onclick = () => { const rows = D.evals.filter(e => e.classe === cls); if (!rows.length) return toast('Rien à exporter');
       download(`parkour-${cls}.csv`, csv([['Élève', 'Date', 'Cycle', 'Famille', 'Atelier', 'Élément', 'Niveau', 'Maîtrise', 'Fluidité'],
         ...rows.map(e => [e.eleve, new Date(e.date).toLocaleDateString('fr-FR'), e.cycle === 2 ? 'Niveau 2 (4e)' : 'Niveau 1 (6e)', e.fam, e.atelier || '', e.ex, e.niv, PK_M[e.m][0], e.flu != null ? PK_M[e.flu][0] : ''])])); };
@@ -115,23 +133,23 @@ TOOL_IMPL.parkour = function (el) {
   const appL = n => n >= 6 ? '6 +' : String(n);
   function enchCard(n) {
     const E = n && enchOf(n); if (!E || !E.seq.length) return '';
-    const fl = E.cycle === 2 && E.obj ? `<div style="margin-top:6px"><span class="pk-tag" style="background:${E.fluOk ? '#1B9E5A' : '#E0892F'}">${E.fluOk ? '✔ Fluidité validée' : 'Fluidité à travailler'}</span> <span class="muted" style="font-size:.75rem">objectif : ${appL(E.obj)} appuis max entre les éléments</span></div>` : '';
-    return `<div class="card" style="margin-bottom:10px"><b>🎬 Enchaînement</b> <span class="muted" style="font-size:.75rem">· ${new Date(E.date).toLocaleDateString('fr-FR')}</span>
+    const fm = fluLevel(E), fl = E.cycle === 2 && fm != null ? `<div style="margin-top:6px"><span class="muted" style="font-size:.75rem">Fluidité :</span> ${tag(fm)}</div>` : '';
+    return `<div class="card" style="margin-bottom:10px"><div style="display:flex;align-items:center;gap:8px"><div style="flex:1"><b>🎬 Enchaînement</b> <span class="muted" style="font-size:.75rem">· ${new Date(E.date).toLocaleDateString('fr-FR')}</span></div><button class="btn btn-ghost" style="padding:4px 9px" data-edel="${esc(n)}" title="Supprimer l'enchaînement">🗑</button></div>
       <ol style="margin:6px 0 0;padding-left:20px;font-size:.88rem">${E.seq.map((x, k) => `<li>${esc(x.ex)} <span class="muted">· niv. ${x.niv}</span>${E.cycle === 2 && k < E.seq.length - 1 && E.app && E.app[k] ? ` <span class="muted" style="font-size:.75rem">→ ${appL(E.app[k])} appuis</span>` : ''}</li>`).join('')}</ol>${fl}</div>`;
   }
   /* ③ Fluidité de l'enchaînement (niveau 2) : le prof touche le nombre d'appuis entre chaque élément */
-  const fluCalc = E => E.seq.length >= 2 && E.seq.slice(0, -1).every((x, k) => E.app && E.app[k] && E.app[k] <= E.obj);
+  // 3 appuis = très satisfaisant · 4 = satisfaisant · 5 = fragile · 6 et + = insuffisant ; niveau global = moyenne arrondie des liaisons
+  const appM = a => a <= 3 ? 3 : a === 4 ? 2 : a === 5 ? 1 : 0;
+  const fluLevel = E => { const L = (E.app || []).slice(0, Math.max(0, E.seq.length - 1)); if (!L.length || L.some(x => !x)) return null; return Math.round(L.reduce((s, a) => s + appM(a), 0) / L.length); };
   function fluCard(n) {
     const E = n && enchOf(n);
     if (!E || E.seq.length < 2) return `<div class="card" style="margin-top:12px"><h3 style="margin:0">🌊 Fluidité de l'enchaînement</h3><p class="muted" style="margin:6px 0 0;font-size:.85rem">${esc(n || '')} n'a pas encore créé son enchaînement (② avec au moins 2 éléments).</p></div>`;
-    E.app = E.app || []; E.obj = E.obj || 4;
-    const all = E.seq.slice(0, -1).every((x, k) => E.app[k]), ok = fluCalc(E);
+    E.app = E.app || []; const fm = fluLevel(E);
     return `<div class="card" style="margin-top:12px"><h3 style="margin:0">🌊 Fluidité de l'enchaînement</h3>
-      <label>Objectif : appuis maximum entre deux éléments</label><div class="seg">${APP.map(a => `<button data-fobj="${a}" class="${E.obj === a ? 'on' : ''}">${appL(a)}</button>`).join('')}</div>
-      <p class="muted" style="margin:10px 0 4px;font-size:.8rem">Touchez le nombre d'appuis observés entre chaque élément :</p>
+      <p class="muted" style="margin:4px 0 4px;font-size:.8rem">Touchez le nombre d'appuis observés entre chaque élément : <b>3</b> = très satisfaisant · <b>4</b> = satisfaisant · <b>5</b> = fragile · <b>6+</b> = insuffisant.</p>
       ${E.seq.slice(0, -1).map((x, k) => `<div style="padding:8px 0;border-top:1px solid var(--line)"><div style="font-size:.85rem"><b>${esc(x.ex)}</b> → <b>${esc(E.seq[k + 1].ex)}</b></div>
-        <div style="display:flex;gap:6px;margin-top:6px">${APP.map(a => `<button class="t6-st" style="flex:1;padding:10px 4px;font-size:.9rem;${E.app[k] === a ? `background:${a <= E.obj ? '#1B9E5A' : '#E0892F'};color:#fff;border-color:transparent` : ''}" data-fap="${k}|${a}">${appL(a)}</button>`).join('')}</div></div>`).join('')}
-      <div style="text-align:center;margin-top:10px"><span class="pk-tag" style="font-size:.85rem;padding:6px 12px;background:${ok ? '#1B9E5A' : all ? '#D64545' : '#8892a6'}">${ok ? `✔ Fluidité validée (${appL(E.obj)} appuis max)` : all ? `Trop d'appuis : objectif ${appL(E.obj)} non atteint` : 'À observer'}</span></div></div>`;
+        <div style="display:flex;gap:6px;margin-top:6px">${APP.map(a => `<button class="t6-st" style="flex:1;padding:10px 4px;font-size:.9rem;${E.app[k] === a ? `background:${PK_M[appM(a)][1]};color:#fff;border-color:transparent` : ''}" data-fap="${k}|${a}">${appL(a)}</button>`).join('')}</div></div>`).join('')}
+      <div style="text-align:center;margin-top:10px">${fm != null ? `<span class="muted" style="font-size:.8rem">Maîtrise de la fluidité :</span> <span class="pk-tag" style="font-size:.85rem;padding:6px 12px;background:${PK_M[fm][1]}">${PK_M[fm][0]}</span>` : '<span class="pk-tag" style="font-size:.85rem;padding:6px 12px;background:#8892a6">À observer</span>'}</div></div>`;
   }
 
   function enchainement(n, host) {
@@ -139,10 +157,9 @@ TOOL_IMPL.parkour = function (el) {
     if (!n) { host.innerHTML = '<div class="card empty">Classe vide.</div>'; return; }
     const old = enchOf(n), avail = D.list.map(x => ({ ...x }));
     if (!avail.length) { host.innerHTML = '<div class="card empty">Choisis d\'abord tes éléments (①).</div>'; return; }
-    const W = old ? JSON.parse(JSON.stringify(old)) : { seq: [], app: [], obj: 4, cycle: D.cycle };
-    W.seq = W.seq.filter(x => avail.some(y => key(y) === key(x))); W.cycle = D.cycle; W.obj = W.obj || 4; W.app = W.app || [];
-    const o = host, close = () => { step = 'valid'; draw(); };
-    const fluOk = () => W.seq.length >= 2 && W.seq.slice(0, -1).every((x, k) => W.app[k] && W.app[k] <= W.obj);
+    const W = old ? JSON.parse(JSON.stringify(old)) : { seq: [], app: [], cycle: D.cycle };
+    W.seq = W.seq.filter(x => avail.some(y => key(y) === key(x))); W.cycle = D.cycle; W.app = W.app || [];
+    const o = host, close = () => { step = 'valid'; draw(); }; let prevW = null;
     const paint = () => {
       const left = avail.filter(y => !W.seq.some(x => key(x) === key(y)));
       o.innerHTML = `<div>
@@ -151,24 +168,24 @@ TOOL_IMPL.parkour = function (el) {
         <div style="height:10px"></div>
         <div class="card"><b>Éléments de la séance</b>${left.length ? `<div class="pk-at">${left.map(y => `<button data-ad="${esc(key(y))}">＋ ${esc(y.ex)} <small style="opacity:.75">· ${esc(y.fam)} · niv. ${y.niv}</small></button>`).join('')}</div>
           <button class="btn btn-ghost btn-block" style="margin-top:8px" id="eall">＋ Tout ajouter dans cet ordre</button>` : '<p class="muted" style="margin:6px 0 0;font-size:.82rem">Tous les éléments sont dans l\'enchaînement.</p>'}</div>
-        ${D.cycle === 2 ? `<div class="card" style="margin-top:10px"><b>🌊 Fluidité</b><p class="muted" style="margin:2px 0 6px;font-size:.8rem">Objectif : nombre maximum d'appuis (pas, réceptions) entre deux éléments. Le prof valide en ③.</p>
-          <div class="seg">${APP.map(a => `<button data-obj="${a}" class="${W.obj === a ? 'on' : ''}">${appL(a)} appuis</button>`).join('')}</div></div>` : ''}
+        ${W.seq.length || prevW ? `<div style="display:flex;gap:8px;margin-top:10px">${W.seq.length ? '<button class="btn btn-ghost" id="eclr" style="flex:1">🗑 Tout retirer de l\'enchaînement</button>' : ''}${prevW ? '<button class="btn btn-grad" id="eund" style="flex:1">↶ Annuler</button>' : ''}</div>` : ''}
         <div class="card" style="margin-top:10px;padding:0">${W.seq.length ? W.seq.map((x, k) => `<div style="padding:10px 12px;border-bottom:1px solid var(--line)">
           <div style="display:flex;align-items:center;gap:6px"><b style="width:24px">${k + 1}.</b><div style="flex:1"><b>${esc(x.ex)}</b> <span class="muted" style="font-size:.78rem">· ${esc(x.fam)} · niv. ${x.niv}</span></div>
             <button class="btn btn-ghost" style="padding:5px 9px" data-up="${k}" ${k ? '' : 'disabled'}>↑</button><button class="btn btn-ghost" style="padding:5px 9px" data-dn="${k}" ${k < W.seq.length - 1 ? '' : 'disabled'}>↓</button><button class="btn btn-ghost" style="padding:5px 9px" data-rm="${k}">✕</button></div></div>`).join('')
           : '<div class="empty">Ajoute des éléments depuis la liste ci-dessus.</div>'}</div>
         <div class="row" style="margin:12px 0 8px"><button class="btn btn-grad" id="eok" ${W.seq.length ? '' : 'disabled'}>💾 Enregistrer · ③ Validation →</button>${old ? '<button class="btn btn-ghost" id="edel" style="flex:0 0 auto">🗑</button>' : ''}</div></div>`;
       const $ = q => o.querySelector(q), all = q => o.querySelectorAll(q);
+      if ($('#eclr')) $('#eclr').onclick = () => { prevW = JSON.parse(JSON.stringify(W)); W.seq = []; W.app = []; paint(); };
+      if ($('#eund')) $('#eund').onclick = () => { Object.assign(W, prevW); prevW = null; paint(); };
       all('[data-ad]').forEach(b => b.onclick = () => { const y = avail.find(z => key(z) === b.dataset.ad); if (y) W.seq.push(y); paint(); });
       if ($('#eall')) $('#eall').onclick = () => { left.forEach(y => W.seq.push(y)); paint(); };
       all('[data-up]').forEach(b => b.onclick = () => { const k = +b.dataset.up; [W.seq[k - 1], W.seq[k]] = [W.seq[k], W.seq[k - 1]]; paint(); });
       all('[data-dn]').forEach(b => b.onclick = () => { const k = +b.dataset.dn; [W.seq[k + 1], W.seq[k]] = [W.seq[k], W.seq[k + 1]]; paint(); });
       all('[data-rm]').forEach(b => b.onclick = () => { const k = +b.dataset.rm; W.seq.splice(k, 1); W.app.splice(k, 1); paint(); });
-      all('[data-obj]').forEach(b => b.onclick = () => { W.obj = +b.dataset.obj; paint(); });
             $('#eok').onclick = () => { if (!old || old.seq.map(key).join('§') !== W.seq.map(key).join('§')) W.app = [];   // ordre changé : appuis à revalider
-        W.app = W.app.slice(0, Math.max(0, W.seq.length - 1)); W.date = Date.now(); W.fluOk = D.cycle === 2 ? fluOk() : null;
+        W.app = W.app.slice(0, Math.max(0, W.seq.length - 1)); W.date = Date.now(); W.fluM = D.cycle === 2 ? fluLevel(W) : null;
         (D.ench[cls] = D.ench[cls] || {})[n] = W; save(); toast('Enchaînement enregistré ✔'); close(); };
-      if ($('#edel')) $('#edel').onclick = () => { if (!confirm('Supprimer l\'enchaînement enregistré ?')) return; delete D.ench[cls][n]; save(); draw(); };
+      if ($('#edel')) $('#edel').onclick = () => { if (!confirm('Supprimer l\'enchaînement enregistré ?')) return; PK_UNDO = { label: `enchaînement de ${n} supprimé`, evals: JSON.parse(JSON.stringify(D.evals)), list: JSON.parse(JSON.stringify(D.list)), ench: JSON.parse(JSON.stringify(D.ench)) }; delete D.ench[cls][n]; save(); draw(); };
     };
     paint();
   }
