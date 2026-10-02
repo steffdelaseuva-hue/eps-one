@@ -4,9 +4,11 @@
    ========================================================= */
 /* Page Ko-fi : laisser vide tant qu'elle n'existe pas (le bouton est alors masqué) */
 const KOFI_URL = 'https://ko-fi.com/epsone';
-const APP_VERSION = '15.3';
+const APP_VERSION = '15.5';
 const APP_URL = 'https://steffdelaseuva-hue.github.io/eps-one/';
 const CHANGELOG = [
+  { v: '15.5', items: ['Lutte : bouton « 🗑 Supprimer tous les relais et tournois en cours » et, dans un relais à plusieurs zones, « Supprimer toutes les zones de ce relais »'] },
+  { v: '15.4', items: ['Combiné · saisie des résultats prof : colonne « 🎯 Projet » pour chaque course (temps visé ou distance visée) → écart au projet calculé'] },
   { v: '15.3', items: ['Lutte · relais en équipe : 1 à 8 zones de combat (2 équipes par zone) ; chaque zone devient un relais partagé avec les tablettes'] },
   { v: '15.2', items: ['« ✍️ Saisie des résultats prof (sans lancer l\'épreuve) » : Combiné / Triathlon, Duathlon, Natation, HYROX / Crosstraining — un tableau de la classe à remplir, résultats envoyés au Bilan et aux Résultats des élèves', 'Projets (Combiné, Demi-fond, Sauvetage) : un élève à la fois avec ◀ liste ▶, au lieu d\'une longue liste', 'Combiné : boutons « 🎯 Saisir les projets » et « ▶ Préparer la saisie directement » à la fin des réglages ; « ▶ Préparer la saisie » dans l\'onglet Projets'] },
   { v: '15.1', items: ['Multi chrono (12 élèves) : s\'affiche correctement dans l\'app (il montrait l\'accueil d\'EPS ONE) ; « Plein écran » reste dans l\'app avec un bouton ✕ pour revenir'] },

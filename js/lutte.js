@@ -267,7 +267,8 @@ TOOL_IMPL.lutte = function (el) {
         <div class="mo-vs" style="margin:6px 0"><span style="background:#B8912A">${esc(cur.o.a)}</span><span class="muted" style="color:var(--muted);padding:0">vs</span><span style="background:#1E5BD8">${esc(cur.o.b)}</span></div>
         <div class="muted" style="text-align:center;font-size:.85rem">${kindLbl(cur.o)} · ${LU_T[cur.o.R.type].n}</div>
         <div class="row" style="margin-top:10px"><button class="btn btn-grad" id="lu-res" style="flex:2;padding:15px">▶ Reprendre</button><button class="btn btn-ghost" id="lu-abd">✕ Abandonner</button></div></div>` : ''}
-      ${rec.length ? `<div class="card" style="margin-top:12px"><h3>🏆 Relais et tournois en cours</h3>${rec.map(s => `<button class="tn-it" data-sv="${esc(s.id)}"><span style="font-size:1.6rem">${s.kind === 'relais' ? '🔁' : s.kind === 'atp' ? '🤼' : '🏅'}</span><span style="flex:1"><b>${esc(s.nom)}</b><div class="muted" style="font-size:.8rem">${LU_T[s.type].n}${s.classe ? ' · ' + esc(s.classe) : ''} · ${s.saisie === 'simple' ? '✍️ résultats simples' : '👁 avec observation'} · ${esc(luProgress(s))} · ${luDate(s.date)}</div></span><span style="font-size:1.3rem">›</span></button>`).join('')}</div>` : ''}
+      ${rec.length ? `<div class="card" style="margin-top:12px"><h3>🏆 Relais et tournois en cours</h3>${rec.map(s => `<button class="tn-it" data-sv="${esc(s.id)}"><span style="font-size:1.6rem">${s.kind === 'relais' ? '🔁' : s.kind === 'atp' ? '🤼' : '🏅'}</span><span style="flex:1"><b>${esc(s.nom)}</b><div class="muted" style="font-size:.8rem">${LU_T[s.type].n}${s.classe ? ' · ' + esc(s.classe) : ''} · ${s.saisie === 'simple' ? '✍️ résultats simples' : '👁 avec observation'} · ${esc(luProgress(s))} · ${luDate(s.date)}</div></span><span style="font-size:1.3rem">›</span></button>`).join('')}
+        ${rec.length > 1 ? `<button class="btn btn-ghost btn-block" data-cfg="bare" id="lu-sdel" style="margin-top:10px">🗑 Supprimer tous les relais et tournois en cours (${rec.length})</button>` : ''}</div>` : ''}
       <div class="card" data-cfg style="margin-top:12px"><h3>Type de lutte</h3>${tiles(LU_T, T, 'lt')}
         <p class="muted" style="font-size:.82rem;margin:8px 0 0">📍 ${esc(R.depart)}</p></div>
       <div class="card" style="margin-top:12px"><h3>Forme de pratique</h3>${tiles(LU_FP, S.forme, 'fp')}
@@ -289,6 +290,8 @@ TOOL_IMPL.lutte = function (el) {
     el.querySelectorAll('[data-ro]').forEach(b => b.onclick = () => { DB.tablette = DB.tablette || {}; DB.tablette.lutte = { ...(DB.tablette.lutte || {}), role: b.dataset.ro }; save();
       el.querySelectorAll('[data-ro]').forEach(x => x.classList.toggle('on', x === b)); });
     el.querySelectorAll('[data-sv]').forEach(b => b.onclick = () => sview(b.dataset.sv));
+    if ($('#lu-sdel')) $('#lu-sdel').onclick = () => { if (!confirm(`Supprimer les ${rec.length} relais / tournois en cours sur toutes les tablettes ?\nLes combats déjà enregistrés restent dans l'historique.`)) return;
+      const ids = new Set(rec.map(x => x.id)); LU().seances = LU().seances.filter(x => !ids.has(x.id)); flush(); toast('Supprimés ✔'); keepY(home); };
     if ($('#lu-res')) $('#lu-res').onclick = () => resume();
     if ($('#lu-abd')) $('#lu-abd').onclick = () => { if (!confirm('Abandonner le combat en cours ?\nRien ne sera enregistré.')) return; release(cur.o); clearCur(); home(); };
     $('#lu-bil').onclick = bilan;
@@ -653,9 +656,9 @@ TOOL_IMPL.lutte = function (el) {
       mv('rm', (o, i) => { o.splice(i, 1); });
       $('#r-ok').onclick = () => { keepC(); if (!C.teams) return toast(`Formez d'abord les ${C.zones * 2} équipes`);
         if (C.teams.some(t => !t.order.length)) return toast('Chaque équipe doit avoir au moins un lutteur');
-        const base = C.nom.trim() || def(), ids = [];
+        const base = C.nom.trim() || def(), ids = [], zg = C.zones > 1 ? luId() : null;
         for (let z = 0; z < C.teams.length / 2; z++) { const tm = luClone(C.teams.slice(z * 2, z * 2 + 2)); if (tm[0].name === tm[1].name) tm[1].name += ' (2)';
-          const s = { id: luId(), date: Date.now() + z, kind: 'relais', nom: C.zones > 1 ? `${base} · Zone ${z + 1}` : base, classe: C.cls || '', type: T, saisie: C.saisie, variant: C.variant, teams: tm, regles: luSnap(T), enCours: [], ...(C.zones > 1 ? { zone: z + 1 } : {}) };
+          const s = { id: luId(), date: Date.now() + z, kind: 'relais', nom: C.zones > 1 ? `${base} · Zone ${z + 1}` : base, classe: C.cls || '', type: T, saisie: C.saisie, variant: C.variant, teams: tm, regles: luSnap(T), enCours: [], ...(C.zones > 1 ? { zone: z + 1, zg, zn: C.zones } : {}) };
           LU().seances.push(s); ids.push(s.id); }
         flush(); beep(1200, .15); toast(C.zones > 1 ? `${C.zones} relais créés ✔ (une zone = un relais)` : 'Relais créé ✔');
         if (C.zones > 1) { home(); top(); } else sview(ids[0]); };
@@ -839,10 +842,12 @@ TOOL_IMPL.lutte = function (el) {
         ${t.order.map((n, i) => { const [c, l] = status(ti, i); return `<div class="lu-ol ${c}"><span class="st">${i + 1}.</span><span class="nm">${esc(n)}</span><span class="st">${l}</span></div>`; }).join('')}</div>`).join('')}</div>
       <div class="section-title"><h2>Combats joués (${st.k})</h2></div>
       <div class="card" style="padding:0">${st.log.length ? st.log.map((m, i) => `<div class="list-item"><div style="flex:1;min-width:0"><b>${i + 1}. ${esc(m.a)} ${luScTxt(m) || 'vs'} ${esc(m.b)}</b><div class="muted" style="font-size:.8rem">${luWinName(m) ? '🏆 ' + esc(luWinName(m)) + (luHow(m) ? ' · ' + luHow(m) : '') : '🤝 Égalité'}${m.simple ? ' · ✍️' : ''}</div></div><button class="btn btn-ghost" data-lv="${esc(m.id)}">👁</button></div>`).join('') : '<div class="empty">Aucun combat pour l\'instant.</div>'}</div>
-      ${profCard(s, `<div class="row" style="margin-top:10px">${st.log.length ? '<button class="btn btn-ghost" id="s-undo">↶ Annuler le dernier combat</button>' : ''}<button class="btn btn-ghost" id="s-end">${s.ended ? '↺ Rouvrir le relais' : '🏁 Terminer le relais maintenant'}</button></div>`)}`;
+      ${profCard(s, `${s.zg ? `<button class="btn btn-danger btn-block" id="s-zdel" style="margin-top:10px">🗑 Supprimer les ${LU().seances.filter(x => x.zg === s.zg).length} zones de ce relais</button>` : ''}<div class="row" style="margin-top:10px">${st.log.length ? '<button class="btn btn-ghost" id="s-undo">↶ Annuler le dernier combat</button>' : ''}<button class="btn btn-ghost" id="s-end">${s.ended ? '↺ Rouvrir le relais' : '🏁 Terminer le relais maintenant'}</button></div>`)}`;
     if ($('#s-go')) $('#s-go').onclick = () => launch(s.id, rid, st.next.a, st.next.b, `combat n° ${st.k + 1}`);
     if ($('#s-undo')) $('#s-undo').onclick = () => { const m = st.log[st.log.length - 1]; if (!m || !confirm(`Annuler le dernier combat (${m.a} – ${m.b}) ?\nIl sera supprimé, ainsi que les résultats des élèves associés.`)) return; luDelCombat(m.id); keepY(() => sview(s.id)); };
     $('#s-end').onclick = () => { s.ended = !s.ended; flush(); keepY(() => sview(s.id)); };
+    if ($('#s-zdel')) $('#s-zdel').onclick = () => { const n = LU().seances.filter(x => x.zg === s.zg).length; if (!confirm(`Supprimer les ${n} zones de ce relais sur toutes les tablettes ?\nLes combats déjà enregistrés restent dans l'historique.`)) return;
+      LU().seances = LU().seances.filter(x => x.zg !== s.zg); flush(); toast(`${n} zones supprimées ✔`); home(); };
     $('#s-csv').onclick = () => download(csvName('relais', s), csv([['Équipe', 'Points', 'Victoires', 'Lutteurs (ordre)'], ...s.teams.map((t, i) => [t.name, st.pts[i], st.v[i], t.order.join(', ')]),
       [], ['N°', 'Lutteur A', 'Score A', 'Score B', 'Lutteur B', 'Vainqueur', 'Issue'], ...st.log.map((m, i) => [i + 1, m.a, m.sa ?? '', m.sb ?? '', m.b, luWinName(m) || 'égalité', luHow(m)])]));
   }

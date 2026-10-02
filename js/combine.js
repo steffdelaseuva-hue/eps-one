@@ -525,12 +525,17 @@ TOOL_IMPL.combine = function (el) {
       clearInterval(window._cbTick);
       const rows = [], ref = [], sD = hasSaut(c) && c.sElan === 'deux', lD = c.lElan === 'deux', lu = lUnit(c);
       S.groups.forEach((g, gi) => g.eleves.forEach((e, ei) => { rows.push({ label: e.nom, sub: grp ? g.name : '' }); ref.push([gi, ei]); }));
-      const F = [...R.map((r, k) => r.k === 'dist' ? { k: 'r' + k, l: `${N > 1 ? 'C' + (k + 1) + ' · ' : ''}Temps ${r.m} m`, type: 'time' } : { k: 'r' + k, l: `${N > 1 ? 'C' + (k + 1) + ' · ' : ''}Distance (m) en ${cbRunLbl(r)}`, type: 'num' }),
+      const PJ = pj ? R.map((r, k) => r.k === 'dist' ? { k: 'p' + k, l: `🎯 Projet ${N > 1 ? 'C' + (k + 1) + ' ' : ''}(temps)`, type: 'time' } : { k: 'p' + k, l: `🎯 Projet ${N > 1 ? 'C' + (k + 1) + ' ' : ''}(m)`, type: 'num' }) : [];
+      // projets déjà saisis (onglet Projets) : affichés dans le tableau
+      const V0 = ref.map(([gi, ei]) => { const e = S.groups[gi].eleves[ei], o = {}; R.forEach((r, k) => { const v = (e.proj || [])[k]; if (pj && v > 0) o['p' + k] = r.k === 'dist' ? Math.round(r.m / (v / 3.6) * 10) / 10 : Math.round(v / 3.6 * r.d); }); return o; });
+      const F = [...PJ, ...R.map((r, k) => r.k === 'dist' ? { k: 'r' + k, l: `${N > 1 ? 'C' + (k + 1) + ' · ' : ''}Temps ${r.m} m`, type: 'time' } : { k: 'r' + k, l: `${N > 1 ? 'C' + (k + 1) + ' · ' : ''}Distance (m) en ${cbRunLbl(r)}`, type: 'num' }),
         ...(hasSaut(c) ? (sD ? [{ k: 's0', l: 'Saut sans élan (m)', type: 'num' }, { k: 's1', l: 'Saut avec élan (m)', type: 'num' }] : [{ k: 's0', l: 'Meilleur saut (m)', type: 'num' }]) : []),
         ...(lD ? [{ k: 'l0', l: `Lancer sans élan (${lu})`, type: 'num' }, { k: 'l1', l: `Lancer avec élan (${lu})`, type: 'num' }] : [{ k: 'l0', l: `Meilleur lancer (${lu})`, type: 'num' }])];
-      spTable(box, { title: `Saisie des résultats · ${hasSaut(c) ? 'triathlon' : 'duathlon'} · ${S.classe || ''}`, rows, fields: F, cancelLbl: 'Annuler (rien n\'est enregistré)',
+      spTable(box, { title: `Saisie des résultats · ${hasSaut(c) ? 'triathlon' : 'duathlon'} · ${S.classe || ''}`, rows, fields: F, values: V0,
+        help: `Remplissez seulement ce que vous avez relevé : les lignes vides sont ignorées. Temps au format 2:35.${pj ? ' 🎯 Projet : temps visé (courses en distance) ou distance visée en mètres (courses en durée) ; l\'écart au projet est calculé.' : ''}`, cancelLbl: 'Annuler (rien n\'est enregistré)',
         onCancel: () => { if (!confirm('Abandonner cette saisie ? Rien ne sera enregistré.')) return; DB.combine.current = null; save(); tab = 'config'; frame(); },
         onSave: V => { V.forEach((v, i) => { const [gi, ei] = ref[i], e = S.groups[gi].eleves[ei];
+            R.forEach((r, k) => { const p = v['p' + k]; if (pj && p != null && p > 0) { e.proj = e.proj || []; e.proj[k] = Math.round((r.k === 'dist' ? r.m / p : p / r.d) * 3.6 * 100) / 100; } });
             R.forEach((r, k) => { const val = v['r' + k]; if (val == null) return; const x = cbX(e, k, true) || e;
               if (r.k === 'dist') { x.dep = 1; x.arr = 1 + Math.round(val * 1000); } else x.man = Math.round(val); });
             const put = (f, a) => { if (a != null) e[f] = [String(a).replace('.', ',')]; };
