@@ -145,6 +145,30 @@ const ACRO = [
 const ACRO_VOL = { debout: 'Debout', horizontale: 'À l\'horizontale', semi: 'Semi-renversé', renverse: 'Renversé' };
 const ACRO_VOL_OF = { stand: 'debout', arab: 'debout', epaules: 'debout', genoux: 'debout', siege: 'debout', planche: 'horizontale', table: 'horizontale', dos: 'horizontale', brouette: 'semi', semi: 'semi', atr: 'renverse' };
 const acroVol = f => [...new Set(f.p.filter(q => q.r === 'v').map(q => ACRO_VOL_OF[q.s]).filter(Boolean))];
+/* ---------- Niveau de difficulté A (facile) → D (très difficile) ----------
+   Calcul automatique : stabilité des porteurs (appuis au sol), hauteur
+   (étages), position du voltigeur (renversé > semi > horizontal > debout),
+   et combinaisons (renversé en hauteur…). Modifiable à la main : DB.acro.niv[id]. */
+const ACRO_NIV = { A: 'Facile', B: 'Moyen', C: 'Difficile', D: 'Très difficile' };
+const ACRO_NIV_COL = { A: '#1E9E5A', B: '#E0A100', C: '#E06A1E', D: '#C62828' };
+const ACRO_STAB = { table: 4, dos: 4, assis: 3, trep: 3, genoux: 2, stand: 2, arab: 1, brouette: 2, semi: 2, atr: 1, planche: 1, siege: 1, epaules: 1 };   // appuis « utiles » d'un porteur
+const ACRO_VOLPTS = { debout: 0, horizontale: 1, semi: 2, renverse: 3 };
+function acroScore(f) {
+  const por = f.p.filter(q => q.r === 'p'), vol = f.p.filter(q => q.r === 'v');
+  const stab = por.length ? Math.min(...por.map(q => ACRO_STAB[q.s] || 2)) : 4;   // le porteur le moins stable fait la difficulté
+  const h = +f.h || 1;
+  const app = Math.max(0, 4 - stab) * (h > 1 ? 1 : .5);
+  const haut = h >= 3 ? 4 : h === 2 ? 1 : 0;
+  const vp = vol.map(q => ACRO_VOLPTS[ACRO_VOL_OF[q.s]] || 0), vMax = vp.length ? Math.max(...vp) : 0;
+  let bonus = 0;
+  if (vol.some(q => q.y > 0 && ['semi', 'atr'].includes(q.s))) bonus += 2.5;   // renversé / semi en hauteur (porté)
+  if (vol.some(q => q.s === 'arab')) bonus += .5;                                                                 // équilibre sur un pied
+  return { app, haut, vol: vMax, bonus, stab, total: app + haut + vMax + bonus };
+}
+const acroAutoNiv = f => { const t = acroScore(f).total; return t <= 2 ? 'A' : t <= 3.5 ? 'B' : t <= 6 ? 'C' : 'D'; };
+const acroNiv = f => (DB.acro && DB.acro.niv && DB.acro.niv[f.id]) || acroAutoNiv(f);
+const acroNivMan = f => !!(DB.acro && DB.acro.niv && DB.acro.niv[f.id]);
+const acroNivBadge = (f, big) => { const n = acroNiv(f); return `<span title="Niveau ${n} : ${ACRO_NIV[n]}${acroNivMan(f) ? ' (modifié)' : ' (auto)'}" style="display:inline-grid;place-items:center;min-width:${big ? 34 : 24}px;height:${big ? 34 : 24}px;border-radius:8px;background:${ACRO_NIV_COL[n]};color:#fff;font-weight:900;font-size:${big ? '1.1rem' : '.85rem'}">${n}${acroNivMan(f) ? '<sup style="font-size:.55em">✋</sup>' : ''}</span>`; };
 const ACRO_POR = { horizontal: 'Horizontal (banc, dos)', assis: 'Assis', debout: 'Debout', trepied: 'Trépied' };
 const ACRO_EFF = { 2: 'Duo', 3: 'Trio', 4: 'Quatuor' };
 
@@ -324,7 +348,7 @@ function acroEditor(src, onSave) {
 TOOL_IMPL.acrosport = function (el) {
   DB.acro = DB.acro || { groupes: {} };
   const A = liveDB(() => DB.acro);
-  const F = DB.acroFiltre = Object.assign({ eff: '0', por: '', vol: '', h: '0', app: '' }, DB.acroFiltre || {});
+  const F = DB.acroFiltre = Object.assign({ eff: '0', por: '', vol: '', h: '0', app: '', niv: '' }, DB.acroFiltre || {});
   A.liaisons = A.liaisons || [];
   const APP = { '': 'Tous', a: '1 à 4', b: '5 à 8', c: '9 et +' };
   const appOk = (n, k) => !k || (k === 'a' ? n <= 4 : k === 'b' ? n >= 5 && n <= 8 : n >= 9);
@@ -388,18 +412,19 @@ TOOL_IMPL.acrosport = function (el) {
   /* ---------- Banque de pyramides ---------- */
   const chips = (key, opts) => `<div class="tog">${opts.map(([v, l]) => `<button data-f="${key}" data-v="${v}" class="${String(F[key]) === String(v) ? 'on' : ''}">${l}</button>`).join('')}</div>`;
   function tabBanque(box) {
-    const list = acroAll().filter(f => (+F.eff === 0 || f.eff === +F.eff) && (!F.por || f.por.includes(F.por)) && (!F.vol || acroVol(f).includes(F.vol)) && (+F.h === 0 || f.h === +F.h) && appOk(acroAppuis(f), F.app));
+    const list = acroAll().filter(f => (+F.eff === 0 || f.eff === +F.eff) && (!F.por || f.por.includes(F.por)) && (!F.vol || acroVol(f).includes(F.vol)) && (+F.h === 0 || f.h === +F.h) && appOk(acroAppuis(f), F.app) && (!F.niv || acroNiv(f) === F.niv));
     const g = G();
     box.innerHTML = `<button class="btn btn-grad btn-block" data-cfg="bare" id="acnew" style="margin-bottom:12px">✏️ Créer une pyramide</button><div class="card">
         <label style="margin-top:0">Effectif</label>${chips('eff', [[0, 'Tous'], [2, 'Duo'], [3, 'Trio'], [4, 'Quatuor']])}
         <label>Position des porteurs</label>${chips('por', [['', 'Toutes'], ...Object.entries(ACRO_POR)])}
         <label>Position du voltigeur</label>${chips('vol', [['', 'Toutes'], ...Object.entries(ACRO_VOL)])}
         <label>Hauteur de la pyramide</label>${chips('h', [[0, 'Toutes'], [1, '1 étage'], [2, '2 étages'], [3, '3 étages']])}
-        <label>Appuis au sol</label>${chips('app', Object.entries(APP))}</div>
+        <label>Appuis au sol</label>${chips('app', Object.entries(APP))}
+        <label>Niveau de difficulté</label>${chips('niv', [['', 'Tous'], ...Object.entries(ACRO_NIV).map(([k, l]) => [k, `${k} · ${l}`])])}</div>
       <div class="section-title"><h2>${list.length} pyramide${list.length > 1 ? 's' : ''}</h2><span class="muted" style="font-size:.8rem"><b style="color:#1E5BD8">●</b> porteur · <b style="color:#C9A227">●</b> voltigeur</span></div>
       ${g ? `<p class="muted" style="margin:-4px 0 8px;font-size:.82rem">Touchez ＋ pour ajouter une pyramide à l'enchaînement de <b>${esc(g.name)}</b>.</p>` : ''}
       <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px">${list.map(f => `<div class="card" style="padding:10px;border:1.5px solid var(--line);position:relative">
-          <button data-id="${f.id}" style="all:unset;display:block;cursor:pointer;width:100%">${acroSVG(f)}<b style="display:block;margin-top:6px">${f.custom ? '✏️ ' : ''}${esc(f.n)}</b>
+          <button data-id="${f.id}" style="all:unset;display:block;cursor:pointer;width:100%">${acroSVG(f)}<span style="position:absolute;top:8px;left:8px">${acroNivBadge(f)}</span><b style="display:block;margin-top:6px">${f.custom ? '✏️ ' : ''}${esc(f.n)}</b>
           <span class="muted" style="font-size:.75rem">${ACRO_EFF[f.eff]} · ${f.h} étage${f.h > 1 ? 's' : ''} · ${acroAppuis(f)} appuis<br>Voltigeur : ${acroVol(f).map(v => ACRO_VOL[v]).join(', ')}</span></button>
           ${g ? `<button class="btn btn-grad" data-add="${f.id}" style="position:absolute;top:6px;right:6px;padding:4px 10px">＋</button>` : ''}</div>`).join('') || '<div class="card empty" style="grid-column:1/-1">Aucune pyramide avec ces critères.</div>'}</div>`;
     box.querySelectorAll('[data-f]').forEach(b => b.onclick = () => { F[b.dataset.f] = b.dataset.v; save(); tabBanque(box); });
@@ -421,6 +446,7 @@ TOOL_IMPL.acrosport = function (el) {
         <p style="margin:10px 0 4px"><b>Porteur${f.por.length > 1 ? 's' : ''} :</b> ${f.por.map(p => ACRO_POR[p]).join(', ')}</p>
         <p style="margin:4px 0"><b>Voltigeur${acroVol(f).length > 1 ? 's' : ''} :</b> ${acroVol(f).map(v => ACRO_VOL[v]).join(', ')}</p>
         <p style="margin:4px 0"><b>Consigne :</b> ${esc(f.c)}</p>
+        <div id="acniv" style="margin-top:12px"></div>
         ${g ? `<button class="btn btn-grad btn-block" style="margin-top:12px" id="acadd">＋ Ajouter à l'enchaînement de ${esc(g.name)}</button>` : ''}
         <div class="row" data-cfg="bare" style="margin-top:8px">${f.custom ? '<button class="btn btn-ghost" id="aced">✏️ Modifier</button><button class="btn btn-ghost" id="acdel">🗑 Supprimer</button>' : '<button class="btn btn-ghost" id="accp">✏️ Copier et modifier</button>'}</div>
         <button class="btn btn-ghost btn-block" style="margin-top:8px" id="acx">Fermer</button></div>`;
@@ -428,7 +454,18 @@ TOOL_IMPL.acrosport = function (el) {
       if (id === 'aced') { o.remove(); acroEditor(f, saveCustom); }
       if (id === 'accp') { o.remove(); acroEditor({ ...JSON.parse(JSON.stringify(f)), n: f.n + ' (variante)', custom: 0 }, saveCustom); }
       if (id === 'acdel' && confirm(`Supprimer « ${f.n} » ?`)) { o.remove(); A.custom = (A.custom || []).filter(x => x.id !== f.id); save(); toast('Pyramide supprimée'); frame(); } };
-    document.body.appendChild(o);
+    let chg = 0;
+    const nivBox = () => { const sc = acroScore(f), au = acroAutoNiv(f), cur = A.niv && A.niv[f.id];
+      const vl = Object.keys(ACRO_VOLPTS).find(k => ACRO_VOLPTS[k] === sc.vol);
+      o.querySelector('#acniv').innerHTML = `<div style="border:1.5px solid var(--line);border-radius:12px;padding:10px">
+        <div style="display:flex;align-items:center;gap:10px">${acroNivBadge(f, true)}<div><b>Niveau ${acroNiv(f)} · ${ACRO_NIV[acroNiv(f)]}</b>
+          <div class="muted" style="font-size:.78rem">${cur ? `Classé à la main (calcul auto : ${au})` : 'Calcul automatique'}</div></div></div>
+        <p class="muted" style="margin:8px 0 6px;font-size:.78rem">Auto : porteur le moins stable ${sc.stab} appui${sc.stab > 1 ? 's' : ''} · ${f.h} étage${f.h > 1 ? 's' : ''} · voltigeur ${ACRO_VOL[vl] || '—'}${sc.bonus ? ' · combinaison difficile' : ''}</p>
+        <div class="tog">${Object.keys(ACRO_NIV).map(k => `<button data-niv="${k}" class="${cur === k ? 'on' : ''}">${k}</button>`).join('')}<button data-niv="" class="${cur ? '' : 'on'}">Auto (${au})</button></div></div>`;
+      o.querySelectorAll('[data-niv]').forEach(b => b.onclick = e => { e.stopPropagation(); const v = b.dataset.niv; A.niv = A.niv || {};
+        if (v) A.niv[f.id] = v; else delete A.niv[f.id]; chg = 1; save(); toast(v ? `Niveau ${v} enregistré ✔` : `Retour au niveau automatique (${au})`); nivBox(); }); };
+    document.body.appendChild(o); nivBox();
+    const obs = new MutationObserver(() => { if (!o.isConnected) { obs.disconnect(); if (chg) frame(); } }); obs.observe(document.body, { childList: true });
   };
 
   /* ---------- Liaisons dynamiques (vidéos) ---------- */
