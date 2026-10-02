@@ -433,5 +433,9 @@ document.addEventListener('visibilitychange', () => { if (document.visibilitySta
 
 // (service worker géré par l'app principale)
 </script>
+<script>/* Ouvert seul (hors de EPS ONE) : bouton de retour vers l'app */
+if (window.top === window) { const a = document.createElement('a'); a.href = '../index.html#outils'; a.textContent = '← EPS ONE'; a.setAttribute('aria-label', 'Retour à EPS ONE');
+  a.style.cssText = 'position:fixed;top:calc(8px + env(safe-area-inset-top));left:calc(10px + env(safe-area-inset-left));z-index:9999;padding:10px 14px;border-radius:999px;background:rgba(11,42,91,.92);color:#fff;font:800 15px system-ui,sans-serif;text-decoration:none;box-shadow:0 4px 14px rgba(0,0,0,.3)';
+  document.body.appendChild(a); }</script>
 </body>
 </html>

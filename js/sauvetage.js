@@ -415,9 +415,10 @@ TOOL_IMPL.sauvetage = function (el) {
         <label>Proposer d'après une vitesse</label><div data-cfg="bare" style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><input id="pv" type="number" min="0.2" max="2.5" step="0.05" value="${c.refV}" style="width:80px;text-align:center"> <span>m/s</span>
           <button class="btn btn-ghost" id="fill" style="padding:9px 12px">Remplir les projets vides</button></div>
         <p class="df-help">${filled}/${parts.length} projets complets.</p></div>
-      ${parts.map(P => `<div class="card" style="margin-top:10px"><div style="display:flex;gap:8px;align-items:baseline;flex-wrap:wrap"><b style="font-size:1.05rem">${esc(P.label)}</b>${P.sub ? `<span class="muted" style="font-size:.78rem">${esc(P.sub)}</span>` : ''}</div>${cell(P)}</div>`).join('')}
+      ${dfPjPick('sv', parts, P => `<div class="card" style="margin-top:10px"><div style="display:flex;gap:8px;align-items:baseline;flex-wrap:wrap"><b style="font-size:1.05rem">${esc(P.label)}</b>${P.sub ? `<span class="muted" style="font-size:.78rem">${esc(P.sub)}</span>` : ''}</div>${cell(P)}</div>`, null)}
       <button class="btn btn-grad btn-block" style="margin-top:12px" id="golv">⏱ Aller à la séance</button>`;
     const keep = () => { save(); pub(C); };
+    dfPjWire(box, 'sv', parts, () => projets(box, C));
     box.querySelectorAll('[data-pu]').forEach(b => b.onclick = () => { c.pUnit = b.dataset.pu; keep(); projets(box, C); });
     box.querySelectorAll('[data-pj]').forEach(i => i.onchange = () => { const [gi, ...rest] = i.dataset.pj.split('|'), f = rest.pop(), key = rest.join('|'), g = C.groups[+gi], s = i.value.trim();
       g.proj = g.proj || {}; const O = g.proj[key] = g.proj[key] || {};

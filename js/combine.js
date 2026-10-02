@@ -59,7 +59,7 @@ function cbNorm(c) {
 // Données d'une course pour un élève : course 1 = champs historiques de l'élève (dep, arr, tours, plots), suivantes dans e.rx
 const cbX = (e, k, make) => { if (!k) return e; if (!e.rx) { if (!make) return null; e.rx = []; }
   if (!e.rx[k - 1] && make) e.rx[k - 1] = { dep: null, arr: null, tours: 0, plots: 0 }; return e.rx[k - 1] || null; };
-const cbRaw = (c, x) => (x.tours || 0) * c.tour + (c.plotOn ? (x.plots || 0) * c.plot : 0);
+const cbRaw = (c, x) => x.man != null ? +x.man || 0 : (x.tours || 0) * c.tour + (c.plotOn ? (x.plots || 0) * c.plot : 0);
 // Résultat d'une course (distance, temps, vitesse, projet et écarts via dfEval)
 function cbRun(c, e, k) {
   const run = cbRuns(c)[k], x = cbX(e, k) || {}, pv = (e.proj || [])[k] > 0 ? +e.proj[k] : null;
@@ -128,7 +128,7 @@ const CB_PRE = [['1 course', null], ['4 × 3 min', ['duree', 180, 4, 60]], ['3 �
 TOOL_IMPL.combine = function (el) {
   const C0 = { format: 'duathlon', orga: 'indiv', cMode: 'distance', cDist: 800, cDur: 6, tour: 200, plotOn: true, plot: 20,
     lEssais: 3, lEssaisA: 3, lMesure: 'distance', lElan: 'sans', sEssais: 3, sEssaisA: 3, sElan: 'sans', projOn: true, tol: 5, refV: 10 };
-  let tab = DB.combine.current ? 'saisie' : 'config', iv, pu = 'nat', vk = null;
+  let tab = DB.combine.current ? 'saisie' : 'config', iv, pu = 'nat', vk = null, afterPrep = 'saisie', pjSel = 0;
   const cfg = () => { const c = DB.combine.cfg = DB.combine.cfg || {}; Object.keys(C0).forEach(k => { if (c[k] == null) c[k] = C0[k]; }); return cbNorm(c); };
   const projOn = () => { const S = DB.combine.current; return (S ? S.cfg : cfg()).projOn !== false; };
   function frame() {
@@ -213,7 +213,9 @@ TOOL_IMPL.combine = function (el) {
       <details class="card" style="margin-top:12px"><summary style="font-weight:800;cursor:pointer">🔁 Convertisseur distance ⇄ vitesse</summary>
         <div class="row"><div><label>Distance (m)</label><input id="xd" type="number"></div><div><label>Temps (min)</label><input id="xm" type="number" min="0"></div><div><label>(s)</label><input id="xs" type="number" min="0"></div><div><label>Vitesse (km/h)</label><input id="xv" type="number" step="0.1"></div></div>
         <p class="muted" style="margin:6px 0 0">Remplissez 2 des 3 valeurs (distance, temps, vitesse) : la 3e est calculée.</p><button class="btn btn-ghost btn-block" style="margin-top:8px" id="xgo">Calculer</button><div id="xr" style="margin-top:8px;font-weight:800;text-align:center"></div></details>
-      <button class="btn btn-grad btn-block" data-cfg="bare" style="margin-top:14px;padding:15px" id="go">▶ Préparer la saisie</button>`;
+      ${c.projOn !== false ? '<button class="btn btn-grad btn-block" data-cfg="bare" style="margin-top:14px;padding:15px" id="gop">🎯 Saisir les projets</button>' : ''}
+      <button class="btn btn-ghost btn-block" data-cfg="bare" style="margin-top:8px;padding:13px" id="gom">${SP_BTN}</button>
+      <button class="btn ${c.projOn !== false ? 'btn-ghost' : 'btn-grad'} btn-block" data-cfg="bare" style="margin-top:${c.projOn !== false ? 8 : 14}px;padding:15px" id="go">▶ Préparer la saisie${c.projOn !== false ? ' directement' : ''}</button>`;
     const $ = s => box.querySelector(s), all = s => box.querySelectorAll(s);
     const read = () => { if ($('#cd')) c.cDist = +$('#cd').value || 0; if ($('#cu')) c.cDur = +$('#cu').value || 0; c.plotOn = $('#po').checked; if ($('#pd')) c.plot = +$('#pd').value || 1;
       if ($('#se')) c.sEssais = +$('#se').value; if ($('#sl')) c.sElan = $('#sl').value; if ($('#sea')) c.sEssaisA = +$('#sea').value;
@@ -246,7 +248,10 @@ TOOL_IMPL.combine = function (el) {
       else if (v && t) { const dd = v / 3.6 * t; $('#xd').value = Math.round(dd); $('#xr').textContent = `${n1(v)} km/h pendant ${cmss(t)} = ${Math.round(dd)} m (${n1(dd / c.tour)} tours de ${c.tour} m)`; }
       else if (v && d) { const tt = d / (v / 3.6); $('#xm').value = Math.floor(tt / 60); $('#xs').value = Math.round(tt % 60); $('#xr').textContent = `${d} m à ${n1(v)} km/h = ${cmss(tt)}`; }
       else $('#xr').textContent = 'Renseignez 2 valeurs.'; };
-    $('#go').onclick = () => { read(); if (DB.combine.current && !confirm('Une saisie est déjà en cours. La remplacer ?')) return; prepare(box); };
+    const goPrep = dest => { read(); if (DB.combine.current && !confirm('Une saisie est déjà en cours. La remplacer ?')) return; afterPrep = dest; pjSel = 0; prepare(box); };
+    $('#go').onclick = () => goPrep('saisie');
+    if ($('#gop')) $('#gop').onclick = () => goPrep('projets');
+    $('#gom').onclick = () => goPrep('manual');
     if (!DB.combine.current) partMount(box, 'combine', p => join(box, p));
   }
 
@@ -254,7 +259,7 @@ TOOL_IMPL.combine = function (el) {
     const c = cfg();
     if (!DB.classes.length) { box.innerHTML = noClassMsg; return; }
     const launch = (classe, groups) => { vk = null; DB.combine.current = { id: Date.now().toString(36), date: Date.now(), classe, cfg: JSON.parse(JSON.stringify(c)), start: null,
-      groups: groups.map(g => ({ name: g.name, eleves: g.members.map(n => blankE(c, n)) })) }; pub(DB.combine.current, true); save(); tab = 'saisie'; frame(); };
+      groups: groups.map(g => ({ name: g.name, eleves: g.members.map(n => blankE(c, n)) })) }; if (afterPrep === 'manual') DB.combine.current.manual = true; pub(DB.combine.current, true); save(); tab = afterPrep === 'projets' && DB.combine.current.cfg.projOn !== false ? 'projets' : 'saisie'; afterPrep = 'saisie'; frame(); };
     if (c.orga === 'indiv') {
       box.innerHTML = `<div class="card" data-cfg><label style="margin-top:0">Classe</label><select id="cl">${DB.classes.map(x => `<option ${x.name === (DB.lastClass || '') ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select><button class="btn btn-grad btn-block" style="margin-top:12px" id="ok">▶ Commencer</button></div>`;
       box.querySelector('#ok').onclick = () => { const cl = box.querySelector('#cl').value; DB.lastClass = cl; launch(cl, studentsOf(cl).map(n => ({ name: n, members: [n] }))); };
@@ -302,10 +307,19 @@ TOOL_IMPL.combine = function (el) {
     const parts = S.groups.flatMap((g, gi) => S.only != null && S.only !== gi ? [] : g.eleves.map((e, ei) => ({ g, gi, e, ei })));
     box.innerHTML = `<div class="card"><h3 style="margin-top:0">🎯 Projets de course</h3><p class="df-help" style="margin-top:0">${K.help}</p>
         <label>Saisir en</label>${K.unitTog()}<p class="df-help">${cbFmt(c)} · ${parts.filter(p => K.filled(p.e)).length}/${parts.length} projets complets · tolérance ± ${c.tol} %</p></div>
-      ${parts.map(p => `<div class="card" style="margin-top:10px"><b style="font-size:1.05rem">${esc(p.e.nom)}</b>${grp ? ` <span class="muted" style="font-size:.8rem">· ${esc(p.g.name)}</span>` : ''}
-        <div class="df-pj">${R.map((r, k) => K.cell(p.gi, p.ei, p.e, k)).join('')}</div></div>`).join('')}
-      <button class="btn btn-grad btn-block" style="margin-top:12px" id="gosa">⏱ Aller à la saisie</button>`;
+      ${parts.length ? (() => { if (pjSel >= parts.length) pjSel = 0; const p = parts[pjSel];
+        return `<div class="card" style="margin-top:10px"><label style="margin-top:0">${grp ? 'Élève (groupe)' : 'Élève'} · ${pjSel + 1}/${parts.length}</label>
+          <div class="row" style="align-items:center;gap:6px"><button class="btn btn-ghost" style="flex:0 0 52px" id="pjp" aria-label="Élève précédent">◀</button>
+            <select id="pjs" style="flex:1">${parts.map((x, i) => `<option value="${i}" ${i === pjSel ? 'selected' : ''}>${K.filled(x.e) ? '✅ ' : ''}${esc(x.e.nom)}${grp ? ' · ' + esc(x.g.name) : ''}</option>`).join('')}</select>
+            <button class="btn btn-ghost" style="flex:0 0 52px" id="pjn" aria-label="Élève suivant">▶</button></div></div>
+        <div class="card" style="margin-top:10px"><b style="font-size:1.15rem">${esc(p.e.nom)}</b>${grp ? ` <span class="muted" style="font-size:.8rem">· ${esc(p.g.name)}</span>` : ''}${K.filled(p.e) ? ' <span class="pill">✅ complet</span>' : ''}
+          <div class="df-pj">${R.map((r, k) => K.cell(p.gi, p.ei, p.e, k)).join('')}</div>
+          ${pjSel < parts.length - 1 ? `<button class="btn btn-grad btn-block" style="margin-top:10px" id="pjn2">Élève suivant : ${esc(parts[pjSel + 1].e.nom)} ▶</button>` : ''}</div>`; })() : ''}
+      <button class="btn ${parts.length && parts.every(x => K.filled(x.e)) ? 'btn-grad' : 'btn-ghost'} btn-block" style="margin-top:12px;padding:15px" id="gosa">▶ Préparer la saisie</button>`;
     K.bind(box, () => projets(box));
+    const go = i => { pjSel = (i + parts.length) % parts.length; projets(box); };
+    if (box.querySelector('#pjs')) { box.querySelector('#pjs').onchange = e => go(+e.target.value); box.querySelector('#pjp').onclick = () => go(pjSel - 1); box.querySelector('#pjn').onclick = () => go(pjSel + 1); }
+    if (box.querySelector('#pjn2')) box.querySelector('#pjn2').onclick = () => go(pjSel + 1);
     box.querySelector('#gosa').onclick = () => { tab = 'saisie'; frame(); };
   }
 
@@ -318,7 +332,7 @@ TOOL_IMPL.combine = function (el) {
     S.groups.forEach(g => g.eleves.forEach(e => normE(c, e)));
     if (!S.tl) { const d0 = S.groups.flatMap(g => g.eleves.map(e => e.dep)).filter(Boolean).sort((a, b) => a - b)[0]; S.tl = S.start || d0 ? { k: 0, ph: 'run', t0: S.start || d0 } : { k: 0, ph: 'idle', t0: null }; }
     S.groups.forEach(g => { if (!g.tl && g.start) g.tl = { k: 0, ph: 'run', t0: g.start }; });
-    const hasData = e => !!(R.some((r, k) => { const x = cbX(e, k); return x && (r.k === 'dist' ? x.dep : x.tours || x.plots); }) || cbVals(e.sauts).length || cbVals(e.lancers).length || cbVals(e.sautsA).length || cbVals(e.lancersA).length);
+    const hasData = e => !!(R.some((r, k) => { const x = cbX(e, k); return x && (r.k === 'dist' ? x.dep : x.tours || x.plots || x.man); }) || cbVals(e.sauts).length || cbVals(e.lancers).length || cbVals(e.sautsA).length || cbVals(e.lancersA).length);
     // chronologie : S (vue enseignant, toutes les classes) ou g (tablette d'un groupe)
     const scope = o => o === S ? S.groups : [o];
     const own = g => g.tl ? g : S.tl && S.tl.ph !== 'idle' ? S : g;
@@ -502,8 +516,29 @@ TOOL_IMPL.combine = function (el) {
       const now = Date.now(); let ch = adv(S, now); S.groups.forEach(g => { if (g.tl) ch = adv(g, now) || ch; });
       if (ch || dirty) { const a = document.activeElement; if (a && box.contains(a) && /INPUT|SELECT|TEXTAREA/.test(a.tagName)) { dirty = true; paint(now); return; } dirty = false; redraw(); return; }
       paint(now); };
+    if (S.manual) return manualEntry();
     const t0 = Date.now(); adv(S, t0); S.groups.forEach(g => { if (g.tl) adv(g, t0); });
     draw(); clearInterval(window._cbTick); iv = window._cbTick = setInterval(tick, 500); tick();
+
+    /* ✍️ Saisie des résultats par le prof (sans lancer l'épreuve) */
+    function manualEntry() {
+      clearInterval(window._cbTick);
+      const rows = [], ref = [], sD = hasSaut(c) && c.sElan === 'deux', lD = c.lElan === 'deux', lu = lUnit(c);
+      S.groups.forEach((g, gi) => g.eleves.forEach((e, ei) => { rows.push({ label: e.nom, sub: grp ? g.name : '' }); ref.push([gi, ei]); }));
+      const F = [...R.map((r, k) => r.k === 'dist' ? { k: 'r' + k, l: `${N > 1 ? 'C' + (k + 1) + ' · ' : ''}Temps ${r.m} m`, type: 'time' } : { k: 'r' + k, l: `${N > 1 ? 'C' + (k + 1) + ' · ' : ''}Distance (m) en ${cbRunLbl(r)}`, type: 'num' }),
+        ...(hasSaut(c) ? (sD ? [{ k: 's0', l: 'Saut sans élan (m)', type: 'num' }, { k: 's1', l: 'Saut avec élan (m)', type: 'num' }] : [{ k: 's0', l: 'Meilleur saut (m)', type: 'num' }]) : []),
+        ...(lD ? [{ k: 'l0', l: `Lancer sans élan (${lu})`, type: 'num' }, { k: 'l1', l: `Lancer avec élan (${lu})`, type: 'num' }] : [{ k: 'l0', l: `Meilleur lancer (${lu})`, type: 'num' }])];
+      spTable(box, { title: `Saisie des résultats · ${hasSaut(c) ? 'triathlon' : 'duathlon'} · ${S.classe || ''}`, rows, fields: F, cancelLbl: 'Annuler (rien n\'est enregistré)',
+        onCancel: () => { if (!confirm('Abandonner cette saisie ? Rien ne sera enregistré.')) return; DB.combine.current = null; save(); tab = 'config'; frame(); },
+        onSave: V => { V.forEach((v, i) => { const [gi, ei] = ref[i], e = S.groups[gi].eleves[ei];
+            R.forEach((r, k) => { const val = v['r' + k]; if (val == null) return; const x = cbX(e, k, true) || e;
+              if (r.k === 'dist') { x.dep = 1; x.arr = 1 + Math.round(val * 1000); } else x.man = Math.round(val); });
+            const put = (f, a) => { if (a != null) e[f] = [String(a).replace('.', ',')]; };
+            if (hasSaut(c)) { put('sauts', v.s0); if (sD) put('sautsA', v.s1); }
+            put('lancers', v.l0); if (lD) put('lancersA', v.l1); });
+          S.groups.forEach(g => g.eleves.forEach(e => { if (e.rx) e.rx = e.rx.map(x => x || {}); }));
+          saveSeance(); } });
+    }
   }
 
   /* ================= 3. BILAN (cumuls) ================= */

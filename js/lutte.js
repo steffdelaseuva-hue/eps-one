@@ -611,7 +611,7 @@ TOOL_IMPL.lutte = function (el) {
   /* ===================== Relais en équipe ===================== */
   function createRelais() {
     stop(); const c = luCfg(), T = c.type;
-    const C = { nom: '', variant: 'reste', saisie: S.saisie, cls: S.cls || luCls(), teams: null, sel: null, ta: '', tb: '' };
+    const C = { nom: '', variant: 'reste', saisie: S.saisie, cls: S.cls || luCls(), teams: null, sel: null, ta: '', tb: '', zones: 1 };
     const def = () => `Relais ${C.cls ? C.cls + ' · ' : ''}${LU_T[T].n.toLowerCase()}`;
     C.nom = def();
     const keepC = () => { if ($('#r-nom')) C.nom = $('#r-nom').value; if ($('#r-ta')) { C.ta = $('#r-ta').value; C.tb = $('#r-tb').value; }
@@ -623,34 +623,42 @@ TOOL_IMPL.lutte = function (el) {
           <label>Règle du relais</label>${tiles(LU_VAR, C.variant, 'rv')}
           <label>Déroulement des combats</label>${tiles(LU_SAI, C.saisie, 'rs')}
           <p class="muted" style="font-size:.8rem;margin:8px 0 0">Score de l'équipe = somme des points de ses lutteurs (en résultats simples sans score : nombre de victoires). Règles : ${esc(luRulesLine(luSnap(T)))}.</p></div>
+        <div class="card" data-cfg style="margin-top:12px"><h3>Zones de combat</h3>
+          <div class="tog">${[1, 2, 3, 4, 5, 6, 7, 8].map(n => `<button data-zn="${n}" class="${C.zones === n ? 'on' : ''}">${n}</button>`).join('')}</div>
+          <p class="muted" style="font-size:.8rem;margin:6px 0 0">${C.zones > 1 ? `${C.zones} zones → ${C.zones * 2} équipes : sur chaque zone, 2 équipes s'affrontent en relais. Chaque zone est un relais partagé avec les tablettes (une tablette par zone).` : 'Une zone : 2 équipes s\'affrontent.'}</p></div>
         <div class="card" data-cfg style="margin-top:12px"><h3>Équipes et ordre de passage</h3>
           ${DB.classes.length ? `<div id="r-cmp"></div>` : `<div class="row"><div><label>Équipe A · un nom par ligne, dans l'ordre</label><textarea id="r-ta" rows="6">${esc(C.ta)}</textarea></div><div><label>Équipe B</label><textarea id="r-tb" rows="6">${esc(C.tb)}</textarea></div></div>
             <button class="btn btn-ghost btn-block" id="r-mk" style="margin-top:8px">✔ Utiliser ces équipes</button>`}
-          ${C.teams ? `<div class="lu-ord">${C.teams.map((t, ti) => `<div class="card" style="border-top:5px solid ${ti ? '#1E5BD8' : '#B8912A'}"><input data-tn="${ti}" value="${esc(t.name)}" style="font-weight:800" aria-label="Nom de l'équipe">
+          ${C.teams ? `<div class="lu-ord">${C.teams.map((t, ti) => `${C.zones > 1 && ti % 2 === 0 ? `<div style="grid-column:1/-1;font-weight:900;margin-top:${ti ? 10 : 0}px">🟩 Zone ${ti / 2 + 1}</div>` : ''}<div class="card" style="border-top:5px solid ${ti % 2 ? '#1E5BD8' : '#B8912A'}"><input data-tn="${ti}" value="${esc(t.name)}" style="font-weight:800" aria-label="Nom de l'équipe">
             ${t.order.map((n, i) => `<div class="lu-ol"><span class="st">${i + 1}.</span><span class="nm">${esc(n)}</span><button data-up="${ti}|${i}" aria-label="Monter">↑</button><button data-dn="${ti}|${i}" aria-label="Descendre">↓</button><button data-sw="${ti}|${i}" aria-label="Changer d'équipe">⇄</button><button data-rm="${ti}|${i}" aria-label="Retirer">✕</button></div>`).join('') || '<div class="muted">Aucun lutteur</div>'}</div>`).join('')}</div>
             <p class="muted" style="font-size:.78rem;margin:8px 0 0">↑ ↓ ordre de passage · ⇄ changer d'équipe · ✕ retirer (absent). ⚖️ Faites se rencontrer des gabarits proches.</p>` : ''}</div>
         <button class="btn btn-grad btn-block" data-cfg="bare" id="r-ok" style="margin-top:14px;padding:17px;font-size:1.15rem">✔ Créer le relais</button>`;
       $('#r-bk').onclick = home;
       el.querySelectorAll('[data-rv]').forEach(b => b.onclick = () => { keepC(); C.variant = b.dataset.rv; draw(); });
       el.querySelectorAll('[data-rs]').forEach(b => b.onclick = () => { keepC(); C.saisie = b.dataset.rs; draw(); });
-      if ($('#r-cmp')) { mountComposer($('#r-cmp'), { id: 'lurel', modes: ['random', 'hetero'], button: '🧩 Former les 2 équipes', prep: false,
+      el.querySelectorAll('[data-zn]').forEach(b => b.onclick = () => { keepC(); const z = +b.dataset.zn; if (z === C.zones) return;
+        if (C.teams && !confirm('Changer le nombre de zones ? Les équipes devront être reformées.')) return; C.zones = z; C.teams = null; draw(); });
+      if ($('#r-cmp')) { mountComposer($('#r-cmp'), { id: 'lurel', modes: ['random', 'hetero'], button: `🧩 Former les ${C.zones * 2} équipes`, prep: false,
         onTeams: teams => { keepC(); const cl = el.querySelector('#lurel-cls'); const wasDef = C.nom === def(); C.cls = cl ? cl.value : C.cls; if (wasDef) C.nom = def();
-          const T2 = [{ name: 'Équipe A', order: [] }, { name: 'Équipe B', order: [] }];
-          if (teams.length === 1) teams[0].members.forEach((m, i) => T2[i % 2].order.push(m.n));
-          else teams.forEach((t, i) => t.members.forEach(m => T2[i < 2 ? i : T2[0].order.length <= T2[1].order.length ? 0 : 1].order.push(m.n)));
+          const NT = C.zones * 2, T2 = Array.from({ length: NT }, (_, i) => ({ name: C.zones > 1 ? `Zone ${Math.floor(i / 2) + 1} · ${i % 2 ? 'B' : 'A'}` : `Équipe ${i % 2 ? 'B' : 'A'}`, order: [] }));
+          if (teams.length === NT) teams.forEach((t, i) => t.members.forEach(m => T2[i].order.push(m.n)));
+          else { const all = teams.length === 1 ? teams[0].members : teams.flatMap(t => t.members); all.forEach((m, i) => T2[i % NT].order.push(m.n)); }
           C.teams = T2; draw(); } });
-        const v = el.querySelector('#lurel-v'); if (v) v.value = 2; const cl = el.querySelector('#lurel-cls'); if (cl && C.cls) cl.value = C.cls; }
+        const k = el.querySelector('#lurel-k'), v = el.querySelector('#lurel-v'); if (k) k.value = 'n'; if (v) v.value = C.zones * 2; const cl = el.querySelector('#lurel-cls'); if (cl && C.cls) cl.value = C.cls; }
       if ($('#r-mk')) $('#r-mk').onclick = () => { keepC(); const sp = t => [...new Set(t.split('\n').map(x => x.trim()).filter(Boolean))]; C.teams = [{ name: 'Équipe A', order: sp(C.ta) }, { name: 'Équipe B', order: sp(C.tb) }]; draw(); };
       const mv = (attr, fn) => el.querySelectorAll(`[data-${attr}]`).forEach(b => b.onclick = () => { keepC(); const [t, i] = b.dataset[attr].split('|').map(Number); fn(C.teams[t].order, i, t); draw(); });
       mv('up', (o, i) => { if (i > 0) [o[i - 1], o[i]] = [o[i], o[i - 1]]; });
       mv('dn', (o, i) => { if (i < o.length - 1) [o[i + 1], o[i]] = [o[i], o[i + 1]]; });
-      mv('sw', (o, i, t) => { C.teams[1 - t].order.push(o.splice(i, 1)[0]); });
+      mv('sw', (o, i, t) => { C.teams[t ^ 1].order.push(o.splice(i, 1)[0]); });   // ⇄ : vers l'équipe adverse de la même zone
       mv('rm', (o, i) => { o.splice(i, 1); });
-      $('#r-ok').onclick = () => { keepC(); if (!C.teams) return toast('Formez d\'abord les 2 équipes');
+      $('#r-ok').onclick = () => { keepC(); if (!C.teams) return toast(`Formez d'abord les ${C.zones * 2} équipes`);
         if (C.teams.some(t => !t.order.length)) return toast('Chaque équipe doit avoir au moins un lutteur');
-        if (C.teams[0].name === C.teams[1].name) C.teams[1].name += ' (2)';
-        const s = { id: luId(), date: Date.now(), kind: 'relais', nom: C.nom.trim() || def(), classe: C.cls || '', type: T, saisie: C.saisie, variant: C.variant, teams: luClone(C.teams), regles: luSnap(T), enCours: [] };
-        LU().seances.push(s); flush(); beep(1200, .15); toast('Relais créé ✔'); sview(s.id); };
+        const base = C.nom.trim() || def(), ids = [];
+        for (let z = 0; z < C.teams.length / 2; z++) { const tm = luClone(C.teams.slice(z * 2, z * 2 + 2)); if (tm[0].name === tm[1].name) tm[1].name += ' (2)';
+          const s = { id: luId(), date: Date.now() + z, kind: 'relais', nom: C.zones > 1 ? `${base} · Zone ${z + 1}` : base, classe: C.cls || '', type: T, saisie: C.saisie, variant: C.variant, teams: tm, regles: luSnap(T), enCours: [], ...(C.zones > 1 ? { zone: z + 1 } : {}) };
+          LU().seances.push(s); ids.push(s.id); }
+        flush(); beep(1200, .15); toast(C.zones > 1 ? `${C.zones} relais créés ✔ (une zone = un relais)` : 'Relais créé ✔');
+        if (C.zones > 1) { home(); top(); } else sview(ids[0]); };
     };
     draw(); top();
   }

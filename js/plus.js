@@ -4,9 +4,12 @@
    ========================================================= */
 /* Page Ko-fi : laisser vide tant qu'elle n'existe pas (le bouton est alors masqué) */
 const KOFI_URL = 'https://ko-fi.com/epsone';
-const APP_VERSION = '15.0';
+const APP_VERSION = '15.3';
 const APP_URL = 'https://steffdelaseuva-hue.github.io/eps-one/';
 const CHANGELOG = [
+  { v: '15.3', items: ['Lutte · relais en équipe : 1 à 8 zones de combat (2 équipes par zone) ; chaque zone devient un relais partagé avec les tablettes'] },
+  { v: '15.2', items: ['« ✍️ Saisie des résultats prof (sans lancer l\'épreuve) » : Combiné / Triathlon, Duathlon, Natation, HYROX / Crosstraining — un tableau de la classe à remplir, résultats envoyés au Bilan et aux Résultats des élèves', 'Projets (Combiné, Demi-fond, Sauvetage) : un élève à la fois avec ◀ liste ▶, au lieu d\'une longue liste', 'Combiné : boutons « 🎯 Saisir les projets » et « ▶ Préparer la saisie directement » à la fin des réglages ; « ▶ Préparer la saisie » dans l\'onglet Projets'] },
+  { v: '15.1', items: ['Multi chrono (12 élèves) : s\'affiche correctement dans l\'app (il montrait l\'accueil d\'EPS ONE) ; « Plein écran » reste dans l\'app avec un bouton ✕ pour revenir'] },
   { v: '15.0', items: ['Toutes les fenêtres (choix, aperçus, réglages…) : bouton ✕ toujours visible en haut à droite et défilement possible quand la fenêtre dépasse l\'écran (iPhone, iPad)'] },
   { v: '14.9', items: ['Combiné athlétique « sans + avec élan » : la meilleure performance sans élan (saut et lancer) est saisie en début d\'épreuve comme référence, juste au-dessus des essais avec élan ; écart en mètres et en %'] },
   { v: '14.7', items: ['Équipe EPS : bouton 😀 dédié pour choisir l\'avatar (photo, Memoji, émoji), légende des boutons'] },

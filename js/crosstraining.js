@@ -430,6 +430,20 @@ TOOL_IMPL.wod = function (el) {
           detail: `${e.nom} · ${g.name}${g.members.length > 1 ? ' (' + g.members.join(', ') + ')' : ''} · écart ${r.ecart != null ? (r.ecart > 0 ? '+' : '') + mmss(r.ecart) : '–'} / ${e.prevu} min · blocs ${g.splits.filter(Boolean).length}/${e.blocs.length}`
             + (nM ? ` · ${WOD_FMT[nM]}, ${mine.length ? mine.map(s => 'Élève ' + (s + 1)).join(' + ') : 'sans profil'} · ${e.blocs.map((b, k) => synthTxt(g, e, k, n)).join(' | ')}` : '') }); }); });
       DB.wod.current = null; save(); clearInterval(iv); toast('Séance enregistrée ✔'); tab = 'resultats'; frame(); };
+    /* ✍️ Saisie des résultats prof (sans lancer l'épreuve) : temps final (ou time cap atteint) */
+    if (cur.manual) {
+      clearInterval(iv);
+      spTable(box, { title: `Saisie des résultats · ${e.nom}`, who: cur.groups.every(g => g.members.length === 1) ? 'Élève' : 'Groupe', rows: cur.groups.map(g => ({ label: g.name, sub: g.members.length > 1 ? g.members.join(', ') : '' })),
+        help: `Temps final (ex. 12:45). Time cap ${e.cap} min atteint : cochez la case (le temps est alors facultatif). Les lignes vides sont ignorées.`,
+        fields: [{ k: 't', l: 'Temps final', type: 'time' }, { k: 'cap', l: `Time cap (${e.cap} min)`, type: 'check' }],
+        cancelLbl: 'Annuler (rien n\'est enregistré)',
+        onCancel: () => { if (!confirm('Abandonner cette saisie ? Rien ne sera enregistré.')) return; DB.wod.current = null; save(); frame(); },
+        onSave: V => { if (!V.some(v => v.t != null || v.cap)) return toast('Aucun résultat saisi');
+          V.forEach((v, gi) => { const g = cur.groups[gi]; if (v.t == null && !v.cap) return; const t = v.t != null ? v.t : e.cap * 60;
+            g.dep = 1; g.arr = 1 + Math.round(t * 1000); g.capped = !!v.cap || t > e.cap * 60; g.splits = e.blocs.map(() => null); });
+          delete cur.manual; saveSeance(); } });
+      return;
+    }
     const shut = new Set();                                     // vue enseignant : suivis par élève repliés
     const draw = () => {
       if (cur.only != null && cur.groups[cur.only]) return drawGroup();
@@ -485,6 +499,7 @@ TOOL_IMPL.wod = function (el) {
     draw(); clearInterval(window._wodTick); iv = window._wodTick = setInterval(tick, 500); tick();
   }
 
+  let wodManual = false;
   function prepare(box) {
     if (!DB.wod.epreuves.length) { box.innerHTML = '<div class="card empty">Créez d\'abord une épreuve dans l\'onglet 🏋️ Épreuves.</div>'; partMount(box, 'wod', p => join(box, p)); return; }
     let mode = 'grp', sel = DB.wod.epreuves[0].id;
@@ -494,13 +509,15 @@ TOOL_IMPL.wod = function (el) {
         <label>Épreuve</label><select id="ep">${DB.wod.epreuves.map(e => `<option value="${e.id}" ${e.id === ep.id ? 'selected' : ''}>${esc(e.nom)} — ${e.format ? WOD_FMT[e.format] + ' · ' : ''}${e.sport === 'hyrox' ? 'HYROX' : 'Crosstraining'}</option>`).join('')}</select>
         ${fmt ? `<div class="pill" style="margin-top:10px;display:inline-block">Format de l'épreuve : <b>${WOD_FMT[fmt]}</b>${fmt >= 2 ? ` · groupes de ${fmt} (Élève 1 à ${fmt})` : ' · un élève = une fiche'}</div>`
           : `<label>Organisation</label><div class="seg"><button data-md="indiv" class="${md === 'indiv' ? 'on' : ''}">Individuel</button><button data-md="grp" class="${md === 'grp' ? 'on' : ''}">Groupes<br><small style="font-weight:600;opacity:.85">duo · trio · quatuor</small></button></div>`}
+        <label>Déroulement</label><div class="seg"><button data-wm="live" class="${wodManual ? '' : 'on'}">⏱ Séance en direct (tablettes)</button><button data-wm="man" class="${wodManual ? 'on' : ''}">${SP_BTN.replace(' (', '<br><small>(').replace(')', ')</small>')}</button></div>
         <div id="who" style="margin-top:10px"></div></div>`;
+      box.querySelectorAll('[data-wm]').forEach(b => b.onclick = () => { wodManual = b.dataset.wm === 'man'; draw(); });
       box.querySelectorAll('[data-md]').forEach(b => b.onclick = () => { mode = b.dataset.md; draw(); });
       box.querySelector('#ep').onchange = ev => { sel = ev.target.value; draw(); };
       const who = box.querySelector('#who');
       const launch = (groups, classe) => { const e = E(box.querySelector('#ep').value);
         DB.wod.current = { id: wid(), date: Date.now(), classe, snap: JSON.parse(JSON.stringify(e)), start: null,
-          groups: groups.map(g => ({ ...g, ...(wodMulti(e) ? { prof: profInit(g.members, wodMulti(e)) } : {}), dep: null, arr: null, capped: false, splits: e.blocs.map(() => null) })) }; pub(DB.wod.current, true); save(); seance(box); };
+          groups: groups.map(g => ({ ...g, ...(wodMulti(e) ? { prof: profInit(g.members, wodMulti(e)) } : {}), dep: null, arr: null, capped: false, splits: e.blocs.map(() => null) })) }; if (wodManual) DB.wod.current.manual = true; else pub(DB.wod.current, true); save(); seance(box); };
       if (md === 'indiv') {
         who.innerHTML = DB.classes.length ? `<label>Classe</label><select id="cl">${DB.classes.map(c => `<option>${esc(c.name)}</option>`).join('')}</select><button class="btn btn-grad btn-block" style="margin-top:12px" id="go">▶ Préparer la séance</button>` : noClassMsg;
         const go = who.querySelector('#go'); if (go) go.onclick = () => { const c = who.querySelector('#cl').value; launch(studentsOf(c).map(n => ({ name: n, members: [n] })), c); };

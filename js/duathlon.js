@@ -128,6 +128,7 @@ TOOL_IMPL.duathlon = function (el) {
     save(); partPickGroup(box, D.current.groups, i => { if (!D.current) return prepare(box); D.current.only = i; save(); live(box); }); };
 
   /* ---- Préparation ---- */
+  let duaManual = false;
   function prepare(box) {
     const c = D.lastCfg || { optL: true, boucles: 1, optC: false, secC: 10 };
     box.innerHTML = `<div class="card" data-cfg><h3>Nouvelle épreuve de duathlon</h3>
@@ -142,8 +143,10 @@ TOOL_IMPL.duathlon = function (el) {
         <p class="muted" style="margin:2px 0 0;font-size:.8rem">Coché : les élèves qui courent ensemble cochent <b>un seul</b> compteur de tours (ex. étape 3 : 8 tours en binôme, pas 8 + 8).</p>
         <label>Distance d'épreuve (m) — pour le coefficient de maîtrise</label><input id="di" type="number" min="100" step="100" value="${c.dist || DUA_DIST}"></div>
       <div class="card" data-cfg style="margin-top:12px"><h3>Groupes</h3><label style="margin-top:0">Taille des groupes</label><div class="seg" id="sz">${[[2, 'Duos'], [3, 'Trios'], [4, 'Quatuors']].map(([n, l]) => `<button data-n="${n}">${l}</button>`).join('')}</div><div id="cmp" style="margin-top:6px"></div></div>
+      <div class="card" data-cfg style="margin-top:12px"><label style="margin-top:0">Déroulement</label><div class="seg" id="dmode"><button data-dm="live" class="${duaManual ? '' : 'on'}">⏱ Épreuve en direct (tablettes)</button><button data-dm="man" class="${duaManual ? 'on' : ''}">${SP_BTN.replace(' (', '<br><small>(').replace(')', ')</small>')}</button></div></div>
       <div id="vmac"></div>`;
     const $ = s => box.querySelector(s);
+    box.querySelectorAll('[data-dm]').forEach(b => b.onclick = () => { duaManual = b.dataset.dm === 'man'; box.querySelectorAll('[data-dm]').forEach(x => x.classList.toggle('on', x === b)); const g = box.querySelector('#dua-go'); if (g) g.textContent = duaManual ? '✍️ Former les groupes et saisir les résultats' : '▶ Former les groupes et commencer'; });
     const vis = () => { $('#olw').style.display = $('#ol').checked ? 'block' : 'none'; $('#ocw').style.display = $('#oc').checked ? 'block' : 'none'; };
     $('#ol').onchange = $('#oc').onchange = vis; vis();
     mountComposer($('#cmp'), { id: 'dua', modes: ['random', 'hetero', 'homo'], button: '▶ Former les groupes et commencer',
@@ -154,7 +157,7 @@ TOOL_IMPL.duathlon = function (el) {
         D.current = { id: Date.now().toString(36), date: Date.now(), nom: $('#nm').value.trim() || 'Duathlon', classe: cls, cfg, etape: 0,
           groups: teams.map(t => { const members = t.members.map(m => m.n);
             return { name: t.name.replace('Équipe', 'Groupe'), members, vma: snapVma(cls, members), etapes: [0, 1, 2].map(() => ({ dep: null, arr: null, m: Object.fromEntries(members.map(n => [n, blank()])) })) }; }) };
-        pub(D.current, true); save(); live(box);
+        if (duaManual) D.current.manual = true; else pub(D.current, true); save(); live(box);
       } });
     const setSize = n => { $('#dua-k').value = 's'; $('#dua-v').value = n; box.querySelectorAll('#sz [data-n]').forEach(b => b.classList.toggle('on', +b.dataset.n === n)); };
     box.querySelectorAll('#sz [data-n]').forEach(b => b.onclick = () => setSize(+b.dataset.n)); setSize(2);
@@ -186,6 +189,22 @@ TOOL_IMPL.duathlon = function (el) {
       return `<div class="card" style="margin-top:12px"><h3 style="margin-top:0">📥 Résultats reçus des tablettes : ${C.groups.filter(g => got.has(g.name)).length} / ${C.groups.length}</h3>
         <div style="display:flex;flex-wrap:wrap;gap:6px">${C.groups.map(g => `<span class="pill" style="font-size:.85rem;padding:6px 10px;${got.has(g.name) ? 'background:rgba(27,158,90,.15);color:#1B9E5A' : ''}">${got.has(g.name) ? '✅' : '⏳'} ${esc(g.name)}</span>`).join('')}</div>
         <p class="muted" style="font-size:.78rem;margin:8px 0 0">⏳ = pas encore reçu : le groupe doit toucher « 💾 Enregistrer », et sa tablette avoir du réseau.</p></div>`; };
+    /* ✍️ Saisie des résultats prof (sans lancer l'épreuve) : par groupe, temps des 3 étapes (ou temps total), points de lancers, tours */
+    if (C.manual) {
+      clearInterval(window._duaTick);
+      spTable(box, { title: `Saisie des résultats · ${C.nom}`, who: 'Groupe', rows: C.groups.map(g => ({ label: g.name, sub: g.members.join(', ') })),
+        help: 'Temps de chaque étape (ex. 3:25), ou seulement le temps total. Points de lancers et tours : total du groupe. Les lignes vides sont ignorées.',
+        fields: [{ k: 't1', l: 'Étape 1', type: 'time' }, { k: 't2', l: 'Étape 2', type: 'time' }, { k: 't3', l: 'Étape 3', type: 'time' }, { k: 'tt', l: 'ou temps total', type: 'time' },
+          { k: 'pts', l: 'Points lancers', type: 'num' }, { k: 'tours', l: 'Tours', type: 'num' }],
+        cancelLbl: 'Annuler (rien n\'est enregistré)',
+        onCancel: () => { if (!confirm('Abandonner cette saisie ? Rien ne sera enregistré.')) return; D.current = null; save(); frame(); },
+        onSave: V => { V.forEach((v, gi) => { const g = C.groups[gi], ts = [v.t1, v.t2, v.t3];
+            if (ts.every(x => x == null) && v.tt != null) ts.splice(0, 3, v.tt, 0, 0);
+            ts.forEach((t, e) => { if (t == null) return; const E = g.etapes[e]; E.dep = 1; E.arr = 1 + Math.round(t * 1000); });
+            const m0 = g.etapes[0].m[g.members[0]]; if (m0) { if (v.pts != null) m0.pts = Math.round(v.pts); if (v.tours != null) m0.tours = Math.round(v.tours); } });
+          delete C.manual; saveSeance(); } });
+      return;
+    }
     const etT = E => E.dep ? ((E.arr || Date.now()) - E.dep) / 1000 : 0;
     // Vue « un seul groupe » : ce que voient les élèves sur leur tablette
     const drawGroup = () => {

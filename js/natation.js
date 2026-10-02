@@ -292,6 +292,24 @@ const natJoin = (box, p, frame) => { const T = p.tpl; if (!T || !T.groups) retur
   partPickGroup(box, T.groups, i => { if (i == null) { if (DB.tablette?.natation) DB.tablette.natation.on = false; save(); return frame(); }
     natTabSet({ cls: T.cls, label: T.groups[i].name, noms: [...T.groups[i].members], on: true }); DB.lastClass = T.cls; save(); frame(); }); };
 
+/* ✍️ Saisie des résultats prof (sans lancer l'épreuve) : distance, temps, coups de bras pour toute la classe */
+function natManual(box, back) {
+  let cls = natCls(), d = 25;
+  const pick = () => {
+    box.innerHTML = `<div class="card"><h3 style="margin-top:0">✍️ Saisie des résultats prof</h3><div class="row"><div><label>Classe</label><select id="nm-c">${DB.classes.map(c => `<option ${c.name === cls ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</select></div>
+      <div><label>Distance (m)</label><select id="nm-d">${[25, 50, 100, 200, 400].map(v => `<option ${v === d ? 'selected' : ''}>${v}</option>`).join('')}</select></div></div>
+      <button class="btn btn-grad btn-block" style="margin-top:12px" id="nm-go">Continuer ▶</button><button class="btn btn-ghost btn-block" style="margin-top:8px" id="nm-x">Annuler</button></div>`;
+    box.querySelector('#nm-x').onclick = back;
+    box.querySelector('#nm-go').onclick = () => { cls = box.querySelector('#nm-c').value; d = +box.querySelector('#nm-d').value; DB.lastClass = cls; save(); table(); };
+  };
+  const table = () => { const st = studentsOf(cls);
+    spTable(box, { title: `Natation · ${cls} · ${d} m`, rows: st.map(n => ({ label: n })), fields: [{ k: 't', l: `Temps ${d} m`, type: 'time', ph: '0:25,4' }, { k: 'c', l: 'Coups de bras', type: 'num' }],
+      cancelLbl: '← Retour', onCancel: pick,
+      onSave: V => { let n = 0; V.forEach((v, i) => { if (v.t == null) return; DB.natation.push({ date: Date.now(), classe: cls, eleve: st[i], d, t: Math.round(v.t * 100) / 100, c: v.c != null ? Math.round(v.c) : 0 }); n++; });
+        if (!n) return toast('Saisissez au moins un temps'); save(); toast(`${n} résultat(s) enregistré(s) ✔`); back(); } }); };
+  pick();
+}
+
 TOOL_IMPL.natation = function (el) {
   let mode = DB.natMode || 'vite', stop = null;
   const frame = () => {
@@ -316,6 +334,8 @@ TOOL_IMPL.natation = function (el) {
     }
     // séance partagée : proposer des lignes / rejoindre une séance d'une autre tablette
     const sh = document.createElement('div'); box.prepend(sh); natShareCard(sh, frame);
+    if (mode === 'vite' && DB.classes.length) { const mb = document.createElement('button'); mb.className = 'btn btn-ghost btn-block'; mb.setAttribute('data-cfg', 'bare'); mb.style.marginBottom = '12px'; mb.textContent = SP_BTN;
+      mb.onclick = () => natManual(box, frame); box.prepend(mb); }
     if (typeof partMount === 'function') partMount(box, 'natation', p => natJoin(box, p, frame));
   };
   frame();

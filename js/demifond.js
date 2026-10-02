@@ -219,6 +219,23 @@ const dfPhDur = (c, ph) => ph.rest != null ? c.rests[ph.rest].d : c.runs[ph.r].k
 /* =========================================================
    L'OUTIL
    ========================================================= */
+/* Projets : un élève (ou groupe) à la fois, avec sélecteur ◀ liste ▶ (au lieu d'une longue liste) */
+const dfPjSel = {};
+function dfPjPick(tool, parts, card, ok) {
+  if (!parts.length) return '';
+  const i = Math.max(0, Math.min(dfPjSel[tool] || 0, parts.length - 1)); dfPjSel[tool] = i; const P = parts[i];
+  return `<div class="card" style="margin-top:10px"><label style="margin-top:0">${parts.length > 1 ? `Projet de · ${i + 1}/${parts.length}` : 'Projet de'}</label>
+    <div class="row" style="align-items:center;gap:6px"><button class="btn btn-ghost" style="flex:0 0 52px" data-pjnav="-1" aria-label="Précédent">◀</button>
+      <select data-pjsel style="flex:1">${parts.map((x, k) => `<option value="${k}" ${k === i ? 'selected' : ''}>${ok && ok(x) ? '✅ ' : ''}${esc(x.label)}${x.sub ? ' · ' + esc(x.sub) : ''}</option>`).join('')}</select>
+      <button class="btn btn-ghost" style="flex:0 0 52px" data-pjnav="1" aria-label="Suivant">▶</button></div></div>
+    ${card(P)}${i < parts.length - 1 ? `<button class="btn btn-grad btn-block" style="margin-top:10px" data-pjnav="1">Suivant : ${esc(parts[i + 1].label)} ▶</button>` : ''}`;
+}
+function dfPjWire(box, tool, parts, redraw) {
+  const go = k => { dfPjSel[tool] = ((k % parts.length) + parts.length) % parts.length; redraw(); };
+  box.querySelectorAll('[data-pjnav]').forEach(b => b.onclick = () => go((dfPjSel[tool] || 0) + +b.dataset.pjnav));
+  const s = box.querySelector('[data-pjsel]'); if (s) s.onchange = () => go(+s.value);
+}
+
 TOOL_IMPL.demifond = function (el) {
   const D = liveDB(dfDB);   // toujours l'objet synchronisé actuel
   let tab = D.current ? 'live' : 'prep', rk = 'ecart', iv = null, lastSig = '', unit = 'nat';
@@ -415,11 +432,12 @@ TOOL_IMPL.demifond = function (el) {
         <label>Proposer d'après la VMA</label><div data-cfg="bare" style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><input id="pct" type="number" min="40" max="120" step="5" value="${c.pct}" style="width:76px;text-align:center"> <span>% VMA</span>
           <button class="btn btn-ghost" id="fill" style="padding:9px 12px">Remplir les projets vides</button><button class="btn btn-ghost" id="fillall" style="padding:9px 12px">Tout remplacer</button></div>
         <p class="df-help">Élèves 🚶 marche rapide : projet ramené dans ${dfFr(c.mrMin)}–${dfFr(c.mrMax)} km/h (${dfFr((c.mrMin + c.mrMax) / 2)} km/h si la VMA est inconnue). ${filled}/${parts.length} projets complets.</p></div>
-      ${parts.map(P => `<div class="card" style="margin-top:10px${P.mr ? ';border:2px dashed #8E5BD8' : ''}"><div style="display:flex;gap:8px;align-items:baseline;flex-wrap:wrap"><b style="font-size:1.05rem">${esc(P.label)}</b>${P.mr ? '<span class="df-mr">🚶 marche rapide</span>' : ''}
+      ${dfPjPick('df', parts, P => `<div class="card" style="margin-top:10px${P.mr ? ';border:2px dashed #8E5BD8' : ''}"><div style="display:flex;gap:8px;align-items:baseline;flex-wrap:wrap"><b style="font-size:1.05rem">${esc(P.label)}</b>${P.mr ? '<span class="df-mr">🚶 marche rapide</span>' : ''}
           <span class="muted" style="font-size:.78rem">${P.sub ? esc(P.sub) + ' · ' : ''}${P.vma ? `VMA ${dfFr(P.vma)} km/h` : 'VMA inconnue'}</span></div>
-        ${P.runs.length ? `<div class="df-pj">${c.projMode === 'global' ? cell(P, 'g') : P.runs.map(k => cell(P, k)).join('')}</div>` : '<p class="muted" style="margin:6px 0 0">Ne court aucune course (voir relais).</p>'}</div>`).join('')}
+        ${P.runs.length ? `<div class="df-pj">${c.projMode === 'global' ? cell(P, 'g') : P.runs.map(k => cell(P, k)).join('')}</div>` : '<p class="muted" style="margin:6px 0 0">Ne court aucune course (voir relais).</p>'}</div>`, P => P.runs.length && (c.projMode === 'global' ? ((P.g.proj || {})[P.key] || {}).g : P.runs.every(k => ((P.g.proj || {})[P.key] || {})[k])))}
       <button class="btn btn-grad btn-block" style="margin-top:12px" id="golv">⏱ Aller à la course</button>`;
     const keep = () => { save(); pub(C); };
+    dfPjWire(box, 'df', parts, () => projets(box, C));
     box.querySelectorAll('[data-pm]').forEach(b => b.onclick = () => { c.projMode = b.dataset.pm; keep(); projets(box, C); });
     box.querySelectorAll('[data-un]').forEach(b => b.onclick = () => { unit = b.dataset.un; projets(box, C); });
     box.querySelectorAll('[data-pj]').forEach(i => i.onchange = () => { const [gi, ...rest] = i.dataset.pj.split('|'), k = rest.pop(), key = rest.join('|'), g = C.groups[+gi];

@@ -762,6 +762,7 @@ if('serviceWorker' in navigator && location.protocol==='https:'){ navigator.serv
     b.style.cssText='position:fixed;left:50%;transform:translateX(-50%);bottom:calc(86px + env(safe-area-inset-bottom));z-index:450;border-radius:999px;box-shadow:var(--shadow);width:auto;padding:12px 18px';
     b.textContent='🔄 Nouvelle version prête · Toucher pour l\'appliquer'; b.onclick=()=>{ try{window.saveNow&&saveNow();}catch(e){} location.reload(); }; document.body.appendChild(b); }); }
 </script>
+<script src="js/saisieprof.js"></script>
 <script src="js/outils-plus.js"></script>
 <script src="js/test-vma.js"></script>
 <script src="js/test6e.js"></script>

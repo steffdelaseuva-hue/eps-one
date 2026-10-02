@@ -124,8 +124,13 @@ chronos12(el) {
     toast(`${Math.min(12, st.length)} prénoms chargés ✔`);
     sel.value = '';
   };
-  el.querySelector('#full').onclick = () => { location.href = 'outils/chronos-eps.html'; };
-  return () => el.classList.remove('flush');
+  // Plein écran DANS l'app (sans quitter EPS ONE) : bouton ✕ pour revenir
+  if (!document.getElementById('chr-css')) document.head.insertAdjacentHTML('beforeend', `<style id="chr-css">.chronos-frame.fs{position:fixed;inset:0;width:100vw;height:100vh;height:100dvh;z-index:140;background:#fff;border:0}
+    .chr-x{position:fixed;top:calc(8px + env(safe-area-inset-top));right:calc(10px + env(safe-area-inset-right));z-index:141;width:46px;height:46px;border-radius:50%;border:none;background:rgba(11,42,91,.9);color:#fff;font-size:1.3rem;font-weight:900;box-shadow:0 4px 14px rgba(0,0,0,.3)}</style>`);
+  let xb = null;
+  const exitFs = () => { fr.classList.remove('fs'); if (xb) { xb.remove(); xb = null; } };
+  el.querySelector('#full').onclick = () => { fr.classList.add('fs'); xb = document.createElement('button'); xb.className = 'chr-x'; xb.type = 'button'; xb.textContent = '✕'; xb.setAttribute('aria-label', 'Quitter le plein écran'); xb.onclick = exitFs; document.body.appendChild(xb); };
+  return () => { exitFs(); el.classList.remove('flush'); };
 },
 
 /* ---------- Vidéo différée ---------- */
