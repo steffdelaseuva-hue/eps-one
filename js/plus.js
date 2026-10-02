@@ -4,9 +4,11 @@
    ========================================================= */
 /* Page Ko-fi : laisser vide tant qu'elle n'existe pas (le bouton est alors masqué) */
 const KOFI_URL = 'https://ko-fi.com/epsone';
-const APP_VERSION = '14.7';
+const APP_VERSION = '15.0';
 const APP_URL = 'https://steffdelaseuva-hue.github.io/eps-one/';
 const CHANGELOG = [
+  { v: '15.0', items: ['Toutes les fenêtres (choix, aperçus, réglages…) : bouton ✕ toujours visible en haut à droite et défilement possible quand la fenêtre dépasse l\'écran (iPhone, iPad)'] },
+  { v: '14.9', items: ['Combiné athlétique « sans + avec élan » : la meilleure performance sans élan (saut et lancer) est saisie en début d\'épreuve comme référence, juste au-dessus des essais avec élan ; écart en mètres et en %'] },
   { v: '14.7', items: ['Équipe EPS : bouton 😀 dédié pour choisir l\'avatar (photo, Memoji, émoji), légende des boutons'] },
   { v: '14.6', items: ['Escrime : préparation en 4 étapes (assaut, tournoi style ATP, championnat, élimination, pyramide · déroulement · tireurs · réglages)'] },
   { v: '14.5', items: ['Sports collectifs : préparation en 4 étapes (forme · déroulement · équipes · réglages) et match en « résultats simples »', 'Équipe EPS : avatar de chaque enseignant (photo, capture de son Memoji ou émoji) à la place des initiales'] },

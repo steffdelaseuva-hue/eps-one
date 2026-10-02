@@ -204,12 +204,12 @@ TOOL_IMPL.combine = function (el) {
         ${c.projOn ? `<p class="df-help">En vitesse (km/h), en distance (m, tours ou plots) pour une course en durée, ou en temps pour une course en distance. Écart projet / réalisation après chaque course et sur le total.</p>
           <div class="row"><div><label>Tolérance « projet respecté » (± %)</label><input id="tol" type="number" min="1" max="30" step="1" value="${c.tol}"></div><div><label>Vitesse de référence (km/h)</label><input id="refv" type="number" min="3" step="0.5" value="${c.refV}"></div></div>
           <p class="df-help">Écart vert si ≤ ${c.tol} %, orange si ≤ ${2 * c.tol} %, rouge au-delà.${multi ? '' : `<br>Équivalence à ${dfFr(c.refV)} km/h : ${cbEq(c.refV, R[0], c)}`}</p>` : ''}</div>
-      ${hasSaut(c) ? `<div class="card" data-cfg style="margin-top:12px"><h3>🦘 Saut</h3><div class="row"><div><label>${c.sElan === 'deux' ? 'Essais sans élan' : 'Nombre d\'essais'}</label>${nSel('se', c.sEssais)}</div>
-          <div><label>Élan</label>${elSel('sl', c.sElan)}</div>${c.sElan === 'deux' ? `<div><label>Essais avec élan</label>${nSel('sea', c.sEssaisA)}</div>` : ''}</div><p class="muted" style="margin:6px 0 0">Mesure en mètres.${c.sElan === 'deux' ? ' Meilleur essai sans élan et avec élan → gain de l\'élan (m et %).' : ''}</p></div>` : ''}
-      <div class="card" data-cfg style="margin-top:12px"><h3>🥏 Lancer</h3><div class="row"><div><label>${c.lElan === 'deux' ? 'Essais sans élan' : 'Nombre d\'essais'}</label>${nSel('le', c.lEssais)}</div>
+      ${hasSaut(c) ? `<div class="card" data-cfg style="margin-top:12px"><h3>🦘 Saut</h3><div class="row"><div style="${c.sElan === 'deux' ? 'display:none' : ''}"><label>Nombre d'essais</label>${nSel('se', c.sEssais)}</div>${c.sElan === 'deux' ? '<div><label>Sans élan</label><div style="padding:10px 0;font-weight:700;font-size:.9rem">📌 1 référence</div></div>' : ''}
+          <div><label>Élan</label>${elSel('sl', c.sElan)}</div>${c.sElan === 'deux' ? `<div><label>Essais avec élan</label>${nSel('sea', c.sEssaisA)}</div>` : ''}</div><p class="muted" style="margin:6px 0 0">Mesure en mètres.${c.sElan === 'deux' ? ' Sans élan : la meilleure performance est saisie en début d\'épreuve (référence), puis les essais avec élan → écart en m et en %.' : ''}</p></div>` : ''}
+      <div class="card" data-cfg style="margin-top:12px"><h3>🥏 Lancer</h3><div class="row"><div style="${c.lElan === 'deux' ? 'display:none' : ''}"><label>Nombre d'essais</label>${nSel('le', c.lEssais)}</div>${c.lElan === 'deux' ? '<div><label>Sans élan</label><div style="padding:10px 0;font-weight:700;font-size:.9rem">📌 1 référence</div></div>' : ''}
           <div><label>Élan</label>${elSel('ll', c.lElan)}</div>${c.lElan === 'deux' ? `<div><label>Essais avec élan</label>${nSel('lea', c.lEssaisA)}</div>` : ''}</div>
         <label>Mesure</label><div class="seg">${[['distance', 'Distance (m)'], ['zones', 'Zones'], ['points', 'Points']].map(([k, l]) => `<button data-lm="${k}" class="${c.lMesure === k ? 'on' : ''}">${l}</button>`).join('')}</div>
-        ${c.lElan === 'deux' ? '<p class="muted" style="margin:6px 0 0">Meilleur essai sans élan et avec élan → gain de l\'élan (écart et %).</p>' : ''}</div>
+        ${c.lElan === 'deux' ? '<p class="muted" style="margin:6px 0 0">Sans élan : la meilleure performance est saisie en début d\'épreuve (référence), puis les essais avec élan → écart en m (ou zones, points) et en %.</p>' : ''}</div>
       <details class="card" style="margin-top:12px"><summary style="font-weight:800;cursor:pointer">🔁 Convertisseur distance ⇄ vitesse</summary>
         <div class="row"><div><label>Distance (m)</label><input id="xd" type="number"></div><div><label>Temps (min)</label><input id="xm" type="number" min="0"></div><div><label>(s)</label><input id="xs" type="number" min="0"></div><div><label>Vitesse (km/h)</label><input id="xv" type="number" step="0.1"></div></div>
         <p class="muted" style="margin:6px 0 0">Remplissez 2 des 3 valeurs (distance, temps, vitesse) : la 3e est calculée.</p><button class="btn btn-ghost btn-block" style="margin-top:8px" id="xgo">Calculer</button><div id="xr" style="margin-top:8px;font-weight:800;text-align:center"></div></details>
@@ -372,13 +372,21 @@ TOOL_IMPL.combine = function (el) {
       const block = (ico, nm, u, E, a1, arr1, a2, arr2, elan) => {
         if (!E.deux) return big ? `<div style="margin-top:12px;font-weight:800">${ico} ${nm} (${u})${elan === 'avec' ? ' · avec élan' : ''}</div><div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:6px">${inp(a1, arr1)}</div><div class="muted" style="font-size:.85rem">meilleur <b>${E.best ? n1(E.best) : '–'}</b> · cumul ${E.sum ? n1(E.sum) : '–'}</div>`
           : `<div style="margin-top:6px;font-size:.85rem"><b>${nm} (${u})</b> ${inp(a1, arr1)} <span class="muted">meilleur <b>${E.best ? n1(E.best) : '–'}</b> · cumul ${E.sum ? n1(E.sum) : '–'}</span></div>`;
-        return big ? `<div style="margin-top:12px;font-weight:800">${ico} ${nm} sans élan (${u})</div><div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:6px">${inp(a1, arr1)}</div><div class="muted" style="font-size:.85rem">meilleur sans élan <b>${E.sans ? n1(E.sans) : '–'}</b></div>
-            <div style="margin-top:10px;font-weight:800">${ico} ${nm} avec élan (${u})</div><div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:6px">${inp(a2, arr2)}</div><div class="muted" style="font-size:.85rem">meilleur avec élan <b>${E.avec ? n1(E.avec) : '–'}</b></div>
-            <div style="margin-top:6px;font-weight:800">⚡ Gain de l'élan : ${cbGainTxt(E, u)}</div>`
-          : `<div style="margin-top:6px;font-size:.85rem"><b>${nm} sans élan (${u})</b> ${inp(a1, arr1)} <span class="muted">meilleur <b>${E.sans ? n1(E.sans) : '–'}</b></span></div>
-            <div style="margin-top:4px;font-size:.85rem"><b>${nm} avec élan</b> ${inp(a2, arr2)} <span class="muted">meilleur <b>${E.avec ? n1(E.avec) : '–'}</b></span></div>
-            <div class="cb-el">⚡ Gain de l'élan : <b>${cbGainTxt(E, u)}</b></div>`; };
+        // « les deux » : la référence SANS élan est saisie en haut de la fiche (refHTML) ; ici, les essais AVEC élan + l'écart
+        const ref = E.sans ? `${n1(E.sans)} ${u}` : '<span style="color:var(--danger)">à saisir en haut</span>';
+        return big ? `<div style="margin-top:12px;font-weight:800">${ico} ${nm} avec élan (${u})</div><div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:6px">${inp(a2, arr2)}</div>
+            <div class="muted" style="font-size:.85rem">meilleur avec élan <b>${E.avec ? n1(E.avec) : '–'}</b> · référence sans élan <b>${ref}</b></div>
+            <div style="margin-top:6px;font-weight:800">⚡ Écart avec élan : ${cbGainTxt(E, u)}</div>`
+          : `<div style="margin-top:4px;font-size:.85rem"><b>${nm} avec élan (${u})</b> ${inp(a2, arr2)} <span class="muted">meilleur <b>${E.avec ? n1(E.avec) : '–'}</b> · réf. sans élan <b>${ref}</b></span></div>
+            <div class="cb-el">⚡ Écart avec élan : <b>${cbGainTxt(E, u)}</b></div>`; };
       return (hasSaut(c) ? block('🦘', 'Sauts', 'm', cbElan(c, e, 's'), 'sa', e.sauts, 'sb', e.sautsA || [], c.sElan) : '') + block('🥏', 'Lancers', lUnit(c), cbElan(c, e, 'l'), 'la', e.lancers, 'lb', e.lancersA || [], c.lElan); };
+    // Performances de référence SANS élan (« les deux ») : une seule valeur par épreuve, saisie en début d'épreuve, en haut de la fiche
+    const refHTML = (k, e, big) => { const L = [];
+      if (hasSaut(c) && c.sElan === 'deux') L.push(['rs', '🦘 Saut sans élan', 'm', cbElan(c, e, 's').sans]);
+      if (c.lElan === 'deux') L.push(['rl', '🥏 Lancer sans élan', lUnit(c), cbElan(c, e, 'l').sans]);
+      if (!L.length) return '';
+      return `<div class="cb-ref" style="margin:8px 0 4px;padding:8px 10px;border-radius:12px;background:var(--grad-soft);border:1.5px solid var(--line)"><div style="font-weight:800;font-size:.85rem">📌 Référence sans élan <span class="muted" style="font-weight:600">· meilleure performance, en début d'épreuve</span></div>
+        <div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:6px">${L.map(([a, l, u, v]) => `<label style="margin:0;display:flex;align-items:center;gap:6px;font-weight:700;color:var(--text)">${l}<input ${big ? 'class="gv-in" style="width:90px"' : 'style="width:70px;padding:6px;text-align:center"'} inputmode="decimal" data-${a}="${k}" value="${v ? String(v).replace('.', ',') : ''}" placeholder="${u}"></label>`).join('')}</div></div>`; };
     const saveSeance = () => {
       // seuls les groupes / élèves ayant des résultats sont enregistrés (une tablette par groupe → pas de lignes vides)
       const done = S.groups.filter(g => g.eleves.some(hasData)); if (!done.length) return toast(grp ? 'Aucun groupe n\'a de résultat' : 'Aucun résultat saisi');
@@ -409,7 +417,7 @@ TOOL_IMPL.combine = function (el) {
                 ${c.plotOn ? `<div class="gv-cnt"><span class="l">🔶 Plots</span><button class="btn btn-ghost" data-dec="${key}|plots" ${on ? '' : 'disabled'}>−</button><b>${x.plots || 0}</b><button class="btn btn-ghost" data-inc="${key}|plots" ${on ? '' : 'disabled'}>+</button></div>` : ''}
                 <div class="muted" style="font-size:.85rem;text-align:right">${raw} m · ${n1(r.v || 0)} km/h</div>`}
             ${pjLine(e, k)}${sumLine(e)}${pjBlock(gi, ei, e, o)}
-            ${essaisHTML(key, e, true)}</div>`; }).join('')}
+            ${refHTML(key, e, true)}${essaisHTML(key, e, true)}</div>`; }).join('')}
         ${g.eleves.some(hasData) ? `<button class="btn btn-grad btn-block" style="margin-top:12px" id="save">💾 Enregistrer ${grp ? 'les résultats du groupe' : 'mon résultat'}</button>` : ''}
         <div style="text-align:center;margin:18px 0 6px"><button class="link" id="gv-prof">🔒 Mode enseignant</button></div>`;
       bind(o, k);
@@ -430,6 +438,9 @@ TOOL_IMPL.combine = function (el) {
       const step = (s, d) => { const [gi, ei, f] = s.split('|'); const x = cbX(S.groups[+gi].eleves[+ei], k, true); x[f] = Math.max(0, (x[f] || 0) + d); if (d > 0) beep(f === 'tours' ? 1100 : 800, .05); keep(); redraw(); };
       all('[data-inc]').forEach(b => b.onclick = () => step(b.dataset.inc, 1));
       all('[data-dec]').forEach(b => b.onclick = () => step(b.dataset.dec, -1));
+      [['rs', 'sauts'], ['rl', 'lancers']].forEach(([a, f]) => all(`[data-${a}]`).forEach(i => i.onchange = () => { const [gi, ei] = i.dataset[a].split('|').map(Number), e = S.groups[gi].eleves[ei], v = i.value.trim();
+        if (v && !(parseFloat(v.replace(',', '.')) > 0)) { toast('Valeur non reconnue'); return redraw(); }
+        e[f] = v ? [v] : []; keep(); redraw(); }));
       [['sa', 'sauts'], ['sb', 'sautsA'], ['la', 'lancers'], ['lb', 'lancersA']].forEach(([a, f]) => all(`[data-${a}]`).forEach(i => i.onchange = () => { const [gi, ei, n] = i.dataset[a].split('|').map(Number), e = S.groups[gi].eleves[ei]; (e[f] = e[f] || [])[n] = i.value.trim(); keep(); redraw(); }));
       all('[data-vk]').forEach(b => b.onclick = () => { const v = +b.dataset.vk; vk = v === TL(o).k || v === vk ? null : v; redraw(); });
       K.bind(box, () => { redraw(); box.querySelectorAll('.cb-pjd').forEach(d => d.open = true); });
@@ -459,7 +470,7 @@ TOOL_IMPL.combine = function (el) {
                       ${c.plotOn ? `<span style="flex:0 0 auto;font-weight:700;font-size:.8rem">Plots</span><button class="btn btn-ghost" style="flex:0 0 36px;padding:8px 4px" data-dec="${key}|plots">−</button><b style="flex:0 0 22px;text-align:center">${x.plots || 0}</b><button class="btn btn-ghost" style="flex:0 0 36px;padding:8px 4px" data-inc="${key}|plots">+</button>` : ''}</div>
                     <div class="muted" style="font-size:.8rem">${cbRaw(c, x)} m · ${n1(r.v || 0)} km/h</div>`}
                 ${pjLine(e, k)}${sumLine(e)}
-                ${essaisHTML(key, e, false)}</div>`; }).join('')}
+                ${refHTML(key, e, false)}${essaisHTML(key, e, false)}</div>`; }).join('')}
             ${grp ? `<div class="muted" style="margin-top:8px;font-size:.82rem;border-top:1px solid var(--line);padding-top:6px"><b style="color:var(--text)">Total groupe</b> · course ${dfFr(Tg.d, 0)} m${Tg.t ? ` en ${cmss(Tg.t)}` : ''}${hasSaut(c) ? ` · sauts ${n1(Tg.s)} m` : ''} · lancers ${n1(Tg.l)} ${lUnit(c)} (meilleurs essais)</div>` : ''}</div>`; }).join('')}
         <div class="row" style="margin-top:12px"><button class="btn btn-grad" data-cfg="bare" id="save">💾 Terminer et enregistrer</button><button class="btn btn-ghost" data-cfg="bare" id="cancel">Abandonner</button></div>`;
       const $ = s => box.querySelector(s), keep = () => save();
