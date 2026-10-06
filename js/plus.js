@@ -4,9 +4,12 @@
    ========================================================= */
 /* Page Ko-fi : laisser vide tant qu'elle n'existe pas (le bouton est alors masqué) */
 const KOFI_URL = 'https://ko-fi.com/epsone';
-const APP_VERSION = '17.4';
+const APP_VERSION = '17.8';
 const APP_URL = 'https://steffdelaseuva-hue.github.io/eps-one/';
 const CHANGELOG = [
+  { v: '17.8', items: ['Cross à plusieurs tablettes sans connexion : une tablette qui n\'a pas reçu le TOP DÉPART enregistre quand même les passages (rang calculé après synchronisation) ; en course aux tours, un même tour scanné sur deux tablettes n\'est compté qu\'une fois'] },
+  { v: '17.7', items: ['Cross : l\'onglet « 📷 Arrivée » devient « 🔫 TOP DÉPART ! » (boutons « 🔫 TOP DÉPART ! » par course et départ groupé, puis scan des arrivées dans le même onglet)'] },
+  { v: '17.6', items: ['Cross : les dossards indiquent ce que le coureur doit faire — course à la distance : la distance, et le nombre de tours si la longueur du tour est indiquée (ex. « 1200 m · 3 tours ») ; course aux tours (le maximum de tours dans le temps) : « Course aux tours · boucle de … m »'] },
   { v: '17.4', items: ['Cross : « 📄 Un PDF par classe » — un fichier de dossards par classe sélectionnée (plus léger), tous joints d\'un coup au même e-mail via le menu Partager'] },
   { v: '17.3', items: ['Cross : le PDF des dossards indique le nombre de dossards et de pages (aussi dans le nom du fichier) ; sur iPhone / iPad, « 🖨 Imprimer » passe par ce PDF complet (menu Partager → Imprimer)'] },
   { v: '17.2', items: ['Cross : « 📄 PDF » des dossards (4 par page A4, QR codes) à envoyer par e-mail — sur iPhone / iPad la feuille de partage s\'ouvre (Mail, Fichiers, AirDrop…), sur ordinateur le PDF est téléchargé. Bouton dans l\'onglet Dossards et dans l\'aperçu avant impression'] },

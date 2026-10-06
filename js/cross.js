@@ -104,6 +104,9 @@ if (!document.getElementById('cx-css')) document.head.insertAdjacentHTML('before
   const hms = t => t ? new Date(t).toLocaleTimeString('fr-FR') : '';
   const km = v => v ? v.toFixed(1).replace('.', ',') : '–';
   const col = (E, c) => COLORS[E.courses.indexOf(c) % COLORS.length] || COLORS[0];
+  /* Ce que le coureur doit faire (dossards) : distance (+ nombre de tours si le tour est indiqué) ou durée */
+  const tours = (d, l) => { const t = Math.round(d / l * 10) / 10; return String(t).replace('.', ',') + ' tour' + (t > 1 ? 's' : ''); };
+  const todo = c => c.mode === 'temps' ? `Course aux tours${c.lap ? ' · boucle de ' + c.lap + ' m' : ''}` : `${c.dist} m${+c.lapD > 0 ? ' · ' + tours(c.dist, +c.lapD) : ''}`;
 
   const defCourses = () => [
     { name: '6e-5e filles', lv: ['6', '5'], sx: 'F', dist: 1500 },
@@ -138,7 +141,7 @@ if (!document.getElementById('cx-css')) document.head.insertAdjacentHTML('before
       const P = S.filter(s => cOf.get(s.k) === c), temps = c.mode === 'temps';
       const rows = P.map(s => {
         const T = (arrBy.get(+s.b) || []).filter(t => c.start && t >= c.start);
-        if (temps) { const L = T.filter(t => t <= c.start + c.dur * 60000); return { s, c, laps: L.length, last: L.length ? L[L.length - 1] - c.start : null, dist: L.length * (c.lap || 0), ok: L.length > 0 }; }
+        if (temps) { const L = []; T.filter(t => t <= c.start + c.dur * 60000).forEach(t => { if (!L.length || t - L[L.length - 1] >= 30000) L.push(t); });   /* même tour scanné sur 2 tablettes : compté 1 fois */ return { s, c, laps: L.length, last: L.length ? L[L.length - 1] - c.start : null, dist: L.length * (c.lap || 0), ok: L.length > 0 }; }
         return { s, c, time: T.length ? T[0] - c.start : null, dist: c.dist, ok: T.length > 0 };
       });
       const R = rows.filter(r => r.ok).sort(temps ? (a, b) => b.laps - a.laps || a.last - b.last : (a, b) => a.time - b.time);
@@ -177,7 +180,10 @@ if (!document.getElementById('cx-css')) document.head.insertAdjacentHTML('before
     if (!s) return { kind: 'bad', bib, msg: 'Dossard inconnu' };
     const c = K.cOf.get(s.k);
     if (!c) return { kind: 'bad', bib, s, msg: s.st === 'abs' ? 'Élève noté absent' : s.st === 'disp' ? 'Élève noté dispensé' : 'Aucune course pour cet élève' };
-    if (!c.start) return { kind: 'warn', bib, s, c, msg: 'Course pas encore partie' };
+    if (!c.start) {   // départ donné sur une autre tablette, pas encore reçu (hors connexion) : le passage est gardé et compté à la synchronisation
+      const mine0 = K.arrBy.get(+bib) || []; if (mine0.length && now - mine0[mine0.length - 1] < 30000) return { kind: 'warn', bib, s, c, msg: 'Déjà scanné' };
+      E.arr.push({ id: uid(8), b: +bib, t: now, d: DEV, src }); commit();
+      return { kind: 'ok', bib, s, c, msg: 'Passage enregistré ✔ · départ pas reçu sur cette tablette : rang calculé après synchronisation' }; }
     if (now < c.start) return { kind: 'warn', bib, s, c, msg: 'Avant le départ' };
     const mine = K.arrBy.get(+bib) || [], after = mine.filter(t => t >= c.start);
     if (c.mode !== 'temps' && after.length) {
@@ -256,7 +262,7 @@ ${css}
       P.text(right, x0 + 6 + W - 3, y0 + 10.2, 10, { bold: true, color: '#FFFFFF', align: 'right' });
       P.text(String(s.b), cx, y0 + 40, 84, { bold: true, color: '#0E1A33', align: 'center' });
       P.text(P.fit(s.name, 15, true, W), cx, y0 + 48, 15, { bold: true, color: '#0E1A33', align: 'center' });
-      P.text(P.fit(s.cls + (c ? ' · ' + (c.mode === 'temps' ? c.dur + ' min' : c.dist + ' m') : ''), 11, true, W), cx, y0 + 54, 11, { bold: true, color: '#444444', align: 'center' });
+      P.text(P.fit(s.cls + (c ? ' · ' + todo(c) : ''), 11, true, W), cx, y0 + 54, 11, { bold: true, color: '#444444', align: 'center' });
       const M = QR.matrix(`EPSX|${E.id}|${s.b}`), n = M.length, q = 56 / (n + 8), qx = cx - 28, qy = y0 + CH - 9 - 56;
       M.forEach((row, y) => { let x = 0; while (x < n) { if (!row[x]) { x++; continue; } let e = x; while (e < n && row[e]) e++; P.rect(qx + (x + 4) * q, qy + (y + 4) * q, (e - x) * q + .02, q + .02, { fill: '#000000' }); x = e; } });
       P.text(`Dossard n° ${s.b} · à scanner à l'arrivée`, cx, y0 + CH - 5, 7, { color: '#777777', align: 'center' });
@@ -267,7 +273,7 @@ ${css}
   function bibsDoc(E, list) {
     const K = compute(E), cards = list.map(s => { const c = K.cOf.get(s.k), cc = c ? col(E, c) : '#5B6782';
       return `<div class="bib" style="--cc:${cc}"><div class="top"><span>${esc(E.name)}</span><span>${esc(c ? c.name : '—')}</span></div>
-        <div class="num">${s.b}</div><div class="nm">${esc(s.name)}</div><div class="cl">${esc(s.cls)}${c ? ' · ' + (c.mode === 'temps' ? c.dur + ' min' : c.dist + ' m') : ''}</div>
+        <div class="num">${s.b}</div><div class="nm">${esc(s.name)}</div><div class="cl">${esc(s.cls)}${c ? ' · ' + esc(todo(c)) : ''}</div>
         <div class="qr">${QR.svg(`EPSX|${E.id}|${s.b}`, 200, '#000')}</div><div class="ft">Dossard n° ${s.b} · à scanner à l'arrivée</div></div>`; });
     const pages = []; for (let i = 0; i < cards.length; i += 4) pages.push(`<div class="page">${cards.slice(i, i + 4).join('')}${'<div class="bib empty"></div>'.repeat(Math.max(0, 4 - cards.slice(i, i + 4).length))}</div>`);
     return pageDoc('Dossards · ' + E.name, `@page{size:A4 portrait;margin:0}
@@ -322,7 +328,7 @@ tr:nth-child(-n+4) td{font-weight:700}`,
       const E = norm(cur()); setCur(E.id);
       el.innerHTML = `<div class="cx-bar" data-cfg="bare"><select id="cx-ev" aria-label="Cross">${L.map(e => `<option value="${esc(e.id)}" ${e === E ? 'selected' : ''}>${esc(e.name)}</option>`).join('')}</select>
           <button class="btn btn-ghost" id="cx-new" title="Nouveau cross">＋</button><button class="btn btn-ghost" id="cx-dup" title="Dupliquer">⧉</button></div>
-        <div class="cx-tabs">${[['courses', '🏁 Courses'], ['inscr', '👥 Inscriptions'], ['bibs', '🎽 Dossards'], ['scan', '📷 Arrivée'], ['rank', '🏆 Classements']].map(([k, l]) => `<button data-tab="${k}" class="${tab === k ? 'on' : ''}">${l}</button>`).join('')}</div>
+        <div class="cx-tabs">${[['courses', '🏁 Courses'], ['inscr', '👥 Inscriptions'], ['bibs', '🎽 Dossards'], ['scan', '🔫 TOP DÉPART !'], ['rank', '🏆 Classements']].map(([k, l]) => `<button data-tab="${k}" class="${tab === k ? 'on' : ''}">${l}</button>`).join('')}</div>
         <div id="cx-body"></div>`;
       el.querySelector('#cx-ev').onchange = e => { setCur(e.target.value); insCls = ''; rc = ''; frame(); };
       el.querySelector('#cx-new').onclick = () => { const n = prompt('Nom du nouveau cross :', 'Cross ' + new Date().getFullYear()); if (!n) return; const N = newEvent(n.trim()); X().events.push(N); setCur(N.id); tab = 'courses'; commit(); frame(); };
@@ -345,8 +351,8 @@ tr:nth-child(-n+4) td{font-weight:700}`,
           return `<div class="card cx-course" data-cfg style="--cc:${col(E, c)}" data-c="${i}">
           <div class="hd"><span class="cx-dot"></span><input data-f="name" value="${esc(c.name)}" aria-label="Nom de la course"><button class="btn btn-ghost" data-up="${i}" ${i ? '' : 'disabled'} aria-label="Monter">↑</button><button class="btn btn-ghost" data-dn="${i}" ${i < E.courses.length - 1 ? '' : 'disabled'} aria-label="Descendre">↓</button></div>
           <div class="seg" style="margin-top:10px"><button data-mode="distance" class="${c.mode !== 'temps' ? 'on' : ''}">📏 Distance</button><button data-mode="temps" class="${c.mode === 'temps' ? 'on' : ''}">⏱ Temps (tours)</button></div>
-          ${c.mode === 'temps' ? `<div class="row"><div><label>Durée (min)</label><input type="number" min="1" data-f="dur" value="${c.dur}"></div><div><label>Longueur du tour (m)</label><input type="number" min="1" data-f="lap" value="${c.lap}"></div></div><p class="muted" style="margin:6px 0 0;font-size:.78rem">Chaque scan sur la ligne = 1 tour (30 s minimum entre 2 tours). Classement : tours, puis heure du dernier passage.</p>`
-            : `<div class="row"><div><label>Distance (m)</label><input type="number" min="1" data-f="dist" value="${c.dist}"></div></div>`}
+          ${c.mode === 'temps' ? `<div class="row"><div><label>Durée (min)</label><input type="number" min="1" data-f="dur" value="${c.dur}"></div><div><label>Longueur du tour (m)</label><input type="number" min="1" data-f="lap" value="${c.lap}"></div></div><p class="muted" style="margin:6px 0 0;font-size:.78rem">Sur les dossards : « ${esc(todo(c))} ».</p><p class="muted" style="margin:6px 0 0;font-size:.78rem">Chaque scan sur la ligne = 1 tour (30 s minimum entre 2 tours). Classement : tours, puis heure du dernier passage.</p>`
+            : `<div class="row"><div><label>Distance (m)</label><input type="number" min="1" data-f="dist" value="${c.dist}"></div><div><label>Longueur du tour (m, facultatif)</label><input type="number" min="0" data-f="lapD" value="${c.lapD || ''}" placeholder="ex. 400"></div></div><p class="muted" style="margin:6px 0 0;font-size:.78rem">Sur les dossards : « ${esc(todo(c))} ».</p>`}
           <label>Niveaux</label><div class="seg">${LV.map(l => `<button data-lv="${l}" class="${(c.lv || []).includes(l) ? 'on' : ''}">${LVN[l]}</button>`).join('')}</div>
           <label>Sexe</label><div class="seg">${['F', 'G', 'X'].map(s => `<button data-sx="${s}" class="${c.sx === s ? 'on' : ''}">${SXN[s]}</button>`).join('')}</div>
           <label class="cx-chk"><input type="checkbox" data-main ${c.main !== false ? 'checked' : ''}> Course principale (affectation automatique + classements généraux et des classes)</label>
@@ -363,7 +369,7 @@ tr:nth-child(-n+4) td{font-weight:700}`,
       $('#cx-date').onchange = e => { E.date = e.target.value; commit(); };
       if ($('#cx-add')) $('#cx-add').onclick = () => { E.courses.push({ id: uid(5), name: 'Course ' + (E.courses.length + 1), mode: 'distance', dist: 2000, dur: 12, lap: 500, lv: [...LV], sx: 'X', main: false, start: null }); commit(); again(); };
       box.querySelectorAll('[data-c]').forEach(card => { const c = E.courses[+card.dataset.c];
-        card.querySelectorAll('[data-f]').forEach(inp => inp.onchange = () => { const f = inp.dataset.f; c[f] = f === 'name' ? (inp.value.trim() || c.name) : Math.max(1, +inp.value || 1); commit(); });
+        card.querySelectorAll('[data-f]').forEach(inp => inp.onchange = () => { const f = inp.dataset.f; c[f] = f === 'name' ? (inp.value.trim() || c.name) : f === 'lapD' ? Math.max(0, +inp.value || 0) : Math.max(1, +inp.value || 1); commit(); if (f === 'lapD' || f === 'dist' || f === 'lap') again(); });
         card.querySelectorAll('[data-mode]').forEach(b => b.onclick = () => { c.mode = b.dataset.mode; commit(); again(); });
         card.querySelectorAll('[data-lv]').forEach(b => b.onclick = () => { const l = b.dataset.lv; c.lv = (c.lv || []).includes(l) ? c.lv.filter(x => x !== l) : LV.filter(x => x === l || (c.lv || []).includes(x)); commit(); again(); });
         card.querySelectorAll('[data-sx]').forEach(b => b.onclick = () => { c.sx = b.dataset.sx; commit(); again(); });
@@ -502,10 +508,10 @@ tr:nth-child(-n+4) td{font-weight:700}`,
       const drawStarts = () => {
         const K = compute(E), ns = E.courses.filter(c => !c.start);
         [...gstart].forEach(id => { if (!ns.some(c => c.id === id)) gstart.delete(id); });
-        $('#cx-starts').innerHTML = `${E.courses.map((c, i) => { const x = K.courses[i]; return `<div class="cx-start" style="--cc:${col(E, c)}"><span class="cx-dot"></span><div class="nm">${esc(c.name)}<small>${x.n} coureur${x.n > 1 ? 's' : ''} · ${c.mode === 'temps' ? c.dur + ' min' : c.dist + ' m'}${c.start ? ` · ${x.R.length} arrivé${x.R.length > 1 ? 's' : ''}` : ''}</small></div>
-            ${c.start ? `<span class="clk" data-clk="${i}"></span><button class="cx-stop" data-prof data-stop="${i}" aria-label="Arrêter et remettre à zéro">⏹ Stop</button>` : `<button class="cx-go" data-go="${i}">🔫 Départ</button>`}</div>`; }).join('')}
-          ${ns.length > 1 ? `<div style="margin-top:10px"><b>Départ groupé</b> <span class="muted" style="font-size:.78rem">· touchez les courses à lancer ensemble</span><div class="cx-gsel">${ns.map(c => `<button data-gs="${c.id}" class="${gstart.has(c.id) ? 'on' : ''}">${esc(c.name)}</button>`).join('')}</div><button class="btn btn-danger btn-block" id="cx-gg">🔫 Départ groupé (${[...gstart].length})</button></div>` : ''}`;
-        const go = L => { const t = Date.now(); L.forEach(c => { c.start = t; }); commit(); beep(1500, .5, .5); toast('🔫 Départ : ' + L.map(c => c.name).join(', ')); gstart.clear(); drawStarts(); };
+        $('#cx-starts').innerHTML = `${E.courses.map((c, i) => { const x = K.courses[i]; return `<div class="cx-start" style="--cc:${col(E, c)}"><span class="cx-dot"></span><div class="nm">${esc(c.name)}<small>${x.n} coureur${x.n > 1 ? 's' : ''} · ${c.mode === 'temps' ? 'aux tours · ' + c.dur + ' min' : c.dist + ' m'}${c.start ? ` · ${x.R.length} arrivé${x.R.length > 1 ? 's' : ''}` : ''}</small></div>
+            ${c.start ? `<span class="clk" data-clk="${i}"></span><button class="cx-stop" data-prof data-stop="${i}" aria-label="Arrêter et remettre à zéro">⏹ Stop</button>` : `<button class="cx-go" data-go="${i}">🔫 TOP DÉPART !</button>`}</div>`; }).join('')}
+          ${ns.length > 1 ? `<div style="margin-top:10px"><b>Départ groupé</b> <span class="muted" style="font-size:.78rem">· touchez les courses à lancer ensemble</span><div class="cx-gsel">${ns.map(c => `<button data-gs="${c.id}" class="${gstart.has(c.id) ? 'on' : ''}">${esc(c.name)}</button>`).join('')}</div><button class="btn btn-danger btn-block" id="cx-gg">🔫 TOP DÉPART groupé ! (${[...gstart].length})</button></div>` : ''}`;
+        const go = L => { const t = Date.now(); L.forEach(c => { c.start = t; }); commit(); beep(1500, .5, .5); toast('🔫 TOP DÉPART ! ' + L.map(c => c.name).join(', ')); gstart.clear(); drawStarts(); };
         box.querySelectorAll('[data-go]').forEach(b => b.onclick = () => go([E.courses[+b.dataset.go]]));
         box.querySelectorAll('[data-stop]').forEach(b => b.onclick = () => { const c = E.courses[+b.dataset.stop]; if (!c || !c.start) return;
           if (!confirm(`Arrêter « ${c.name} » et la remettre à zéro ?\nLe départ est annulé et les passages de cette course sont effacés.`)) return;
