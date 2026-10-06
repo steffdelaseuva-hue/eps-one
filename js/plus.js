@@ -4,9 +4,10 @@
    ========================================================= */
 /* Page Ko-fi : laisser vide tant qu'elle n'existe pas (le bouton est alors masqué) */
 const KOFI_URL = 'https://ko-fi.com/epsone';
-const APP_VERSION = '17.9';
+const APP_VERSION = '18.0';
 const APP_URL = 'https://steffdelaseuva-hue.github.io/eps-one/';
 const CHANGELOG = [
+  { v: '18.0', items: ['Montée-descente : vrais terrains dessinés (badminton vert, shortennis bleu, tennis terre battue, table de tennis de table) séparés par le filet — les joueurs se placent de chaque côté du filet, avec une petite zone ⚖️ arbitres à chaque bout du filet ; même dessin dans « 📺 Afficher les terrains »'] },
   { v: '17.9', items: ['Nouvel outil « Montée-descente » (Activités de duel · Sports de raquette) : en fin de séance, touchez un ou plusieurs élèves puis le terrain où ils ont fini (zone Joueurs ou Arbitres) ; badminton, shortennis, tennis (6 terrains en 12 demi-terrains ou terrains entiers) et tennis de table (12 tables), nombre de terrains réglable ; jusqu\'à 6 joueurs et 4 arbitres par demi-terrain ou table (le double sur un terrain entier) ; placement gardé par classe et par sport pour la séance suivante, ↶ Annuler, et « 📺 Afficher les terrains » en grand pour les élèves'] },
   { v: '17.8', items: ['Cross à plusieurs tablettes sans connexion : une tablette qui n\'a pas reçu le TOP DÉPART enregistre quand même les passages (rang calculé après synchronisation) ; en course aux tours, un même tour scanné sur deux tablettes n\'est compté qu\'une fois'] },
   { v: '17.7', items: ['Cross : l\'onglet « 📷 Arrivée » devient « 🔫 TOP DÉPART ! » (boutons « 🔫 TOP DÉPART ! » par course et départ groupé, puis scan des arrivées dans le même onglet)'] },
