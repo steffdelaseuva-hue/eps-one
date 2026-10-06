@@ -43,7 +43,9 @@ TOOL_IMPL.parkour = function (el) {
     const st = cls ? studentsOf(cls) : [], A = ateliers(); if (at >= A.length) at = 0;
     const a = A[at], L = a ? elems(a, niv) : []; if (exi >= L.length) exi = 0; const cur = L[exi];
     const mine = D.evals.map((e, i) => ({ ...e, i })).filter(e => e.classe === cls && e.eleve === st[si]).reverse();
-    el.innerHTML = `<a class="btn btn-ghost btn-block" href="${PK_URL}" target="_blank" rel="noopener" style="text-decoration:none;margin-bottom:12px">↗ Ouvrir mon appli Parkour EPS – Arzacq</a>
+    el.innerHTML = `<a class="card" href="${PK_URL}" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:14px;text-decoration:none;color:inherit;margin-bottom:12px;padding:12px;border:2px solid #E8892B">
+        <img src="icons/parkour-arzacq.jpg" alt="" style="width:64px;height:64px;border-radius:50%;flex:0 0 auto;object-fit:cover">
+        <div style="flex:1;min-width:0"><b style="font-size:1.02rem">Parkour EPS – Arzacq</b><div class="muted" style="font-size:.8rem">Mon appli Parkour-Freerun : ateliers, vidéos, critères</div></div><span style="font-size:1.3rem;font-weight:900;color:#E8892B">↗</span></a>
       <div class="card"><label style="margin-top:0">Cycle</label><div class="seg" data-cfg="bare"><button data-c="1" class="${D.cycle === 1 ? 'on' : ''}">Niveau 1<br><small style="font-weight:600;opacity:.85">6e</small></button><button data-c="2" class="${D.cycle === 2 ? 'on' : ''}">Niveau 2<br><small style="font-weight:600;opacity:.85">4e · + fluidité</small></button></div>
         ${DB.classes.length ? `<div class="row"><div data-cfg="bare"><label>Classe</label><select id="cl">${DB.classes.map(c => `<option ${c.name === cls ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</select></div></div>
         <div class="row" style="margin-top:8px;align-items:center"><button class="btn btn-ghost" style="flex:0 0 52px" id="pv">◀</button><select id="se">${st.map((n, k) => `<option value="${k}" ${k === si ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select><button class="btn btn-ghost" style="flex:0 0 52px" id="nx">▶</button></div>` : noClassMsg}</div>
