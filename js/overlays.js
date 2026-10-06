@@ -48,3 +48,23 @@
   const scan = nodes => nodes.forEach(n => { if (n.nodeType === 1 && n.parentNode === document.body) requestAnimationFrame(() => { if (n.isConnected && isOverlay(n)) fix(n); }); });
   new MutationObserver(ms => ms.forEach(m => scan([...m.addedNodes]))).observe(document.body, { childList: true });
 })();
+
+/* =========================================================
+   Historiques repliables (tous les outils) : les sections
+   « Historique des matchs », « Combats enregistrés », « Défis enregistrés »…
+   sont fermées par défaut ; on touche le titre pour les ouvrir / fermer.
+   ========================================================= */
+(() => {
+  const RE = /^(📜\s*)?(Historique des matchs|Combats enregistrés|Combats joués|Défis enregistrés|Historique des combats|Historique des assauts)/i;
+  const open = {};                                         // état mémorisé pendant la session, par titre
+  document.head.insertAdjacentHTML('beforeend', '<style>.hfold h2{cursor:pointer;user-select:none}.hfold h2::before{content:"▸ ";color:var(--muted)}.hfold.on h2::before{content:"▾ "}</style>');
+  const apply = st => { const on = st.classList.contains('on'); let n = st.nextElementSibling;
+    while (n && !n.classList.contains('section-title')) { if (on) { if (n.dataset.hfHid) { n.style.display = n.dataset.hfDisp || ''; delete n.dataset.hfHid; } }
+      else if (!n.dataset.hfHid && n.style.display !== 'none') { n.dataset.hfDisp = n.style.display; n.style.display = 'none'; n.dataset.hfHid = '1'; } n = n.nextElementSibling; } };
+  const scan = () => document.querySelectorAll('.section-title:not([data-hf])').forEach(st => { const h = st.querySelector('h2'); st.dataset.hf = '1';
+    if (!h || !RE.test(h.textContent.trim()) || st.style.display === 'none') return;
+    const key = h.textContent.replace(/\(\d+\)/, '').trim(); st.classList.add('hfold'); if (open[key]) st.classList.add('on');
+    h.onclick = () => { st.classList.toggle('on'); open[key] = st.classList.contains('on'); apply(st); };
+    apply(st); });
+  let t = 0; new MutationObserver(() => { if (!t) t = requestAnimationFrame(() => { t = 0; scan(); }); }).observe(document.body, { childList: true, subtree: true });
+})();
