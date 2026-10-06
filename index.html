@@ -298,7 +298,7 @@ const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'
    ========================================================= */
 const CATS=[
   {id:'perf',   name:'Activités de performance', desc:'Athlétisme, natation, musculation'},
-  {id:'art',    name:'Activités gymniques & artistiques', desc:'Parkour, acrosport, gymnastique · cirque, danse à venir'},
+  {id:'art',    name:'Activités gymniques & artistiques', desc:'Parkour, acrosport, gymnastique, danse'},
   {id:'duel',   name:'Activités de duel', desc:'Sports collectifs, raquettes, combats'},
   {id:'appn',   name:'APPN', desc:'Course d\'orientation, escalade, sauvetage aquatique'},
   {id:'cross',  name:'Cross du collège', desc:'Dossards QR, scan à l\'arrivée, classements', tool:'cross', autre:1},
@@ -328,6 +328,7 @@ const TOOLS=[
   {id:'acrosport',cat:'art', name:'Acrosport', desc:'Banque de pyramides · duo, trio, quatuor · porteurs, hauteur, appuis', ready:true},
   {id:'gym', cat:'art', name:'Gymnastique', desc:'Sol, poutre, barres, barre fixe · tremplin, plinth, mini-trampoline', ready:true},
   {id:'parkour',  cat:'art', name:'Parkour', desc:'Sauter, franchir, tourner, freerun · maîtrise', ready:true},
+  {id:'danse',    cat:'art', name:'Danse', desc:'Œuvre ou thème · inducteurs (tirage au sort) · filmer et comparer 2 vidéos', ready:true},
 
 
   {id:'match',    cat:'duel', name:'Gestion de match · Sports collectifs', desc:'Basket, handball, football, volley-ball, ultimate, rugby · stats, observations, tournois', sub:'Sports collectifs', ready:true},
@@ -785,6 +786,8 @@ if('serviceWorker' in navigator && location.protocol==='https:'){ navigator.serv
 <script src="js/natation.js"></script>
 <script src="js/crosstraining.js"></script>
 <script src="js/parkour.js"></script>
+<script src="js/danse-bank.js"></script>
+<script src="js/danse.js"></script>
 <script src="js/duathlon.js"></script>
 <script src="js/demifond.js"></script>
 <script src="js/sauvetage.js"></script>
