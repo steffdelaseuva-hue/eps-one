@@ -211,14 +211,28 @@ if (!document.getElementById('cx-css')) document.head.insertAdjacentHTML('before
   const cur = () => { const L = X().events; return L.find(e => e.id === getCur()) || L[0] || null; };
 
   /* ---------- Aperçu avant impression (iframe : fonctionne aussi en web app iPad) ---------- */
-  function printPreview(title, html) {
+  function printPreview(title, html, pdf) {
     const o = document.createElement('div'); o.className = 'cx-pv';
-    o.innerHTML = `<header><b>${esc(title)}</b><button class="btn btn-white" data-p>🖨 Imprimer</button><button class="btn btn-ghost" style="color:#fff" data-w>↗ Ouvrir</button><button class="btn btn-ghost" style="color:#fff" data-x>✕ Fermer</button></header><iframe title="Aperçu"></iframe>`;
+    o.innerHTML = `<header><b>${esc(title)}</b><button class="btn btn-white" data-p>🖨 Imprimer</button>${pdf ? '<button class="btn btn-white" data-pdf>📄 PDF / e-mail</button>' : ''}<button class="btn btn-ghost" style="color:#fff" data-w>↗ Ouvrir</button><button class="btn btn-ghost" style="color:#fff" data-x>✕ Fermer</button></header><iframe title="Aperçu"></iframe>`;
     document.body.appendChild(o);
     const fr = o.querySelector('iframe'); fr.srcdoc = html;
     o.querySelector('[data-x]').onclick = () => o.remove();
-    o.querySelector('[data-p]').onclick = () => { try { fr.contentWindow.focus(); fr.contentWindow.print(); } catch (e) { toast('Impression impossible ici : utilisez « Ouvrir »'); } };
-    o.querySelector('[data-w]').onclick = () => { const u = URL.createObjectURL(new Blob([html], { type: 'text/html' })); const w = window.open(u, '_blank'); if (!w) toast('Fenêtre bloquée par le navigateur'); };
+    if (pdf) o.querySelector('[data-pdf]').onclick = () => { try { pdf(); } catch (e) { toast('PDF impossible : ' + e.message); } };
+    // Impression dans la page même (iPad / iPhone / appli installée : l'impression d'un cadre ou d'une page « blob: » échoue sur Safari)
+    o.querySelector('[data-p]').onclick = () => {
+      const d = new DOMParser().parseFromString(html, 'text/html'); d.querySelectorAll('script').forEach(x => x.remove());
+      document.getElementById('cx-print')?.remove(); document.getElementById('cx-print-css')?.remove();
+      const st = document.createElement('style'); st.id = 'cx-print-css'; st.media = 'print';
+      st.textContent = [...d.querySelectorAll('style')].map(x => x.textContent).join('\n') + '\nbody>*:not(#cx-print){display:none!important}#cx-print{display:block!important}html,body{background:#fff!important;padding:0!important;margin:0!important;height:auto!important;overflow:visible!important}';
+      const box = document.createElement('div'); box.id = 'cx-print'; box.style.display = 'none'; box.innerHTML = d.body.innerHTML;
+      document.head.appendChild(st); document.body.appendChild(box);
+      const clean = () => { box.remove(); st.remove(); window.removeEventListener('afterprint', clean); };
+      window.addEventListener('afterprint', clean);
+      const imgs = [...box.querySelectorAll('img')].filter(i => !i.complete);
+      Promise.all(imgs.map(i => new Promise(r => { i.onload = i.onerror = r; }))).then(() => setTimeout(() => { try { window.print(); } catch (e) { toast('Impression impossible : essayez « Ouvrir »'); } }, 150));
+    };
+    o.querySelector('[data-w]').onclick = () => { let w = null; try { w = window.open('', '_blank'); if (w) { w.document.open(); w.document.write(html); w.document.close(); return; } } catch (e) {}
+      try { if (w) w.close(); } catch (e) {} toast('Ouverture impossible ici : utilisez « 🖨 Imprimer »'); };
     return o;
   }
   const pageDoc = (title, css, body) => `<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(title)}</title><style>
@@ -228,6 +242,25 @@ ${css}
 @media print{body{zoom:1!important;padding:0;background:none}.page{margin:0;box-shadow:none}}
 </style></head><body>${body}<script>function fit(){document.body.style.zoom=Math.min(1,(innerWidth-20)/794)}fit();addEventListener('resize',fit);addEventListener('beforeprint',function(){document.body.style.zoom=1});addEventListener('afterprint',fit);<\/script></body></html>`;
 
+  /* Dossards en PDF (4 par page A4, mêmes informations que l'impression) — pour envoi par e-mail */
+  function bibsPdf(E, list) {
+    const K = compute(E), P = PdfMini(), CW = 105, CH = 148.5;
+    list.forEach((s, i) => {
+      if (i % 4 === 0) { P.page(); for (let k = 0; k < 4; k++) P.rect((k % 2) * CW, Math.floor(k / 2) * CH, CW, CH, { stroke: '#999999', dash: [1.2, 1], lw: .3 }); }
+      const x0 = (i % 2) * CW, y0 = Math.floor((i % 4) / 2) * CH, c = K.cOf.get(s.k), cc = c ? col(E, c) : '#5B6782', W = CW - 12, cx = x0 + CW / 2;
+      P.rect(x0 + 6, y0 + 5, W, 7.5, { fill: cc, r: 2.5 });
+      const right = c ? c.name : '—', rw = P.width(right, 10, true);
+      P.text(P.fit(E.name, 10, true, W - rw - 8), x0 + 9, y0 + 10.2, 10, { bold: true, color: '#FFFFFF' });
+      P.text(right, x0 + 6 + W - 3, y0 + 10.2, 10, { bold: true, color: '#FFFFFF', align: 'right' });
+      P.text(String(s.b), cx, y0 + 40, 84, { bold: true, color: '#0E1A33', align: 'center' });
+      P.text(P.fit(s.name, 15, true, W), cx, y0 + 48, 15, { bold: true, color: '#0E1A33', align: 'center' });
+      P.text(P.fit(s.cls + (c ? ' · ' + (c.mode === 'temps' ? c.dur + ' min' : c.dist + ' m') : ''), 11, true, W), cx, y0 + 54, 11, { bold: true, color: '#444444', align: 'center' });
+      const M = QR.matrix(`EPSX|${E.id}|${s.b}`), n = M.length, q = 56 / (n + 8), qx = cx - 28, qy = y0 + CH - 9 - 56;
+      M.forEach((row, y) => { let x = 0; while (x < n) { if (!row[x]) { x++; continue; } let e = x; while (e < n && row[e]) e++; P.rect(qx + (x + 4) * q, qy + (y + 4) * q, (e - x) * q + .02, q + .02, { fill: '#000000' }); x = e; } });
+      P.text(`Dossard n° ${s.b} · à scanner à l'arrivée`, cx, y0 + CH - 5, 7, { color: '#777777', align: 'center' });
+    });
+    return P.blob();
+  }
   function bibsDoc(E, list) {
     const K = compute(E), cards = list.map(s => { const c = K.cOf.get(s.k), cc = c ? col(E, c) : '#5B6782';
       return `<div class="bib" style="--cc:${cc}"><div class="top"><span>${esc(E.name)}</span><span>${esc(c ? c.name : '—')}</span></div>
@@ -424,7 +457,8 @@ tr:nth-child(-n+4) td{font-weight:700}`,
         <div class="card" style="margin-top:12px"><b>🖨 Impression</b><p class="muted" style="margin:4px 0 0;font-size:.8rem">4 dossards par page A4 (format A6, traits de coupe), avec le QR code à scanner à l'arrivée.</p>
           <div class="cx-cls">${sortCls(E, E.classes).map(c => `<button data-pc="${esc(c)}" class="${gsel.has(c) ? 'on' : ''}">${esc(c)}</button>`).join('')}</div>
           <label class="cx-chk"><input type="checkbox" id="cx-abs"> Inclure les absents et dispensés</label>
-          <div class="row" style="margin-top:10px"><button class="btn btn-grad" id="cx-pp">🖨 Imprimer la sélection</button><button class="btn btn-ghost" id="cx-pa">Tout imprimer</button></div></div>
+          <div class="row" style="margin-top:10px"><button class="btn btn-grad" id="cx-pp">🖨 Imprimer la sélection</button><button class="btn btn-ghost" id="cx-pa">Tout imprimer</button></div>
+          <button class="btn btn-ghost btn-block" style="margin-top:8px" id="cx-pdf">📄 PDF de la sélection (à envoyer par e-mail)</button></div>
         ${sortCls(E, E.classes).map(c => `<div class="section-title"><h2>${esc(c)}</h2><button class="link" data-p1="${esc(c)}">🖨 Imprimer une classe</button></div>
           <div class="card" data-cfg="bare" style="padding:4px 12px">${stuOf(E, c).map(s => { const co = K.cOf.get(s.k); return `<div class="cx-st ${s.st ? 'off' : ''}"><div class="nm"><b>${esc(s.name)}</b><small>${s.st ? (s.st === 'abs' ? 'Absent' : 'Dispensé') : co ? esc(co.name) : '⚠️ sans course'}</small></div><input class="cx-bibin" type="number" inputmode="numeric" data-bk="${esc(s.k)}" value="${s.b || ''}" aria-label="Dossard"></div>`; }).join('')}</div>`).join('')}`;
       const $ = s => box.querySelector(s);
@@ -436,8 +470,10 @@ tr:nth-child(-n+4) td{font-weight:700}`,
       box.querySelectorAll('[data-bk]').forEach(inp => inp.onchange = () => { const v = +inp.value || '', k = inp.dataset.bk;
         if (v && stu(E).some(s => s.k !== k && +s.b === v)) { toast(`Le n° ${v} est déjà pris`); inp.value = (E.el[k] || {}).b || ''; return; } setEl(E, k, { b: v }); commit(); });
       const print = cls => { const inc = $('#cx-abs').checked, list = stu(E).filter(s => cls.includes(s.cls) && s.b && (inc || !s.st));
-        if (!list.length) return toast(miss ? 'Attribuez d\'abord les dossards' : 'Aucun dossard à imprimer'); printPreview(`Dossards · ${list.length}`, bibsDoc(E, list)); };
+        if (!list.length) return toast(miss ? 'Attribuez d\'abord les dossards' : 'Aucun dossard à imprimer'); printPreview(`Dossards · ${list.length}`, bibsDoc(E, list), () => epsSharePdf(bibsPdf(E, list), `dossards-${E.name}${cls.length === 1 ? '-' + cls[0] : ''}.pdf`.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^\w.-]+/g, '-'), 'Dossards · ' + E.name)); };
       $('#cx-pp').onclick = () => print([...gsel]);
+      $('#cx-pdf').onclick = () => { const cls = [...gsel], inc = $('#cx-abs').checked, list = stu(E).filter(s => cls.includes(s.cls) && s.b && (inc || !s.st));
+        if (!list.length) return toast(miss ? 'Attribuez d\'abord les dossards' : 'Aucun dossard'); epsSharePdf(bibsPdf(E, list), `dossards-${E.name}${cls.length === 1 ? '-' + cls[0] : ''}.pdf`.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^\w.-]+/g, '-'), 'Dossards · ' + E.name); };
       $('#cx-pa').onclick = () => print(E.classes);
       box.querySelectorAll('[data-p1]').forEach(b => b.onclick = () => print([b.dataset.p1]));
     }
