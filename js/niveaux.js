@@ -33,11 +33,11 @@ function levelSummary(cls) {
   const st = studentsOf(cls), c = [0, 0, 0, 0]; st.forEach(n => c[lvlOf(cls, n)]++);
   return `<div class="lv-sum"><span class="pill"><span class="lv-dot l3">3</span>${c[3]}</span><span class="pill"><span class="lv-dot l2">2</span>${c[2]}</span><span class="pill"><span class="lv-dot l1">1</span>${c[1]}</span>${c[0] ? `<span class="pill warn">${c[0]} non classé${c[0] > 1 ? 's' : ''}</span>` : ''}</div>`;
 }
-function levelEditor(box, cls, onClose) {
+function levelEditor(box, cls, onClose, duel) {
   const st = studentsOf(cls); DB.niveaux[cls] = DB.niveaux[cls] || {}; const L = DB.niveaux[cls];
   const draw = () => {
     box.innerHTML = `<div class="card" style="margin-top:10px;background:var(--grad-soft)">
-      <div style="display:flex;justify-content:space-between;align-items:center"><b>Niveaux de jeu — ${esc(cls)}</b><button class="btn btn-grad" style="padding:8px 14px" data-close>✔ Terminé</button></div>
+      <div style="display:flex;justify-content:space-between;align-items:center"><b>${duel ? 'Niveaux de jeu' : 'Niveaux'} — ${esc(cls)}</b><button class="btn btn-grad" style="padding:8px 14px" data-close>✔ Terminé</button></div>
       <p class="muted" style="margin:6px 0">1 = débutant · 2 = intermédiaire · 3 = confirmé. Les élèves non classés comptent comme niveau 2.</p>
       ${levelSummary(cls)}
       <div class="card" style="padding:4px 12px">${st.map((n, i) => `<div class="lv-row"><span>${esc(n)}</span>${[1, 2, 3].map(l => `<button class="lv-b l${l} ${L[n] === l ? 'on' : ''}" data-i="${i}" data-l="${l}">${l}</button>`).join('')}</div>`).join('') || '<div class="empty">Classe vide.</div>'}</div></div>`;
@@ -84,16 +84,18 @@ function teamsHTML(teams, withLevels) {
 /* ---------- Module « Composer les équipes » réutilisable ---------- */
 /* Groupes préparés à l'avance, par outil et par classe (ex. 10 h et 14 h le même jour) */
 DB.prepGroups = DB.prepGroups || {};
-function mountComposer(host, { id, modes = ['random', 'hetero', 'homo'], allowFree = false, minPerLevel = 1, button = '🧩 Former les équipes', onTeams, prep = true }) {
-  const M = { random: ['Aléatoire', ''], hetero: ['Hétérogène', 'niveaux mélangés'], homo: ['Homogène', 'équipes de niveau'] };
+function mountComposer(host, { id, modes = ['random', 'hetero', 'homo'], allowFree = false, minPerLevel = 1, button = '🧩 Former les équipes', onTeams, prep = true, duel = false }) {   // duel : « niveau de jeu » (activités de duel), sinon « niveau »
+  const M = { random: ['Aléatoire', ''], hetero: ['Hétérogène', 'niveaux mélangés'], homo: ['Homogène', 'équipes de niveau'], manual: ['Manuel', 'je place les élèves'] };
+  if (!modes.includes('manual')) modes = [...modes, 'manual'];   // création manuelle partout (fonctionne sans synchronisation, avec une partie de la classe)
   let mode = 'random';
   const q = s => host.querySelector(`#${id}-${s}`);
   host.innerHTML = `<div data-cfg="bare">
     ${DB.classes.length || allowFree ? `<label>Classe</label><select id="${id}-cls">${allowFree ? '<option value="">— Saisie libre —</option>' : ''}${DB.classes.map(c => `<option value="${esc(c.name)}">${esc(c.name)} (${c.students.length})</option>`).join('')}</select>` : '<p class="muted">Créez d\'abord une classe dans « Mes classes ».</p>'}
     ${allowFree ? `<div id="${id}-free"><label>Élèves</label><textarea id="${id}-ta" placeholder="Un nom par ligne"></textarea></div>` : ''}
-    <div id="${id}-lvz"><div id="${id}-sum"></div><button class="btn btn-ghost btn-block" id="${id}-lv"><span style="display:inline-block;width:20px;height:20px;vertical-align:-4px;margin-right:6px">${ico('levels')}</span>Classer les élèves par niveau de jeu</button><div id="${id}-box"></div></div>
+    <div id="${id}-lvz"><div id="${id}-sum"></div><button class="btn btn-ghost btn-block" id="${id}-lv"><span style="display:inline-block;width:20px;height:20px;vertical-align:-4px;margin-right:6px">${ico('levels')}</span>Classer les élèves par niveau${duel ? ' de jeu' : ''}</button><div id="${id}-box"></div></div>
     <label>Répartition</label><div class="seg" id="${id}-seg">${modes.map(m => `<button data-m="${m}">${M[m][0]}${M[m][1] ? `<br><small style="font-weight:600;opacity:.85">${M[m][1]}</small>` : ''}</button>`).join('')}</div>
-    <div class="row"><div><label>Former selon</label><select id="${id}-k"><option value="n">Nombre d'équipes</option><option value="s">Élèves par équipe</option></select></div><div><label>Valeur</label><input id="${id}-v" type="number" value="4" min="1"></div></div>
+    <p class="muted" id="${id}-mh" style="display:none;margin:8px 0 0;font-size:.82rem">✋ Vous placez vous-même les élèves : seuls ceux que vous placez participent (ex. une seule équipe, ou 2 joueurs pour un 2 contre 2).</p>
+    <div class="row" id="${id}-kv"><div><label>Former selon</label><select id="${id}-k"><option value="n">Nombre d'équipes</option><option value="s">Élèves par équipe</option></select></div><div><label>Valeur</label><input id="${id}-v" type="number" value="4" min="1"></div></div>
     <button class="btn btn-grad btn-block" style="margin-top:12px" id="${id}-go">${button}</button>
     ${prep ? `<button class="btn btn-ghost btn-block" style="margin-top:8px" id="${id}-prep">💾 Préparer pour plus tard (sans commencer)</button><div id="${id}-saved"></div>` : ''}</div>`;
   const cls = () => q('cls')?.value || '';
@@ -125,10 +127,13 @@ function mountComposer(host, { id, modes = ['random', 'hetero', 'homo'], allowFr
     q('sum').innerHTML = c ? levelSummary(c) : '';
     if (!c && mode !== 'random') mode = 'random';
     host.querySelectorAll(`#${id}-seg [data-m]`).forEach(b => { b.classList.toggle('on', b.dataset.m === mode); b.disabled = !c && b.dataset.m !== 'random'; });
+    if (q('mh')) q('mh').style.display = mode === 'manual' ? 'block' : 'none';
+    const kk = q('k'); if (kk) kk.closest('div').style.display = mode === 'manual' ? 'none' : '';
+    const vl = q('v') && q('v').previousElementSibling; if (vl) vl.textContent = mode === 'manual' ? 'Nombre de groupes au départ' : 'Valeur';
   };
   if (q('cls') && DB.lastClass && DB.classes.some(c => c.name === DB.lastClass)) q('cls').value = DB.lastClass;
   if (q('cls')) q('cls').onchange = () => { q('box').innerHTML = ''; if (q('cls').value) DB.lastClass = q('cls').value; refresh(); };
-  q('lv').onclick = () => levelEditor(q('box'), cls(), refresh);
+  q('lv').onclick = () => levelEditor(q('box'), cls(), refresh, duel);
   host.querySelectorAll(`#${id}-seg [data-m]`).forEach(b => b.onclick = () => { mode = b.dataset.m; refresh(); });
   const compose = () => {
     const c = cls();
@@ -139,8 +144,19 @@ function mountComposer(host, { id, modes = ['random', 'hetero', 'homo'], allowFr
     return { c, teams: composeTeams(people, count, mode, minPerLevel), o: { mode, withLevels: !!c && people.some(p => p.l) } };
   };
   const keep = r => { if (prep && r.c) { DB.prepGroups[PK()] = { date: Date.now(), mode: r.o.mode, withLevels: r.o.withLevels, teams: JSON.parse(JSON.stringify(r.teams)) }; save(); } };
-  q('go').onclick = () => { const r = compose(); if (!r) return; keep(r); beep(1000, .1); onTeams(r.teams, r.o); };
-  if (q('prep')) q('prep').onclick = () => { const r = compose(); if (!r) return; if (!r.c) return toast('Choisissez une classe');
+  // ✋ Manuel : panneau groupes à gauche · liste des élèves à droite (sélection multiple)
+  const manual = then => { const c = cls(); if (!c) return toast('Choisissez une classe');
+    const n0 = Math.max(1, Math.min(20, +q('v').value || 1)), T = Array.from({ length: n0 }, (_, i) => ({ name: `Équipe ${i + 1}`, members: [] }));
+    editGroupsPanel(`Groupes · ${c}`, { cls: c, okLabel: '✔ Valider les groupes', cancel: () => {}, list: () => T, names: t => t.members.map(m => m.n),
+      take: (t, n) => t.members.splice(t.members.findIndex(m => m.n === n), 1)[0], put: (t, n, d) => t.members.push(d || { n, l: lvlOf(c, n) }),
+      make: name => ({ name: name.replace('Groupe', 'Équipe'), members: [] }),
+      validate: () => { if (!T.some(t => t.members.length)) { toast('Placez au moins un élève dans un groupe'); return false; } },
+      onClose: () => { const teams = T.filter(t => t.members.length); then({ c, teams, o: { mode: 'manual', withLevels: teams.some(t => t.members.some(m => m.l)) } }); } }); };
+  q('go').onclick = () => { if (mode === 'manual') return manual(r => { keep(r); beep(1000, .1); onTeams(r.teams, r.o); });
+    const r = compose(); if (!r) return; keep(r); beep(1000, .1); onTeams(r.teams, r.o); };
+  if (q('prep')) q('prep').onclick = () => { if (mode === 'manual') { if (cls() && DB.prepGroups[PK()] && !confirm('Remplacer les groupes déjà préparés pour cette classe ?')) return;
+      return manual(r => { keep(r); beep(900, .08); toast(`Groupes préparés pour ${r.c} ✔`); showSaved(); }); }
+    const r = compose(); if (!r) return; if (!r.c) return toast('Choisissez une classe');
     if (DB.prepGroups[PK()] && !confirm('Remplacer les groupes déjà préparés pour cette classe ?')) return;
     keep(r); beep(900, .08); toast(`Groupes préparés pour ${r.c} ✔`); showSaved(); };
   refresh();
@@ -154,11 +170,11 @@ TOOL_IMPL.equipes = function (el) {
 };
 
 /* Carte repliable « Composer depuis une classe » pour les outils de match */
-function composerCard(el, { id, modes, target, before, onTeams, minPerLevel }) {
+function composerCard(el, { id, modes, target, before, onTeams, minPerLevel, duel = true }) {
   const wrap = document.createElement('div');
   wrap.innerHTML = `<details class="card" style="margin-bottom:12px" data-cfg><summary style="font-weight:800;cursor:pointer">👥 Composer les équipes depuis une classe (par niveau)</summary><div id="${id}-host" style="margin-top:6px"></div></details><div id="${id}-compo"></div>`;
   (before || el).prepend(wrap);
-  mountComposer(wrap.querySelector(`#${id}-host`), { id, modes, minPerLevel, button: '🧩 Former les équipes et les utiliser',
+  mountComposer(wrap.querySelector(`#${id}-host`), { id, modes, minPerLevel, duel, button: '🧩 Former les équipes et les utiliser',
     onTeams: (teams, o) => {
       const ta = el.querySelector(target); ta.value = teams.map(t => t.name).join('\n');
       wrap.querySelector(`#${id}-compo`).innerHTML = `<details class="card" open style="margin-bottom:12px"><summary style="font-weight:800;cursor:pointer">Composition des équipes</summary>${teamsHTML(teams, o.withLevels)}</details>`;
@@ -172,7 +188,7 @@ function composerCard(el, { id, modes, target, before, onTeams, minPerLevel }) {
   const orig = TOOL_IMPL[k];
   TOOL_IMPL[k] = function (el) {
     const r = orig(el);
-    composerCard(el, { id: 'c' + k, modes: ['random', 'hetero'], target: '#tl', before: el });
+    composerCard(el, { id: 'c' + k, modes: ['random', 'hetero'], target: '#tl', before: el, duel: k === 'tournoi' });
     return r;
   };
 });
@@ -233,42 +249,54 @@ TOOL_IMPL.poule = function (el) {
    ========================================================= */
 function editGroupsPanel(title, ad) {
   const stash = {};                                    // données des élèves retirés (restaurées s'ils reviennent)
-  let sel = null;                                      // { g: index ou -1 (non placés), n }
+  let sel = [];                                        // sélection multiple : [{ g: index ou -1 (liste), n }]
+  const isSel = (g, n) => sel.some(x => x.g === g && x.n === n);
   const o = document.createElement('div');
   o.style.cssText = 'position:fixed;inset:0;z-index:300;background:rgba(7,18,42,.72);display:grid;place-items:center;padding:calc(10px + env(safe-area-inset-top)) 10px calc(10px + env(safe-area-inset-bottom))';
-  const chip = (g, n) => { const on = sel && sel.g === g && sel.n === n;
-    return `<button data-s="${g}" data-n="${esc(n)}" style="padding:6px 10px;border-radius:10px;border:1.5px solid ${on ? 'transparent' : 'var(--line)'};background:${on ? 'var(--grad)' : 'var(--card)'};color:${on ? '#fff' : 'inherit'};font-weight:700;font-size:.85rem;cursor:pointer">${esc(n)}</button>`; };
+  const chip = (g, n, full) => { const on = isSel(g, n);
+    return `<button data-s="${g}" data-n="${esc(n)}" style="${full ? 'display:block;width:100%;text-align:left;margin-bottom:4px;' : ''}padding:7px 10px;border-radius:10px;border:1.5px solid ${on ? 'transparent' : 'var(--line)'};background:${on ? 'var(--grad)' : 'var(--card)'};color:${on ? '#fff' : 'inherit'};font-weight:700;font-size:.85rem;cursor:pointer">${on ? '✓ ' : ''}${esc(n)}</button>`; };
+  const okL = ad.okLabel || '✔ Terminé';
   const render = () => {
     const L = ad.list(), placed = new Set(L.flatMap(g => ad.names(g))), free = (ad.cls ? studentsOf(ad.cls) : []).filter(n => !placed.has(n));
+    sel = sel.filter(x => x.g === -1 ? free.includes(x.n) : L[x.g] && ad.names(L[x.g]).includes(x.n));
     const sc = o.firstElementChild ? o.firstElementChild.scrollTop : 0;   // garder la position de défilement à chaque changement
-    o.innerHTML = `<div class="card" data-cfg="bare" style="max-width:640px;width:100%;max-height:calc(100dvh - 20px - env(safe-area-inset-top) - env(safe-area-inset-bottom));overflow:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding-top:0"><div style="position:sticky;top:0;z-index:3;background:var(--card);display:flex;align-items:center;gap:8px;padding:14px 0 8px;margin:0 0 4px;border-bottom:1px solid var(--line)"><h3 style="flex:1;margin:0;min-width:0">${esc(title)}</h3><button class="btn btn-grad" style="flex:0 0 auto;width:auto;padding:9px 14px" id="gok2" data-free>✔ Terminé</button></div>
-      <p class="muted" style="margin:4px 0 10px;font-size:.82rem">${ad.indiv ? 'Touchez un élève, puis « Non placés / absents » pour le retirer, ou un élève non placé puis « Participants » pour l\'ajouter.' : 'Touchez un élève, puis le groupe de destination, ou « Non placés / absents » pour le retirer (absent, blessé…).'}</p>
-      <div class="teams" style="margin-top:0">${ad.indiv
+    const listTitle = ad.listTitle || (ad.indiv ? 'Non placés / absents' : 'Liste des élèves');
+    o.innerHTML = `<div class="card" data-cfg="bare" style="max-width:820px;width:100%;max-height:calc(100dvh - 20px - env(safe-area-inset-top) - env(safe-area-inset-bottom));overflow:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding-top:0"><div style="position:sticky;top:0;z-index:3;background:var(--card);display:flex;align-items:center;gap:8px;padding:14px 0 8px;margin:0 0 4px;border-bottom:1px solid var(--line)"><h3 style="flex:1;margin:0;min-width:0">${esc(title)}</h3>${ad.cancel ? '<button class="btn btn-ghost" style="flex:0 0 auto;width:auto;padding:9px 12px" id="gcx" data-free>Annuler</button>' : ''}<button class="btn btn-grad" style="flex:0 0 auto;width:auto;padding:9px 14px" id="gok2" data-free>${okL}</button></div>
+      <p class="muted" style="margin:4px 0 10px;font-size:.82rem">${ad.indiv ? 'Touchez un ou plusieurs élèves, puis « Non placés / absents » pour les retirer, ou des élèves non placés puis « Participants » pour les ajouter.' : 'Touchez un ou plusieurs élèves (ils s\'allument, touchez à nouveau pour les enlever), puis touchez le groupe de destination. Touchez la liste pour les y remettre.'}
+        ${sel.length ? `<b style="color:var(--blue,#1E5BD8)"> · ${sel.length} sélectionné${sel.length > 1 ? 's' : ''}</b> <button class="link" id="gunsel">tout désélectionner</button>` : ''}</p>
+      <div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(118px,34%);gap:10px;align-items:start">
+        <div class="teams" style="margin-top:0;grid-template-columns:repeat(auto-fill,minmax(170px,1fr))">${ad.indiv
         ? `<div class="card team" data-d="new" style="cursor:pointer"><h3><span>Participants</span><span class="muted">${L.length}</span></h3><div style="display:flex;flex-wrap:wrap;gap:5px">${L.map((g, i) => chip(i, ad.names(g)[0] || '?')).join('') || '<span class="muted">—</span>'}</div></div>`
-        : L.map((g, i) => `<div class="card team" data-d="${i}" style="cursor:pointer"><h3><span>${esc(g.name)}</span><span class="muted">${ad.names(g).length}</span></h3>
-          <div style="display:flex;flex-wrap:wrap;gap:5px">${ad.names(g).map(n => chip(i, n)).join('') || '<span class="muted">Groupe vide</span>'}</div>
-          <div class="row" style="margin-top:8px;gap:6px"><button class="btn btn-ghost" style="padding:6px" data-ren="${i}">✏️ Renommer</button><button class="btn btn-ghost" style="padding:6px" data-del="${i}">🗑 Supprimer</button></div></div>`).join('')}
-        <div class="card team" data-d="-1" style="cursor:pointer;border-top:5px dashed var(--line);background:var(--grad-soft)"><h3><span>Non placés / absents</span><span class="muted">${free.length}</span></h3>
-          <div style="display:flex;flex-wrap:wrap;gap:5px">${free.map(n => chip(-1, n)).join('') || '<span class="muted">—</span>'}</div></div></div>
-      ${ad.indiv ? '' : '<button class="btn btn-ghost btn-block" style="margin-top:10px" id="gnew">＋ Nouveau groupe</button>'}
-      <button class="btn btn-grad btn-block" style="margin-top:8px" id="gok" data-free>✔ Terminé</button></div>`;
-    const done = () => { ad.onChange(); render(); };
-    o.querySelectorAll('[data-s]').forEach(b => b.onclick = e => { e.stopPropagation(); const g = +b.dataset.s, n = b.dataset.n; sel = sel && sel.g === g && sel.n === n ? null : { g, n }; render(); });
-    o.querySelectorAll('[data-d]').forEach(c => c.onclick = () => { if (!sel) return; const L2 = ad.list(), d = c.dataset.d, s = sel; sel = null;
+        : L.map((g, i) => `<div class="card team" data-d="${i}" style="cursor:pointer;${sel.length ? 'box-shadow:0 0 0 2px rgba(30,91,216,.35)' : ''}"><h3><span>${esc(g.name)}</span><span class="muted">${ad.names(g).length}</span></h3>
+          <div style="display:flex;flex-wrap:wrap;gap:5px;min-height:34px">${ad.names(g).map(n => chip(i, n)).join('') || `<span class="muted">${sel.length ? 'Touchez pour y placer la sélection' : 'Groupe vide'}</span>`}</div>
+          <div class="row" style="margin-top:8px;gap:6px"><button class="btn btn-ghost" style="padding:6px" data-ren="${i}">✏️</button><button class="btn btn-ghost" style="padding:6px" data-del="${i}">🗑</button></div></div>`).join('')}
+          ${ad.indiv ? '' : '<button class="btn btn-ghost" style="min-height:80px" id="gnew">＋ Nouveau groupe</button>'}</div>
+        <div class="card" data-d="-1" style="cursor:pointer;position:sticky;top:64px;border-top:5px dashed var(--line);background:var(--grad-soft);padding:10px;max-height:calc(100dvh - 140px);overflow:auto"><h3 style="margin:0 0 6px;font-size:.95rem">${esc(listTitle)} <span class="muted">${free.length}</span></h3>
+          ${free.map(n => chip(-1, n, true)).join('') || '<span class="muted" style="font-size:.8rem">Tous les élèves sont placés.</span>'}
+          ${free.length > 1 ? `<button class="link" id="gselall" style="font-size:.8rem">Tout sélectionner</button>` : ''}</div></div>
+      <button class="btn btn-grad btn-block" style="margin-top:10px" id="gok" data-free>${okL}</button></div>`;
+    const done = () => { ad.onChange && ad.onChange(); render(); };
+    o.querySelectorAll('[data-s]').forEach(b => b.onclick = e => { e.stopPropagation(); const g = +b.dataset.s, n = b.dataset.n;
+      if (isSel(g, n)) sel = sel.filter(x => !(x.g === g && x.n === n)); else sel.push({ g, n }); render(); });
+    o.querySelectorAll('[data-d]').forEach(c => c.onclick = () => { if (!sel.length) return; const L2 = ad.list(), d = c.dataset.d, S = sel.slice(); sel = [];
       if (ad.indiv) {
-        if (d === '-1' && s.g >= 0) { stash[s.n] = ad.take(L2[s.g], s.n); L2.splice(s.g, 1); }
-        else if (d === 'new' && s.g === -1) { const g = ad.make(s.n); ad.put(g, s.n, stash[s.n]); L2.push(g); }
+        // de « Participants » vers la liste : on retire (indices décroissants pour ne pas décaler)
+        if (d === '-1') S.filter(s => s.g >= 0).sort((x, y) => y.g - x.g).forEach(s => { stash[s.n] = ad.take(L2[s.g], s.n); L2.splice(s.g, 1); });
+        else if (d === 'new') S.filter(s => s.g === -1).forEach(s => { const g = ad.make(s.n); ad.put(g, s.n, stash[s.n]); L2.push(g); });
       } else {
-        const to = +d; if (to === s.g) return render();
-        const data = s.g >= 0 ? ad.take(L2[s.g], s.n) : stash[s.n];
-        if (to >= 0) ad.put(L2[to], s.n, data); else stash[s.n] = data;
+        const to = +d;
+        S.forEach(s => { if (to === s.g) return; const data = s.g >= 0 ? ad.take(L2[s.g], s.n) : stash[s.n];
+          if (to >= 0) ad.put(L2[to], s.n, data); else stash[s.n] = data; });
       }
       done(); });
+    const us = o.querySelector('#gunsel'); if (us) us.onclick = () => { sel = []; render(); };
+    const sa = o.querySelector('#gselall'); if (sa) sa.onclick = e => { e.stopPropagation(); free.forEach(n => { if (!isSel(-1, n)) sel.push({ g: -1, n }); }); render(); };
     o.querySelectorAll('[data-ren]').forEach(b => b.onclick = e => { e.stopPropagation(); const g = ad.list()[+b.dataset.ren], n = prompt('Nom du groupe', g.name); if (n && n.trim()) { ad.rename ? ad.rename(g, n.trim()) : g.name = n.trim(); done(); } });
     o.querySelectorAll('[data-del]').forEach(b => b.onclick = e => { e.stopPropagation(); const L2 = ad.list(), g = L2[+b.dataset.del];
-      if (!confirm(`Supprimer ${g.name} ? Ses élèves passent dans « Non placés ».`)) return; ad.names(g).slice().forEach(n => { stash[n] = ad.take(g, n); }); L2.splice(+b.dataset.del, 1); done(); });
-    const nw = o.querySelector('#gnew'); if (nw) nw.onclick = () => { const L2 = ad.list(); L2.push(ad.make('Groupe ' + (L2.length + 1))); done(); };
-    o.querySelector('#gok').onclick = o.querySelector('#gok2').onclick = () => { o.remove(); ad.onClose && ad.onClose(); };
+      if (!confirm(`Supprimer ${g.name} ? Ses élèves reviennent dans la liste.`)) return; ad.names(g).slice().forEach(n => { stash[n] = ad.take(g, n); }); L2.splice(+b.dataset.del, 1); sel = []; done(); });
+    const nw = o.querySelector('#gnew'); if (nw) nw.onclick = e => { e.stopPropagation(); const L2 = ad.list(); L2.push(ad.make('Groupe ' + (L2.length + 1))); done(); };
+    o.querySelector('#gok').onclick = o.querySelector('#gok2').onclick = () => { if (ad.validate && ad.validate() === false) return; o.remove(); ad.onClose && ad.onClose(); };
+    const cx = o.querySelector('#gcx'); if (cx) cx.onclick = () => { o.remove(); ad.cancel(); };
     if (sc) o.firstElementChild.scrollTop = sc;
   };
   render(); document.body.appendChild(o);

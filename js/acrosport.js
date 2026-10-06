@@ -401,6 +401,12 @@ const acroGripSVG = (() => {
   return k => (D[k] || (() => ''))();
 })();
 
+/* Validation par l'enseignant de chaque élément présenté : 4 niveaux de maîtrise (partagé Gym / Acrosport) */
+window.EPS_M = window.EPS_M || [['Maîtrise insuffisante', '#D64545', 'Insuff.'], ['Maîtrise fragile', '#E0892F', 'Fragile'], ['Maîtrise satisfaisante', '#2F6BD8', 'Satisf.'], ['Très bonne maîtrise', '#1B9E5A', 'Très bonne']];
+window.epsMBar = window.epsMBar || ((cur, attr) => `<div data-cfg="bare" style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px">${EPS_M.map(([l, c, s], i) => `<button type="button" ${attr}="${i}" style="padding:10px 4px;border-radius:12px;border:1.5px solid ${cur === i ? 'transparent' : 'var(--line)'};background:${cur === i ? c : 'var(--card)'};color:${cur === i ? '#fff' : 'inherit'};font-weight:800;font-size:.78rem;line-height:1.15">${l}</button>`).join('')}</div>`);
+window.epsMTag = window.epsMTag || (m => m == null ? '' : `<span style="display:inline-block;padding:2px 8px;border-radius:99px;font-size:.7rem;font-weight:800;color:#fff;background:${EPS_M[m][1]}">${EPS_M[m][2]}</span>`);
+window.epsMAvg = window.epsMAvg || (L => { const v = L.filter(x => x != null); return v.length ? Math.round(v.reduce((a, b) => a + b, 0) / v.length) : null; });
+
 /* ---------- Création de pyramide (éditeur glisser-déposer) ---------- */
 const ACRO_POSES = { stand: 'Debout', arab: 'Arabesque (1 pied)', genoux: 'À genoux', assis: 'Assis, jambes fléchies', siege: 'Assis sur un appui', trep: 'Trépied (chevalier)',
   table: 'À 4 pattes (banc)', dos: 'Sur le dos, jambes en l\'air', planche: 'Planche (horizontal)', epaules: 'Sur les épaules (de face)', brouette: 'Brouette', semi: 'Semi-renversé (mains au sol)', atr: 'ATR (renversé)',
@@ -700,11 +706,32 @@ TOOL_IMPL.acrosport = function (el) {
   }
 
   /* ---------- Enchaînement du groupe ---------- */
+  let reqOpen = false;
   function tabEnch(box) {
     if (!DB.classes.length) { box.innerHTML = noClassMsg; return; }
     const g = G();
     if (!g) { box.innerHTML = `<div class="card empty">Formez d'abord les groupes de la classe.<br><br><button class="btn btn-grad" id="ago">👥 Former les groupes</button></div>`; box.querySelector('#ago').onclick = () => { tab = 'groupes'; frame(); }; return; }
+    const R = A.req = Object.assign({ nb: 5, max: 'D', duo: 0, trio: 0, quat: 0, ren: 0 }, A.req || {});
+    const figs = g.seq.filter(it => it.t === 'fig').map(it => acroFind(it.fig)).filter(Boolean), NV = 'ABCD';
+    const cE = n => figs.filter(f => f.eff === n).length, cR = figs.filter(f => acroVol(f).includes('renverse')).length, trop = figs.filter(f => NV.indexOf(acroNiv(f)) > NV.indexOf(R.max));
+    const W = [];
+    if (figs.length < R.nb) W.push(`${figs.length} pyramide${figs.length > 1 ? 's' : ''} sur ${R.nb} demandées`);
+    if (trop.length) W.push(`${trop.length} pyramide${trop.length > 1 ? 's' : ''} au-dessus du niveau ${R.max} : ${trop.map(f => f.n).join(', ')}`);
+    [['duo', 2, 'duo'], ['trio', 3, 'trio'], ['quat', 4, 'quatuor']].forEach(([k, n, l]) => { if (cE(n) < R[k]) W.push(`${cE(n)} ${l}${cE(n) > 1 ? 's' : ''} sur ${R[k]} demandé${R[k] > 1 ? 's' : ''}`); });
+    if (cR < R.ren) W.push(`${cR} pyramide${cR > 1 ? 's' : ''} avec voltigeur renversé sur ${R.ren} obligatoire${R.ren > 1 ? 's' : ''}`);
+    const num = (id, v, min, max) => `<input id="${id}" type="number" min="${min}" max="${max}" value="${v}">`;
+    const L = g.seq.filter(it => it.t !== 'liaison').map(it => it.m), av = epsMAvg(L), nm = L.filter(x => x != null).length;
     box.innerHTML = `<div class="card"><b>${esc(g.name)}</b><div class="muted">${g.members.map(esc).join(', ')}</div></div>
+      <div class="card" style="margin-top:12px">
+        <div class="result" style="margin-top:0"><div class="card"><b>${figs.length}</b><small>pyramide${figs.length > 1 ? 's' : ''} / ${R.nb}</small></div><div class="card"><b>${cE(2)} · ${cE(3)} · ${cE(4)}</b><small>duo · trio · quatuor</small></div><div class="card"><b>${cR}</b><small>renversé${cR > 1 ? 's' : ''}</small></div></div>
+        ${W.length ? `<div class="gy-warn" style="margin-top:10px;padding:8px 10px;border-radius:10px;background:rgba(224,137,47,.12);color:#9A5A12;font-weight:700;font-size:.85rem">⚠️ ${W.map(esc).join('<br>⚠️ ')}</div>` : figs.length ? '<div style="margin-top:10px;font-weight:800;color:var(--ok)">✓ Exigences respectées</div>' : ''}
+        <details id="areq" data-cfg="bare" style="margin-top:10px" ${reqOpen ? 'open' : ''}><summary class="muted" style="cursor:pointer;font-weight:800">⚙️ Exigences de l'enchaînement</summary>
+          <div class="row"><div><label>Nombre de pyramides</label>${num('arnb', R.nb, 1, 20)}</div><div><label>Niveau maximal</label><select id="armx">${[...NV].map(l => `<option ${R.max === l ? 'selected' : ''}>${l}</option>`).join('')}</select></div></div>
+          <div class="row"><div><label>Duos minimum</label>${num('ardu', R.duo, 0, 10)}</div><div><label>Trios minimum</label>${num('artr', R.trio, 0, 10)}</div><div><label>Quatuors minimum</label>${num('arqu', R.quat, 0, 10)}</div></div>
+          <div class="row"><div><label>Voltigeurs renversés obligatoires</label>${num('arre', R.ren, 0, 10)}</div></div></details></div>
+      ${nm ? `<div class="card" style="margin-top:12px"><b>✅ Validation par l'enseignant</b> <span class="muted" style="font-size:.8rem">· ${nm} / ${L.length} figure(s)</span>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px">${EPS_M.map(([l, c], i) => { const n = L.filter(x => x === i).length; return n ? `<span style="padding:3px 9px;border-radius:99px;background:${c};color:#fff;font-weight:800;font-size:.75rem">${n} × ${l}</span>` : ''; }).join('')}</div>
+        ${av != null ? `<div style="margin-top:8px">Bilan : <b style="color:${EPS_M[av][1]}">${EPS_M[av][0]}</b></div>` : ''}<button class="link" data-cfg="bare" id="amclr" style="margin-top:6px">Effacer la validation</button></div>` : ''}
       <div class="row" style="margin-top:12px"><button class="btn btn-ghost" id="afig">📚 Ajouter une pyramide</button><button class="btn btn-ghost" id="alia">🔗 Ajouter une liaison</button>
         <label class="btn btn-ghost" style="display:block;text-align:center;cursor:pointer;margin:0">📷 Ajouter une photo<input id="aph" type="file" accept="image/*" capture="environment" style="display:none"></label></div>
       ${g.seq.length ? `<button class="btn btn-grad btn-block" style="margin-top:10px" id="aplay">▶ Présenter l'enchaînement</button>` : ''}
@@ -721,7 +748,7 @@ TOOL_IMPL.acrosport = function (el) {
             ${f ? `<div style="flex:1;min-width:0">${acroSVG(f)}</div>` : ''}
             ${img ? `<img src="${img}" data-z="${k}" style="flex:1;min-width:0;max-height:120px;object-fit:contain;border-radius:10px;background:#000;cursor:zoom-in">` : ''}</div>
           <div style="flex:0 0 auto;display:flex;flex-direction:column;gap:4px;align-items:stretch">
-            <div class="muted" style="font-size:.75rem;font-weight:800;max-width:110px">${f ? esc(f.n) : 'Photo'}</div>
+            <div class="muted" style="font-size:.75rem;font-weight:800;max-width:110px">${f ? `${acroNivBadge(f)} ${esc(f.n)}` : 'Photo'} ${epsMTag(it.m)}</div>
             ${f ? `<label class="btn btn-ghost" style="padding:5px 8px;font-size:.75rem;cursor:pointer;margin:0;text-align:center">📷 ${img ? 'Changer' : 'Photo'}<input data-ph="${k}" type="file" accept="image/*" capture="environment" style="display:none"></label>` : ''}
             <div style="display:flex;gap:4px"><button class="btn btn-ghost" style="padding:5px 8px" data-up="${k}" ${k ? '' : 'disabled'}>↑</button><button class="btn btn-ghost" style="padding:5px 8px" data-dn="${k}" ${k < g.seq.length - 1 ? '' : 'disabled'}>↓</button><button class="btn btn-ghost" style="padding:5px 8px" data-rm="${k}">✕</button></div></div></div>`; }).join('')}</div>`
         : '<div class="card empty">L\'enchaînement est vide : ajoutez des pyramides de la banque ou des photos des figures du groupe.</div>'}`;
@@ -738,18 +765,25 @@ TOOL_IMPL.acrosport = function (el) {
     box.querySelectorAll('[data-dn]').forEach(b => b.onclick = () => mv(+b.dataset.dn, 1));
     box.querySelectorAll('[data-rm]').forEach(b => b.onclick = () => { if (!confirm('Retirer cet élément de l\'enchaînement ?')) return; const [x] = g.seq.splice(+b.dataset.rm, 1); if (x.img) DB[acroImgKey(x.img)] = null; save(); frame(); });
     if ($('#aplay')) $('#aplay').onclick = () => present(g);
+    const setR = (k, v) => { R[k] = v; reqOpen = true; save(); tabEnch(box); };
+    $('#areq').ontoggle = e => { reqOpen = e.target.open; };
+    $('#arnb').onchange = e => setR('nb', Math.max(1, Math.min(20, +e.target.value || 1))); $('#armx').onchange = e => setR('max', e.target.value);
+    [['ardu', 'duo'], ['artr', 'trio'], ['arqu', 'quat'], ['arre', 'ren']].forEach(([id, k]) => { $('#' + id).onchange = e => setR(k, Math.max(0, Math.min(10, +e.target.value || 0))); });
+    if ($('#amclr')) $('#amclr').onclick = () => { if (!confirm('Effacer la validation de toutes les figures ?')) return; g.seq.forEach(it => delete it.m); save(); tabEnch(box); };
     if ($('#aclr')) $('#aclr').onclick = () => { if (!confirm(`Vider l'enchaînement de ${g.name} ?`)) return; clearImgs([g]); g.seq = []; save(); frame(); };
   }
   function present(g) {
     let k = 0; const o = document.createElement('div');
-    o.style.cssText = 'position:fixed;inset:0;z-index:310;background:var(--bg,#fff);display:flex;flex-direction:column;padding:16px';
+    o.style.cssText = 'position:fixed;inset:0;z-index:310;background:var(--bg,#fff);display:flex;flex-direction:column;padding:16px;overflow:auto';
     const show = () => { const it = g.seq[k], f = it.t === 'fig' ? acroFind(it.fig) : null, img = it.img ? DB[acroImgKey(it.img)] : null, li = it.t === 'liaison' ? A.liaisons.find(x => x.id === it.lid) : null;
       o.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center"><b>${esc(g.name)} · ${k + 1} / ${g.seq.length}</b><button class="btn btn-ghost" id="pq">✕ Fermer</button></div>
         <h3 style="text-align:center;margin:10px 0">${f ? esc(f.n) : li ? '🔗 ' + esc(li.n) : 'Figure ' + (k + 1)}</h3>
         ${li ? `<div style="text-align:center">${li.d ? `<p class="muted">${esc(li.d)}</p>` : ''}${li.url ? `<button class="btn btn-grad" id="pv">${acroBtn(li.url, true)}</button>` : ''}</div>` : ''}
         <div style="flex:1;display:flex;gap:12px;align-items:center;justify-content:center;min-height:0;flex-wrap:wrap">${f ? `<div style="flex:1 1 280px;max-width:520px">${acroSVG(f, true)}</div>` : ''}${img ? `<img src="${img}" style="flex:1 1 280px;max-width:520px;max-height:70vh;object-fit:contain;border-radius:12px">` : ''}</div>
+        ${!li ? `<div style="margin-top:12px" data-cfg="bare"><div class="muted" style="font-size:.78rem;font-weight:800;margin-bottom:4px">✅ Validation de l'enseignant</div>${epsMBar(it.m, 'data-pm')}</div>` : ''}
         <div class="row" style="margin-top:12px"><button class="btn btn-ghost" id="pp" ${k ? '' : 'disabled'}>← Précédente</button><button class="btn btn-grad" id="pn" ${k < g.seq.length - 1 ? '' : 'disabled'}>Suivante →</button></div>`;
-      o.querySelector('#pq').onclick = () => o.remove();
+      o.querySelector('#pq').onclick = () => { o.remove(); frame(); };
+      o.querySelectorAll('[data-pm]').forEach(b => b.onclick = () => { const v = +b.dataset.pm; if (it.m === v) delete it.m; else it.m = v; save(); if (it.m != null && k < g.seq.length - 1) setTimeout(() => { k++; show(); }, 250); else show(); });
       if (o.querySelector('#pv')) o.querySelector('#pv').onclick = () => acroVideo(li);
       o.querySelector('#pp').onclick = () => { k--; show(); }; o.querySelector('#pn').onclick = () => { k++; show(); }; };
     show(); document.body.appendChild(o);

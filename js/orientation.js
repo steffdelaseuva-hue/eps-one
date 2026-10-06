@@ -35,6 +35,7 @@ document.head.insertAdjacentHTML('beforeend', `<style>
 .run-h b{flex:1}
 .run-t{font-size:1.6rem;font-weight:900;font-variant-numeric:tabular-nums}
 .bal-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.co-pick{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:8px}
 .bal-chips button{min-width:46px;padding:8px 6px;border-radius:10px;border:1.5px solid var(--line);background:var(--card);font-weight:900;font-size:.85rem}
 .bal-chips button.on{background:#1B9E5A;color:#fff;border-color:transparent}
 .bal-chips button.ob{box-shadow:inset 0 -3px 0 var(--danger)}
@@ -46,10 +47,10 @@ document.head.insertAdjacentHTML('beforeend', `<style>
 /* ---------- Symboles de pinces : grille 4 × 4 de points (code = 16 caractères 0/1) ---------- */
 const PAT_N = 16;
 const isPat = c => typeof c === 'string' && /^[01]{16}$/.test(c) && c.includes('1');
-const CO_PATS = (() => {                       // répertoire de 50 symboles distincts
+const CO_PATS = (() => {                       // répertoire de 90 symboles distincts (les 50 premiers inchangés)
   let seed = 20260926; const rnd = () => (seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648;
   const out = [], dist = (a, b) => [...a].filter((x, i) => x !== b[i]).length;
-  while (out.length < 50) { const k = 4 + Math.floor(rnd() * 4), cells = new Set(); while (cells.size < k) cells.add(Math.floor(rnd() * PAT_N));
+  while (out.length < 90) { const k = 4 + Math.floor(rnd() * 4), cells = new Set(); while (cells.size < k) cells.add(Math.floor(rnd() * PAT_N));
     const c = Array.from({ length: PAT_N }, (_, i) => cells.has(i) ? '1' : '0').join('');
     if (out.every(o => dist(o, c) >= 4)) out.push(c); }
   return out;
@@ -85,7 +86,7 @@ function patPicker({ title, options, draw = true, extra = [], current, used = []
 }
 
 TOOL_IMPL.co = function (el) {
-  let tab = DB.co.current || partToday('co').length ? 'seance' : 'parcours';
+  let tab = DB.co.current || partToday('co').length || partRecoverHTML('co') ? 'seance' : 'parcours';
   const P = id => DB.co.parcours.find(p => p.id === id);
 
   function frame() {
@@ -180,13 +181,13 @@ TOOL_IMPL.co = function (el) {
   }
 
   /* ---- Séance partagée avec les autres tablettes (modèle sans résultats) ---- */
-  const pub = (cur, create) => { if (cur.joined) return; const p = P(cur.parcours) || cur.psnap; if (!p) return;
+  const pub = (cur, create) => { if (cur.joined || cur.profOnly) return; const p = P(cur.parcours) || cur.psnap; if (!p) return;
     const indiv = cur.runs.every(r => r.members.length === 1 && r.name === r.members[0]);
     partPublish('co', cur.id, { nom: p.nom, classe: cur.classe || '', ng: cur.runs.length, indiv, ep: `${CO_TYPES[p.type][0]} · ${p.balises.length} balises`,
-      tpl: { classe: cur.classe || '', parcours: cur.parcours, psnap: p, gap: cur.gap || 60, runs: cur.runs.map(r => ({ name: r.name, members: r.members })) } }, create); };
+      tpl: { classe: cur.classe || '', parcours: cur.parcours, psnap: p, gap: cur.gap || 60, runs: cur.runs.map(r => ({ name: r.name, members: r.members, pc: r.pc || null, libre: r.libre || 0, choix: r.choix || 0 })) } }, create); };
   const join = (box, sp) => { const T = sp.tpl;
     DB.co.current = { id: sp.id, date: Date.now(), parcours: T.parcours, psnap: T.psnap, classe: T.classe, gap: T.gap || 60, joined: true,
-      runs: T.runs.map(r => ({ name: r.name, members: [...r.members], dep: null, arr: null, found: [], wrong: 0 })) };
+      runs: T.runs.map(r => ({ name: r.name, members: [...r.members], pc: r.pc || null, libre: r.libre || 0, choix: r.choix || 0, sel: [], dep: null, arr: null, found: [], wrong: 0 })) };
     save(); const cur = DB.co.current;
     partPickGroup(box, cur.runs, i => { if (!DB.co.current) return prepare(box); cur.only = i; save(); seance(box); }, !!sp.indiv); };
 
@@ -195,10 +196,30 @@ TOOL_IMPL.co = function (el) {
     if (!cur) return prepare(box);
     const p = P(cur.parcours) || cur.psnap; if (!p) { DB.co.current = null; save(); return prepare(box); }
     let raf;
+    /* Parcours de chaque équipe : celui de la séance, un autre parcours choisi (r.pc), ou « choix libre » de N balises (r.libre, r.sel) */
+    const baseOf = r => (r.pc && P(r.pc)) || p;
+    const pOf = r => { const b = baseOf(r); if (!r.libre) return b; const sel = r.sel || [];
+      return { ...b, id: b.id + '~libre' + r.libre, nom: `${b.nom} · choix libre (${r.libre} balises)`, balises: b.balises.filter(x => sel.includes(x.num)) }; };
+    const needSel = r => r.libre && (r.sel || []).length < r.libre;
+    const pcPick = (r, i) => `<div class="co-pick"><select data-pcs="${i}" style="padding:8px">${DB.co.parcours.map(x => `<option value="${x.id}" ${baseOf(r).id === x.id ? 'selected' : ''}>${esc(x.nom)} · ${x.balises.length} bal.</option>`).join('')}</select>
+      <select data-lib="${i}" style="padding:8px"><option value="0">Toutes les balises du parcours</option>${Array.from({ length: Math.max(0, baseOf(r).balises.length - 1) }, (_, k) => k + 2).map(n => `<option value="${n}" ${r.libre === n ? 'selected' : ''}>🎯 Choix libre : ${n} balises</option>`).join('')}</select></div>`;
+    const selPick = (r, i) => { const b = baseOf(r), sel = r.sel || [];
+      return `<div style="margin-top:8px"><div style="font-weight:800;font-size:.85rem">🎯 Choisissez ${r.libre} balises · ${sel.length}/${r.libre}</div><div class="bal-chips">${b.balises.map(x => `<button data-sel="${i}" data-n="${x.num}" class="${sel.includes(x.num) ? 'on' : ''}">${x.num}<sup> N${x.niv}</sup></button>`).join('')}</div></div>`; };
+    const bindPick = (root, redraw) => {
+      root.querySelectorAll('[data-pcs]').forEach(sl => sl.onchange = () => { const r = cur.runs[+sl.dataset.pcs]; r.pc = sl.value === cur.parcours ? null : sl.value; r.sel = []; r.found = []; save(); pub(cur); redraw(); });
+      root.querySelectorAll('[data-lib]').forEach(sl => sl.onchange = () => { const r = cur.runs[+sl.dataset.lib]; r.libre = +sl.value; r.sel = []; r.found = []; save(); pub(cur); redraw(); });
+      root.querySelectorAll('[data-sel]').forEach(bt => bt.onclick = () => { const r = cur.runs[+bt.dataset.sel], n = +bt.dataset.n; r.sel = r.sel || [];
+        if (r.sel.includes(n)) r.sel = r.sel.filter(x => x !== n); else if (r.sel.length < r.libre) r.sel = [...r.sel, n]; else return toast(`Déjà ${r.libre} balises choisies : retirez-en une`);
+        beep(900, .04); save(); redraw(); }); };
+    // 🔁 Nouveau parcours après l'arrivée : la course terminée est enregistrée, l'équipe repart sur un autre parcours
+    const again = (i, redraw) => { const r = cur.runs[i], pp = pOf(r);
+      const rec = { ...cur, id: cur.id + '-' + Math.random().toString(36).slice(2, 6), parcours: baseOf(r).id, runs: [JSON.parse(JSON.stringify(r))], parcoursSnap: JSON.parse(JSON.stringify(pp)) };
+      ['only', 'joined', 'psnap', 'profOnly'].forEach(k => delete rec[k]); DB.co.seances.push(rec); coResults(rec);
+      Object.assign(r, { dep: null, arr: null, found: [], wrong: 0, sel: [], done: (r.done || 0) + 1 }); save(); toast(`Course enregistrée ✔ · ${r.name} : choisissez le nouveau parcours`); redraw(); };
     const tabs = on => { const t = el.querySelector('.co-tabs'); if (t) t.style.display = on ? '' : 'none'; };
     // Vue « une seule équipe » : ce que voient les élèves sur leur tablette (cur.only reste sur l'appareil)
     const drawGroup = () => {
-      const i = cur.only, r = cur.runs[i], x = result(r, p), run = r.dep && !r.arr, tot = p.balises.length, n = r.found.length;
+      const i = cur.only, r = cur.runs[i], p = pOf(r), x = result(r, p), run = r.dep && !r.arr, tot = p.balises.length, n = r.found.length;
       const missOb = p.balises.filter(b => b.ob && !r.found.includes(b.num)).length;
       tabs(false);
       box.innerHTML = `<div class="card" style="text-align:center"><div style="font-weight:900;font-size:1.3rem">🧭 ${esc(r.name)}</div>${r.members.length > 1 || r.name !== r.members[0] ? `<div class="muted">${r.members.map(esc).join(', ')}</div>` : ''}
@@ -206,16 +227,17 @@ TOOL_IMPL.co = function (el) {
           <div class="muted">${esc(p.nom)} · ${CO_TYPES[p.type][0]}${p.alloue ? ` · temps attribué ${p.alloue} min ± ${p.ecart}` : ''}</div>
           <div style="height:10px;border-radius:99px;background:var(--line);overflow:hidden;margin:10px 0 4px"><div style="height:100%;width:${tot ? n / tot * 100 : 0}%;background:#1B9E5A"></div></div>
           <div class="muted" style="font-size:.85rem">${n} / ${tot} balises trouvées · <b style="color:var(--text)">${x.score} pts</b>${missOb ? ` · ${missOb} obligatoire${missOb > 1 ? 's' : ''} à trouver` : ''}${r.wrong ? ` · ${r.wrong} mauvaise${r.wrong > 1 ? 's' : ''} balise${r.wrong > 1 ? 's' : ''}` : ''}</div>
-          ${!r.dep ? `<button class="btn btn-grad btn-block" style="margin-top:12px;font-size:1.2rem;padding:16px" id="gv-go">▶ Départ${r.plan ? ' à ' + clock(r.plan).slice(0, 5) : ''}</button>` : ''}
+          ${!r.dep ? `${r.choix || DB.co.parcours.length > 1 || r.libre ? `<div style="margin-top:10px;text-align:left">${pcPick(r, i)}${r.libre ? selPick(r, i) : ''}</div>` : ''}<button class="btn btn-grad btn-block" style="margin-top:12px;font-size:1.2rem;padding:16px" id="gv-go" ${needSel(r) ? 'disabled' : ''}>▶ Départ${r.plan ? ' à ' + clock(r.plan).slice(0, 5) : ''}</button>` : ''}
           ${run ? `<button class="btn ${missOb ? 'btn-danger' : 'btn-grad'} btn-block" style="margin-top:12px;font-size:1.15rem;padding:14px" id="gv-fin">🏁 Arrivée${!missOb ? ' — toutes les obligatoires sont trouvées !' : ''}</button>` : ''}
           ${r.arr ? `<div style="margin-top:10px;font-weight:800">✅ Course terminée · ${x.score} pts${x.temps != null ? ` · RK ${x.rk}` : ''}${x.penS ? ` · pénalités +${hms(x.penS)}` : ''}${x.statut ? ' · ' + x.statut : ''}</div>` : ''}</div>
         <div class="card" style="margin-top:10px"><div style="display:flex;justify-content:space-between;align-items:center"><b>Balises</b><span class="muted" style="font-size:.8rem">${run ? p.balises.some(b => isPat(b.code)) ? 'Touchez une balise trouvée puis le symbole de sa pince' : 'Touchez une balise dès qu\'elle est trouvée' : !r.dep ? 'Appuyez sur ▶ Départ pour commencer' : ''}</span></div>
           ${p.balises.map(b => { const on = r.found.includes(b.num);
             return `<button class="gv-it ${on ? 'on' : ''}" data-bal="${b.num}" ${run ? '' : 'disabled'}><span class="bx">${on ? '✓' : ''}</span><span class="t" style="flex:1">Balise ${b.num}</span><span class="muted" style="font-size:.8rem;font-weight:700">N${b.niv} · ${p.pts[b.niv - 1] || 0} pt${(p.pts[b.niv - 1] || 0) > 1 ? 's' : ''}${b.ob ? ' · <b style="color:var(--danger)">obligatoire</b>' : ''}</span>${on && isPat(b.code) ? patSVG(b.code, 34) : ''}</button>`; }).join('')}</div>
-        ${r.arr ? '<button class="btn btn-grad btn-block" style="margin-top:12px;font-size:1.1rem;padding:16px" id="save">💾 Enregistrer notre course</button>' : ''}
+        ${r.arr ? `<button class="btn btn-grad btn-block" style="margin-top:12px;font-size:1.1rem;padding:16px" id="save">💾 Enregistrer notre course</button><button class="btn btn-ghost btn-block" style="margin-top:8px" data-again="${i}">🔁 Enregistrer et repartir sur un nouveau parcours</button>` : ''}
         <div style="text-align:center;margin:18px 0 6px"><button class="link" id="gv-prof">🔒 Mode enseignant</button></div>`;
       const $ = s => box.querySelector(s);
-      if ($('#gv-go')) $('#gv-go').onclick = () => { r.dep = Date.now(); beep(1300, .45); save(); drawGroup(); };
+      if ($('#gv-go')) $('#gv-go').onclick = () => { if (needSel(r)) return toast(`Choisissez ${r.libre} balises`); r.dep = Date.now(); beep(1300, .45); save(); drawGroup(); };
+      bindPick(box, drawGroup); box.querySelectorAll('[data-again]').forEach(b => b.onclick = () => again(+b.dataset.again, drawGroup));
       if ($('#gv-fin')) $('#gv-fin').onclick = () => { if (missOb && !confirm(`Il reste ${missOb} balise(s) obligatoire(s) à trouver. Valider l'arrivée ?`)) return; r.arr = Date.now(); beep(1000, .3); save(); drawGroup(); };
       const mark = num => { r.found = [...r.found, num]; beep(900, .06); save(); drawGroup(); };
       box.querySelectorAll('[data-bal]').forEach(bt => bt.onclick = () => { const num = +bt.dataset.bal, b = p.balises.find(y => y.num === num);
@@ -233,34 +255,41 @@ TOOL_IMPL.co = function (el) {
       if (!tab1 && cur.runs.some(r => r.dep && !r.arr) && !confirm('Certains élèves ne sont pas arrivés. Enregistrer quand même ?')) return;
       // tablette d'une équipe : seule SA course est enregistrée (pas de lignes vides pour les autres)
       // id unique par tablette (fusion de synchro par id) ; regroupées à l'affichage (même jour + classe + parcours)
-      const rec = { ...cur, id: cur.id + '-' + Math.random().toString(36).slice(2, 6), runs: tab1 ? [tab1] : cur.runs, parcoursSnap: JSON.parse(JSON.stringify(p)) }; delete rec.only; delete rec.joined; delete rec.psnap;
-      DB.co.seances.push(rec); DB.co.current = null; save(); coResults(rec); toast('Séance enregistrée ✔'); tabs(true); tab = 'bilan'; frame(); };
+      // une fiche par parcours (les équipes peuvent courir des parcours différents)
+      const by = new Map(); (tab1 ? [tab1] : cur.runs).forEach(r => { const pp = pOf(r); if (!by.has(pp.id)) by.set(pp.id, { pp, base: baseOf(r).id, runs: [] }); by.get(pp.id).runs.push(r); });
+      by.forEach(({ pp, base, runs }) => { if (!runs.some(r => r.dep) && by.size > 1) return;
+        const rec = { ...cur, id: cur.id + '-' + Math.random().toString(36).slice(2, 6), parcours: base, runs, parcoursSnap: JSON.parse(JSON.stringify(pp)) }; ['only', 'joined', 'psnap', 'profOnly'].forEach(k => delete rec[k]);
+        DB.co.seances.push(rec); coResults(rec); });
+      DB.co.current = null; save(); toast('Séance enregistrée ✔'); tabs(true); tab = 'bilan'; frame(); };
     const draw = () => {
       if (cur.only != null && cur.runs[cur.only]) return drawGroup();
       tabs(true);
-      const rs = cur.runs.map(r => ({ r, x: result(r, p) }));
+      const rs = cur.runs.map(r => ({ r, x: result(r, pOf(r)) }));
       box.innerHTML = `<div class="card"><div style="display:flex;justify-content:space-between;gap:8px;align-items:center"><div><b>${esc(p.nom)}</b><div class="muted">${esc(cur.classe || '')} · ${CO_TYPES[p.type][0]} · ${p.balises.length} balises${p.alloue ? ` · ${p.alloue} min ± ${p.ecart}` : ''}</div></div><div class="run-t" id="now">${clock(Date.now())}</div></div>
           <div class="row" style="margin-top:10px"><button class="btn btn-grad" id="all">🚩 Départ groupé</button><button class="btn btn-ghost btn-block" data-cfg="bare" style="margin-top:8px" id="edg">✏️ Modifier les groupes / participants (absent, blessé…)</button><div data-cfg="bare" style="display:flex;gap:6px;align-items:center;flex:1.3"><input id="gap" type="number" value="${cur.gap || 60}" style="width:70px;padding:8px"><button class="btn btn-ghost" id="stag" style="padding:9px 8px;font-size:.8rem">Départs échelonnés (s)</button></div></div>
           <p class="muted" style="margin:8px 0 0;font-size:.8rem">Balises : touchez un numéro trouvé (souligné rouge = obligatoire).</p>
-          ${cur.runs.length > 1 ? `<div data-cfg="bare"><label>📱 Tablette d'une équipe (les élèves ne verront que leur équipe)</label><select id="only"><option value="">Toutes</option>${cur.runs.map((r, i) => `<option value="${i}">${esc(r.name)}</option>`).join('')}</select></div>` : ''}</div>
+          ${cur.profOnly ? '<p class="muted" style="margin:8px 0 0;font-size:.8rem">📋 Suivi enseignant uniquement : les élèves courent sans tablette ; arrêtez le temps à leur retour et cochez les balises de leur coupon papier.</p>' : ''}
+          ${cur.runs.length > 1 && !cur.profOnly ? `<div data-cfg="bare"><label>📱 Tablette d'une équipe (les élèves ne verront que leur équipe)</label><select id="only"><option value="">Toutes</option>${cur.runs.map((r, i) => `<option value="${i}">${esc(r.name)}</option>`).join('')}</select></div>` : ''}</div>
         ${rs.map(({ r, x }, i) => `<div class="run ${r.arr ? 'fin' : r.dep ? 'go' : ''}"><div class="run-h"><b>${esc(r.name)}</b><span class="run-t" data-live="${i}">${r.dep ? hms(((r.arr || Date.now()) - r.dep) / 1000) : '0:00'}</span></div>
             ${r.members.length > 1 || r.name !== r.members[0] ? `<div class="muted" style="font-size:.8rem">${r.members.map(esc).join(', ')}</div>` : ''}
             <div class="co-times"><div><label style="margin:0 0 3px">Départ</label>${r.dep ? `<input type="time" step="1" data-cfg="bare" data-dep="${i}" value="${new Date(r.dep).toTimeString().slice(0, 8)}">` : `<button class="btn btn-grad btn-block" data-go="${i}">▶ Départ${r.plan ? ' ' + clock(r.plan).slice(0, 5) : ''}</button>`}</div>
               <div><label style="margin:0 0 3px">Arrivée</label>${r.arr ? `<input type="time" step="1" data-cfg="bare" data-arr="${i}" value="${new Date(r.arr).toTimeString().slice(0, 8)}">` : `<button class="btn ${r.dep ? 'btn-danger' : 'btn-ghost'} btn-block" data-fin="${i}" ${r.dep ? '' : 'disabled'}>🏁 Arrivée</button>`}</div></div>
-            <div class="bal-chips">${p.balises.map(b => `<button data-b="${i}" data-n="${b.num}" class="${r.found.includes(b.num) ? 'on' : ''} ${b.ob ? 'ob' : ''}">${b.num}<sup> N${b.niv}</sup></button>`).join('')}</div>
+            ${!r.dep && (r.choix || r.libre || (DB.co.parcours.length > 1 && cur.runs.length <= 12)) ? pcPick(r, i) + (r.libre ? selPick(r, i) : '') : `${baseOf(r) !== p || r.libre ? `<div class="muted" style="font-size:.78rem;margin-top:4px">🗺 ${esc(pOf(r).nom)}</div>` : ''}<div class="bal-chips">${pOf(r).balises.map(b => `<button data-b="${i}" data-n="${b.num}" class="${r.found.includes(b.num) ? 'on' : ''} ${b.ob ? 'ob' : ''}">${b.num}<sup> N${b.niv}</sup></button>`).join('')}</div>`}
+            ${r.arr ? `<button class="btn btn-ghost btn-block" style="margin-top:8px;padding:9px" data-again="${i}">🔁 Enregistrer et repartir sur un nouveau parcours</button>` : ''}${r.done ? `<div class="muted" style="font-size:.75rem;margin-top:4px">${r.done} parcours déjà terminé${r.done > 1 ? 's' : ''} dans cette séance</div>` : ''}
             <div style="display:flex;align-items:center;gap:8px;margin-top:8px;font-size:.85rem"><span>Mauvaises balises :</span><button class="btn btn-ghost" style="padding:5px 12px" data-wm="${i}">−</button><b>${r.wrong}</b><button class="btn btn-ghost" style="padding:5px 12px" data-wp="${i}">+</button></div>
-            <div class="muted" style="margin-top:6px;font-size:.8rem">${r.found.length}/${p.balises.length} balises · <b style="color:var(--text)">${x.score} pts</b>${x.penP ? ` (−${x.penP})` : ''}${x.miss ? ` · ${x.miss} oblig. manquante(s)` : ''}${x.temps != null ? ` · RK ${x.rk}${x.penS ? ` · pénalités +${hms(x.penS)}` : ''}${x.statut ? ' · ' + x.statut : ''}` : ''}</div></div>`).join('')}
+            <div class="muted" style="margin-top:6px;font-size:.8rem">${r.found.length}/${pOf(r).balises.length} balises · <b style="color:var(--text)">${x.score} pts</b>${x.penP ? ` (−${x.penP})` : ''}${x.miss ? ` · ${x.miss} oblig. manquante(s)` : ''}${x.temps != null ? ` · RK ${x.rk}${x.penS ? ` · pénalités +${hms(x.penS)}` : ''}${x.statut ? ' · ' + x.statut : ''}` : ''}</div></div>`).join('')}
         <div class="section-title"><h2>Classement</h2></div>${ranking(rs, p)}
         <div class="row" style="margin-top:12px"><button class="btn btn-grad" data-cfg="bare" id="save">💾 Terminer et enregistrer la séance</button><button class="btn btn-ghost" data-cfg="bare" id="cancel">Abandonner</button></div>`;
       const $ = s => box.querySelector(s), keep = () => save();
-      $('#all').onclick = () => { const t = Date.now(); cur.runs.forEach(r => { if (!r.dep) r.dep = t; }); beep(1300, .4); keep(); draw(); };
+      $('#all').onclick = () => { const t = Date.now(), w = cur.runs.filter(r => !r.dep && needSel(r)); cur.runs.forEach(r => { if (!r.dep && !needSel(r)) r.dep = t; }); if (w.length) toast(`${w.length} équipe(s) doivent d'abord choisir leurs balises`); beep(1300, .4); keep(); draw(); };
       $('#edg').onclick = () => { const indiv = cur.runs.every(r => r.members.length === 1 && r.name === r.members[0]);
         editGroupsPanel(indiv ? 'Participants' : 'Groupes de la séance', { cls: cur.classe, indiv, list: () => cur.runs, names: r => r.members,
           take: (r, n) => { r.members.splice(r.members.indexOf(n), 1); return indiv ? { dep: r.dep, arr: r.arr, found: r.found, wrong: r.wrong, plan: r.plan } : null; },
           put: (r, n, d) => { r.members.push(n); if (indiv && d) Object.assign(r, d); },
           make: name => ({ name, members: [], dep: null, arr: null, found: [], wrong: 0 }), onChange: () => { keep(); pub(cur); }, onClose: draw }); };
       $('#stag').onclick = () => { cur.gap = Math.max(5, +$('#gap').value || 60); const t0 = Date.now() + 60000; cur.runs.forEach((r, i) => r.plan = t0 + i * cur.gap * 1000); keep(); toast('Horaires de départ prévus (1er départ dans 1 min)'); draw(); };
-      box.querySelectorAll('[data-go]').forEach(b => b.onclick = () => { cur.runs[+b.dataset.go].dep = Date.now(); beep(1300, .3); keep(); draw(); });
+      box.querySelectorAll('[data-go]').forEach(b => b.onclick = () => { const r = cur.runs[+b.dataset.go]; if (needSel(r)) return toast(`${r.name} : choisissez ${r.libre} balises`); r.dep = Date.now(); beep(1300, .3); keep(); draw(); });
+      bindPick(box, draw); box.querySelectorAll('[data-again]').forEach(b => b.onclick = () => again(+b.dataset.again, draw));
       box.querySelectorAll('[data-fin]').forEach(b => b.onclick = () => { cur.runs[+b.dataset.fin].arr = Date.now(); beep(1000, .3); keep(); draw(); });
       const setT = (i, k, v) => { const [h, m, s] = v.split(':').map(Number); const d = new Date(cur.runs[i][k]); d.setHours(h || 0, m || 0, s || 0, 0); cur.runs[i][k] = d.getTime(); keep(); draw(); };
       box.querySelectorAll('[data-dep]').forEach(inp => inp.onchange = () => setT(+inp.dataset.dep, 'dep', inp.value));
@@ -312,15 +341,20 @@ TOOL_IMPL.co = function (el) {
 
   function prepare(box) {
     if (!DB.co.parcours.length) { box.innerHTML = '<div class="card empty">Créez d\'abord un parcours dans l\'onglet 🗺 Parcours.</div>'; partMount(box, 'co', sp => join(box, sp)); return; }
-    let mode = 'indiv';
+    let mode = 'indiv', choice = false, profOnly = false;
     const draw = () => {
       box.innerHTML = `<div class="card" data-cfg><h3>Nouvelle séance</h3>
         <label>Parcours</label><select id="pc">${DB.co.parcours.map(p => `<option value="${p.id}">${esc(p.nom)} — ${p.balises.length} balises</option>`).join('')}</select>
         <label>Organisation</label><div class="seg"><button data-md="indiv" class="${mode === 'indiv' ? 'on' : ''}">Parcours individuels</button><button data-md="grp" class="${mode === 'grp' ? 'on' : ''}">Groupes<br><small style="font-weight:600;opacity:.85">homogènes / hétérogènes</small></button></div>
+        <label style="display:flex;gap:8px;align-items:flex-start;margin-top:12px"><input type="checkbox" id="pchoice" ${choice ? 'checked' : ''} style="width:auto;margin-top:3px"> <span>Chaque ${mode === 'indiv' ? 'élève' : 'groupe'} choisit son parcours (ou ses balises en choix libre) au départ</span></label>
+        <label style="display:flex;gap:8px;align-items:flex-start;margin-top:8px"><input type="checkbox" id="profo" ${profOnly ? 'checked' : ''} style="width:auto;margin-top:3px"> <span>📋 Suivi enseignant uniquement (pas de tablette pour les élèves : temps à l'arrivée, balises du coupon papier)</span></label>
         <div id="who" style="margin-top:10px"></div></div>`;
+      box.querySelector('#pchoice').onchange = e => { choice = e.target.checked; };
+      box.querySelector('#profo').onchange = e => { profOnly = e.target.checked; };
       box.querySelectorAll('[data-md]').forEach(b => b.onclick = () => { mode = b.dataset.md; draw(); });
       const who = box.querySelector('#who');
-      const launch = (runs, classe) => { DB.co.current = { id: coId(), date: Date.now(), parcours: box.querySelector('#pc').value, classe, runs, gap: 60 }; pub(DB.co.current, true); save(); seance(box); };
+      const launch = (runs, classe) => { if (choice) runs.forEach(r => { r.choix = 1; });
+        DB.co.current = { id: coId(), date: Date.now(), parcours: box.querySelector('#pc').value, classe, runs, gap: 60, ...(profOnly ? { profOnly: true } : {}) }; pub(DB.co.current, true); save(); seance(box); };
       if (mode === 'indiv') {
         who.innerHTML = DB.classes.length ? `<label>Classe</label><select id="cl">${DB.classes.map(c => `<option>${esc(c.name)}</option>`).join('')}</select>
           <button class="btn btn-grad btn-block" style="margin-top:12px" id="go">▶ Préparer la séance</button>` : noClassMsg;

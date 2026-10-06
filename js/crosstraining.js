@@ -113,7 +113,7 @@ document.head.insertAdjacentHTML('beforeend', `<style>
 
 TOOL_IMPL.wod = function (el) {
   wodMigrate();
-  let tab = DB.wod.current || partToday('wod').length ? 'seance' : 'epreuves';
+  let tab = DB.wod.current || partToday('wod').length || partRecoverHTML('wod') ? 'seance' : 'epreuves';
   const E = id => DB.wod.epreuves.find(e => e.id === id);
   function frame() {
     el.innerHTML = `<div class="co-tabs">${[['epreuves', '🏋️ Épreuves'], ['seance', '⏱ Séance'], ['resultats', '📊 Résultats']].map(([k, l]) => `<button data-tab="${k}" class="${tab === k ? 'on' : ''}">${l}</button>`).join('')}</div><div id="w-body"></div>`;

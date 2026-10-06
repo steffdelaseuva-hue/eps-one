@@ -46,7 +46,7 @@ const sgnP = x => x > 0 ? '+' + fmtP(x) : x < 0 ? '−' + fmtP(-x) : '=';
 /* Classement ATP rejoué à partir de tous les défis enregistrés, dans l'ordre chronologique (chaque match utilise les points d'avant) */
 function tAtp(t) {
   const st = {}, log = [];
-  t.teams.forEach(x => { st[x.name] = { n: x.name, pts: +t.start || 0, v: 0, d: 0, nul: 0, arb: 0, last: null }; });
+  t.teams.forEach(x => { st[x.name] = { n: x.name, pts: (+t.start || 0) + (+((t.adj || {})[x.name]) || 0), v: 0, d: 0, nul: 0, arb: 0, last: null }; });   // adj : points ajoutés / retirés à la main par l'enseignant
   const rank = () => Object.values(st).sort((a, b) => b.pts - a.pts || b.v - a.v || a.n.localeCompare(b.n));
   const encSeen = new Set();   // un défi en cours saisi sur deux tablettes à la fois ne compte qu'une fois
   DB.matchs.filter(m => m.tid === t.id && m.defi && !m.obsOnly).sort((x, y) => (x.date || 0) - (y.date || 0)).forEach(m => {
@@ -251,6 +251,9 @@ document.head.insertAdjacentHTML('beforeend', `<style>
 .tn-r{display:grid;grid-template-columns:1fr auto 1fr;gap:10px;align-items:center;padding:10px 0 6px;font-weight:800;font-size:1.05rem}
 .tn-r .ta{text-align:right;color:#9C7A1E}.tn-r .tb{color:#1E5BD8}
 .tn-sc{padding:8px 14px;border-radius:12px;border:none;background:var(--grad);color:#fff;font-weight:900;font-size:1.2rem;font-variant-numeric:tabular-nums;cursor:pointer}
+.pie-wrap{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}.pie-box{display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center}.pie-t{font-size:.9rem}.pie-lg{width:100%;font-size:.8rem}.pie-lg div{display:flex;align-items:center;gap:6px;padding:2px 0}.pie-lg i{flex:0 0 12px;height:12px;border-radius:3px}.pie-lg span{flex:1;text-align:left}
+.obs-c{border:1.5px solid var(--line);border-radius:14px;padding:10px 12px}.obs-c h4{margin:0 0 6px;display:flex;justify-content:space-between;gap:6px}.obs-b{display:grid;grid-template-columns:minmax(80px,40%) 1fr 34px;align-items:center;gap:6px;font-size:.8rem;margin:3px 0}.obs-b .bar{height:10px;border-radius:99px;background:var(--line);overflow:hidden}.obs-b .bar i{display:block;height:100%}
+.tn-mem summary{cursor:pointer;list-style:none}.tn-mem summary::after{content:" ▾";color:var(--muted);font-size:.75rem}.tn-mem[open] summary::after{content:" ▴"}.tn-mem small{display:block;font-size:.72rem;line-height:1.25;max-width:180px}
 .tn-go{padding:15px!important;font-size:1.1rem!important;margin-bottom:6px}
 .tn-it{display:flex;align-items:center;gap:10px;width:100%;padding:14px;border-radius:14px;border:1.5px solid var(--line);background:var(--card);color:var(--text);text-align:left;margin-top:8px;cursor:pointer}
 .tn-it b{font-size:1.05rem}
@@ -322,6 +325,16 @@ ICONS.matchr = '<ellipse cx="9" cy="8.5" rx="5" ry="6" transform="rotate(-40 9 8
 ICONS.escrime = '<path d="M4 20 18 6M20 20 6 6"/><path d="M15.5 3.5l5 5M3.5 15.5l5 5M8.5 3.5l-5 5M20.5 15.5l-5 5"/>';
 TOOL_IMPL.matchr = el => TOOL_IMPL.match(el, 'raq');
 TOOL_IMPL.escrime = el => TOOL_IMPL.match(el, 'esc');
+/* Camembert (anneau) SVG + légende : seg = [{ l, v, c }] */
+const PIE_COLS = ['#1E5BD8', '#C9A227', '#1B9E5A', '#E0892F', '#8E44AD', '#D64545', '#0B2A5B', '#5B8DEF', '#9C7A1E', '#16A3A3'];
+function epsPie(seg, title, size = 132) {
+  seg = seg.filter(x => x.v > 0); const tot = seg.reduce((a, x) => a + x.v, 0);
+  if (!tot) return `<div class="pie-box"><b class="pie-t">${title}</b><div class="muted" style="font-size:.8rem">—</div></div>`;
+  const r = 42, C = 2 * Math.PI * r; let off = 0;
+  const arcs = seg.map((x, i) => { const len = x.v / tot * C, a = `<circle r="${r}" cx="60" cy="60" fill="none" stroke="${x.c || PIE_COLS[i % PIE_COLS.length]}" stroke-width="22" stroke-dasharray="${len.toFixed(2)} ${(C - len).toFixed(2)}" stroke-dashoffset="${(-off).toFixed(2)}" transform="rotate(-90 60 60)"/>`; off += len; return a; }).join('');
+  return `<div class="pie-box"><b class="pie-t">${title}</b><svg viewBox="0 0 120 120" width="${size}" height="${size}" role="img">${arcs}<text x="60" y="58" text-anchor="middle" font-size="18" font-weight="900" fill="currentColor">${tot}</text><text x="60" y="74" text-anchor="middle" font-size="9" fill="currentColor" opacity=".6">total</text></svg>
+    <div class="pie-lg">${seg.map((x, i) => `<div><i style="background:${x.c || PIE_COLS[i % PIE_COLS.length]}"></i><span>${esc(x.l)}</span><b>${x.v} · ${Math.round(x.v / tot * 100)} %</b></div>`).join('')}</div></div>`;
+}
 TOOL_IMPL.match = function (el, grp = 'col') {
   const GS = MATCH_GRP[grp] || MATCH_GRP.col, inG = sp => GS.includes(sp);
   const NEW = true;   // les 3 cartes (collectifs, raquette, escrime)   // préparation « à la Lutte » : 1 forme · 2 déroulement · 3 joueurs · 4 réglages (sports de raquette d'abord)
@@ -335,17 +348,29 @@ TOOL_IMPL.match = function (el, grp = 'col') {
     clearInterval(iv); M = null; S.view = null;
     const sp = SP(), lt = S.tid && TR().find(x => x.id === S.tid), lr = lt && S.rid && lt.rencontres.find(r => r.id === S.rid);
     if (S.tid && !lt) S.tid = S.rid = null;                     // tournoi supprimé entre-temps
-    const recent = TR().filter(x => inG(x.sport) && x.date >= Date.now() - 7 * 864e5).sort((x, y) => y.date - x.date);
+    const lastAct = x => Math.max(x.date || 0, ...DB.matchs.filter(m => m.tid === x.id).map(m => m.date || 0));
+    const recent = TR().filter(x => inG(x.sport) && !x.fin).sort((x, y) => lastAct(y) - lastAct(x));   // tous les tournois non terminés, quelle que soit leur date
+    const finis = TR().filter(x => inG(x.sport) && x.fin).sort((x, y) => lastAct(y) - lastAct(x)), corb = (Array.isArray(DB.tournoisDel) ? DB.tournoisDel : []).filter(x => x && inG(x.sport));
     el.innerHTML = `${lt ? `<div class="card" style="margin-bottom:12px;border:2px solid #B8912A"><h3>🏆 ${esc(lt.nom)}</h3>
         <div class="mo-vs" style="margin:6px 0"><span style="background:#B8912A">${esc(S.a)}</span><span class="muted" style="color:var(--muted);padding:0">vs</span><span style="background:#1E5BD8">${esc(S.b)}</span></div>
         <div class="muted" style="text-align:center;font-size:.85rem">${S.defi ? tFmt(lt) === 'atp' ? `${atpI(lt.sport)} ${S.libre ? `Match libre ATP · ${esc(S.defi.challenger)} vs ${esc(S.defi.defie)}` : `Défi ATP · ${esc(S.defi.challenger)} défie ${esc(S.defi.defie)}`}${S.arb ? ' · arbitre : ' + esc(S.arb) : ''} · compte pour le classement` : `🔺 Défi de la pyramide · ${esc(S.defi.challenger)} défie ${esc(S.defi.defie)} · compte pour le classement` : lr ? `${tFmt(lt) === 'elim' ? `🏅 ${elimName(lt, lr.round)} · le vainqueur se qualifie` : `Rencontre du tour ${lr.round}${lr.g ? ' · ' + esc(lr.g) : ''} · compte pour le classement`}` : 'Match amical · hors classement'} · ${esc(SPORTS[lt.sport]?.name || '')}</div>
         <button class="btn btn-grad btn-block" style="margin-top:10px;padding:16px;font-size:1.1rem" id="go2">▶ Lancer le match</button>
-        <div class="row" style="margin-top:8px"><button class="btn btn-ghost" id="tl-bk">← Retour au tournoi</button><button class="btn btn-ghost" data-cfg="bare" id="tl-x">✕ Délier du tournoi</button></div></div>` : ''}
+        <div class="row" style="margin-top:8px"><button class="btn btn-ghost" id="tl-bk">← Retour au tournoi</button><button class="btn btn-ghost" data-cfg="bare" id="tl-x">✕ Délier du tournoi</button></div>
+        <button class="link" data-cfg="bare" id="tl-more" style="display:block;margin:10px auto 0">⚙️ Afficher les réglages du match</button></div>` : ''}
+      <div id="setup-rest" style="${lt ? 'display:none' : ''}">
       ${recent.length ? `<div class="card" style="margin-bottom:12px"><h3>🏆 Tournois en cours</h3>${recent.map(x => `<button class="tn-it" data-tv="${x.id}"><span style="font-size:1.6rem" title="${fmtN(tFmt(x), x.sport)}">${fmtI(tFmt(x), x.sport)}</span><span style="flex:1"><b>${esc(x.nom)}</b><div class="muted" style="font-size:.8rem">${fmtN(tFmt(x), x.sport)} · ${esc(SPORTS[x.sport]?.name || x.sport)}${x.classe ? ' · ' + esc(x.classe) : ''} · ${x.teams.length} ${tFmt(x) === 'atp' ? 'joueurs' : 'équipes'} · ${esc(tProgress(x))} · ${new Date(x.date).toLocaleDateString('fr-FR')}</div></span><span style="font-size:1.3rem">›</span></button>`).join('')}</div>` : ''}
+      ${finis.length || corb.length ? `<details class="card" data-cfg="bare" style="margin-bottom:12px"><summary style="font-weight:800;cursor:pointer">📁 Tournois terminés${corb.length ? ' · ♻️ supprimés' : ''} (${finis.length + corb.length})</summary>
+        ${finis.map(x => `<button class="tn-it" data-tv="${x.id}"><span style="font-size:1.4rem">${fmtI(tFmt(x), x.sport)}</span><span style="flex:1"><b>${esc(x.nom)}</b><div class="muted" style="font-size:.8rem">✔ terminé · ${x.teams.length} ${tFmt(x) === 'atp' ? 'joueurs' : 'équipes'} · ${new Date(lastAct(x)).toLocaleDateString('fr-FR')}</div></span><span style="font-size:1.3rem">›</span></button>`).join('')}
+        ${corb.map((x, i) => `<div class="tn-it" style="cursor:default"><span style="font-size:1.4rem">🗑</span><span style="flex:1"><b>${esc(x.nom)}</b><div class="muted" style="font-size:.8rem">supprimé le ${new Date(x.delDate || 0).toLocaleDateString('fr-FR')}</div></span><button class="btn btn-grad" style="flex:0 0 auto;padding:8px 12px" data-trst="${esc(x.id)}">♻️ Restaurer</button></div>`).join('')}</details>` : ''}
       <div class="card" data-cfg style="${GS.length < 2 ? 'display:none' : ''}"><h3>Sport</h3><div class="tog" id="sp">${Object.entries(SPORTS).filter(([k]) => inG(k)).map(([k, x]) => `<button data-s="${k}" class="${k === S.sport ? 'on' : ''}">${x.name}</button>`).join('')}</div></div>
       <div class="court" style="margin-top:12px;background:${courtSVG(S.sport).bg}"><svg viewBox="${courtSVG(S.sport).vb}">${courtSVG(S.sport).svg}</svg></div>
       <div class="card" data-cfg style="margin-top:12px"><h3>Équipes</h3>
         <details id="mt-d" ${DB.classes.length && !DB.matchTeams ? 'open' : ''}><summary style="font-weight:800;cursor:pointer">👥 Constituer les équipes avec les élèves d'une classe</summary><div id="mt-host" style="margin-top:6px"></div></details>
+        ${(RACKET.includes(S.sport) || S.sport === 'escrime') && DB.classes.length ? (() => { const c0 = DB.classes.some(c => c.name === DB.lastClass) ? DB.lastClass : DB.classes[0].name, st = studentsOf(c0);
+          return `<details style="margin-top:8px" ${DB.matchTeams ? '' : 'open'}><summary style="font-weight:800;cursor:pointer">👤 Match en simple : choisir 2 élèves</summary>
+          <div class="row" style="margin-top:6px"><div><label>Classe</label><select id="s1-c">${DB.classes.map(c => `<option ${c.name === c0 ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</select></div></div>
+          <div class="row"><div><label>Joueur A</label><select id="s1-a">${st.map((n, i) => `<option ${i === 0 ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select></div><div><label>Joueur B</label><select id="s1-b">${st.map((n, i) => `<option ${i === 1 ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select></div></div>
+          <button class="btn btn-grad btn-block" style="margin-top:8px" id="s1-ok">✔ Ces deux élèves s'affrontent</button></details>`; })() : ''}
         ${teamsBlock()}
         ${atpOK(S.sport) ? `<button class="btn btn-grad btn-block" style="margin-top:10px;padding:13px" id="atp-new">${atpI(S.sport)} Créer un ${S.sport === 'escrime' ? 'tournoi « style ATP »' : 'Défi ATP'} (classement individuel des élèves, partagé avec les tablettes)</button>` : ''}
         <div class="row"><div><label>Nom équipe A</label><input id="na" value="${esc(S.a)}"></div><div><label>Nom équipe B</label><input id="nb" value="${esc(S.b)}"></div></div></div>
@@ -366,8 +391,9 @@ TOOL_IMPL.match = function (el, grp = 'col') {
       <button class="btn btn-grad btn-block" style="margin-top:14px;padding:16px;font-size:1.05rem" id="go">▶ Lancer le match</button>
       ${(window.eleveMode && eleveMode()) ? '<div class="card muted" style="margin-top:14px;text-align:center">🔒 Historique des matchs réservé à l\'enseignant</div>' : ''}<div class="section-title" style="${(window.eleveMode && eleveMode()) ? 'display:none' : ''}"><h2>Historique des matchs</h2>${DB.matchs.length ? '<button class="link" id="hx">Exporter CSV</button>' : ''}</div>
       <div class="card" style="padding:0;${(window.eleveMode && eleveMode()) ? 'display:none' : ''}">${DB.matchs.length ? DB.matchs.map((m, i) => [m, i]).reverse().filter(([m]) => inG(m.sport)).slice(0, 15).map(([m, i]) => {
-        return `<div class="list-item"><div style="flex:1"><b>${m.obsOnly ? `👁 Observations · ${esc(m.a)} vs ${esc(m.b)}` : `${esc(m.a)} ${m.sa} – ${m.sb} ${esc(m.b)}`}</b>${m.tid ? `<span class="tn-tag">🏆 ${esc((TR().find(x => x.id === m.tid) || {}).nom || m.tn || 'Tournoi')}${m.defi && !m.obsOnly ? m.libre ? ' · libre' : ' · défi' : m.tid && !m.rid && !m.obsOnly ? ' · amical' : ''}</span>` : ''}<div class="muted">${esc(SPORTS[m.sport]?.name || m.sport)} · ${new Date(m.date).toLocaleDateString('fr-FR')} ${new Date(m.date).toLocaleTimeString('fr-FR').slice(0, 5)}</div></div><button class="btn btn-ghost" data-v="${i}">👁</button><button class="btn btn-ghost" data-cfg="bare" data-x="${i}">🗑</button></div>`; }).join('') : '<div class="empty">Aucun match enregistré.</div>'}</div>`;
+        return `<div class="list-item"><div style="flex:1"><b>${m.obsOnly ? `👁 Observations · ${esc(m.a)} vs ${esc(m.b)}` : `${esc(m.a)} ${m.sa} – ${m.sb} ${esc(m.b)}`}</b>${m.tid ? `<span class="tn-tag">🏆 ${esc((TR().find(x => x.id === m.tid) || {}).nom || m.tn || 'Tournoi')}${m.defi && !m.obsOnly ? m.libre ? ' · libre' : ' · défi' : m.tid && !m.rid && !m.obsOnly ? ' · amical' : ''}</span>` : ''}<div class="muted">${esc(SPORTS[m.sport]?.name || m.sport)} · ${new Date(m.date).toLocaleDateString('fr-FR')} ${new Date(m.date).toLocaleTimeString('fr-FR').slice(0, 5)}</div></div><button class="btn btn-ghost" data-v="${i}">👁</button><button class="btn btn-ghost" data-cfg="bare" data-x="${i}">🗑</button></div>`; }).join('') : '<div class="empty">Aucun match enregistré.</div>'}</div></div>`;
     const $ = s => el.querySelector(s);
+    if ($('#tl-more')) $('#tl-more').onclick = () => { const r = $('#setup-rest'), on = r.style.display === 'none'; r.style.display = on ? '' : 'none'; $('#tl-more').textContent = on ? '⚙️ Masquer les réglages du match' : '⚙️ Afficher les réglages du match'; };
     const keep = () => { S.a = $('#na').value.trim() || 'Équipe A'; S.b = $('#nb').value.trim() || 'Équipe B';
       if ($('#du')) S.dur = Math.max(1, +$('#du').value || 1); if ($('#tg')) S.target = Math.max(1, +$('#tg').value || 1); if ($('#ec')) S.ecart = $('#ec').checked;
       if ($('#st')) S.stats = $('#st').checked; if ($('#zo')) S.zones = $('#zo').checked; S.obsOn = $('#ob').checked; };
@@ -392,6 +418,8 @@ TOOL_IMPL.match = function (el, grp = 'col') {
     if ($('#tl-x')) $('#tl-x').onclick = () => { keep(); const e = myEnc(); if (e && !confirm(`Délier ce match du tournoi ?\n${encMsg(e)}`)) return; unlinkT(); setup(); };
     if ($('#tl-bk')) $('#tl-bk').onclick = () => { keep(); tview(S.tid); };
     el.querySelectorAll('[data-tv]').forEach(b => b.onclick = () => { keep(); tview(b.dataset.tv); });
+    el.querySelectorAll('[data-trst]').forEach(b => b.onclick = () => { const L = Array.isArray(DB.tournoisDel) ? DB.tournoisDel : [], x = L.find(y => y.id === b.dataset.trst); if (!x) return;
+      DB.tournoisDel = L.filter(y => y.id !== x.id); const r = { ...x }; delete r.delDate; delete r.fin; TR().push(r); save(); toast(`« ${r.nom} » restauré ✔`); keep(); tview(r.id); });
     if ($('#atp-new')) $('#atp-new').onclick = () => { keep(); if (!encOk()) return; unlinkT(); createAtp({ cls: T() ? T().cls : '' }); };
     wireTeams();
     mountRLA();
@@ -512,11 +540,14 @@ TOOL_IMPL.match = function (el, grp = 'col') {
   function wireTeams() {
     const $ = s => el.querySelector(s);
     const host = $('#mt-host');
-    if (host) { mountComposer(host, { id: 'mt', modes: ['random', 'hetero', 'homo'], button: '🧩 Former les équipes',
+    if (host) { mountComposer(host, { duel: true, id: 'mt', modes: ['random', 'hetero', 'homo'], button: '🧩 Former les équipes',
       onTeams: teams => { const $n = s => el.querySelector(s); if ($n('#na')) { S.a = $n('#na').value; S.b = $n('#nb').value; }
         if (!encOk()) return setup(); unlinkT(); DB.matchTeams = { cls: el.querySelector('#mt-cls')?.value || '', teams: teams.map(x => ({ name: x.name, members: x.members.map(m => m.n) })) };
         S.ia = 0; S.ib = teams.length > 1 ? 1 : 0; S.a = teams[S.ia].name; S.b = teams[S.ib].name; selPl = null; save(); setup(); } });
       const v = el.querySelector('#mt-v'); if (v && !DB.matchTeams) v.value = 2; }
+    if ($('#s1-c')) { $('#s1-c').onchange = () => { DB.lastClass = $('#s1-c').value; S.a = $('#na').value; S.b = $('#nb').value; save(); setup(); };
+      $('#s1-ok').onclick = () => { const a = $('#s1-a').value, b = $('#s1-b').value; if (!a || !b || a === b) return toast('Choisissez deux élèves différents'); if (!encOk()) return setup(); unlinkT();
+        DB.matchTeams = { cls: $('#s1-c').value, teams: [{ name: a, members: [a] }, { name: b, members: [b] }] }; S.ia = 0; S.ib = 1; S.a = a; S.b = b; selPl = null; save(); beep(1000, .08); toast(`${a} contre ${b} ✔`); setup(); }; }
     const t = T(); if (!t) return;
     const pick = (k, i) => { if (!encOk()) return setup(); unlinkT(); S.a = $('#na').value; S.b = $('#nb').value; S[k] = i; if (k === 'ia') S.a = t.teams[i].name; else S.b = t.teams[i].name; setup(); };
     if ($('#ia')) $('#ia').onchange = e => pick('ia', +e.target.value);
@@ -599,14 +630,21 @@ TOOL_IMPL.match = function (el, grp = 'col') {
     const seen = {}, teams = tm.teams.filter(x => x.name || x.members.length).map((x, i) => { let n = (x.name || '').trim() || 'Équipe ' + (i + 1); if (seen[n]) n += ' (' + (++seen[n]) + ')'; else seen[n] = 1; return { name: n, members: [...x.members] }; });
     if (teams.length < 2) return toast('Au moins 2 équipes');
     const def = `Tournoi ${tm.cls ? tm.cls + ' · ' : '· '}${SP().name}`, names = teams.map(x => x.name), G = tPoules(names), gk = Object.keys(G);
-    const C = { nom: def, format: ['poule', 'elim', 'pyramide'].includes(fmt0) ? fmt0 : 'poule', v: 3, n: 2, d: 1, mx: false };
+    const C = { nom: def, format: ['poule', 'elim', 'pyramide'].includes(fmt0) ? fmt0 : 'poule', v: 3, n: 2, d: 1, mx: false, pp: 0, ar: false };
+    // poules de taille choisie (3 à 6 équipes / joueurs) : réparties équitablement, dans l'ordre ou au hasard
+    const sized = () => { if (!C.pp) return G; const L = C.mx ? shuffle(names) : [...names], k = Math.max(1, Math.ceil(L.length / C.pp)), out = {};
+      for (let i = 0; i < k; i++) out['Poule ' + String.fromCharCode(65 + i)] = [];
+      L.forEach((n, i) => out['Poule ' + String.fromCharCode(65 + (i % k))].push(n)); return out; };
     const $ = q => el.querySelector(q);
-    const keepC = () => { C.nom = $('#c-nom').value; if ($('#c-v')) { C.v = +$('#c-v').value || 0; C.n = +$('#c-n').value || 0; C.d = +$('#c-d').value || 0; } if ($('#c-mx')) C.mx = $('#c-mx').checked; };
+    const keepC = () => { C.nom = $('#c-nom').value; if ($('#c-v')) { C.v = +$('#c-v').value || 0; C.n = +$('#c-n').value || 0; C.d = +$('#c-d').value || 0; } if ($('#c-mx')) C.mx = $('#c-mx').checked; if ($('#c-ar')) C.ar = $('#c-ar').checked; };
     const draw = () => {
       clearInterval(iv); M = null;
-      const size = 2 ** Math.ceil(Math.log2(teams.length)), nbR = gk.reduce((a, g) => a + G[g].length * (G[g].length - 1) / 2, 0);
+      const PG = sized(), pk = Object.keys(PG), size = 2 ** Math.ceil(Math.log2(teams.length)), nbR = pk.reduce((a, g) => a + PG[g].length * (PG[g].length - 1) / 2, 0) * (C.ar ? 2 : 1);
       const opts = C.format === 'poule' ? `<label>Points au classement</label><div class="row"><div><label>Victoire</label><input id="c-v" type="number" value="${C.v}"></div><div><label>Nul</label><input id="c-n" type="number" value="${C.n}"></div><div><label>Défaite</label><input id="c-d" type="number" value="${C.d}"></div></div>
-          <p class="muted" style="font-size:.82rem;margin:8px 0 0">${gk.length > 1 ? `🎚 ${gk.length} poules par niveau (équipes « Niveau 1 · … », « Niveau 2 · … ») · ` : ''}${nbR} rencontres${gk.length > 1 ? '' : ' · tout le monde se rencontre une fois'}.</p>`
+          <label>Taille des poules</label><div class="tog">${[[0, gk.length > 1 ? 'Par niveau' : 'Une seule poule'], [3, '3'], [4, '4'], [5, '5'], [6, '6']].map(([v, l]) => `<button data-pp="${v}" class="${C.pp === v ? 'on' : ''}">${l}</button>`).join('')}</div>
+          ${C.pp ? `<label style="display:flex;gap:8px;align-items:center;margin-top:10px"><input type="checkbox" id="c-mx" ${C.mx ? 'checked' : ''} style="width:auto"> Répartir au hasard dans les poules</label>` : ''}
+          <label style="display:flex;gap:8px;align-items:center;margin-top:10px"><input type="checkbox" id="c-ar" ${C.ar ? 'checked' : ''} style="width:auto"> Matchs aller-retour</label>
+          <p class="muted" style="font-size:.82rem;margin:8px 0 0">${pk.length > 1 ? (C.pp ? `🏁 ${pk.length} poules de ${C.pp} (environ) · ` : `🎚 ${pk.length} poules par niveau (équipes « Niveau 1 · … », « Niveau 2 · … ») · `) : ''}${nbR} rencontres${C.ar ? ' (aller-retour)' : pk.length > 1 ? '' : ' · tout le monde se rencontre une fois'}.</p>`
         : `<label style="display:flex;gap:8px;align-items:center;margin-top:14px"><input type="checkbox" id="c-mx" ${C.mx ? 'checked' : ''} style="width:auto"> ${C.format === 'elim' ? 'Mélanger au hasard' : 'Placement de départ au hasard'}</label>
           <p class="muted" style="font-size:.82rem;margin:8px 0 0">${C.format === 'elim' ? `Tableau de ${size} · ${teams.length - 1} matchs${size > teams.length ? ` · ${size - teams.length} équipe${size - teams.length > 1 ? 's' : ''} exempte${size - teams.length > 1 ? 's' : ''} au 1er tour (qualifiée${size - teams.length > 1 ? 's' : ''} d'office)` : ''}.`
             : 'Sans placement au hasard, l\'ordre des équipes ci-dessous donne le classement de départ (1re = sommet de la pyramide).'}</p>`;
@@ -617,21 +655,25 @@ TOOL_IMPL.match = function (el, grp = 'col') {
           <label>Format du tournoi</label><div class="tn-fmts">${fmtOrder(S.sport).map(k => { const f = { ...TFMT[k], i: fmtI(k, S.sport), n: fmtN(k, S.sport) }, rec = k === 'atp' && atpOK(S.sport);
             return `<button class="tn-fmt ${C.format === k ? 'on' : ''} ${rec ? 'rec' : ''}" data-fmt="${k}"><span class="i">${f.i}</span><b>${f.n}${rec ? `<span class="tn-tag">conseillé ${S.sport === 'escrime' ? 'escrime' : 'raquettes'}</span>` : ''}</b><small>${f.d}${k === 'atp' ? ' · participants : les élèves de la classe' : ''}</small></button>`; }).join('')}</div>
           ${opts}</div>
-        ${C.format === 'poule' && gk.length > 1 ? gk.map(g => `<div class="card" style="margin-top:12px;padding:10px 14px"><h3 style="margin:0">${esc(g || 'Autres équipes')} · ${G[g].length} équipes</h3>${list(G[g])}</div>`).join('')
+        ${C.format === 'poule' && pk.length > 1 ? pk.map(g => `<div class="card" style="margin-top:12px;padding:10px 14px"><h3 style="margin:0">${esc(g || 'Autres équipes')} · ${PG[g].length} équipes</h3>${list(PG[g])}</div>`).join('')
           : `<div class="card" style="margin-top:12px;padding:10px 14px"><h3 style="margin:0">Équipes · ${teams.length}</h3>${list(names)}</div>`}
         <button class="btn btn-grad btn-block" data-cfg="bare" id="c-ok" style="margin-top:14px;padding:17px;font-size:1.15rem">✔ Créer le tournoi</button>`;
       $('#c-bk').onclick = setup;
       el.querySelectorAll('[data-fmt]').forEach(b => b.onclick = () => { keepC(); if (b.dataset.fmt === 'atp') return createAtp({ cls: tm.cls, txt: tm.cls ? '' : teams.flatMap(x => x.members).join('\n'), back: () => createT(tm) }); C.format = b.dataset.fmt; draw(); });
       if ($('#c-mx')) $('#c-mx').onchange = () => { keepC(); draw(); };
-      $('#c-ok').onclick = () => { keepC(); create(size); };
+      if ($('#c-ar')) $('#c-ar').onchange = () => { keepC(); C.ar = $('#c-ar').checked; draw(); };
+      el.querySelectorAll('[data-pp]').forEach(b => b.onclick = () => { keepC(); C.pp = +b.dataset.pp; draw(); });
+      $('#c-ok').onclick = () => { keepC(); create(size, PG); };
     };
-    const create = size => {
+    const create = (size, PG) => {
       const tn = { id: tuid(), date: Date.now(), nom: C.nom.trim() || def, classe: tm.cls || '', sport: S.sport, format: C.format, teams, rencontres: [],
         regles: curRegles() };
       let msg;
       if (C.format === 'poule') {
-        gk.forEach(g => { G[g].forEach(n => { if (g) teams.find(x => x.name === n).g = g; }); tn.rencontres.push(...roundRobin(G[g]).map(r => g ? { ...r, g } : r)); });
-        tn.pts = { v: C.v, n: C.n, d: C.d }; msg = `${tn.rencontres.length} rencontres${gk.length > 1 ? ` · ${gk.length} poules` : ''}`;
+        const P2 = PG || G, k2 = Object.keys(P2);
+        k2.forEach(g => { P2[g].forEach(n => { if (g) teams.find(x => x.name === n).g = g; }); const rr = roundRobin(P2[g]).map(r => g ? { ...r, g } : r), mx = Math.max(0, ...rr.map(r => r.round));
+          tn.rencontres.push(...rr); if (C.ar) tn.rencontres.push(...rr.map(r => ({ ...r, id: tuid(), round: r.round + mx, a: r.b, b: r.a, ret: true }))); });
+        tn.pts = { v: C.v, n: C.n, d: C.d }; if (C.ar) tn.ar = true; msg = `${tn.rencontres.length} rencontres${k2.length > 1 ? ` · ${k2.length} poules` : ''}${C.ar ? ' · aller-retour' : ''}`;
       } else if (C.format === 'elim') {
         const o = C.mx ? shuffle(names) : [...names], slots = [...o, ...Array(size - o.length).fill(null)];
         for (let i = 0; i < size / 2; i++) tn.rencontres.push({ id: tuid(), round: 1, slot: i, a: slots[i], b: slots[size - 1 - i] });
@@ -698,10 +740,13 @@ TOOL_IMPL.match = function (el, grp = 'col') {
   function vPoule(t) {
     const P = t.pts || { v: 3, n: 2, d: 1 }, res = tResults(t), groups = [...new Set(t.rencontres.map(r => r.g || ''))], RE = rEncOf(t);
     if (!groups.length) groups.push('');
-    const html = groups.map(g => { const rk = tStand(t, g), rs = t.rencontres.filter(r => (r.g || '') === g), rounds = [...new Set(rs.map(r => r.round))].sort((x, y) => x - y), gt = t.teams.filter(x => (x.g || '') === g);
+    // tablette d'élèves : n'afficher que sa poule (réglage propre à l'appareil)
+    const TB = DB.tablette = DB.tablette || {}, myP = (TB.poule || {})[t.id], shown = groups.length > 1 && groups.includes(myP) ? [myP] : groups;
+    const pick = groups.length > 1 ? `<div class="card" style="margin-top:12px;padding:10px 12px"><b style="font-size:.9rem">👀 Afficher sur cette tablette</b><div class="tog" style="margin-top:6px">${['', ...groups].map(g => `<button data-myp="${esc(g)}" class="${(groups.includes(myP) ? myP : '') === g ? 'on' : ''}">${g ? esc(g) : 'Toutes les poules'}</button>`).join('')}</div></div>` : '';
+    const html = pick + shown.map(g => { const rk = tStand(t, g), rs = t.rencontres.filter(r => (r.g || '') === g), rounds = [...new Set(rs.map(r => r.round))].sort((x, y) => x - y), gt = t.teams.filter(x => (x.g || '') === g);
       return `<div class="section-title"><h2>${g ? esc(g) + ' — classement' : 'Classement'}</h2></div>
       <div class="card" style="overflow:auto"><table><tr><th>#</th><th>Équipe</th><th>Pts</th><th>J</th><th>G</th><th>N</th><th>P</th><th>BP</th><th>BC</th><th>Diff</th></tr>
-        ${rk.map((r, i) => `<tr><td>${i + 1}</td><td><b>${esc(r.t)}</b></td><td><b>${r.pts}</b></td><td>${r.j}</td><td>${r.g}</td><td>${r.n}</td><td>${r.p}</td><td>${r.bp}</td><td>${r.bc}</td><td>${r.bp - r.bc > 0 ? '+' : ''}${r.bp - r.bc}</td></tr>`).join('')}</table></div>
+        ${rk.map((r, i) => `<tr><td>${i + 1}</td><td>${members(t, r.t) && members(t, r.t) !== r.t ? `<details class="tn-mem"><summary><b>${esc(r.t)}</b></summary><small class="muted">${esc(members(t, r.t))}</small></details>` : `<b>${esc(r.t)}</b>`}</td><td><b>${r.pts}</b></td><td>${r.j}</td><td>${r.g}</td><td>${r.n}</td><td>${r.p}</td><td>${r.bp}</td><td>${r.bc}</td><td>${r.bp - r.bc > 0 ? '+' : ''}${r.bp - r.bc}</td></tr>`).join('')}</table></div>
       <div class="section-title"><h2>${g ? esc(g) + ' — rencontres' : 'Rencontres'}</h2></div>
       ${rounds.map(k => { const rr = rs.filter(r => r.round === k), inR = new Set(rr.flatMap(r => [r.a, r.b])), bye = gt.filter(x => !inR.has(x.name));
         return `<div class="card" style="margin-top:10px;padding:10px 14px"><h3 style="margin:0">Tour ${k}</h3>${bye.length ? `<div class="muted" style="font-size:.8rem">Exempt : ${bye.map(x => esc(x.name)).join(', ')}</div>` : ''}
@@ -712,6 +757,7 @@ TOOL_IMPL.match = function (el, grp = 'col') {
     const ne = Object.keys(RE).length;
     return { info: `Victoire ${P.v} pts · Nul ${P.n} pts · Défaite ${P.d} pt${P.d > 1 ? 's' : ''}${groups.length > 1 ? ` · ${groups.length} poules par niveau` : ''}${ne ? ` · ⏳ ${ne} en cours` : ''}`, html: rEncCard(t, rLbl) + html, csvLbl: 'Exporter le classement (CSV)',
       wire: () => { rEncWire(t); el.querySelectorAll('[data-tp]').forEach(b => b.onclick = () => rPlay(t, b.dataset.tp));
+        el.querySelectorAll('[data-myp]').forEach(b => b.onclick = () => { const TB = DB.tablette = DB.tablette || {}; TB.poule = TB.poule || {}; if (b.dataset.myp) TB.poule[t.id] = b.dataset.myp; else delete TB.poule[t.id]; save(); tview(t.id); });
         el.querySelectorAll('[data-tr]').forEach(b => b.onclick = () => { const m = res[b.dataset.tr]; if (m) summary(m, true); }); },
       csv: () => download(csvName('classement', t), csv([
         ['Rang', 'Équipe', 'Pts', 'J', 'G', 'N', 'P', 'Buts pour', 'Buts contre', 'Diff', 'Joueurs', 'Poule'],
@@ -778,9 +824,9 @@ TOOL_IMPL.match = function (el, grp = 'col') {
         <div class="row"><div><label>Challenger</label><select id="p-c" style="padding:12px;font-weight:800;font-size:1.05rem">${ranks.slice(1).map((n, k) => `<option value="${esc(n)}"${busy.has(n) ? ' disabled' : n === S.pc ? ' selected' : ''}>#${k + 2} ${esc(n)}${busy.has(n) ? BZ : ''}</option>`).join('')}</select></div>
           <div><label>Défié</label><select id="p-d" style="padding:12px;font-weight:800;font-size:1.05rem"></select></div></div>
         <button class="btn btn-grad btn-block tn-go" style="margin-top:10px" id="p-go">▶ Jouer ce défi</button></div>
-      <div class="section-title"><h2>Historique des défis</h2></div>
-      <div class="card" style="padding:0">${log.length ? log.slice().reverse().map(l => `<div class="list-item"><div style="flex:1"><b>${esc(l.c)}</b> <span class="muted">(#${l.from})</span> défie <b>${esc(l.d)}</b> <span class="muted">(#${l.to})</span>
-        <div class="muted" style="font-size:.82rem">${new Date(l.m.date).toLocaleDateString('fr-FR')} ${new Date(l.m.date).toLocaleTimeString('fr-FR').slice(0, 5)} · ${l.up ? `⬆ ${esc(l.c)} gagne et monte en #${l.to}` : l.won ? `${esc(l.c)} gagne (déjà mieux classé)` : l.cs === l.ds ? 'Match nul · pas de changement' : `🛡 ${esc(l.d)} résiste · pas de changement`}</div></div>${scoreBtn(l.m.id, [l.cs, l.ds])}</div>`).join('') : '<div class="empty">Aucun défi joué.</div>'}</div>`;
+      <details class="card" style="margin-top:14px;padding:0"><summary style="font-weight:800;cursor:pointer;padding:14px">📜 Historique des défis (${log.length})</summary>
+      <div style="padding:0">${log.length ? log.slice().reverse().map(l => `<div class="list-item"><div style="flex:1"><b>${esc(l.c)}</b> <span class="muted">(#${l.from})</span> défie <b>${esc(l.d)}</b> <span class="muted">(#${l.to})</span>
+        <div class="muted" style="font-size:.82rem">${new Date(l.m.date).toLocaleDateString('fr-FR')} ${new Date(l.m.date).toLocaleTimeString('fr-FR').slice(0, 5)} · ${l.up ? `⬆ ${esc(l.c)} gagne et monte en #${l.to}` : l.won ? `${esc(l.c)} gagne (déjà mieux classé)` : l.cs === l.ds ? 'Match nul · pas de changement' : `🛡 ${esc(l.d)} résiste · pas de changement`}</div></div>${scoreBtn(l.m.id, [l.cs, l.ds])}</div>`).join('') : '<div class="empty">Aucun défi joué.</div>'}</div></details>`;
     return { info: `${ranks.length} équipes · ${log.length} défi${log.length > 1 ? 's' : ''} joué${log.length > 1 ? 's' : ''}${enc.length ? ` · ⏳ ${enc.length} en cours` : ''} · en tête : ${esc(ranks[0])}`, html, csvLbl: 'Exporter la pyramide (CSV)',
       wire: () => {
         const $ = q => el.querySelector(q), re = () => { const y = window.scrollY; tview(t.id); window.scrollTo(0, y); };
@@ -877,7 +923,7 @@ TOOL_IMPL.match = function (el, grp = 'col') {
     const inCls = t.classe ? [...new Set(studentsOf(t.classe))].filter(n => !st[n]) : [];
     const html = `<div class="section-title"><h2>Classement</h2></div>
       <div class="card" style="overflow:auto"><table class="atp-tb"><tr><th>#</th><th>Élève</th><th>Points</th><th>V</th><th>D</th><th title="Arbitrages">Arb.</th><th>Dernier</th></tr>
-        ${ranks.map((r, i) => `<tr${i === 0 && log.length ? ' style="background:var(--grad-soft)"' : ''}><td>${i === 0 && log.length ? '🥇' : i + 1}</td><td><b>${esc(r.n)}</b></td><td><b>${fmtP(r.pts)}</b></td><td>${r.v}</td><td>${r.d}</td><td>${r.arb}</td><td>${evo(r.last)}</td></tr>`).join('')}</table></div>
+        ${ranks.map((r, i) => `<tr${i === 0 && log.length ? ' style="background:var(--grad-soft)"' : ''}><td>${i === 0 && log.length ? '🥇' : i + 1}</td><td><button class="link" data-who="${esc(r.n)}" style="font-weight:900;color:inherit;text-align:left" title="Voir ses défis">${esc(r.n)} ›</button></td><td><b>${fmtP(r.pts)}</b></td><td>${r.v}</td><td>${r.d}</td><td>${r.arb}</td><td>${evo(r.last)}</td></tr>`).join('')}</table></div>
       <details class="card" style="margin-top:12px"><summary style="font-weight:800;cursor:pointer">📋 Barème</summary>
         <p class="muted" style="font-size:.85rem;margin:8px 0">Écart = points du <b>gagnant</b> − points du <b>perdant</b>, avant le match.</p>
         <table class="atp-tb"><tr><th>Écart</th><th>Gagnant</th><th>Perdant</th></tr>${ATP_BAR.map(([e, g]) => `<tr><td style="text-align:left"><b>${e}</b></td><td class="atp-up">+${g}</td><td class="atp-dn">−${g}</td></tr>`).join('')}</table>
@@ -885,18 +931,29 @@ TOOL_IMPL.match = function (el, grp = 'col') {
       ${encHtml}
       <div class="section-title"><h2>${atpI(t.sport)} Lancer un défi</h2></div>
       <div class="card" style="border:2px solid #B8912A">${flow}</div>
-      <div class="section-title"><h2>Historique des défis</h2></div>
-      <div class="card" style="padding:0">${log.length ? log.slice().reverse().map(l => `<div class="list-item"><div style="flex:1"><b>${esc(l.c)}</b> <span class="muted">(#${l.from})</span> ${l.lib ? 'vs' : 'défie'} <b>${esc(l.d)}</b> <span class="muted">(#${l.to})</span> ${tags(l)}
-        <div class="muted" style="font-size:.82rem">${when(l.m.date)} · ${l.w ? `${esc(l.w)} gagne · <span class="atp-up">${esc(l.w)} +${l.g}</span> / <span class="atp-dn">${esc(l.l)} −${l.g}</span>` : 'Match nul · aucun point échangé'}${l.arb ? ` · arbitre ${esc(l.arb)} <span class="atp-up">+0,5</span>` : ''}</div></div>${scoreBtn(l.m.id, [l.cs, l.ds])}</div>`).join('') : '<div class="empty">Aucun défi joué.</div>'}</div>`;
+      <details class="card" style="margin-top:14px;padding:0"><summary style="font-weight:800;cursor:pointer;padding:14px">📜 Historique des défis (${log.length})</summary>
+      <div style="padding:0">${log.length ? log.slice().reverse().map(l => `<div class="list-item"><div style="flex:1"><b>${esc(l.c)}</b> <span class="muted">(#${l.from})</span> ${l.lib ? 'vs' : 'défie'} <b>${esc(l.d)}</b> <span class="muted">(#${l.to})</span> ${tags(l)}
+        <div class="muted" style="font-size:.82rem">${when(l.m.date)} · ${l.w ? `${esc(l.w)} gagne · <span class="atp-up">${esc(l.w)} +${l.g}</span> / <span class="atp-dn">${esc(l.l)} −${l.g}</span>` : 'Match nul · aucun point échangé'}${l.arb ? ` · arbitre ${esc(l.arb)} <span class="atp-up">+0,5</span>` : ''}</div></div>${scoreBtn(l.m.id, [l.cs, l.ds])}</div>`).join('') : '<div class="empty">Aucun défi joué.</div>'}</div></details>`;
     const prof = `<label>Déroulement des défis</label>${saiBtns(mode)}
       <label>Points de départ</label><div class="row"><div><input id="a-st" type="number" min="0" value="${+t.start || 0}"></div><div><button class="btn btn-ghost btn-block" id="a-st-ok">✔ Appliquer (classement recalculé)</button></div></div>
       <label style="display:flex;gap:8px;align-items:center;margin-top:12px"><input type="checkbox" id="a-cf" ${t.confirm !== false ? 'checked' : ''} style="width:auto"> Fenêtre de confirmation avant d'enregistrer un résultat</label>
+      <label>✏️ Modifier les points d'un élève (le classement est recalculé)</label>
+      <div class="row"><div><select id="a-adj-s"><option value="">— Élève —</option>${ranks.map(r => `<option value="${esc(r.n)}">${esc(r.n)} · ${fmtP(r.pts)} pts</option>`).join('')}</select></div><div><input id="a-adj-v" type="number" step="0.5" placeholder="Nouveaux points"></div><div style="flex:0 0 auto"><button class="btn btn-grad" id="a-adj-ok">✔</button></div></div>
+      ${Object.keys(t.adj || {}).length ? `<p class="muted" style="font-size:.78rem;margin:4px 0 0">Ajustements : ${Object.entries(t.adj).map(([n, v]) => `${esc(n)} ${sgnP(+v)}`).join(' · ')} <button class="link" id="a-adj-x">↺ Tout annuler</button></p>` : ''}
       <label>Ajouter un élève arrivé en retard (commence avec les points de départ)</label>
       <div class="row">${inCls.length ? `<div><select id="a-add-s"><option value="">— Élève de ${esc(t.classe)} —</option>${inCls.map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join('')}</select></div>` : ''}<div><input id="a-add" placeholder="ou saisir un nom"></div><div><button class="btn btn-ghost btn-block" id="a-add-ok">➕ Ajouter</button></div></div>`;
     return { info: `${ATP_MODES[mode].i} ${ATP_MODES[mode].n} · Départ ${fmtP(+t.start || 0)} pts · ${log.length} défi${log.length > 1 ? 's' : ''} joué${log.length > 1 ? 's' : ''}${enc.length ? ` · ⏳ ${enc.length} en cours` : ''}${log.length && ranks[0] ? ' · en tête : ' + esc(ranks[0].n) : ''}`, html, prof, libre, csvLbl: 'Exporter le classement et les défis (CSV)',
       wire: () => {
         const $ = q => el.querySelector(q), re = () => { const y = window.scrollY; tview(t.id); window.scrollTo(0, y); };
         const done = msg => { save(); window.syncFlush && window.syncFlush(); beep(1200, .15); toast(msg); re(); };
+        el.querySelectorAll('[data-who]').forEach(b => b.onclick = () => { const n = b.dataset.who, L = log.filter(l => l.c === n || l.d === n || l.arb === n).reverse(), me = st[n];
+          const o = document.createElement('div'); o.style.cssText = 'position:fixed;inset:0;z-index:300;background:rgba(7,18,42,.7);display:grid;place-items:center;padding:16px';
+          o.innerHTML = `<div class="card" style="max-width:520px;width:100%;max-height:88vh;overflow:auto"><h3 style="margin:0">${esc(n)}</h3>
+            <div class="muted" style="margin:4px 0 10px">#${rk(n)} · <b>${fmtP(me.pts)} pts</b> · ${me.v} V · ${me.d} D${me.nul ? ` · ${me.nul} N` : ''}${me.arb ? ` · ${me.arb} arbitrage${me.arb > 1 ? 's' : ''}` : ''}</div>
+            ${L.length ? L.map(l => { const arbOnly = l.arb === n && l.c !== n && l.d !== n, adv = l.c === n ? l.d : l.c, my = l.c === n ? l.cs : l.ds, his = l.c === n ? l.ds : l.cs, gain = arbOnly ? .5 : l.w === n ? l.g : l.w ? -l.g : 0;
+              return `<div style="display:flex;gap:8px;align-items:center;padding:8px 0;border-top:1px solid var(--line)"><div style="flex:1"><b>${arbOnly ? `🟨 Arbitre : ${esc(l.c)} – ${esc(l.d)}` : `${l.w === n ? '✅' : l.w ? '❌' : '='} ${l.c === n ? 'défie' : 'défié par'} ${esc(adv)} · ${my} – ${his}`}</b><div class="muted" style="font-size:.78rem">${when(l.m.date)}${l.lib ? ' · match libre' : ''}</div></div><b class="${gain > 0 ? 'atp-up' : gain < 0 ? 'atp-dn' : 'muted'}">${sgnP(gain)}</b></div>`; }).join('') : '<div class="empty">Aucun défi pour l\'instant.</div>'}
+            <button class="btn btn-ghost btn-block" style="margin-top:10px" data-whox>Fermer</button></div>`;
+          o.onclick = e => { if (e.target === o || e.target.hasAttribute('data-whox')) o.remove(); }; document.body.appendChild(o); });
         el.querySelectorAll('[data-ac]').forEach(b => b.onclick = () => { A.c = b.dataset.ac; A.d = null; A.arb = ''; beep(900, .04); re(); });
         el.querySelectorAll('[data-ad]').forEach(b => b.onclick = () => { A.d = b.dataset.ad; beep(900, .04); re(); });
         el.querySelectorAll('[data-ax]').forEach(b => b.onclick = () => { if (b.dataset.ax === 'c') A.c = null; A.d = null; A.arb = ''; re(); });
@@ -950,6 +1007,10 @@ TOOL_IMPL.match = function (el, grp = 'col') {
         el.querySelectorAll('[data-sai]').forEach(b => b.onclick = () => { const T0 = cur(); if (!T0 || atpMode(T0) === b.dataset.sai) return; T0.saisie = b.dataset.sai; save(); window.syncFlush && window.syncFlush();
           toast(`Mode : ${ATP_MODES[T0.saisie].n} ✔`); re(); openProf(); });
         $('#a-st-ok').onclick = () => { const v = +$('#a-st').value; if (!isFinite(v) || v < 0) return toast('Valeur invalide'); (cur() || t).start = v; save(); toast(`Points de départ : ${fmtP(v)} ✔`); tview(t.id); };
+        $('#a-adj-ok').onclick = () => { const n = $('#a-adj-s').value, v = +$('#a-adj-v').value; if (!n) return toast('Choisissez un élève'); if ($('#a-adj-v').value === '' || !isFinite(v)) return toast('Saisissez les nouveaux points');
+          const T0 = cur() || t, now = tAtp(T0).st[n]; if (!now) return; T0.adj = T0.adj || {}; T0.adj[n] = Math.round(((+T0.adj[n] || 0) + v - now.pts) * 10) / 10; if (!T0.adj[n]) delete T0.adj[n];
+          save(); window.syncFlush && window.syncFlush(); toast(`${n} : ${fmtP(v)} pts ✔`); tview(t.id); openProf(); };
+        if ($('#a-adj-x')) $('#a-adj-x').onclick = () => { if (!confirm('Annuler tous les ajustements de points ?')) return; const T0 = cur() || t; delete T0.adj; save(); toast('Ajustements annulés'); tview(t.id); openProf(); };
         $('#a-cf').onchange = () => { const T0 = cur() || t; T0.confirm = $('#a-cf').checked; save(); toast(T0.confirm ? 'Confirmation activée' : 'Confirmation désactivée'); };
         $('#a-add-ok').onclick = () => { const n = (($('#a-add-s') || {}).value || $('#a-add').value || '').trim(); if (!n) return toast('Choisissez ou saisissez un élève');
           const T0 = cur() || t; if (T0.teams.some(x => x.name === n)) return toast('Déjà dans le classement'); T0.teams.push({ name: n, members: [n] }); save(); toast(`${n} ajouté(e) ✔`); tview(t.id); };
@@ -971,6 +1032,8 @@ TOOL_IMPL.match = function (el, grp = 'col') {
       <div class="card" style="margin-top:10px;border-top:6px solid #B8912A"><h3>${fmtI(f, t.sport)} ${esc(t.nom)}</h3>
         <div class="muted" style="font-size:.85rem">${fmtN(f, t.sport)} · ${esc(SPORTS[t.sport]?.name || t.sport)}${t.classe ? ' · ' + esc(t.classe) : ''} · ${new Date(t.date).toLocaleDateString('fr-FR')} · ${t.teams.length} ${f === 'atp' ? 'joueurs' : 'équipes'}${amic ? ` · ${amic} match${amic > 1 ? 's' : ''} amica${amic > 1 ? 'ux' : 'l'}` : ''}</div>
         <div class="muted" style="font-size:.78rem;margin-top:4px">${V.info}</div>${t.regles ? `<div class="muted" style="font-size:.78rem;margin-top:2px">⚙️ ${t.regles.type === 'temps' ? `Match au temps · ${t.regles.dur} min` : `Match en ${t.regles.target} points${t.regles.ecart ? ' (2 pts d\'écart)' : ''}`}${t.regles.bonus.length ? ' · bonus ' + t.regles.bonus.map(v => '+' + v).join(' ') : ' · sans bonus'}${t.regles.obsOn ? ` · observations ${t.regles.obsN} joueurs` : ''}</div>` : ''}</div>
+      ${f !== 'atp' && t.teams.some(x => (x.members || []).length && !(x.members.length === 1 && x.members[0] === x.name)) ? `<details class="card" style="margin-top:12px"><summary style="font-weight:800;cursor:pointer">👥 Composition des équipes (${t.teams.length})</summary>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin-top:8px">${t.teams.map(x => `<div style="border:1.5px solid var(--line);border-radius:12px;padding:8px 10px"><b>${esc(x.name)}</b><div class="muted" style="font-size:.82rem">${(x.members || []).map(esc).join(', ') || '—'}</div></div>`).join('')}</div></details>` : ''}
       ${V.html}
       <div class="section-title"><h2>Match libre</h2></div>
       ${V.libre || `<div class="card"><p class="muted" style="margin:0 0 6px;font-size:.85rem">Match amical ou supplémentaire : lié au tournoi mais <b>non compté</b> ${f === 'elim' ? 'dans le tableau' : f === 'pyramide' ? 'dans la pyramide' : 'dans le classement'}.</p>
@@ -978,16 +1041,38 @@ TOOL_IMPL.match = function (el, grp = 'col') {
         <button class="btn btn-grad btn-block tn-go" style="margin-top:10px" id="t-fr">▶ Jouer</button></div>`}
       <details class="card" data-cfg="bare" style="margin-top:14px"><summary data-prof style="font-weight:800;cursor:pointer">🔒 Enseignant</summary>
         ${V.prof ? `<div style="margin-top:6px">${V.prof}</div>` : ''}
-        <div class="row" style="margin-top:14px"><button class="btn btn-ghost" id="t-csv">📤 ${V.csvLbl}</button><button class="btn btn-danger" id="t-del">🗑 Supprimer le tournoi</button></div>
-        <p class="muted" style="font-size:.78rem;margin:6px 0 0">Les matchs déjà enregistrés restent dans l'historique.</p></details>`;
+        <details style="margin-top:14px;border:1.5px solid var(--line);border-radius:12px;padding:8px 10px" id="t-rg"><summary style="font-weight:800;cursor:pointer">⚙️ Règles des matchs (modifiables en cours de tournoi)</summary>
+          ${(() => { const R = Object.assign({ type: SPORTS[t.sport]?.type || 'temps', dur: SPORTS[t.sport]?.dur || 10, target: SPORTS[t.sport]?.target || 21, ecart: false, bonus: [], stats: false, obsOn: false, obsN: 2 }, t.regles || {}), sp = SPORTS[t.sport] || {};
+            return `<div class="tog" style="margin-top:8px"><button data-rgt="temps" class="${R.type === 'temps' ? 'on' : ''}">⏱ Au temps</button><button data-rgt="points" class="${R.type === 'points' ? 'on' : ''}">🎯 Au point</button></div>
+            <div class="row"><div><label>${R.type === 'temps' ? 'Durée (min)' : 'Points à atteindre'}</label><input id="rg-v" type="number" min="1" value="${R.type === 'temps' ? R.dur : R.target}"></div>${R.type === 'points' ? `<div><label style="display:flex;gap:8px;align-items:center;margin-top:28px"><input type="checkbox" id="rg-ec" ${R.ecart ? 'checked' : ''} style="width:auto"> 2 pts d'écart</label></div>` : ''}</div>
+            <label>Points bonus</label><div class="tog">${BONUS_VALUES.map(v => `<button data-rgb="${v}" class="${R.bonus.includes(v) ? 'on' : ''}">+${v}</button>`).join('')}</div>
+            ${sp.coll ? `<label style="display:flex;gap:8px;align-items:center;margin-top:10px"><input type="checkbox" id="rg-st" ${R.stats ? 'checked' : ''} style="width:auto"> Statistiques (tirs, pertes, passes)</label>` : ''}
+            <label style="display:flex;gap:8px;align-items:center;margin-top:10px"><input type="checkbox" id="rg-ob" ${R.obsOn ? 'checked' : ''} style="width:auto"> Observations individuelles des joueurs</label>
+            ${R.obsOn ? `<div class="tog" style="margin-top:6px">${[2, 3, 4].map(n => `<button data-rgn="${n}" class="${R.obsN === n ? 'on' : ''}">${n} joueurs observés</button>`).join('')}</div>` : ''}
+            <p class="muted" style="font-size:.78rem;margin:6px 0 0">S'applique aux prochains matchs, sur toutes les tablettes. Les matchs déjà joués ne changent pas.</p>`; })()}</details>
+        <button class="btn btn-ghost btn-block" style="margin-top:14px" id="t-fin">${t.fin ? '↩ Rouvrir le tournoi (il revient dans « Tournois en cours »)' : '✔ Terminer le tournoi (rangé dans « Tournois terminés », réouvrable)'}</button>
+        <div class="row" style="margin-top:8px"><button class="btn btn-ghost" id="t-csv">📤 ${V.csvLbl}</button><button class="btn btn-danger" id="t-del">🗑 Supprimer le tournoi</button></div>
+        <p class="muted" style="font-size:.78rem;margin:6px 0 0">Les matchs déjà enregistrés restent dans l'historique. Un tournoi supprimé peut être restauré (« 📁 Tournois terminés »).</p></details>`;
     const $ = q => el.querySelector(q);
     $('#t-bk').onclick = setup;
     V.wire();
     el.querySelectorAll('[data-tm]').forEach(b => b.onclick = () => { const m = DB.matchs.find(x => x.id === b.dataset.tm); if (m) summary(m, true); });
     if (!V.libre) $('#t-fr').onclick = () => { const a = +$('#t-fa').value, b = +$('#t-fb').value; if (a === b) return toast('Choisissez deux équipes différentes'); playT(t, t.teams[a].name, t.teams[b].name, null); };
     $('#t-csv').onclick = V.csv;
-    $('#t-del').onclick = () => { if (!confirm(`Supprimer le tournoi « ${t.nom} » sur toutes les tablettes ?\nLes matchs enregistrés restent dans l'historique.`)) return;
-      DB.tournois = TR().filter(x => x.id !== t.id); if (S.tid === t.id) unlinkT(); save(); toast('Tournoi supprimé'); setup(); };
+    const rgSet = f2 => { const T0 = TR().find(x => x.id === t.id); if (!T0) return; const sp = SPORTS[T0.sport] || {};
+      T0.regles = Object.assign({ type: sp.type || 'temps', dur: sp.dur || 10, target: sp.target || 21, ecart: false, bonus: [], stats: false, zones: false, nz: 3, obsOn: false, obsN: 2 }, T0.regles || {}); f2(T0.regles);
+      save(); window.syncFlush && window.syncFlush(); toast('Règles mises à jour ✔'); tview(t.id); const d = el.querySelector('#t-rg'); if (d) { d.open = true; d.closest('details[data-cfg]').open = true; } };
+    el.querySelectorAll('[data-rgt]').forEach(b => b.onclick = () => rgSet(R => { R.type = b.dataset.rgt; }));
+    if ($('#rg-v')) $('#rg-v').onchange = () => rgSet(R => { const v = Math.max(1, +$('#rg-v').value || 1); if (R.type === 'temps') R.dur = v; else R.target = v; });
+    if ($('#rg-ec')) $('#rg-ec').onchange = () => rgSet(R => { R.ecart = $('#rg-ec').checked; });
+    el.querySelectorAll('[data-rgb]').forEach(b => b.onclick = () => rgSet(R => { const v = +b.dataset.rgb; R.bonus = R.bonus.includes(v) ? R.bonus.filter(x => x !== v) : [...R.bonus, v].sort((a, c) => a - c); }));
+    if ($('#rg-st')) $('#rg-st').onchange = () => rgSet(R => { R.stats = $('#rg-st').checked; });
+    if ($('#rg-ob')) $('#rg-ob').onchange = () => rgSet(R => { R.obsOn = $('#rg-ob').checked; });
+    el.querySelectorAll('[data-rgn]').forEach(b => b.onclick = () => rgSet(R => { R.obsN = +b.dataset.rgn; }));
+    $('#t-fin').onclick = () => { const T0 = TR().find(x => x.id === t.id); if (!T0) return; T0.fin = !T0.fin; save(); toast(T0.fin ? 'Tournoi terminé ✔ (réouvrable)' : 'Tournoi rouvert ✔'); tview(t.id); };
+    $('#t-del').onclick = () => { if (!confirm(`Supprimer le tournoi « ${t.nom} » sur toutes les tablettes ?\nLes matchs enregistrés restent dans l'historique. Il pourra être restauré.`)) return;
+      const T0 = TR().find(x => x.id === t.id); if (T0) DB.tournoisDel = [...(Array.isArray(DB.tournoisDel) ? DB.tournoisDel : []), { ...JSON.parse(JSON.stringify(T0)), delDate: Date.now() }].slice(-15);
+      DB.tournois = TR().filter(x => x.id !== t.id); if (S.tid === t.id) unlinkT(); save(); toast('Tournoi supprimé (restaurable)'); setup(); };
   }
 
   /* ===== 2. Match ===== */
@@ -1146,8 +1231,16 @@ TOOL_IMPL.match = function (el, grp = 'col') {
         ${m.nz ? Array.from({ length: m.nz }, (_, z) => row(`Zone ${z + 1} atteinte`, s => s.zones[z])).join('') : ''}
         ${m.sport === 'escrime' ? TOUCH_ZONES.map((z, i) => row(`Touches ${z.toLowerCase()}`, s => (s.touches || [])[i] || 0)).join('') : ''}
       </table>${m.nz ? `<p class="muted" style="margin:8px 0 0;font-size:.8rem">Zone 1 = camp de l'équipe, zone ${m.nz} = près du but adverse.</p>` : ''}</div>`}
-      ${(m.obs || []).length ? `<div class="section-title"><h2>Observations individuelles</h2></div><div class="card sheet-table"><table><tr><th>Joueur</th>${obsCrit(m.sport).map(c => `<th>${c[1]}</th>`).join('')}${SPORTS[m.sport]?.coll ? '<th>Réussite</th>' : ''}</tr>
-        ${m.obs.map(o => `<tr><td><b>${esc(o.name)}</b><div class="muted" style="font-size:.72rem">${esc(o.team ? m.b : m.a)}</div></td>${obsCrit(m.sport).map(([k]) => `<td>${o.c[k] || 0}</td>`).join('')}${SPORTS[m.sport]?.coll ? `<td>${o.c.tir ? Math.round((o.c.but || 0) / o.c.tir * 100) + ' %' : '–'}</td>` : ''}</tr>`).join('')}</table></div>` : ''}
+      ${m.obsOnly || m.simple || !(m.ev || []).length ? '' : (() => { const by = t => { const o = {}; m.ev.filter(e => e.team === t && (e.kind === 'score' || e.kind === 'bonus') && e.pts).forEach(e => { const k = e.kind === 'bonus' ? `Bonus +${e.pts}` : (e.label || 'Point'); o[k] = (o[k] || 0) + e.pts; }); return Object.entries(o).sort((a, b) => b[1] - a[1]).map(([l, v]) => ({ l, v })); };
+        return `<div class="section-title"><h2>📊 Synthèse du match</h2></div><div class="card"><div class="pie-wrap">
+          ${epsPie([{ l: m.a, v: +m.sa || 0, c: '#B8912A' }, { l: m.b, v: +m.sb || 0, c: '#1E5BD8' }], 'Part des points')}
+          ${epsPie(by(0), `Points de ${esc(m.a)}`)}${epsPie(by(1), `Points de ${esc(m.b)}`)}</div></div>`; })()}
+      ${(m.obs || []).length ? (() => { const crit = obsCrit(m.sport), mx = Math.max(1, ...m.obs.flatMap(o => crit.map(([k]) => o.c[k] || 0)));
+        return `<div class="section-title"><h2>👁 Observations individuelles</h2></div><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px">${m.obs.map(o => `<div class="obs-c" style="border-top:5px solid ${o.team ? '#1E5BD8' : '#B8912A'}"><h4><span>${esc(o.name)}</span><small class="muted">${esc(o.team ? m.b : m.a)}</small></h4>
+          ${crit.map(([k, l], i) => `<div class="obs-b"><span>${esc(l)}</span><div class="bar"><i style="width:${(o.c[k] || 0) / mx * 100}%;background:${PIE_COLS[i % PIE_COLS.length]}"></i></div><b>${o.c[k] || 0}</b></div>`).join('')}
+          ${SPORTS[m.sport]?.coll && o.c.tir ? `<div style="margin-top:6px;font-weight:800;font-size:.85rem">🎯 Réussite : ${Math.round((o.c.but || 0) / o.c.tir * 100)} %</div>` : ''}</div>`).join('')}</div>`; })() : ''}
+      ${(m.obs || []).length ? `<details class="card" style="margin-top:10px"><summary style="font-weight:800;cursor:pointer">Tableau détaillé</summary><div class="sheet-table"><table><tr><th>Joueur</th>${obsCrit(m.sport).map(c => `<th>${c[1]}</th>`).join('')}${SPORTS[m.sport]?.coll ? '<th>Réussite</th>' : ''}</tr>
+        ${m.obs.map(o => `<tr><td><b>${esc(o.name)}</b><div class="muted" style="font-size:.72rem">${esc(o.team ? m.b : m.a)}</div></td>${obsCrit(m.sport).map(([k]) => `<td>${o.c[k] || 0}</td>`).join('')}${SPORTS[m.sport]?.coll ? `<td>${o.c.tir ? Math.round((o.c.but || 0) / o.c.tir * 100) + ' %' : '–'}</td>` : ''}</tr>`).join('')}</table></div></details>` : ''}
       ${m.obsOnly || m.simple ? '' : `<div class="section-title"><h2>Déroulé du match</h2></div>
       <div class="card" style="max-height:260px;overflow:auto;padding:4px 12px">${m.ev.length ? m.ev.map(e => `<div class="muted" style="padding:4px 0;border-bottom:1px solid var(--line)"><b style="color:var(--text)">${fmt(e.t * 1000, false)}</b> · ${esc(e.team ? m.b : m.a)} · ${esc(e.label)}</div>`).join('') : '<div class="empty">Aucune action.</div>'}</div>`}
       <div class="row" style="margin-top:14px">${fromHistory ? '<button class="btn btn-ghost" id="bk">← Retour</button>' : '<button class="btn btn-grad" id="sv">💾 Enregistrer le match</button><button class="btn btn-ghost" id="rs">↶ Reprendre</button>'}<button class="btn btn-ghost" id="ex">📤 CSV</button></div>

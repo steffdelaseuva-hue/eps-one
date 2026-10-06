@@ -28,6 +28,8 @@ function partPublish(tool, id, info, create) {
 function partRemove(id) { if (!Array.isArray(DB.partages)) return; const n = DB.partages.filter(x => x && x.id !== id); if (n.length !== DB.partages.length) { DB.partages = n; save(); } }
 // Abandon sur la tablette qui a lancé la séance : retirer aussi le partage ?
 function partAskRemove(cur) {
+  // abandon volontaire : on oublie aussi la copie de secours de cette séance
+  try { PART_BAK_TOOLS.forEach(k => { const b = partBakGet(k); if (b && b.cur && cur && b.cur.id === cur.id) localStorage.removeItem(partBakKey(k)); }); } catch (e) {}
   if (!cur || cur.joined || !partGet(cur.id)) return;
   if (confirm('Retirer aussi cette séance des autres tablettes ?\n(Les tablettes qui l\'ont déjà rejointe peuvent continuer.)')) partRemove(cur.id);
 }
@@ -37,14 +39,15 @@ function partMount(box, tool, onJoin) {
   let host = box.querySelector('.part-card');
   if (!host) { host = document.createElement('div'); host.className = 'part-card'; box.prepend(host); }
   const draw = () => {
-    const L = partToday(tool);
-    host.innerHTML = L.length ? `<div class="card" style="margin-bottom:12px;border:2px solid var(--gold,#E8B931)"><h3 style="margin-top:0">📥 Séances en cours sur vos autres tablettes</h3>
+    const L = partToday(tool), REC = PART_BAK_TOOLS.includes(tool) ? partRecoverHTML(tool) : '';
+    host.innerHTML = REC + (L.length ? `<div class="card" style="margin-bottom:12px;border:2px solid var(--gold,#E8B931)"><h3 style="margin-top:0">📥 Séances en cours sur vos autres tablettes</h3>
         ${L.map(p => `<div style="padding:10px 0;border-top:1px solid var(--line)"><div style="display:flex;gap:8px;align-items:flex-start"><div style="flex:1"><b style="font-size:1.08rem">${esc(p.nom || 'Séance')}</b>
             <div class="muted">${[p.classe ? esc(p.classe) : '', new Date(p.date).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }), `${p.ng} ${p.indiv ? 'élève' : 'groupe'}${p.ng > 1 ? 's' : ''}`, p.ep ? esc(p.ep) : ''].filter(Boolean).join(' · ')}</div></div>
             <button class="btn btn-ghost" data-cfg="bare" data-px="${esc(p.id)}" title="Retirer cette séance des tablettes" style="padding:8px 12px">✕</button></div>
           <button class="btn btn-grad btn-block" data-pj="${esc(p.id)}" style="margin-top:8px;padding:16px;font-size:1.15rem">▶ Rejoindre</button></div>`).join('')}
         <p class="muted" style="margin:8px 0 0;font-size:.8rem">Une séance lancée ici apparaît sur vos autres tablettes (même compte, synchronisées) : elles peuvent la rejoindre et suivre un groupe.</p></div>`
-      : `<p class="muted" style="margin:0 0 10px;font-size:.8rem">📥 Une séance lancée ici apparaît sur vos autres tablettes (même compte, synchronisées) : elles peuvent la rejoindre et suivre un groupe.</p>`;
+      : `<p class="muted" style="margin:0 0 10px;font-size:.8rem">📥 Une séance lancée ici apparaît sur vos autres tablettes (même compte, synchronisées) : elles peuvent la rejoindre et suivre un groupe.</p>`);
+    if (REC) partRecoverBind(host, tool);
     host.querySelectorAll('[data-pj]').forEach(b => b.onclick = () => { const p = partGet(b.dataset.pj); if (!p) { toast('Cette séance n\'est plus partagée'); return draw(); } onJoin(JSON.parse(JSON.stringify(p))); });
     host.querySelectorAll('[data-px]').forEach(b => b.onclick = () => { const p = partGet(b.dataset.px);
       if (p && confirm(`Retirer « ${p.nom || 'Séance'} » des autres tablettes ?\n(Les tablettes qui l'ont déjà rejointe peuvent continuer.)`)) { partRemove(p.id); toast('Séance retirée'); } draw(); });
@@ -100,4 +103,45 @@ function partOutboxCard(host, tool, list, restore) {
     const sb = host.querySelector('#ob-send'); if (sb) sb.onclick = async () => { const s = partSync(); if (!s) return; sb.disabled = true; sb.textContent = '⏳ Envoi…'; try { await s.send(); } catch (e) {} draw(); };
   };
   draw(); iv = setInterval(draw, 2500);
+}
+
+/* =========================================================
+   Copie de secours de la séance en cours (propre à la tablette)
+   Si une séance disparaît avant d'avoir été enregistrée (fermeture,
+   rechargement, autre manipulation), la carte « ♻️ Séance interrompue »
+   permet de la reprendre et d'enregistrer les résultats.
+   ========================================================= */
+const PART_BAK_TOOLS = ['wod', 'duathlon', 'combine', 'co', 'demifond', 'sauvetage'];
+const partBakKey = k => 'epsone_bak_' + k;
+const partBakGet = k => { try { return JSON.parse(localStorage.getItem(partBakKey(k)) || 'null'); } catch (e) { return null; } };
+let _partBakT = null;
+function partBackupNow() {
+  _partBakT = null;
+  PART_BAK_TOOLS.forEach(k => { const D = DB[k]; if (!D || typeof D !== 'object') return;
+    const c = D.current, b = partBakGet(k);
+    try {
+      if (c && c.id && !c.manual) localStorage.setItem(partBakKey(k), JSON.stringify({ date: Date.now(), cur: c }));
+      else if (b && b.cur) { // séance terminée : enregistrée ailleurs dans l'outil ? on oublie la copie
+        const rest = JSON.stringify({ ...D, current: null });
+        if (rest.includes(b.cur.id) || Date.now() - b.date > 3 * 864e5) localStorage.removeItem(partBakKey(k));
+      }
+    } catch (e) {}
+  });
+}
+(() => { const _ps = window.save; window.save = function () { _ps.apply(this, arguments); if (!_partBakT) _partBakT = setTimeout(partBackupNow, 800); }; })();
+// Carte de reprise, affichée dans l'écran de préparation (via partMount)
+function partRecoverHTML(k) {
+  const D = DB[k], b = partBakGet(k); if (!D || D.current || !b || !b.cur) return '';
+  if (JSON.stringify({ ...D, current: null }).includes(b.cur.id)) { try { localStorage.removeItem(partBakKey(k)); } catch (e) {} return ''; }
+  const c = b.cur, nom = (c.snap && c.snap.nom) || (c.cfg && c.cfg.nom) || c.nom || 'Séance', gs = Array.isArray(c.groups) ? c.groups : [];
+  const fin = gs.filter(g => g.arr || g.capped || g.fin || g.done).length;
+  return `<div class="card" style="margin-bottom:12px;border:2px solid #1B9E5A"><h3 style="margin-top:0">♻️ Séance interrompue sur cette tablette</h3>
+    <div><b>${esc(nom)}</b> <span class="muted">· ${c.classe ? esc(c.classe) + ' · ' : ''}${new Date(c.date || b.date).toLocaleString('fr-FR', { weekday: 'short', hour: '2-digit', minute: '2-digit' })}${gs.length ? ` · ${gs.length} groupe${gs.length > 1 ? 's' : ''}${fin ? `, ${fin} terminé${fin > 1 ? 's' : ''}` : ''}` : ''}</span></div>
+    <p class="muted" style="margin:6px 0 8px;font-size:.82rem">Elle n'a pas été enregistrée : reprenez-la pour terminer et envoyer les résultats.</p>
+    <div class="row"><button class="btn btn-grad" data-rec="${k}">▶ Reprendre la séance</button><button class="btn btn-ghost" style="flex:0 0 auto" data-recx="${k}">✕ Oublier</button></div></div>`;
+}
+function partRecoverBind(host, k) {
+  host.querySelectorAll('[data-rec]').forEach(b => b.onclick = () => { const bk = partBakGet(k); if (!bk || !bk.cur) return; DB[k].current = bk.cur; saveNow && saveNow(); toast('Séance reprise ✔');
+    window.__navPass = true; openTool(currentTool); });
+  host.querySelectorAll('[data-recx]').forEach(b => b.onclick = () => { if (!confirm('Oublier cette séance interrompue ? Ses résultats non enregistrés seront perdus.')) return; try { localStorage.removeItem(partBakKey(k)); } catch (e) {} b.closest('.card').remove(); });
 }

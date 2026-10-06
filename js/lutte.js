@@ -641,7 +641,7 @@ TOOL_IMPL.lutte = function (el) {
       el.querySelectorAll('[data-rs]').forEach(b => b.onclick = () => { keepC(); C.saisie = b.dataset.rs; draw(); });
       el.querySelectorAll('[data-zn]').forEach(b => b.onclick = () => { keepC(); const z = +b.dataset.zn; if (z === C.zones) return;
         if (C.teams && !confirm('Changer le nombre de zones ? Les équipes devront être reformées.')) return; C.zones = z; C.teams = null; draw(); });
-      if ($('#r-cmp')) { mountComposer($('#r-cmp'), { id: 'lurel', modes: ['random', 'hetero'], button: `🧩 Former les ${C.zones * 2} équipes`, prep: false,
+      if ($('#r-cmp')) { mountComposer($('#r-cmp'), { duel: true, id: 'lurel', modes: ['random', 'hetero'], button: `🧩 Former les ${C.zones * 2} équipes`, prep: false,
         onTeams: teams => { keepC(); const cl = el.querySelector('#lurel-cls'); const wasDef = C.nom === def(); C.cls = cl ? cl.value : C.cls; if (wasDef) C.nom = def();
           const NT = C.zones * 2, T2 = Array.from({ length: NT }, (_, i) => ({ name: C.zones > 1 ? `Zone ${Math.floor(i / 2) + 1} · ${i % 2 ? 'B' : 'A'}` : `Équipe ${i % 2 ? 'B' : 'A'}`, order: [] }));
           if (teams.length === NT) teams.forEach((t, i) => t.members.forEach(m => T2[i].order.push(m.n)));

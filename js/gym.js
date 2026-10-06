@@ -413,25 +413,40 @@ document.head.insertAdjacentHTML('beforeend', `<style>
 .gy-secu li{margin:4px 0;line-height:1.4}
 </style>`);
 
+/* Validation par l'enseignant de chaque élément présenté : 4 niveaux de maîtrise (partagé Gym / Acrosport) */
+window.EPS_M = window.EPS_M || [['Maîtrise insuffisante', '#D64545', 'Insuff.'], ['Maîtrise fragile', '#E0892F', 'Fragile'], ['Maîtrise satisfaisante', '#2F6BD8', 'Satisf.'], ['Très bonne maîtrise', '#1B9E5A', 'Très bonne']];
+window.epsMBar = window.epsMBar || ((cur, attr) => `<div data-cfg="bare" style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px">${EPS_M.map(([l, c, s], i) => `<button type="button" ${attr}="${i}" style="padding:10px 4px;border-radius:12px;border:1.5px solid ${cur === i ? 'transparent' : 'var(--line)'};background:${cur === i ? c : 'var(--card)'};color:${cur === i ? '#fff' : 'inherit'};font-weight:800;font-size:.78rem;line-height:1.15">${l}</button>`).join('')}</div>`);
+window.epsMTag = window.epsMTag || (m => m == null ? '' : `<span style="display:inline-block;padding:2px 8px;border-radius:99px;font-size:.7rem;font-weight:800;color:#fff;background:${EPS_M[m][1]}">${EPS_M[m][2]}</span>`);
+window.epsMAvg = window.epsMAvg || (L => { const v = L.filter(x => x != null); return v.length ? Math.round(v.reduce((a, b) => a + b, 0) / v.length) : null; });
+
 TOOL_IMPL.gym = function (el) {
   const Gd = gymDB(), F = Gd.filt;
+  const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
   let tab = 'elements', cls = DB.classes.some(c => c.name === DB.lastClass) ? DB.lastClass : (DB.classes[0] || {}).name || '', gi = 0;
   let vAg = 'sol', vNiv = '1';
   const groups = () => (Gd.groupes[cls] = Gd.groupes[cls] || []);
-  const G = () => groups()[gi] || null;
-  if (G()) tab = 'ench';
-  const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
+  // Travail individuel : un enchaînement par élève (Gd.indiv[classe][élève]), ou en groupe (Gd.groupes)
+  Gd.indiv = Gd.indiv || {};
+  let ind = null;   // élève sélectionné en individuel (sinon : groupe gi)
+  const indAll = () => (Gd.indiv[cls] = Gd.indiv[cls] || {});
+  const indOf = n => { const A = indAll(); return A[n] = A[n] || { id: newId(), name: n, members: [n], seq: [], ind: 1 }; };
+  const G = () => ind ? indOf(ind) : groups()[gi] || null;
+  if (!groups().length && cls) { const st = studentsOf(cls); if (st.length) ind = st[0]; }
+  if (groups().some(g => g.seq.length) || Object.values(Gd.indiv[cls] || {}).some(g => g.seq.length)) tab = 'ench';
   const clearImgs = list => list.forEach(g => g.seq.forEach(it => { if (it.img) DB[gymImgKey(it.img)] = null; }));
 
   function frame() {
     const gs = cls ? groups() : []; if (gi >= gs.length) gi = 0;
+    const stl = cls ? studentsOf(cls) : []; if (ind && !stl.includes(ind)) ind = null; if (!ind && !gs.length && stl.length) ind = stl[0];
+    const IA = cls ? Gd.indiv[cls] || {} : {};
     el.innerHTML = `${DB.classes.length ? `<div class="card"><div class="row"><div data-cfg="bare"><label style="margin-top:0">Classe</label><select id="gcl">${DB.classes.map(c => `<option ${c.name === cls ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</select></div>
-        <div><label style="margin-top:0">Groupe</label><select id="ggr">${gs.length ? gs.map((g, k) => `<option value="${k}" ${k === gi ? 'selected' : ''}>${esc(g.name)} (${g.seq.length})</option>`).join('') : '<option>— aucun groupe —</option>'}</select></div></div></div>` : ''}
+        <div><label style="margin-top:0">Élève ou groupe</label><select id="ggr">${stl.length ? `<optgroup label="👤 Individuel">${stl.map(n => `<option value="e:${esc(n)}" ${ind === n ? 'selected' : ''}>👤 ${esc(n)}${IA[n] && IA[n].seq.length ? ` (${IA[n].seq.length})` : ''}</option>`).join('')}</optgroup>` : ''}
+          ${gs.length ? `<optgroup label="👥 Groupes">${gs.map((g, k) => `<option value="g:${k}" ${!ind && k === gi ? 'selected' : ''}>👥 ${esc(g.name)} (${g.seq.length})</option>`).join('')}</optgroup>` : ''}${!stl.length && !gs.length ? '<option>— aucun élève —</option>' : ''}</select></div></div></div>` : ''}
       <div class="co-tabs gy-tabs" style="margin-top:12px">${[['groupes', '👥 Groupes'], ['elements', '🤸 Éléments'], ['diapos', '🔗 Diaporamas'], ['ench', '🎬 Enchaînement'], ['valid', '✅ Validation'], ['secu', '⚠️ Sécurité']].map(([k, l]) => `<button data-tab="${k}" class="${tab === k ? 'on' : ''}">${l}</button>`).join('')}</div><div id="gb"></div>`;
     el.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => { tab = b.dataset.tab; frame(); });
     const $ = s => el.querySelector(s);
-    if ($('#gcl')) $('#gcl').onchange = e => { cls = e.target.value; DB.lastClass = cls; gi = 0; save(); frame(); };
-    if ($('#ggr') && gs.length) $('#ggr').onchange = e => { gi = +e.target.value; frame(); };
+    if ($('#gcl')) $('#gcl').onchange = e => { cls = e.target.value; DB.lastClass = cls; gi = 0; ind = null; save(); frame(); };
+    if ($('#ggr') && (gs.length || stl.length)) $('#ggr').onchange = e => { const v = e.target.value; if (v.startsWith('e:')) ind = v.slice(2); else if (v.startsWith('g:')) { ind = null; gi = +v.slice(2); } frame(); };
     ({ groupes: tabGroupes, elements: tabElements, diapos: tabDiapos, ench: tabEnch, valid: tabValid, secu: tabSecu })[tab]($('#gb'));
   }
 
@@ -442,10 +457,12 @@ TOOL_IMPL.gym = function (el) {
     const gs = groups(), placed = new Set(gs.flatMap(g => g.members)), free = studentsOf(cls).filter(n => !placed.has(n));
     const on = (g, n) => selSt && selSt.g === g && selSt.n === n;
     const chip = (g, n) => `<button class="pl-chip" data-st="${g}" data-n="${esc(n)}" style="padding:6px 10px;border-radius:10px;border:1.5px solid var(--line);background:${on(g, n) ? 'var(--grad)' : 'var(--card)'};color:${on(g, n) ? '#fff' : 'inherit'};font-weight:700;font-size:.85rem;cursor:pointer">${esc(n)}</button>`;
-    box.innerHTML = `<details class="card" data-cfg ${gs.length ? '' : 'open'}><summary style="font-weight:800;cursor:pointer">🧩 ${gs.length ? 'Refaire les groupes automatiquement' : 'Former les groupes'}</summary><div id="gycmp" style="margin-top:6px"></div></details>
+    box.innerHTML = `<div class="card" style="background:var(--grad-soft)"><b>👤 Travail individuel</b><p class="muted" style="margin:4px 0 0;font-size:.84rem">Pas besoin de groupes : choisissez un élève dans « Élève ou groupe » en haut, chacun crée son propre enchaînement. Les groupes ci-dessous servent seulement pour un enchaînement à plusieurs.</p>
+        <button class="btn btn-grad btn-block" style="margin-top:8px" id="gyind" ${studentsOf(cls).length ? '' : 'disabled'}>👤 Enchaînement individuel${ind ? ' de ' + esc(ind) : ''}</button></div>
+      <details class="card" data-cfg style="margin-top:12px" ${gs.length ? '' : ''}><summary style="font-weight:800;cursor:pointer">🧩 ${gs.length ? 'Refaire les groupes automatiquement' : 'Former des groupes (facultatif)'}</summary><div id="gycmp" style="margin-top:6px"></div></details>
       <div class="section-title"><h2>Groupes de ${esc(cls)} (${gs.length})</h2>${gs.length ? '<button class="link" data-cfg="bare" id="gydel">Supprimer tous les groupes</button>' : ''}</div>
       ${gs.length || free.length ? `<p class="muted" style="margin:-4px 0 8px;font-size:.82rem">Touchez un élève, puis un autre groupe pour l'y déplacer, ou « Non placés / absents » pour le retirer.</p>` : ''}
-      <div class="teams">${gs.map((g, k) => `<div class="card team" data-cfg="bare" data-drop="${k}" style="cursor:pointer;border-top:5px solid ${k === gi ? 'var(--gold)' : 'var(--line)'}">
+      <div class="teams">${gs.map((g, k) => `<div class="card team" data-cfg="bare" data-drop="${k}" style="cursor:pointer;border-top:5px solid ${!ind && k === gi ? 'var(--gold)' : 'var(--line)'}">
           <h3><span>${esc(g.name)}</span><span class="muted">${g.members.length}</span></h3>
           <div style="display:flex;flex-wrap:wrap;gap:5px">${g.members.map(n => chip(k, n)).join('') || '<span class="muted">Groupe vide</span>'}</div>
           <div class="muted" style="font-size:.78rem;margin-top:6px">${g.seq.length} élément(s) dans l'enchaînement</div>
@@ -456,19 +473,20 @@ TOOL_IMPL.gym = function (el) {
     mountComposer(box.querySelector('#gycmp'), { id: 'gyg', prep: false, modes: ['random', 'hetero', 'homo'], button: '👥 Former les groupes',
       onTeams: teams => { if (gs.some(g => g.seq.length) && !confirm('Remplacer les groupes existants ? Leurs enchaînements seront supprimés.')) return;
         clearImgs(gs); Gd.groupes[cls] = teams.map(t => ({ id: newId(), name: t.name.replace('Équipe', 'Groupe'), members: t.members.map(m => m.n), seq: [] }));
-        gi = 0; selSt = null; save(); toast('Groupes formés ✔'); frame(); } });
+        gi = 0; ind = null; selSt = null; save(); toast('Groupes formés ✔'); frame(); } });
     const sel = box.querySelector('#gyg-cls'); if (sel) { sel.value = cls; sel.dispatchEvent(new Event('change')); }
     const k = box.querySelector('#gyg-k'), v = box.querySelector('#gyg-v'); if (k && v) { k.value = 's'; v.value = 3; }
     box.querySelectorAll('[data-st]').forEach(b => b.onclick = e => { e.stopPropagation(); const g = +b.dataset.st, n = b.dataset.n; selSt = on(g, n) ? null : { g, n }; tabGroupes(box); });
     box.querySelectorAll('[data-drop]').forEach(c => c.onclick = () => { if (!selSt) return; const to = +c.dataset.drop;
       if (to !== selSt.g) { if (selSt.g >= 0) { const m = gs[selSt.g].members; m.splice(m.indexOf(selSt.n), 1); } if (to >= 0) gs[to].members.push(selSt.n); save(); }
       selSt = null; frame(); });
-    box.querySelectorAll('[data-open]').forEach(b => b.onclick = e => { e.stopPropagation(); gi = +b.dataset.open; tab = 'ench'; frame(); });
+    box.querySelectorAll('[data-open]').forEach(b => b.onclick = e => { e.stopPropagation(); gi = +b.dataset.open; ind = null; tab = 'ench'; frame(); });
     box.querySelectorAll('[data-ren]').forEach(b => b.onclick = e => { e.stopPropagation(); const g = gs[+b.dataset.ren], n = prompt('Nom du groupe', g.name); if (n && n.trim()) { g.name = n.trim(); save(); frame(); } });
     box.querySelectorAll('[data-gdel]').forEach(b => b.onclick = e => { e.stopPropagation(); const i = +b.dataset.gdel, g = gs[i];
       if (!confirm(`Supprimer ${g.name} ?${g.seq.length ? '\nSon enchaînement sera supprimé.' : ''}\nSes élèves passent dans « Non placés ».`)) return;
       clearImgs([g]); gs.splice(i, 1); if (gi >= gs.length) gi = Math.max(0, gs.length - 1); selSt = null; save(); frame(); });
-    box.querySelector('#gyadd').onclick = () => { gs.push({ id: newId(), name: 'Groupe ' + (gs.length + 1), members: [], seq: [] }); gi = gs.length - 1; save(); frame(); };
+    box.querySelector('#gyind').onclick = () => { ind = ind || studentsOf(cls)[0]; tab = 'ench'; frame(); };
+    box.querySelector('#gyadd').onclick = () => { gs.push({ id: newId(), name: 'Groupe ' + (gs.length + 1), members: [], seq: [] }); gi = gs.length - 1; ind = null; save(); frame(); };
     const d = box.querySelector('#gydel'); if (d) d.onclick = () => { if (!confirm('Supprimer tous les groupes de la classe et leurs enchaînements ?')) return; clearImgs(gs); Gd.groupes[cls] = []; gi = 0; selSt = null; save(); frame(); };
   }
 
@@ -505,7 +523,7 @@ TOOL_IMPL.gym = function (el) {
     box.querySelectorAll('[data-fl]').forEach(b => b.onclick = () => acroVideo(Gd.liens.find(x => x.id === b.dataset.fl)));
     box.querySelector('#gynew').onclick = () => editor(null);
   }
-  const addEl = id => { const g = G(); if (!g) return toast('Formez d\'abord un groupe'); g.seq.push({ k: newId(), t: 'el', el: id }); save(); toast(`Ajouté à ${g.name} (${g.seq.length}) ✔`); frame(); };
+  const addEl = id => { const g = G(); if (!g) return toast('Choisissez un élève ou un groupe en haut'); g.seq.push({ k: newId(), t: 'el', el: id }); save(); toast(`Ajouté à ${g.name} (${g.seq.length}) ✔`); frame(); };
 
   function detail(e) {
     if (!e) return;
@@ -627,9 +645,9 @@ TOOL_IMPL.gym = function (el) {
   function tabEnch(box) {
     if (!DB.classes.length) { box.innerHTML = noClassMsg; return; }
     const g = G();
-    if (!g) { box.innerHTML = `<div class="card empty">Formez d'abord les groupes de la classe.<br><br><button class="btn btn-grad" id="gygo">👥 Former les groupes</button></div>`; box.querySelector('#gygo').onclick = () => { tab = 'groupes'; frame(); }; return; }
+    if (!g) { box.innerHTML = `<div class="card empty">Aucun élève dans cette classe.</div>`; return; }
     const R = Gd.req, C = reqCheck(g);
-    box.innerHTML = `<div class="card"><b>${esc(g.name)}</b><div class="muted">${g.members.map(esc).join(', ') || 'Aucun élève'}</div></div>
+    box.innerHTML = `<div class="card"><b>${g.ind ? '👤 ' : '👥 '}${esc(g.name)}</b><div class="muted">${g.ind ? 'Enchaînement individuel · changez d\'élève dans « Élève ou groupe » en haut' : g.members.map(esc).join(', ') || 'Aucun élève'}</div></div>
       <div class="card" style="margin-top:12px">
         <div class="result" style="margin-top:0"><div class="card"><b>${C.pts}</b><small>points</small></div><div class="card"><b>${C.els.length}</b><small>élément${C.els.length > 1 ? 's' : ''} / ${R.min}</small></div><div class="card"><b>${C.fams.size}</b><small>famille${C.fams.size > 1 ? 's' : ''} / ${R.fam}</small></div></div>
         <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px">${Object.entries(GYM_FAM).map(([k, f]) => `<span class="gy-chip ${C.fams.has(k) ? 'ok' : ''}"><span class="gy-dot" style="--c:${f.c}"></span>${C.fams.has(k) ? '✓ ' : ''}${f.n}</span>`).join('')}</div>
@@ -641,6 +659,11 @@ TOOL_IMPL.gym = function (el) {
       <div class="row" style="margin-top:12px"><button class="btn btn-ghost" id="gyel">🤸 Ajouter un élément</button>
         <label class="btn btn-ghost" style="display:block;text-align:center;cursor:pointer;margin:0">📷 Ajouter une photo<input id="gyph" type="file" accept="image/*" capture="environment" style="display:none"></label></div>
       ${g.seq.length ? `<button class="btn btn-grad btn-block" style="margin-top:10px" id="gyplay">▶ Présenter l'enchaînement</button>` : ''}
+      ${g.seq.some(it => it.m != null) ? (() => { const L = g.seq.map(it => it.m), av = epsMAvg(L), n = L.filter(x => x != null).length;
+        return `<div class="card" style="margin-top:10px"><b>✅ Validation par l'enseignant</b> <span class="muted" style="font-size:.8rem">· ${n} / ${g.seq.length} élément(s)</span>
+          <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px">${EPS_M.map(([l, c], i) => { const k = L.filter(x => x === i).length; return k ? `<span style="padding:3px 9px;border-radius:99px;background:${c};color:#fff;font-weight:800;font-size:.75rem">${k} × ${l}</span>` : ''; }).join('')}</div>
+          ${av != null ? `<div style="margin-top:8px">Bilan : <b style="color:${EPS_M[av][1]}">${EPS_M[av][0]}</b></div>` : ''}
+          <button class="link" data-cfg="bare" id="gymclr" style="margin-top:6px">Effacer la validation</button></div>`; })() : ''}
       <div class="section-title"><h2>Enchaînement (${g.seq.length})</h2>${g.seq.length ? '<button class="link" data-cfg="bare" id="gyclr">🗑 Vider</button>' : ''}</div>
       ${g.seq.length ? `<div style="display:flex;flex-direction:column;gap:10px">${g.seq.map((it, k) => { const e = it.t === 'el' ? gymFind(it.el) : null, img = it.img ? DB[gymImgKey(it.img)] : null, c = e ? GYM_FAM[e.fam].c : 'var(--line)';
         return `<div class="card" style="padding:10px;display:flex;gap:10px;align-items:center;border-left:6px solid ${c}">
@@ -649,7 +672,7 @@ TOOL_IMPL.gym = function (el) {
             ${e ? `<div style="flex:1;min-width:0;cursor:pointer" data-det="${esc(e.id)}">${gymSVG(e)}</div>` : it.t === 'el' ? '<div class="muted" style="flex:1">Élément supprimé</div>' : ''}
             ${img ? `<img src="${img}" data-z="${k}" style="flex:1;min-width:0;max-height:110px;object-fit:contain;border-radius:10px;background:#000;cursor:zoom-in">` : ''}</div>
           <div style="flex:0 0 auto;display:flex;flex-direction:column;gap:4px;align-items:stretch;max-width:124px">
-            <div style="font-size:.78rem;font-weight:800;line-height:1.2">${e ? `${gymLt(e)} ${esc(e.n)}` : 'Photo'}</div>
+            <div style="font-size:.78rem;font-weight:800;line-height:1.2">${e ? `${gymLt(e)} ${esc(e.n)}` : 'Photo'} ${epsMTag(it.m)}</div>
             ${e ? `<label class="btn btn-ghost" style="padding:5px 8px;font-size:.75rem;cursor:pointer;margin:0;text-align:center">📷 ${img ? 'Changer' : 'Photo'}<input data-ph="${k}" type="file" accept="image/*" capture="environment" style="display:none"></label>` : ''}
             <div style="display:flex;gap:4px"><button class="btn btn-ghost" style="padding:5px 8px" data-up="${k}" ${k ? '' : 'disabled'}>↑</button><button class="btn btn-ghost" style="padding:5px 8px" data-dn="${k}" ${k < g.seq.length - 1 ? '' : 'disabled'}>↓</button><button class="btn btn-ghost" style="padding:5px 8px" data-rm="${k}">✕</button></div></div></div>`; }).join('')}</div>`
         : '<div class="card empty">L\'enchaînement est vide : ajoutez des éléments de la banque ou des photos du groupe.</div>'}`;
@@ -669,6 +692,7 @@ TOOL_IMPL.gym = function (el) {
     box.querySelectorAll('[data-dn]').forEach(b => b.onclick = () => mv(+b.dataset.dn, 1));
     box.querySelectorAll('[data-rm]').forEach(b => b.onclick = () => { if (!confirm('Retirer cet élément de l\'enchaînement ?')) return; const [x] = g.seq.splice(+b.dataset.rm, 1); if (x.img) DB[gymImgKey(x.img)] = null; save(); frame(); });
     if ($('#gyplay')) $('#gyplay').onclick = () => present(g);
+    if ($('#gymclr')) $('#gymclr').onclick = () => { if (!confirm('Effacer la validation de tous les éléments ?')) return; g.seq.forEach(it => delete it.m); save(); tabEnch(box); };
     if ($('#gyclr')) $('#gyclr').onclick = () => { if (!confirm(`Vider l'enchaînement de ${g.name} ?`)) return; clearImgs([g]); g.seq = []; save(); frame(); };
   }
   function present(g) {
@@ -681,8 +705,10 @@ TOOL_IMPL.gym = function (el) {
         <div style="flex:1;display:flex;gap:12px;align-items:center;justify-content:center;min-height:0;flex-wrap:wrap">${e ? `<div style="flex:1 1 280px;max-width:560px">${gymSVG(e, true)}</div>` : ''}${img ? `<img src="${img}" style="flex:1 1 280px;max-width:520px;max-height:62vh;object-fit:contain;border-radius:12px">` : ''}</div>
         ${e ? `<p style="text-align:center;margin:10px auto 0;max-width:620px"><b>✅</b> ${esc(e.c || '')}</p>` : ''}
         ${url ? `<div style="text-align:center;margin-top:8px"><button class="btn btn-grad" id="pv">${acroBtn(url)}</button></div>` : ''}
+        <div style="margin-top:12px" data-cfg="bare"><div class="muted" style="font-size:.78rem;font-weight:800;margin-bottom:4px">✅ Validation de l'enseignant</div>${epsMBar(it.m, 'data-pm')}</div>
         <div class="row" style="margin-top:12px"><button class="btn btn-ghost" id="pp" ${k ? '' : 'disabled'}>← Précédent</button><button class="btn btn-grad" id="pn" ${k < g.seq.length - 1 ? '' : 'disabled'}>Suivant →</button></div>`;
-      o.querySelector('#pq').onclick = () => o.remove();
+      o.querySelector('#pq').onclick = () => { o.remove(); frame(); };
+      o.querySelectorAll('[data-pm]').forEach(b => b.onclick = () => { const v = +b.dataset.pm; if (it.m === v) delete it.m; else it.m = v; save(); if (it.m != null && k < g.seq.length - 1) setTimeout(() => { k++; show(); }, 250); else show(); });
       if (o.querySelector('#pv')) o.querySelector('#pv').onclick = () => acroVideo({ n: e.n, url });
       o.querySelector('#pp').onclick = () => { k--; show(); }; o.querySelector('#pn').onclick = () => { k++; show(); }; };
     show(); document.body.appendChild(o);
