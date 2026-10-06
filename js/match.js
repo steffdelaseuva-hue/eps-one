@@ -329,11 +329,46 @@ TOOL_IMPL.escrime = el => TOOL_IMPL.match(el, 'esc');
 const PIE_COLS = ['#1E5BD8', '#C9A227', '#1B9E5A', '#E0892F', '#8E44AD', '#D64545', '#0B2A5B', '#5B8DEF', '#9C7A1E', '#16A3A3'];
 function epsPie(seg, title, size = 132) {
   seg = seg.filter(x => x.v > 0); const tot = seg.reduce((a, x) => a + x.v, 0);
-  if (!tot) return `<div class="pie-box"><b class="pie-t">${title}</b><div class="muted" style="font-size:.8rem">—</div></div>`;
+  if (!tot) return `<div class="pie-box pie-empty"><b class="pie-t">${title}</b><div class="muted" style="font-size:.8rem">—</div></div>`;
   const r = 42, C = 2 * Math.PI * r; let off = 0;
   const arcs = seg.map((x, i) => { const len = x.v / tot * C, a = `<circle r="${r}" cx="60" cy="60" fill="none" stroke="${x.c || PIE_COLS[i % PIE_COLS.length]}" stroke-width="22" stroke-dasharray="${len.toFixed(2)} ${(C - len).toFixed(2)}" stroke-dashoffset="${(-off).toFixed(2)}" transform="rotate(-90 60 60)"/>`; off += len; return a; }).join('');
   return `<div class="pie-box"><b class="pie-t">${title}</b><svg viewBox="0 0 120 120" width="${size}" height="${size}" role="img">${arcs}<text x="60" y="58" text-anchor="middle" font-size="18" font-weight="900" fill="currentColor">${tot}</text><text x="60" y="74" text-anchor="middle" font-size="9" fill="currentColor" opacity=".6">total</text></svg>
     <div class="pie-lg">${seg.map((x, i) => `<div><i style="background:${x.c || PIE_COLS[i % PIE_COLS.length]}"></i><span>${esc(x.l)}</span><b>${x.v} · ${Math.round(x.v / tot * 100)} %</b></div>`).join('')}</div></div>`;
+}
+/* Bloc « 📊 Synthèse » : titre + carte contenant plusieurs camemberts (vides ignorés) */
+function epsPieCard(title, pies, bare) { pies = pies.filter(x => x && !x.includes('pie-empty')); if (!pies.length) return '';
+  return `${bare ? '' : `<div class="section-title"><h2>${title}</h2></div>`}<div class="card${bare ? ' pie-bare' : ''}"${bare ? ' style="margin-top:10px"' : ''}>${bare ? `<b>${title}</b>` : ''}<div class="pie-wrap"${bare ? ' style="margin-top:8px"' : ''}>${pies.join('')}</div></div>`; }
+const epsSegs = o => Object.entries(o).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]).map(([l, v]) => ({ l, v }));
+/* Répartition des niveaux de maîtrise (validation enseignant) */
+const epsMPie = (L, title = 'Niveaux de maîtrise') => { const v = (L || []).filter(x => x != null); return v.length ? epsPie(EPS_M.map(([l, c], i) => ({ l, c, v: v.filter(x => x === i).length })), title) : ''; };
+/* Camemberts d'un match : part des points + origine des points de chaque équipe */
+function epsMatchPies(m) {
+  if (!m || m.obsOnly) return [];
+  const by = t => { const o = {}; (m.ev || []).filter(e => e.team === t && (e.kind === 'score' || e.kind === 'bonus') && e.pts).forEach(e => { const k = e.kind === 'bonus' ? `Bonus +${e.pts}` : (e.label || 'Point'); o[k] = (o[k] || 0) + e.pts; }); return epsSegs(o); };
+  const P = [epsPie([{ l: m.a, v: +m.sa || 0, c: '#B8912A' }, { l: m.b, v: +m.sb || 0, c: '#1E5BD8' }], 'Part des points')];
+  if (!m.simple && (m.ev || []).length) { const A = by(0), B = by(1); if (A.length > 1 || B.length > 1) P.push(epsPie(A, `Points de ${esc(m.a)}`), epsPie(B, `Points de ${esc(m.b)}`)); }
+  return P;
+}
+/* Camemberts d'une liste de matchs (tournoi) : points marqués et victoires par équipe */
+function epsMatchesPies(ms) {
+  const pts = {}, win = {}, res = { Victoires: 0, Nuls: 0 };
+  (ms || []).filter(m => !m.obsOnly).forEach(m => { const a = +m.sa || 0, b = +m.sb || 0; pts[m.a] = (pts[m.a] || 0) + a; pts[m.b] = (pts[m.b] || 0) + b;
+    if (a === b) res.Nuls++; else { res.Victoires++; const w = a > b ? m.a : m.b; win[w] = (win[w] || 0) + 1; } });
+  if (!Object.keys(pts).length) return [];
+  return [epsPie(epsSegs(pts), 'Points marqués'), epsPie(epsSegs(win), 'Victoires'), res.Nuls ? epsPie([{ l: 'Matchs gagnés', v: res.Victoires, c: '#1B9E5A' }, { l: 'Matchs nuls', v: res.Nuls, c: '#C9A227' }], 'Issues des matchs') : ''];
+}
+/* Synthèse individuelle d'un élève (matchs, observations, lutte) */
+function epsStudentPies(n) {
+  const P = [], ms = (DB.matchs || []).filter(m => !m.obsOnly && ([m.a, m.b].includes(n) || (m.pa || []).includes(n) || (m.pb || []).includes(n)));
+  if (ms.length) { const r = { v: 0, n: 0, d: 0 }; ms.forEach(m => { const t = m.a === n || (m.pa || []).includes(n) ? 0 : 1, a = +m.sa || 0, b = +m.sb || 0; if (a === b) r.n++; else if ((a > b) === !t) r.v++; else r.d++; });
+    P.push(epsPie([{ l: 'Victoires', v: r.v, c: '#1B9E5A' }, { l: 'Nuls', v: r.n, c: '#C9A227' }, { l: 'Défaites', v: r.d, c: '#D64545' }], `Matchs joués (${ms.length})`)); }
+  const ob = {}; (DB.matchs || []).forEach(m => (m.obs || []).filter(o => o.name === n).forEach(o => (typeof obsCrit === 'function' ? obsCrit(m.sport) : []).forEach(([k, l]) => { ob[l] = (ob[l] || 0) + (o.c[k] || 0); })));
+  if (Object.keys(ob).length) P.push(epsPie(epsSegs(ob), 'Observations en match'));
+  if (typeof luAgg === 'function') { const x = luAgg([n])[0];
+    if (x && x.c) P.push(epsPie([{ l: 'Victoires', v: x.v, c: '#1B9E5A' }, { l: 'Nuls', v: x.nul, c: '#C9A227' }, { l: 'Défaites', v: x.d, c: '#D64545' }], `Combats de lutte (${x.c})`));
+    if (x && Object.keys(x.fo).length) P.push(epsPie(epsSegs(x.fo), 'Formes de corps'));
+    if (x && Object.keys(x.de).length) P.push(epsPie(epsSegs(x.de), 'Défense')); }
+  return P;
 }
 TOOL_IMPL.match = function (el, grp = 'col') {
   const GS = MATCH_GRP[grp] || MATCH_GRP.col, inG = sp => GS.includes(sp);
@@ -1035,6 +1070,8 @@ TOOL_IMPL.match = function (el, grp = 'col') {
       ${f !== 'atp' && t.teams.some(x => (x.members || []).length && !(x.members.length === 1 && x.members[0] === x.name)) ? `<details class="card" style="margin-top:12px"><summary style="font-weight:800;cursor:pointer">👥 Composition des équipes (${t.teams.length})</summary>
         <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin-top:8px">${t.teams.map(x => `<div style="border:1.5px solid var(--line);border-radius:12px;padding:8px 10px"><b>${esc(x.name)}</b><div class="muted" style="font-size:.82rem">${(x.members || []).map(esc).join(', ') || '—'}</div></div>`).join('')}</div></details>` : ''}
       ${V.html}
+      ${(() => { const P = [...epsMatchesPies(DB.matchs.filter(m => m.tid === t.id && !m.obsOnly)), f === 'atp' ? epsPie(epsSegs(Object.fromEntries(tAtp(t).ranks.map(r => [r.n, Math.round(r.pts)]))), 'Points ATP') : ''].filter(Boolean);
+        return P.length ? `<details class="card" style="margin-top:12px"><summary style="font-weight:800;cursor:pointer">📊 Synthèse du tournoi</summary><div class="pie-wrap" style="margin-top:8px">${P.join('')}</div></details>` : ''; })()}
       <div class="section-title"><h2>Match libre</h2></div>
       ${V.libre || `<div class="card"><p class="muted" style="margin:0 0 6px;font-size:.85rem">Match amical ou supplémentaire : lié au tournoi mais <b>non compté</b> ${f === 'elim' ? 'dans le tableau' : f === 'pyramide' ? 'dans la pyramide' : 'dans le classement'}.</p>
         <div class="row"><div><label>${who}</label><select id="t-fa" style="padding:12px;font-weight:800;font-size:1.05rem">${opt(0)}</select></div><div><label>Adversaire</label><select id="t-fb" style="padding:12px;font-weight:800;font-size:1.05rem">${opt(1)}</select></div></div>
@@ -1231,10 +1268,7 @@ TOOL_IMPL.match = function (el, grp = 'col') {
         ${m.nz ? Array.from({ length: m.nz }, (_, z) => row(`Zone ${z + 1} atteinte`, s => s.zones[z])).join('') : ''}
         ${m.sport === 'escrime' ? TOUCH_ZONES.map((z, i) => row(`Touches ${z.toLowerCase()}`, s => (s.touches || [])[i] || 0)).join('') : ''}
       </table>${m.nz ? `<p class="muted" style="margin:8px 0 0;font-size:.8rem">Zone 1 = camp de l'équipe, zone ${m.nz} = près du but adverse.</p>` : ''}</div>`}
-      ${m.obsOnly || m.simple || !(m.ev || []).length ? '' : (() => { const by = t => { const o = {}; m.ev.filter(e => e.team === t && (e.kind === 'score' || e.kind === 'bonus') && e.pts).forEach(e => { const k = e.kind === 'bonus' ? `Bonus +${e.pts}` : (e.label || 'Point'); o[k] = (o[k] || 0) + e.pts; }); return Object.entries(o).sort((a, b) => b[1] - a[1]).map(([l, v]) => ({ l, v })); };
-        return `<div class="section-title"><h2>📊 Synthèse du match</h2></div><div class="card"><div class="pie-wrap">
-          ${epsPie([{ l: m.a, v: +m.sa || 0, c: '#B8912A' }, { l: m.b, v: +m.sb || 0, c: '#1E5BD8' }], 'Part des points')}
-          ${epsPie(by(0), `Points de ${esc(m.a)}`)}${epsPie(by(1), `Points de ${esc(m.b)}`)}</div></div>`; })()}
+      ${m.obsOnly ? '' : epsPieCard('📊 Synthèse du match', epsMatchPies(m))}
       ${(m.obs || []).length ? (() => { const crit = obsCrit(m.sport), mx = Math.max(1, ...m.obs.flatMap(o => crit.map(([k]) => o.c[k] || 0)));
         return `<div class="section-title"><h2>👁 Observations individuelles</h2></div><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px">${m.obs.map(o => `<div class="obs-c" style="border-top:5px solid ${o.team ? '#1E5BD8' : '#B8912A'}"><h4><span>${esc(o.name)}</span><small class="muted">${esc(o.team ? m.b : m.a)}</small></h4>
           ${crit.map(([k, l], i) => `<div class="obs-b"><span>${esc(l)}</span><div class="bar"><i style="width:${(o.c[k] || 0) / mx * 100}%;background:${PIE_COLS[i % PIE_COLS.length]}"></i></div><b>${o.c[k] || 0}</b></div>`).join('')}

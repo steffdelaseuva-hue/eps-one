@@ -25,6 +25,12 @@ service cloud.firestore {
       allow update, delete: if isAdmin();
     }
 
+    // Textes publics de l'appli (ex. auteurs d'une démarche) : lecture pour tous, écriture administrateur
+    match /public/{doc} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
     // Données chiffrées : uniquement le propriétaire, autorisé avec synchronisation activée
     match /epsone/{uid}/{document=**} {
       allow read, write: if request.auth != null && request.auth.uid == uid && canSync();

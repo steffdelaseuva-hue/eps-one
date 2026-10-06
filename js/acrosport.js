@@ -303,6 +303,32 @@ function acroPhoto(file) {
     img.onerror = () => { URL.revokeObjectURL(url); ko(new Error('Image illisible')); }; img.src = url; });
 }
 const acroImgKey = id => 'acroImg_' + id;
+/* ---------- Vidéos (Gym / Acrosport) : gardées sur la tablette qui filme (IndexedDB), trop lourdes pour la synchronisation ---------- */
+const epsVidOpen = () => new Promise((ok, ko) => { const r = indexedDB.open('epsone-videos', 1); r.onupgradeneeded = () => r.result.createObjectStore('v'); r.onsuccess = () => ok(r.result); r.onerror = () => ko(r.error); });
+const epsVidOp = (mode, f) => epsVidOpen().then(db => new Promise((ok, ko) => { const tx = db.transaction('v', mode), q = f(tx.objectStore('v')); tx.oncomplete = () => ok(q && q.result); tx.onerror = () => ko(tx.error); tx.onabort = () => ko(tx.error || new Error('Espace insuffisant sur la tablette')); }));
+const EPS_VURL = {};
+window.epsVidPut = (id, blob) => { try { navigator.storage && navigator.storage.persist && navigator.storage.persist(); } catch (e) {} if (EPS_VURL[id]) { URL.revokeObjectURL(EPS_VURL[id]); delete EPS_VURL[id]; } return epsVidOp('readwrite', s => s.put(blob, id)); };
+window.epsVidDel = id => { if (!id) return; if (EPS_VURL[id]) { URL.revokeObjectURL(EPS_VURL[id]); delete EPS_VURL[id]; } return epsVidOp('readwrite', s => s.delete(id)).catch(() => {}); };
+window.epsVidUrl = id => EPS_VURL[id] ? Promise.resolve(EPS_VURL[id]) : epsVidOp('readonly', s => s.get(id)).then(b => b ? (EPS_VURL[id] = URL.createObjectURL(b)) : null).catch(() => null);
+/* Enregistre le fichier vidéo choisi / filmé pour l'élément it (it.vid) */
+window.epsVidSet = async (file, it, done) => {
+  if (!file) return; if (!/^video\//.test(file.type || 'video/')) return toast('Ce fichier n\'est pas une vidéo');
+  if (file.size > 600 * 1024 * 1024) return toast('Vidéo trop lourde (600 Mo max) : filmez une séquence plus courte');
+  toast('🎬 Enregistrement de la vidéo…'); const id = it.vid || 'v' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  try { await epsVidPut(id, file); it.vid = id; save(); toast('Vidéo enregistrée sur cette tablette ✔'); done && done(); } catch (e) { toast('Impossible d\'enregistrer la vidéo : ' + (e && e.message || 'espace insuffisant')); }
+};
+/* Emplacement vidéo (rempli par epsVidHydrate) */
+window.epsVidSlot = (it, big) => it && it.vid ? `<div data-vid="${esc(it.vid)}"${big ? ' data-big="1"' : ''} style="flex:1 1 ${big ? '280px' : '0'};min-width:0;${big ? 'max-width:560px' : ''}"><div class="muted" style="font-size:.75rem;text-align:center;padding:8px">🎬 Chargement…</div></div>` : '';
+window.epsVidHydrate = root => root.querySelectorAll('[data-vid]').forEach(async d => { const url = await epsVidUrl(d.dataset.vid);
+  if (!url) { d.innerHTML = '<div class="muted" style="font-size:.75rem;text-align:center;padding:8px;border:1.5px dashed var(--line);border-radius:10px">🎬 Vidéo filmée sur une autre tablette</div>'; return; }
+  if (d.dataset.big) { d.innerHTML = `<video src="${url}" controls playsinline preload="metadata" style="width:100%;max-height:62vh;border-radius:12px;background:#000"></video><div class="tog" data-cfg="bare" style="margin-top:6px;justify-content:center">${[.25, .5, 1].map(r => `<button data-vr="${r}" class="${r === 1 ? 'on' : ''}">×${String(r).replace('.', ',')}</button>`).join('')}</div>`;
+    const v = d.querySelector('video'); d.querySelectorAll('[data-vr]').forEach(b => b.onclick = () => { v.playbackRate = +b.dataset.vr; d.querySelectorAll('[data-vr]').forEach(x => x.classList.toggle('on', x === b)); }); return; }
+  d.innerHTML = `<div style="position:relative;cursor:pointer"><video src="${url}#t=0.1" muted playsinline preload="metadata" style="width:100%;max-height:120px;object-fit:contain;border-radius:10px;background:#000;display:block"></video><span style="position:absolute;inset:0;display:grid;place-items:center;font-size:2rem;color:#fff;text-shadow:0 2px 8px rgba(0,0,0,.6);pointer-events:none">▶</span></div>`;
+  d.firstChild.onclick = () => epsVidPlay(url); });
+window.epsVidPlay = url => { const o = document.createElement('div'); o.style.cssText = 'position:fixed;inset:0;z-index:330;background:rgba(0,0,0,.94);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:12px';
+  o.innerHTML = `<video src="${url}" controls autoplay playsinline style="max-width:100%;max-height:80vh;border-radius:10px"></video><div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center">${[.25, .5, 1].map(r => `<button class="btn ${r === 1 ? 'btn-grad' : 'btn-ghost'}" style="flex:0 0 auto;padding:8px 14px" data-vr="${r}">×${String(r).replace('.', ',')}</button>`).join('')}<button class="btn btn-ghost" style="flex:0 0 auto;padding:8px 14px" data-vq>✕ Fermer</button></div>`;
+  const v = o.querySelector('video'); o.querySelectorAll('[data-vr]').forEach(b => b.onclick = () => { v.playbackRate = +b.dataset.vr; o.querySelectorAll('[data-vr]').forEach(x => x.className = 'btn ' + (x === b ? 'btn-grad' : 'btn-ghost')); });
+  o.querySelector('[data-vq]').onclick = () => { v.pause(); o.remove(); }; document.body.appendChild(o); };
 /* Type de lien : diaporama (ppt, pptx, key, pdf, Google Slides, PowerPoint en ligne) ou vidéo */
 const acroIsSlides = u => /\.(pptx?|ppsx?|key|pdf|odp)(\?|#|$)/i.test(u || '') || /docs\.google\.com\/presentation|1drv\.ms\/p\/|powerpoint|sharepoint\.com.*\.pptx/i.test(u || '');
 const acroDriveId = u => ((/drive\.google\.com\/(?:file\/d\/|open\?id=|uc\?(?:.*&)?id=)([\w-]{10,})/.exec(u || '') || [])[1])
@@ -574,7 +600,7 @@ TOOL_IMPL.acrosport = function (el) {
     const d = box.querySelector('#agdel'); if (d) d.onclick = () => { if (!confirm('Supprimer tous les groupes de la classe et leurs enchaînements ?')) return; clearImgs(gs); A.groupes[cls] = []; gi = 0; selSt = null; save(); frame(); };
   }
   const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
-  const clearImgs = list => list.forEach(g => g.seq.forEach(it => { if (it.img) DB[acroImgKey(it.img)] = null; }));
+  const clearImgs = list => list.forEach(g => g.seq.forEach(it => { if (it.img) DB[acroImgKey(it.img)] = null; if (it.vid) epsVidDel(it.vid); }));
 
   /* ---------- Banque de pyramides ---------- */
   const chips = (key, opts) => `<div class="tog">${opts.map(([v, l]) => `<button data-f="${key}" data-v="${v}" class="${String(F[key]) === String(v) ? 'on' : ''}">${l}</button>`).join('')}</div>`;
@@ -730,10 +756,11 @@ TOOL_IMPL.acrosport = function (el) {
           <div class="row"><div><label>Duos minimum</label>${num('ardu', R.duo, 0, 10)}</div><div><label>Trios minimum</label>${num('artr', R.trio, 0, 10)}</div><div><label>Quatuors minimum</label>${num('arqu', R.quat, 0, 10)}</div></div>
           <div class="row"><div><label>Voltigeurs renversés obligatoires</label>${num('arre', R.ren, 0, 10)}</div></div></details></div>
       ${nm ? `<div class="card" style="margin-top:12px"><b>✅ Validation par l'enseignant</b> <span class="muted" style="font-size:.8rem">· ${nm} / ${L.length} figure(s)</span>
-        <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px">${EPS_M.map(([l, c], i) => { const n = L.filter(x => x === i).length; return n ? `<span style="padding:3px 9px;border-radius:99px;background:${c};color:#fff;font-weight:800;font-size:.75rem">${n} × ${l}</span>` : ''; }).join('')}</div>
+        <div style="display:flex;justify-content:center;margin-top:6px">${typeof epsMPie === 'function' ? epsMPie(L, 'Répartition') : ''}</div>
         ${av != null ? `<div style="margin-top:8px">Bilan : <b style="color:${EPS_M[av][1]}">${EPS_M[av][0]}</b></div>` : ''}<button class="link" data-cfg="bare" id="amclr" style="margin-top:6px">Effacer la validation</button></div>` : ''}
       <div class="row" style="margin-top:12px"><button class="btn btn-ghost" id="afig">📚 Ajouter une pyramide</button><button class="btn btn-ghost" id="alia">🔗 Ajouter une liaison</button>
-        <label class="btn btn-ghost" style="display:block;text-align:center;cursor:pointer;margin:0">📷 Ajouter une photo<input id="aph" type="file" accept="image/*" capture="environment" style="display:none"></label></div>
+        <label class="btn btn-ghost" style="display:block;text-align:center;cursor:pointer;margin:0">📷 Ajouter une photo<input id="aph" type="file" accept="image/*" capture="environment" style="display:none"></label>
+        <label class="btn btn-ghost" style="display:block;text-align:center;cursor:pointer;margin:0">🎬 Ajouter une vidéo<input id="avd" type="file" accept="video/*" capture="environment" style="display:none"></label></div>
       ${g.seq.length ? `<button class="btn btn-grad btn-block" style="margin-top:10px" id="aplay">▶ Présenter l'enchaînement</button>` : ''}
       <div class="section-title"><h2>Enchaînement (${g.seq.length})</h2>${g.seq.length ? '<button class="link" data-cfg="bare" id="aclr">🗑 Vider l\'enchaînement</button>' : ''}</div>
       ${g.seq.length ? `<div style="display:flex;flex-direction:column;gap:10px">${g.seq.map((it, k) => { const f = it.t === 'fig' ? acroFind(it.fig) : null, img = it.img ? DB[acroImgKey(it.img)] : null, li = it.t === 'liaison' ? A.liaisons.find(x => x.id === it.lid) : null;
@@ -746,10 +773,11 @@ TOOL_IMPL.acrosport = function (el) {
           <div style="flex:0 0 30px;height:30px;border-radius:50%;background:var(--grad);color:#fff;display:grid;place-items:center;font-weight:900">${k + 1}</div>
           <div style="flex:1;min-width:0;display:flex;gap:8px;align-items:center">
             ${f ? `<div style="flex:1;min-width:0">${acroSVG(f)}</div>` : ''}
-            ${img ? `<img src="${img}" data-z="${k}" style="flex:1;min-width:0;max-height:120px;object-fit:contain;border-radius:10px;background:#000;cursor:zoom-in">` : ''}</div>
+            ${img ? `<img src="${img}" data-z="${k}" style="flex:1;min-width:0;max-height:120px;object-fit:contain;border-radius:10px;background:#000;cursor:zoom-in">` : ''}${epsVidSlot(it)}</div>
           <div style="flex:0 0 auto;display:flex;flex-direction:column;gap:4px;align-items:stretch">
-            <div class="muted" style="font-size:.75rem;font-weight:800;max-width:110px">${f ? `${acroNivBadge(f)} ${esc(f.n)}` : 'Photo'} ${epsMTag(it.m)}</div>
-            ${f ? `<label class="btn btn-ghost" style="padding:5px 8px;font-size:.75rem;cursor:pointer;margin:0;text-align:center">📷 ${img ? 'Changer' : 'Photo'}<input data-ph="${k}" type="file" accept="image/*" capture="environment" style="display:none"></label>` : ''}
+            <div class="muted" style="font-size:.75rem;font-weight:800;max-width:110px">${f ? `${acroNivBadge(f)} ${esc(f.n)}` : it.vid && !img ? 'Vidéo' : 'Photo'} ${epsMTag(it.m)}</div>
+            ${f || img ? `<label class="btn btn-ghost" style="padding:5px 8px;font-size:.75rem;cursor:pointer;margin:0;text-align:center">📷 ${img ? 'Changer' : 'Photo'}<input data-ph="${k}" type="file" accept="image/*" capture="environment" style="display:none"></label>` : ''}
+            <label class="btn btn-ghost" style="padding:5px 8px;font-size:.75rem;cursor:pointer;margin:0;text-align:center">🎬 ${it.vid ? 'Changer' : 'Vidéo'}<input data-vd="${k}" type="file" accept="video/*" capture="environment" style="display:none"></label>
             <div style="display:flex;gap:4px"><button class="btn btn-ghost" style="padding:5px 8px" data-up="${k}" ${k ? '' : 'disabled'}>↑</button><button class="btn btn-ghost" style="padding:5px 8px" data-dn="${k}" ${k < g.seq.length - 1 ? '' : 'disabled'}>↓</button><button class="btn btn-ghost" style="padding:5px 8px" data-rm="${k}">✕</button></div></div></div>`; }).join('')}</div>`
         : '<div class="card empty">L\'enchaînement est vide : ajoutez des pyramides de la banque ou des photos des figures du groupe.</div>'}`;
     const $ = s => box.querySelector(s);
@@ -760,10 +788,13 @@ TOOL_IMPL.acrosport = function (el) {
     $('#aph').onchange = e => { const f = e.target.files[0]; if (!f) return; const it = { k: Date.now().toString(36), t: 'photo' }; g.seq.push(it); setImg(f, it); };
     box.querySelectorAll('[data-ph]').forEach(i => i.onchange = e => { const f = e.target.files[0]; if (f) setImg(f, g.seq[+i.dataset.ph]); });
     box.querySelectorAll('[data-z]').forEach(i => i.onclick = () => acroZoom(i.src));
+    $('#avd').onchange = e => { const f = e.target.files[0]; if (!f) return; const it = { k: Date.now().toString(36), t: 'photo' }; epsVidSet(f, it, () => { g.seq.push(it); save(); tabEnch(box); }); };
+    box.querySelectorAll('[data-vd]').forEach(i => i.onchange = e => { const f = e.target.files[0]; if (f) epsVidSet(f, g.seq[+i.dataset.vd], () => tabEnch(box)); });
+    epsVidHydrate(box);
     const mv = (k, d) => { const [x] = g.seq.splice(k, 1); g.seq.splice(k + d, 0, x); save(); tabEnch(box); };
     box.querySelectorAll('[data-up]').forEach(b => b.onclick = () => mv(+b.dataset.up, -1));
     box.querySelectorAll('[data-dn]').forEach(b => b.onclick = () => mv(+b.dataset.dn, 1));
-    box.querySelectorAll('[data-rm]').forEach(b => b.onclick = () => { if (!confirm('Retirer cet élément de l\'enchaînement ?')) return; const [x] = g.seq.splice(+b.dataset.rm, 1); if (x.img) DB[acroImgKey(x.img)] = null; save(); frame(); });
+    box.querySelectorAll('[data-rm]').forEach(b => b.onclick = () => { if (!confirm('Retirer cet élément de l\'enchaînement ?')) return; const [x] = g.seq.splice(+b.dataset.rm, 1); if (x.img) DB[acroImgKey(x.img)] = null; if (x.vid) epsVidDel(x.vid); save(); frame(); });
     if ($('#aplay')) $('#aplay').onclick = () => present(g);
     const setR = (k, v) => { R[k] = v; reqOpen = true; save(); tabEnch(box); };
     $('#areq').ontoggle = e => { reqOpen = e.target.open; };
@@ -779,12 +810,13 @@ TOOL_IMPL.acrosport = function (el) {
       o.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center"><b>${esc(g.name)} · ${k + 1} / ${g.seq.length}</b><button class="btn btn-ghost" id="pq">✕ Fermer</button></div>
         <h3 style="text-align:center;margin:10px 0">${f ? esc(f.n) : li ? '🔗 ' + esc(li.n) : 'Figure ' + (k + 1)}</h3>
         ${li ? `<div style="text-align:center">${li.d ? `<p class="muted">${esc(li.d)}</p>` : ''}${li.url ? `<button class="btn btn-grad" id="pv">${acroBtn(li.url, true)}</button>` : ''}</div>` : ''}
-        <div style="flex:1;display:flex;gap:12px;align-items:center;justify-content:center;min-height:0;flex-wrap:wrap">${f ? `<div style="flex:1 1 280px;max-width:520px">${acroSVG(f, true)}</div>` : ''}${img ? `<img src="${img}" style="flex:1 1 280px;max-width:520px;max-height:70vh;object-fit:contain;border-radius:12px">` : ''}</div>
+        <div style="flex:1;display:flex;gap:12px;align-items:center;justify-content:center;min-height:0;flex-wrap:wrap">${f ? `<div style="flex:1 1 280px;max-width:520px">${acroSVG(f, true)}</div>` : ''}${img ? `<img src="${img}" style="flex:1 1 280px;max-width:520px;max-height:70vh;object-fit:contain;border-radius:12px">` : ''}${epsVidSlot(it, true)}</div>
         ${!li ? `<div style="margin-top:12px" data-cfg="bare"><div class="muted" style="font-size:.78rem;font-weight:800;margin-bottom:4px">✅ Validation de l'enseignant</div>${epsMBar(it.m, 'data-pm')}</div>` : ''}
         <div class="row" style="margin-top:12px"><button class="btn btn-ghost" id="pp" ${k ? '' : 'disabled'}>← Précédente</button><button class="btn btn-grad" id="pn" ${k < g.seq.length - 1 ? '' : 'disabled'}>Suivante →</button></div>`;
       o.querySelector('#pq').onclick = () => { o.remove(); frame(); };
       o.querySelectorAll('[data-pm]').forEach(b => b.onclick = () => { const v = +b.dataset.pm; if (it.m === v) delete it.m; else it.m = v; save(); if (it.m != null && k < g.seq.length - 1) setTimeout(() => { k++; show(); }, 250); else show(); });
       if (o.querySelector('#pv')) o.querySelector('#pv').onclick = () => acroVideo(li);
+      epsVidHydrate(o);
       o.querySelector('#pp').onclick = () => { k--; show(); }; o.querySelector('#pn').onclick = () => { k++; show(); }; };
     show(); document.body.appendChild(o);
   }

@@ -72,11 +72,13 @@ TOOL_IMPL.parkour = function (el) {
       <div class="section-title"><h2>${esc(st[si] || '')}</h2></div>
       ${enchCard(st[si])}
       <div class="card" style="padding:0">${mine.length ? mine.map(e => `<div class="list-item"><div style="flex:1"><b>${esc(e.ex)}</b> <span class="muted">· ${esc(e.atelier || e.fam)} · niv. ${e.niv}</span><div style="margin-top:4px">${tag(e.m)}${e.cycle === 2 ? ` <span class="muted" style="font-size:.75rem">fluidité</span> ${tag(e.flu)}` : ''} <span class="muted" style="font-size:.75rem">${new Date(e.date).toLocaleDateString('fr-FR')}</span></div></div><button class="btn btn-ghost" data-cfg="bare" data-x="${e.i}">✕</button></div>`).join('') : '<div class="empty">Aucune évaluation pour cet élève.</div>'}</div>
+      ${typeof epsPieCard === 'function' && mine.length ? epsPieCard(`📊 Synthèse · ${esc(st[si] || '')}`, [epsPie(PK_M.map(([l, c], k) => ({ l, c, v: mine.filter(e => e.m === k).length })), 'Maîtrise'), epsPie(epsSegs(mine.reduce((o, e) => (o[e.fam] = (o[e.fam] || 0) + 1, o), {})), 'Éléments par famille'), epsPie(epsSegs(mine.reduce((o, e) => (o['Niveau ' + e.niv] = (o['Niveau ' + e.niv] || 0) + 1, o), {})), 'Niveaux')], true) : ''}
       <div class="section-title"><h2>Bilan de la classe</h2><button class="link" id="exp">Exporter CSV</button></div>
       <div class="card sheet-table"><table><tr><th>Élève</th>${famsOf().map(f => `<th>${esc(f)}</th>`).join('')}</tr>
         ${st.map(n => `<tr><td><b>${esc(n)}</b></td>${famsOf().map(f => { const b = D.evals.filter(e => e.classe === cls && e.eleve === n && e.fam === f && e.m >= 2).sort((x, y) => y.niv - x.niv || y.m - x.m)[0];
           return `<td>${b ? `niv. ${b.niv}<br><span class="muted" style="font-size:.72rem">${esc(b.ex)}</span>` : '–'}</td>`; }).join('')}</tr>`).join('')}</table>
         <p class="muted" style="font-size:.75rem;margin:6px 0 0">Plus haut niveau validé (maîtrise satisfaisante ou très satisfaisante) par famille.</p></div>
+      ${typeof epsPieCard === 'function' ? (() => { const CE = D.evals.filter(e => e.classe === cls); return CE.length ? epsPieCard('📊 Synthèse de la classe', [epsPie(PK_M.map(([l, c], k) => ({ l, c, v: CE.filter(e => e.m === k).length })), 'Maîtrise'), epsPie(epsSegs(CE.reduce((o, e) => (o[e.fam] = (o[e.fam] || 0) + 1, o), {})), 'Éléments par famille')], true) : ''; })() : ''}
       ${PK_UNDO ? `<button class="btn btn-grad btn-block" style="margin-top:12px" id="pkundo">↶ Annuler : ${esc(PK_UNDO.label)}</button>` : ''}
       <div class="card" data-cfg="bare" style="margin-top:12px"><b>🗑 Supprimer / remettre à zéro</b>
         <div style="display:flex;flex-direction:column;gap:8px;margin-top:8px">

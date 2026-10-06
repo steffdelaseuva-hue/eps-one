@@ -327,6 +327,11 @@ function gate() {
   if ($('#gt-out')) $('#gt-out').onclick = () => run(async () => { forgetKey(); await fb.authM.signOut(fb.auth); });
 }
 window.isEpsAdmin = () => isAdminUser(S.user);
+/* Textes publics (lisibles par tous, modifiables par l'administrateur seul) : Firestore public/{id} */
+window.epsPublicSet = async (id, data) => {
+  if (!fb || !isAdminUser(S.user)) throw new Error('Réservé à l\'administrateur connecté');
+  await fb.fs.setDoc(fb.fs.doc(fb.db, 'public', id), data, { merge: true });
+};
 
 /* Panneau administrateur : valider les demandes */
 window.openAccessAdmin = () => openPanel('Accès des collègues', el => {

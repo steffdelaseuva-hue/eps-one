@@ -433,7 +433,7 @@ TOOL_IMPL.gym = function (el) {
   const G = () => ind ? indOf(ind) : groups()[gi] || null;
   if (!groups().length && cls) { const st = studentsOf(cls); if (st.length) ind = st[0]; }
   if (groups().some(g => g.seq.length) || Object.values(Gd.indiv[cls] || {}).some(g => g.seq.length)) tab = 'ench';
-  const clearImgs = list => list.forEach(g => g.seq.forEach(it => { if (it.img) DB[gymImgKey(it.img)] = null; }));
+  const clearImgs = list => list.forEach(g => g.seq.forEach(it => { if (it.img) DB[gymImgKey(it.img)] = null; if (it.vid) epsVidDel(it.vid); }));
 
   function frame() {
     const gs = cls ? groups() : []; if (gi >= gs.length) gi = 0;
@@ -657,11 +657,12 @@ TOOL_IMPL.gym = function (el) {
             <div><label>Lettre maximale</label><select id="grmx">${GYM_LT.map(l => `<option ${R.max === l ? 'selected' : ''}>${l}</option>`).join('')}</select></div></div>
           <div class="row"><div><label>Éléments minimum</label><input id="grmn" type="number" min="1" max="20" value="${R.min}"></div><div><label>Familles différentes</label><input id="grfm" type="number" min="1" max="6" value="${R.fam}"></div></div></details></div>
       <div class="row" style="margin-top:12px"><button class="btn btn-ghost" id="gyel">🤸 Ajouter un élément</button>
-        <label class="btn btn-ghost" style="display:block;text-align:center;cursor:pointer;margin:0">📷 Ajouter une photo<input id="gyph" type="file" accept="image/*" capture="environment" style="display:none"></label></div>
+        <label class="btn btn-ghost" style="display:block;text-align:center;cursor:pointer;margin:0">📷 Ajouter une photo<input id="gyph" type="file" accept="image/*" capture="environment" style="display:none"></label>
+        <label class="btn btn-ghost" style="display:block;text-align:center;cursor:pointer;margin:0">🎬 Ajouter une vidéo<input id="gyvd" type="file" accept="video/*" capture="environment" style="display:none"></label></div>
       ${g.seq.length ? `<button class="btn btn-grad btn-block" style="margin-top:10px" id="gyplay">▶ Présenter l'enchaînement</button>` : ''}
       ${g.seq.some(it => it.m != null) ? (() => { const L = g.seq.map(it => it.m), av = epsMAvg(L), n = L.filter(x => x != null).length;
         return `<div class="card" style="margin-top:10px"><b>✅ Validation par l'enseignant</b> <span class="muted" style="font-size:.8rem">· ${n} / ${g.seq.length} élément(s)</span>
-          <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px">${EPS_M.map(([l, c], i) => { const k = L.filter(x => x === i).length; return k ? `<span style="padding:3px 9px;border-radius:99px;background:${c};color:#fff;font-weight:800;font-size:.75rem">${k} × ${l}</span>` : ''; }).join('')}</div>
+          <div style="display:flex;justify-content:center;margin-top:6px">${typeof epsMPie === 'function' ? epsMPie(L, 'Répartition') : ''}</div>
           ${av != null ? `<div style="margin-top:8px">Bilan : <b style="color:${EPS_M[av][1]}">${EPS_M[av][0]}</b></div>` : ''}
           <button class="link" data-cfg="bare" id="gymclr" style="margin-top:6px">Effacer la validation</button></div>`; })() : ''}
       <div class="section-title"><h2>Enchaînement (${g.seq.length})</h2>${g.seq.length ? '<button class="link" data-cfg="bare" id="gyclr">🗑 Vider</button>' : ''}</div>
@@ -670,10 +671,11 @@ TOOL_IMPL.gym = function (el) {
           <div style="flex:0 0 30px;height:30px;border-radius:50%;background:var(--grad);color:#fff;display:grid;place-items:center;font-weight:900">${k + 1}</div>
           <div style="flex:1;min-width:0;display:flex;gap:8px;align-items:center">
             ${e ? `<div style="flex:1;min-width:0;cursor:pointer" data-det="${esc(e.id)}">${gymSVG(e)}</div>` : it.t === 'el' ? '<div class="muted" style="flex:1">Élément supprimé</div>' : ''}
-            ${img ? `<img src="${img}" data-z="${k}" style="flex:1;min-width:0;max-height:110px;object-fit:contain;border-radius:10px;background:#000;cursor:zoom-in">` : ''}</div>
+            ${img ? `<img src="${img}" data-z="${k}" style="flex:1;min-width:0;max-height:110px;object-fit:contain;border-radius:10px;background:#000;cursor:zoom-in">` : ''}${epsVidSlot(it)}</div>
           <div style="flex:0 0 auto;display:flex;flex-direction:column;gap:4px;align-items:stretch;max-width:124px">
-            <div style="font-size:.78rem;font-weight:800;line-height:1.2">${e ? `${gymLt(e)} ${esc(e.n)}` : 'Photo'} ${epsMTag(it.m)}</div>
-            ${e ? `<label class="btn btn-ghost" style="padding:5px 8px;font-size:.75rem;cursor:pointer;margin:0;text-align:center">📷 ${img ? 'Changer' : 'Photo'}<input data-ph="${k}" type="file" accept="image/*" capture="environment" style="display:none"></label>` : ''}
+            <div style="font-size:.78rem;font-weight:800;line-height:1.2">${e ? `${gymLt(e)} ${esc(e.n)}` : it.vid && !img ? 'Vidéo' : 'Photo'} ${epsMTag(it.m)}</div>
+            ${e || img ? `<label class="btn btn-ghost" style="padding:5px 8px;font-size:.75rem;cursor:pointer;margin:0;text-align:center">📷 ${img ? 'Changer' : 'Photo'}<input data-ph="${k}" type="file" accept="image/*" capture="environment" style="display:none"></label>` : ''}
+            <label class="btn btn-ghost" style="padding:5px 8px;font-size:.75rem;cursor:pointer;margin:0;text-align:center">🎬 ${it.vid ? 'Changer' : 'Vidéo'}<input data-vd="${k}" type="file" accept="video/*" capture="environment" style="display:none"></label>
             <div style="display:flex;gap:4px"><button class="btn btn-ghost" style="padding:5px 8px" data-up="${k}" ${k ? '' : 'disabled'}>↑</button><button class="btn btn-ghost" style="padding:5px 8px" data-dn="${k}" ${k < g.seq.length - 1 ? '' : 'disabled'}>↓</button><button class="btn btn-ghost" style="padding:5px 8px" data-rm="${k}">✕</button></div></div></div>`; }).join('')}</div>`
         : '<div class="card empty">L\'enchaînement est vide : ajoutez des éléments de la banque ou des photos du groupe.</div>'}`;
     const $ = s => box.querySelector(s);
@@ -687,10 +689,13 @@ TOOL_IMPL.gym = function (el) {
     $('#gyph').onchange = e => { const f = e.target.files[0]; if (!f) return; const it = { k: newId(), t: 'photo' }; g.seq.push(it); setImg(f, it); };
     box.querySelectorAll('[data-ph]').forEach(i => i.onchange = e => { const f = e.target.files[0]; if (f) setImg(f, g.seq[+i.dataset.ph]); });
     box.querySelectorAll('[data-z]').forEach(i => i.onclick = () => acroZoom(i.src));
+    $('#gyvd').onchange = e => { const f = e.target.files[0]; if (!f) return; const it = { k: newId(), t: 'photo' }; epsVidSet(f, it, () => { g.seq.push(it); save(); tabEnch(box); }); };
+    box.querySelectorAll('[data-vd]').forEach(i => i.onchange = e => { const f = e.target.files[0]; if (f) epsVidSet(f, g.seq[+i.dataset.vd], () => tabEnch(box)); });
+    epsVidHydrate(box);
     const mv = (k, d) => { const [x] = g.seq.splice(k, 1); g.seq.splice(k + d, 0, x); save(); tabEnch(box); };
     box.querySelectorAll('[data-up]').forEach(b => b.onclick = () => mv(+b.dataset.up, -1));
     box.querySelectorAll('[data-dn]').forEach(b => b.onclick = () => mv(+b.dataset.dn, 1));
-    box.querySelectorAll('[data-rm]').forEach(b => b.onclick = () => { if (!confirm('Retirer cet élément de l\'enchaînement ?')) return; const [x] = g.seq.splice(+b.dataset.rm, 1); if (x.img) DB[gymImgKey(x.img)] = null; save(); frame(); });
+    box.querySelectorAll('[data-rm]').forEach(b => b.onclick = () => { if (!confirm('Retirer cet élément de l\'enchaînement ?')) return; const [x] = g.seq.splice(+b.dataset.rm, 1); if (x.img) DB[gymImgKey(x.img)] = null; if (x.vid) epsVidDel(x.vid); save(); frame(); });
     if ($('#gyplay')) $('#gyplay').onclick = () => present(g);
     if ($('#gymclr')) $('#gymclr').onclick = () => { if (!confirm('Effacer la validation de tous les éléments ?')) return; g.seq.forEach(it => delete it.m); save(); tabEnch(box); };
     if ($('#gyclr')) $('#gyclr').onclick = () => { if (!confirm(`Vider l'enchaînement de ${g.name} ?`)) return; clearImgs([g]); g.seq = []; save(); frame(); };
@@ -700,9 +705,9 @@ TOOL_IMPL.gym = function (el) {
     o.style.cssText = 'position:fixed;inset:0;z-index:310;background:var(--bg,#fff);display:flex;flex-direction:column;padding:16px;overflow:auto';
     const show = () => { const it = g.seq[k], e = it.t === 'el' ? gymFind(it.el) : null, img = it.img ? DB[gymImgKey(it.img)] : null, url = e && Gd.elinks[e.id];
       o.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><b>${esc(g.name)} · ${k + 1} / ${g.seq.length}</b><button class="btn btn-ghost" style="flex:0 0 auto" id="pq">✕ Fermer</button></div>
-        <div style="display:flex;align-items:center;justify-content:center;gap:10px;margin:10px 0">${e ? gymLt(e, true) : ''}<h3 style="margin:0;font-size:1.3rem">${e ? esc(e.n) : 'Photo ' + (k + 1)}</h3></div>
+        <div style="display:flex;align-items:center;justify-content:center;gap:10px;margin:10px 0">${e ? gymLt(e, true) : ''}<h3 style="margin:0;font-size:1.3rem">${e ? esc(e.n) : (it.vid && !img ? 'Vidéo ' : 'Photo ') + (k + 1)}</h3></div>
         ${e ? `<p class="muted" style="text-align:center;margin:0 0 6px">${GYM_AG[e.ag]} · <b style="color:${GYM_FAM[e.fam].c}">${GYM_FAM[e.fam].n}</b> · ${gymPts(e.lvl)} pt${gymPts(e.lvl) > 1 ? 's' : ''}</p>` : ''}
-        <div style="flex:1;display:flex;gap:12px;align-items:center;justify-content:center;min-height:0;flex-wrap:wrap">${e ? `<div style="flex:1 1 280px;max-width:560px">${gymSVG(e, true)}</div>` : ''}${img ? `<img src="${img}" style="flex:1 1 280px;max-width:520px;max-height:62vh;object-fit:contain;border-radius:12px">` : ''}</div>
+        <div style="flex:1;display:flex;gap:12px;align-items:center;justify-content:center;min-height:0;flex-wrap:wrap">${e ? `<div style="flex:1 1 280px;max-width:560px">${gymSVG(e, true)}</div>` : ''}${img ? `<img src="${img}" style="flex:1 1 280px;max-width:520px;max-height:62vh;object-fit:contain;border-radius:12px">` : ''}${epsVidSlot(it, true)}</div>
         ${e ? `<p style="text-align:center;margin:10px auto 0;max-width:620px"><b>✅</b> ${esc(e.c || '')}</p>` : ''}
         ${url ? `<div style="text-align:center;margin-top:8px"><button class="btn btn-grad" id="pv">${acroBtn(url)}</button></div>` : ''}
         <div style="margin-top:12px" data-cfg="bare"><div class="muted" style="font-size:.78rem;font-weight:800;margin-bottom:4px">✅ Validation de l'enseignant</div>${epsMBar(it.m, 'data-pm')}</div>
@@ -710,6 +715,7 @@ TOOL_IMPL.gym = function (el) {
       o.querySelector('#pq').onclick = () => { o.remove(); frame(); };
       o.querySelectorAll('[data-pm]').forEach(b => b.onclick = () => { const v = +b.dataset.pm; if (it.m === v) delete it.m; else it.m = v; save(); if (it.m != null && k < g.seq.length - 1) setTimeout(() => { k++; show(); }, 250); else show(); });
       if (o.querySelector('#pv')) o.querySelector('#pv').onclick = () => acroVideo({ n: e.n, url });
+      epsVidHydrate(o);
       o.querySelector('#pp').onclick = () => { k--; show(); }; o.querySelector('#pn').onclick = () => { k++; show(); }; };
     show(); document.body.appendChild(o);
   }

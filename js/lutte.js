@@ -589,6 +589,8 @@ TOOL_IMPL.lutte = function (el) {
       <div class="muted" style="text-align:center;margin-top:8px;font-size:.85rem">${m.type === 'debout' ? '🧍 Lutte debout' : '🧎 Lutte au sol'}${m.sn ? ' · ' + esc(m.sn) : ''}${m.simple ? ' · ✍️ résultat saisi' : ''}${m.arb ? ' · arbitre : ' + esc(m.arb) : ''}${m.rounds > 1 ? ` · ${m.rounds} manches` : ''} · ${luDate(m.date)} ${luHm(m.date)}</div>
       ${tbl ? `<div class="section-title"><h2>Observations</h2></div><div class="card sheet-table" style="overflow:auto"><table class="lu-tbl"><tr><th>Action</th><th>Pts</th>${cols.map(w => `<th>${esc(w ? B : A)}</th>`).join('')}</tr>${tbl}
         <tr><th style="text-align:left;padding-top:10px">Total</th><th></th>${cols.map(w => `<th>${luScore(m.ev, w)}</th>`).join('')}</tr></table></div>` : ''}
+      ${typeof epsPieCard === 'function' && !m.obsOnly && (+m.sa || +m.sb) ? (() => { const by = w => { const q = {}; (m.ev || []).filter(e => e.w === w && +e.p > 0).forEach(e => { q[e.l] = (q[e.l] || 0) + +e.p; }); return epsSegs(q); }, PA = by(0), PB = by(1);
+        return epsPieCard('📊 Synthèse du combat', [epsPie([{ l: A, v: +m.sa || 0, c: '#B8912A' }, { l: B, v: +m.sb || 0, c: '#1E5BD8' }], 'Part des points'), PA.length ? epsPie(PA, `Points de ${esc(A)}`) : '', PB.length ? epsPie(PB, `Points de ${esc(B)}`) : '']); })() : ''}
       ${!m.simple && (m.ev || []).length ? `<div class="section-title"><h2>Déroulé</h2></div><div class="card" style="max-height:240px;overflow:auto;padding:4px 12px">${m.ev.map(e => `<div class="muted" style="padding:4px 0;border-bottom:1px solid var(--line)"><b style="color:var(--text)">${fmt(e.t * 1000, false)}</b>${m.rounds > 1 ? ` · M${e.r}` : ''} · ${esc(e.w ? B : A)} · ${esc(e.l)}${e.p ? ' (' + luSgn(e.p) + ')' : ''}</div>`).join('')}</div>` : ''}
       <div class="row" style="margin-top:14px">${fromHist ? '<button class="btn btn-ghost" id="lu-bk">← Retour</button>' : `<button class="btn btn-grad" id="lu-sv" style="flex:2;padding:15px">💾 Enregistrer ${m.obsOnly ? 'les observations' : 'le combat'}</button><button class="btn btn-ghost" id="lu-rs">↶ Reprendre</button>`}<button class="btn btn-ghost" id="lu-cx">📤 CSV</button></div>
       ${fromHist ? '' : '<button class="btn btn-ghost btn-block" style="margin-top:10px" id="lu-nw">Quitter sans enregistrer</button>'}`;
@@ -888,7 +890,7 @@ TOOL_IMPL.lutte = function (el) {
   function bilan() {
     stop(); M = null;
     const CL = [...new Set([...DB.classes.map(c => c.name), ...LU().combats.map(m => m.cls).filter(Boolean)])];
-    let cls = CL.includes(S.cls) ? S.cls : CL[0] || '';
+    let cls = CL.includes(S.cls) ? S.cls : CL[0] || '', bw = '';
     const draw = () => {
       const names = cls ? [...new Set([...studentsOf(cls), ...LU().combats.filter(m => m.cls === cls).flatMap(m => [m.a, m.b])])] : [...new Set(LU().combats.flatMap(m => [m.a, m.b]))];
       const rows = luAgg(names), act = rows.filter(x => x.c || x.arb || Object.keys(x.fo).length || Object.keys(x.de).length);
@@ -898,7 +900,11 @@ TOOL_IMPL.lutte = function (el) {
         <div class="card sheet-table" style="margin-top:12px;overflow:auto">${act.length ? `<table class="lu-tbl"><tr><th>Élève</th><th>Comb.</th><th>V</th><th>N</th><th>D</th><th>Pts +</th><th>Pts −</th><th>Tombés</th><th>Mises en danger</th><th>Pénal.</th><th>Arb.</th><th>Formes de corps</th><th>Défense</th></tr>
           ${act.sort((a, b) => b.v - a.v || (b.pm - b.pe) - (a.pm - a.pe) || a.n.localeCompare(b.n, 'fr')).map(x => `<tr><td><b>${esc(x.n)}</b></td><td>${x.c}</td><td><b>${x.v}</b></td><td>${x.nul}</td><td>${x.d}</td><td>${x.pm}</td><td>${x.pe}</td><td>${x.tb}</td><td>${x.md}</td><td>${x.pen}</td><td>${x.arb}</td><td class="w">${esc(luTop(x.fo)) || '–'}</td><td class="w">${esc(luTop(x.de)) || '–'}</td></tr>`).join('')}</table>`
           : '<div class="empty">Aucun combat enregistré pour cette classe.</div>'}</div>
-        ${act.length ? '<button class="btn btn-ghost btn-block" id="b-csv" style="margin-top:12px">📤 Exporter le bilan (CSV)</button>' : ''}`;
+        ${act.length ? '<button class="btn btn-ghost btn-block" id="b-csv" style="margin-top:12px">📤 Exporter le bilan (CSV)</button>' : ''}
+        ${act.length && typeof epsPieCard === 'function' ? `${epsPieCard('📊 Synthèse de la classe', [epsPie(epsSegs(Object.fromEntries(act.map(x => [x.n, x.v]))), 'Victoires'), epsPie(epsSegs(Object.fromEntries(act.map(x => [x.n, x.tb]))), 'Tombés'), epsPie(epsSegs(act.reduce((o, x) => { Object.entries(x.fo).forEach(([k, v]) => o[k] = (o[k] || 0) + v); return o; }, {})), 'Formes de corps')])}
+          <div class="card" style="margin-top:10px"><label style="margin-top:0">📊 Synthèse individuelle</label><select id="b-who"><option value="">— Choisir un élève —</option>${act.map(x => x.n).sort((a, b) => a.localeCompare(b, 'fr')).map(n => `<option ${n === bw ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select>
+          ${bw ? (() => { const x = act.find(y => y.n === bw); return x ? `<div class="pie-wrap" style="margin-top:10px">${[epsPie([{ l: 'Victoires', v: x.v, c: '#1B9E5A' }, { l: 'Nuls', v: x.nul, c: '#C9A227' }, { l: 'Défaites', v: x.d, c: '#D64545' }], `Combats (${x.c})`), epsPie([{ l: 'Points marqués', v: x.pm, c: '#1B9E5A' }, { l: 'Points encaissés', v: x.pe, c: '#D64545' }], 'Points'), epsPie(epsSegs(x.fo), 'Formes de corps'), epsPie(epsSegs(x.de), 'Défense'), x.pen ? epsPie(epsSegs(x.pl), 'Pénalités') : ''].filter(q => q && !q.includes('pie-empty')).join('')}</div>` : ''; })() : ''}</div>` : ''}`;
+      if ($('#b-who')) $('#b-who').onchange = () => { bw = $('#b-who').value; draw(); };
       $('#b-bk').onclick = home;
       if ($('#b-cls')) $('#b-cls').onchange = () => { cls = $('#b-cls').value; if (DB.classes.some(c => c.name === cls)) { DB.lastClass = cls; S.cls = cls; save(); } draw(); };
       if ($('#b-csv')) $('#b-csv').onclick = () => download(`bilan-lutte-${cls || 'tous'}.csv`.replace(/[^\w.-]+/g, '-'), csv([['Élève', 'Combats', 'Victoires', 'Nuls', 'Défaites', 'Points marqués', 'Points encaissés', 'Tombés', 'Mises en danger', 'Pénalités', 'Détail pénalités', 'Arbitrages', 'Formes de corps', 'Défense'],

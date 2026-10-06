@@ -93,6 +93,7 @@ if (!document.getElementById('cl-css')) document.head.insertAdjacentHTML('before
         rows = ranks.map((r, i) => ({ rk: i + 1, name: r.n, members: [], res: `${fmtP(r.pts)} pts · ${r.v} V ${r.nul} N ${r.d} D${r.arb ? ` · ${r.arb} arbitrage${r.arb > 1 ? 's' : ''}` : ''}` }));
         body = rankTable(rows, 'Points', false);
       }
+      if (typeof epsMatchesPies === 'function') body += epsPieCard('📊 Synthèse du tournoi', f === 'atp' ? [epsPie(epsSegs(Object.fromEntries(tAtp(t).ranks.map(r => [r.n, r.v]))), 'Victoires'), epsPie(epsSegs(Object.fromEntries(tAtp(t).ranks.map(r => [r.n, Math.round(r.pts)]))), 'Points ATP')] : epsMatchesPies(ms), true);
       body += `<button class="btn btn-ghost btn-block" style="margin-top:10px" data-om="${esc(t.id)}">🏆 Ouvrir dans Gestion de match</button>`;
       return { kind: 'tournoi', date: last, icon: fmtI(f, t.sport), title: t.nom || 'Tournoi', event: t.nom || 'Tournoi',
         sub: `${fmtN(f, t.sport)} · ${esc(sportN(t.sport))} · ${dFr(t.date)}${last > (t.date || 0) && dFr(last) !== dFr(t.date) ? ' → ' + dFr(last) : ''} · ${M.length} ${f === 'atp' ? 'joueurs' : 'équipes'}`,
@@ -108,7 +109,8 @@ if (!document.getElementById('cl-css')) document.head.insertAdjacentHTML('before
       const rk = x => a === b ? 1 : x ? 1 : 2, res = x => `${x ? a : b}–${x ? b : a} · ${a === b ? 'Nul' : (x ? wa : wb) ? 'Victoire' : 'Défaite'}`;
       return { kind: 'match', date: m.date || 0, flat: true, icon: '⚔️', event: `${m.a} – ${m.b}`, own: { arr: () => DB.matchs, recs: [m] },
         body: `<div class="card cl-ev"><div class="muted" style="font-size:.82rem">${esc(sportN(m.sport))} · ${dFull(m.date)} ${hhmm(m.date)}${m.tn ? ' · ' + esc(m.tn) : ''}</div>
-          <div class="cl-sc"><div><b class="${wa ? 'cl-w' : ''}">${wa ? '🏆 ' : ''}${esc(m.a)}</b>${memb(m.pa)}</div><span class="s">${a} – ${b}</span><div><b class="${wb ? 'cl-w' : ''}">${esc(m.b)}${wb ? ' 🏆' : ''}</b>${memb(m.pb)}</div></div></div>`,
+          <div class="cl-sc"><div><b class="${wa ? 'cl-w' : ''}">${wa ? '🏆 ' : ''}${esc(m.a)}</b>${memb(m.pa)}</div><span class="s">${a} – ${b}</span><div><b class="${wb ? 'cl-w' : ''}">${esc(m.b)}${wb ? ' 🏆' : ''}</b>${memb(m.pb)}</div></div>
+          ${typeof epsMatchPies === 'function' && (a || b) ? `<details style="margin-top:8px"><summary style="cursor:pointer;font-weight:800;font-size:.85rem">📊 Synthèse du match</summary><div class="pie-wrap" style="margin-top:8px">${epsMatchPies(m).join('')}</div></details>` : ''}</div>`,
         rows: [[rk(true), m.a, (m.pa || []).join(', '), res(true)], [rk(false), m.b, (m.pb || []).join(', '), res(false)]].sort((x, y) => x[0] - y[0]) };
     });
   }
