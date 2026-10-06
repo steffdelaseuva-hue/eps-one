@@ -702,16 +702,18 @@ TOOL_IMPL.acrosport = function (el) {
   }
 
   /* ---------- Liaisons dynamiques (vidéos) ---------- */
-  let liEdit = null;                                   // id de la liaison modifiée, 'new' pour une nouvelle
+  let liEdit = null, AC_LUNDO = null;                                   // id de la liaison modifiée, 'new' pour une nouvelle
   function tabLiaisons(box) {
-    const L = A.liaisons, g = G(), ed = liEdit === 'new' ? { n: '', url: '', d: '' } : L.find(x => x.id === liEdit);
+    const L = A.liaisons, g = G(), lastU = (L.slice().reverse().find(x => x.url) || {}).url || '', same = L.length > 0 && L.every(x => x.url && x.url === L[0].url), ed = liEdit === 'new' ? { n: '', url: lastU, d: '' } : L.find(x => x.id === liEdit);
     box.innerHTML = `<div class="card doc"><p style="margin:0;line-height:1.45">Les <b>liaisons dynamiques</b> relient deux figures de l'enchaînement (roulade, saut, rotation, déplacement…). Chaque liaison a son lien de démonstration : vidéo ou diaporama (PowerPoint, Google Slides, PDF).</p></div>
       ${ed ? `<div class="card" data-cfg style="margin-top:12px"><h3>${liEdit === 'new' ? 'Nouvelle liaison' : 'Modifier la liaison'}</h3>
         <label>Nom</label><input id="lin" value="${esc(ed.n)}" placeholder="Ex. : roulade avant">
         <label>Lien (vidéo ou diaporama)</label><input id="liu" value="${esc(ed.url)}" placeholder="https://… (YouTube, vidéo, PowerPoint, Google Slides, PDF…)" inputmode="url" autocapitalize="off">
+        ${L.length > (liEdit === 'new' ? 0 : 1) ? `<label style="display:flex;gap:8px;align-items:center;margin-top:8px;font-weight:700"><input type="checkbox" id="liall" ${liEdit === 'new' || same ? 'checked' : ''} style="width:auto"> Le même lien pour toutes les liaisons</label>` : ''}
         <label>Description / critères de réussite</label><textarea id="lid" style="min-height:70px">${esc(ed.d || '')}</textarea>
         <div class="row" style="margin-top:10px"><button class="btn btn-grad" id="lis">💾 Enregistrer</button><button class="btn btn-ghost" id="lic">Annuler</button></div></div>`
       : '<button class="btn btn-grad btn-block" data-cfg="bare" style="margin-top:12px" id="linew">＋ Ajouter une liaison dynamique</button>'}
+      ${AC_LUNDO && !ed ? '<button class="btn btn-ghost btn-block" data-cfg="bare" style="margin-top:8px" id="liundo">↶ Annuler : lien copié dans toutes les liaisons</button>' : ''}
       <div class="section-title"><h2>${L.length} liaison${L.length > 1 ? 's' : ''}</h2></div>
       ${L.length ? `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px">${L.map(x => `<div class="card" style="padding:12px">
           <b style="font-size:1.05rem">🔗 ${esc(x.n)}</b>${x.d ? `<div class="muted" style="font-size:.85rem;margin-top:4px">${esc(x.d)}</div>` : ''}
@@ -723,8 +725,11 @@ TOOL_IMPL.acrosport = function (el) {
     if ($('#lic')) $('#lic').onclick = () => { liEdit = null; tabLiaisons(box); };
     if ($('#lis')) $('#lis').onclick = () => { const n = $('#lin').value.trim(), url = $('#liu').value.trim(), d = $('#lid').value.trim(); if (!n) return toast('Indiquez le nom de la liaison');
       if (url && !/^https?:\/\//i.test(url)) return toast('Le lien doit commencer par https://');
+      const all = $('#liall') && $('#liall').checked; if (all) AC_LUNDO = Object.fromEntries(L.map(x => [x.id, x.url || '']));
       if (liEdit === 'new') L.push({ id: newId(), n, url, d }); else Object.assign(L.find(x => x.id === liEdit), { n, url, d });
-      liEdit = null; save(); toast('Liaison enregistrée ✔'); tabLiaisons(box); };
+      if (all) L.forEach(x => { x.url = url; });
+      liEdit = null; save(); toast(all ? 'Lien copié dans toutes les liaisons ✔' : 'Liaison enregistrée ✔'); tabLiaisons(box); };
+    if ($('#liundo')) $('#liundo').onclick = () => { L.forEach(x => { if (x.id in AC_LUNDO) x.url = AC_LUNDO[x.id]; }); AC_LUNDO = null; save(); toast('Liens rétablis ✔'); tabLiaisons(box); };
     box.querySelectorAll('[data-lv]').forEach(b => b.onclick = () => acroVideo(L.find(x => x.id === b.dataset.lv)));
     box.querySelectorAll('[data-le]').forEach(b => b.onclick = () => { liEdit = b.dataset.le; tabLiaisons(box); window.scrollTo(0, 0); });
     box.querySelectorAll('[data-lx]').forEach(b => b.onclick = () => { if (!confirm('Supprimer cette liaison ?')) return; A.liaisons = A.liaisons.filter(x => x.id !== b.dataset.lx); save(); tabLiaisons(box); });
@@ -756,7 +761,7 @@ TOOL_IMPL.acrosport = function (el) {
           <div class="row"><div><label>Duos minimum</label>${num('ardu', R.duo, 0, 10)}</div><div><label>Trios minimum</label>${num('artr', R.trio, 0, 10)}</div><div><label>Quatuors minimum</label>${num('arqu', R.quat, 0, 10)}</div></div>
           <div class="row"><div><label>Voltigeurs renversés obligatoires</label>${num('arre', R.ren, 0, 10)}</div></div></details></div>
       ${nm ? `<div class="card" style="margin-top:12px"><b>✅ Validation par l'enseignant</b> <span class="muted" style="font-size:.8rem">· ${nm} / ${L.length} figure(s)</span>
-        <div style="display:flex;justify-content:center;margin-top:6px">${typeof epsMPie === 'function' ? epsMPie(L, 'Répartition') : ''}</div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px">${EPS_M.map(([l, c], i) => { const n = L.filter(x => x === i).length; return n ? `<span style="padding:3px 9px;border-radius:99px;background:${c};color:#fff;font-weight:800;font-size:.75rem">${n} × ${l}</span>` : ''; }).join('')}</div>
         ${av != null ? `<div style="margin-top:8px">Bilan : <b style="color:${EPS_M[av][1]}">${EPS_M[av][0]}</b></div>` : ''}<button class="link" data-cfg="bare" id="amclr" style="margin-top:6px">Effacer la validation</button></div>` : ''}
       <div class="row" style="margin-top:12px"><button class="btn btn-ghost" id="afig">📚 Ajouter une pyramide</button><button class="btn btn-ghost" id="alia">🔗 Ajouter une liaison</button>
         <label class="btn btn-ghost" style="display:block;text-align:center;cursor:pointer;margin:0">📷 Ajouter une photo<input id="aph" type="file" accept="image/*" capture="environment" style="display:none"></label>

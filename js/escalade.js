@@ -344,8 +344,6 @@ TOOL_IMPL.escalade = function (el) {
         <div><label>Classe</label><select id="fc"><option value="">Toutes</option>${[...new Set(E.passages.map(p => p.classe))].map(c => `<option ${c === f.cls ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select></div>
         <div><label>Élève</label><select id="fe"><option value="">Tous</option>${names.map(n => `<option ${n === f.el ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select></div></div>
         <label>Voie</label><select id="fv"><option value="">Toutes</option>${E.voies.map(w => `<option value="${w.id}" ${w.id === f.voie ? 'selected' : ''}>${esc(w.cot)} — ${esc(w.nom)}</option>`).join('')}</select></div>
-      ${rows.length && typeof epsPieCard === 'function' ? (() => { const cnt = f2 => epsSegs(rows.reduce((o, r) => { const k = f2(r); if (k) o[k] = (o[k] || 0) + 1; return o; }, {}));
-        return epsPieCard(`📊 Synthèse${f.el ? ' · ' + esc(f.el) : ''}`, [epsPie(cnt(r => r.cot), 'Voies par cotation'), epsPie(cnt(r => ESC_MODES[r.mode]), 'Mode de grimpe'), epsPie(cnt(r => r.flu ? 'Fluidité ' + r.flu + '/4' : ''), 'Fluidité'), !f.el ? epsPie(cnt(r => r.eleve), 'Passages par élève') : '']); })() : ''}
       <div class="section-title"><h2>Passages (${rows.length})</h2><button class="link" id="exp">Exporter CSV</button></div>
       <div class="card sheet-table">${rows.length ? rowsTable(rows, true) : '<div class="empty">Aucun passage enregistré.</div>'}</div>`;
     const $ = s => box.querySelector(s);

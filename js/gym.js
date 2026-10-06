@@ -360,6 +360,7 @@ function gymDB() {
 const gymAll = () => { const G = gymDB(); return [...GYM_E, ...G.custom].map(e => G.edits[e.id] ? { ...e, ...G.edits[e.id], edited: 1 } : e); };
 const gymFind = id => gymAll().find(e => e.id === id);
 const gymImgKey = id => 'gymImg_' + id;
+let GY_LUNDO = null;   // annulation de la dernière modification des liens diaporama
 const gymLt = (e, big) => { const c = (GYM_FAM[e.fam] || GYM_FAM.av).c; return `<span class="gy-lt${big ? ' big' : ''}" style="--c:${c}">${esc(e.lvl)}</span>`; };
 const GYM_POSES = { '': 'Auto (d\'après le nom)', up: 'Extension (bras en haut)', tuck: 'Groupé', pike: 'Carpé', strad: 'Écart (de face)', split: 'Enjambé', cat: 'Saut de chat',
   rollF: 'Roulade avant', rollB: 'Roulade arrière', rollFS: 'Roulade avant jambes tendues', rollBS: 'Roulade arrière jambes tendues', dive: 'Plongée', hs: 'ATR', hsSplit: 'ATR jambes écartées',
@@ -527,7 +528,7 @@ TOOL_IMPL.gym = function (el) {
 
   function detail(e) {
     if (!e) return;
-    const o = document.createElement('div'), g = G(), f = GYM_FAM[e.fam], url = Gd.elinks[e.id] || '';
+    const o = document.createElement('div'), g = G(), f = GYM_FAM[e.fam], url = Gd.elinks[e.id] || Gd.elinkAll || '', own = !!Gd.elinks[e.id];
     const rel = Gd.liens.filter(l => l.url && (l.fam === e.fam || !l.fam) && (!l.ag || l.ag === e.ag) && (l.fam || l.ag));
     o.className = 'gy-ov';
     o.innerHTML = `<div class="card" style="border-top:6px solid ${f.c}">
@@ -541,7 +542,10 @@ TOOL_IMPL.gym = function (el) {
         ${g ? `<button class="btn btn-grad btn-block" style="margin-top:12px" id="gyadd1">➕ Ajouter à l'enchaînement de ${esc(g.name)}</button>` : ''}
         <details class="card" style="margin-top:12px;padding:10px 12px"><summary data-prof style="font-weight:800;cursor:pointer">🔒 Lien diaporama / vidéo de l'élément</summary>
           <input id="gyurl" value="${esc(url)}" placeholder="https://… (PowerPoint, Google Slides, PDF, YouTube, vidéo…)" inputmode="url" autocapitalize="off" style="margin-top:8px">
-          <div class="row" style="margin-top:8px"><button class="btn btn-grad" id="gyurls">💾 Enregistrer le lien</button>${url ? '<button class="btn btn-ghost" id="gyurlx">🗑 Retirer</button>' : ''}</div></details>
+          <label style="display:flex;gap:8px;align-items:center;margin-top:8px;font-weight:700"><input type="checkbox" id="gyall" ${own && Gd.elinkAll !== url ? '' : 'checked'} style="width:auto"> Le même lien pour tous les éléments</label>
+          <div class="muted" style="font-size:.75rem;margin-top:2px">${own ? 'Cet élément a son propre lien.' : Gd.elinkAll ? 'Lien commun à tous les éléments.' : 'Coché : le lien est copié dans tous les éléments.'}</div>
+          <div class="row" style="margin-top:8px"><button class="btn btn-grad" id="gyurls">💾 Enregistrer le lien</button>${url ? '<button class="btn btn-ghost" id="gyurlx">🗑 Retirer</button>' : ''}</div>
+          ${GY_LUNDO ? `<button class="btn btn-ghost btn-block" style="margin-top:8px" id="gyundo">↶ Annuler : ${esc(GY_LUNDO.label)}</button>` : ''}</details>
         <div class="row" style="margin-top:10px"><button class="btn btn-ghost" data-prof id="gyed">✏️ Modifier</button>${e.custom ? '<button class="btn btn-ghost" data-prof id="gydl">🗑 Supprimer</button>' : e.edited ? '<button class="btn btn-ghost" data-prof id="gyrs">↺ Rétablir l\'original</button>' : ''}</div>
         <button class="btn btn-ghost btn-block" style="margin-top:8px" id="gyx">Fermer</button></div>`;
     const close = () => o.remove();
@@ -551,9 +555,13 @@ TOOL_IMPL.gym = function (el) {
     if ($('#gyvl')) $('#gyvl').onclick = () => acroVideo({ n: e.n, url });
     o.querySelectorAll('[data-rl]').forEach(b => b.onclick = () => acroVideo(Gd.liens.find(x => x.id === b.dataset.rl)));
     if ($('#gyadd1')) $('#gyadd1').onclick = () => { close(); addEl(e.id); };
+    const lsnap = label => { GY_LUNDO = { label, elinks: { ...Gd.elinks }, all: Gd.elinkAll || '' }; };
     $('#gyurls').onclick = () => { const u = $('#gyurl').value.trim(); if (u && !/^https?:\/\//i.test(u)) return toast('Le lien doit commencer par https://');
-      if (u) Gd.elinks[e.id] = u; else delete Gd.elinks[e.id]; save(); toast('Lien enregistré ✔'); close(); detail(gymFind(e.id)); };
-    if ($('#gyurlx')) $('#gyurlx').onclick = () => { delete Gd.elinks[e.id]; save(); toast('Lien retiré'); close(); detail(gymFind(e.id)); };
+      if ($('#gyall').checked) { lsnap('lien commun à tous les éléments'); if (u) Gd.elinkAll = u; else delete Gd.elinkAll; Gd.elinks = {}; toast(u ? 'Lien copié dans tous les éléments ✔' : 'Lien commun retiré'); }
+      else { lsnap('lien de « ' + e.n + ' »'); if (u) Gd.elinks[e.id] = u; else delete Gd.elinks[e.id]; toast('Lien enregistré pour cet élément ✔'); }
+      save(); close(); detail(gymFind(e.id)); };
+    if ($('#gyurlx')) $('#gyurlx').onclick = () => { lsnap('lien retiré'); if (own) delete Gd.elinks[e.id]; else delete Gd.elinkAll; save(); toast(own ? 'Lien de l\'élément retiré' : 'Lien commun retiré de tous les éléments'); close(); detail(gymFind(e.id)); };
+    if ($('#gyundo')) $('#gyundo').onclick = () => { Gd.elinks = GY_LUNDO.elinks; if (GY_LUNDO.all) Gd.elinkAll = GY_LUNDO.all; else delete Gd.elinkAll; GY_LUNDO = null; save(); toast('Annulé ✔'); close(); detail(gymFind(e.id)); };
     $('#gyed').onclick = () => { close(); editor(e); };
     if ($('#gydl')) $('#gydl').onclick = () => { if (!confirm(`Supprimer « ${e.n} » ?`)) return; Gd.custom = Gd.custom.filter(x => x.id !== e.id); delete Gd.elinks[e.id]; save(); toast('Élément supprimé'); close(); frame(); };
     if ($('#gyrs')) $('#gyrs').onclick = () => { if (!confirm('Rétablir le nom, la lettre et les textes d\'origine ?')) return; delete Gd.edits[e.id]; save(); toast('Élément rétabli'); close(); frame(); };
@@ -662,7 +670,7 @@ TOOL_IMPL.gym = function (el) {
       ${g.seq.length ? `<button class="btn btn-grad btn-block" style="margin-top:10px" id="gyplay">▶ Présenter l'enchaînement</button>` : ''}
       ${g.seq.some(it => it.m != null) ? (() => { const L = g.seq.map(it => it.m), av = epsMAvg(L), n = L.filter(x => x != null).length;
         return `<div class="card" style="margin-top:10px"><b>✅ Validation par l'enseignant</b> <span class="muted" style="font-size:.8rem">· ${n} / ${g.seq.length} élément(s)</span>
-          <div style="display:flex;justify-content:center;margin-top:6px">${typeof epsMPie === 'function' ? epsMPie(L, 'Répartition') : ''}</div>
+          <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px">${EPS_M.map(([l, c], i) => { const k = L.filter(x => x === i).length; return k ? `<span style="padding:3px 9px;border-radius:99px;background:${c};color:#fff;font-weight:800;font-size:.75rem">${k} × ${l}</span>` : ''; }).join('')}</div>
           ${av != null ? `<div style="margin-top:8px">Bilan : <b style="color:${EPS_M[av][1]}">${EPS_M[av][0]}</b></div>` : ''}
           <button class="link" data-cfg="bare" id="gymclr" style="margin-top:6px">Effacer la validation</button></div>`; })() : ''}
       <div class="section-title"><h2>Enchaînement (${g.seq.length})</h2>${g.seq.length ? '<button class="link" data-cfg="bare" id="gyclr">🗑 Vider</button>' : ''}</div>
@@ -703,7 +711,7 @@ TOOL_IMPL.gym = function (el) {
   function present(g) {
     let k = 0; const o = document.createElement('div');
     o.style.cssText = 'position:fixed;inset:0;z-index:310;background:var(--bg,#fff);display:flex;flex-direction:column;padding:16px;overflow:auto';
-    const show = () => { const it = g.seq[k], e = it.t === 'el' ? gymFind(it.el) : null, img = it.img ? DB[gymImgKey(it.img)] : null, url = e && Gd.elinks[e.id];
+    const show = () => { const it = g.seq[k], e = it.t === 'el' ? gymFind(it.el) : null, img = it.img ? DB[gymImgKey(it.img)] : null, url = e && (Gd.elinks[e.id] || Gd.elinkAll);
       o.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><b>${esc(g.name)} · ${k + 1} / ${g.seq.length}</b><button class="btn btn-ghost" style="flex:0 0 auto" id="pq">✕ Fermer</button></div>
         <div style="display:flex;align-items:center;justify-content:center;gap:10px;margin:10px 0">${e ? gymLt(e, true) : ''}<h3 style="margin:0;font-size:1.3rem">${e ? esc(e.n) : (it.vid && !img ? 'Vidéo ' : 'Photo ') + (k + 1)}</h3></div>
         ${e ? `<p class="muted" style="text-align:center;margin:0 0 6px">${GYM_AG[e.ag]} · <b style="color:${GYM_FAM[e.fam].c}">${GYM_FAM[e.fam].n}</b> · ${gymPts(e.lvl)} pt${gymPts(e.lvl) > 1 ? 's' : ''}</p>` : ''}

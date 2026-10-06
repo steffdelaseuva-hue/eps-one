@@ -347,6 +347,8 @@ function epsMatchPies(m) {
   const by = t => { const o = {}; (m.ev || []).filter(e => e.team === t && (e.kind === 'score' || e.kind === 'bonus') && e.pts).forEach(e => { const k = e.kind === 'bonus' ? `Bonus +${e.pts}` : (e.label || 'Point'); o[k] = (o[k] || 0) + e.pts; }); return epsSegs(o); };
   const P = [epsPie([{ l: m.a, v: +m.sa || 0, c: '#B8912A' }, { l: m.b, v: +m.sb || 0, c: '#1E5BD8' }], 'Part des points')];
   if (!m.simple && (m.ev || []).length) { const A = by(0), B = by(1); if (A.length > 1 || B.length > 1) P.push(epsPie(A, `Points de ${esc(m.a)}`), epsPie(B, `Points de ${esc(m.b)}`)); }
+  if (!m.simple && (m.ev || []).some(e => e.kind === 'bonus')) [0, 1].forEach(t => { const E = (m.ev || []).filter(e => e.team === t && e.pts), nb = E.filter(e => e.kind === 'bonus').reduce((a, e) => a + e.pts, 0), nn = E.filter(e => e.kind === 'score').reduce((a, e) => a + e.pts, 0);
+    P.push(epsPie([{ l: 'Points normaux', v: nn, c: t ? '#1E5BD8' : '#B8912A' }, { l: 'Points bonus', v: nb, c: '#1B9E5A' }], `${esc(t ? m.b : m.a)} : normaux / bonus`)); });
   return P;
 }
 /* Camemberts d'une liste de matchs (tournoi) : points marqués et victoires par équipe */
@@ -355,13 +357,16 @@ function epsMatchesPies(ms) {
   (ms || []).filter(m => !m.obsOnly).forEach(m => { const a = +m.sa || 0, b = +m.sb || 0; pts[m.a] = (pts[m.a] || 0) + a; pts[m.b] = (pts[m.b] || 0) + b;
     if (a === b) res.Nuls++; else { res.Victoires++; const w = a > b ? m.a : m.b; win[w] = (win[w] || 0) + 1; } });
   if (!Object.keys(pts).length) return [];
-  return [epsPie(epsSegs(pts), 'Points marqués'), epsPie(epsSegs(win), 'Victoires'), res.Nuls ? epsPie([{ l: 'Matchs gagnés', v: res.Victoires, c: '#1B9E5A' }, { l: 'Matchs nuls', v: res.Nuls, c: '#C9A227' }], 'Issues des matchs') : ''];
+  const nb = { 'Points normaux': 0, 'Points bonus': 0 }; (ms || []).filter(m => !m.obsOnly).forEach(m => (m.ev || []).forEach(e => { if (e.kind === 'bonus') nb['Points bonus'] += e.pts || 0; else if (e.kind === 'score') nb['Points normaux'] += e.pts || 0; }));
+  return [epsPie(epsSegs(pts), 'Points marqués'), epsPie(epsSegs(win), 'Victoires'), res.Nuls ? epsPie([{ l: 'Matchs gagnés', v: res.Victoires, c: '#1B9E5A' }, { l: 'Matchs nuls', v: res.Nuls, c: '#C9A227' }], 'Issues des matchs') : '', nb['Points bonus'] ? epsPie([{ l: 'Points normaux', v: nb['Points normaux'], c: '#1E5BD8' }, { l: 'Points bonus', v: nb['Points bonus'], c: '#1B9E5A' }], 'Points normaux / bonus') : ''];
 }
 /* Synthèse individuelle d'un élève (matchs, observations, lutte) */
 function epsStudentPies(n) {
   const P = [], ms = (DB.matchs || []).filter(m => !m.obsOnly && ([m.a, m.b].includes(n) || (m.pa || []).includes(n) || (m.pb || []).includes(n)));
   if (ms.length) { const r = { v: 0, n: 0, d: 0 }; ms.forEach(m => { const t = m.a === n || (m.pa || []).includes(n) ? 0 : 1, a = +m.sa || 0, b = +m.sb || 0; if (a === b) r.n++; else if ((a > b) === !t) r.v++; else r.d++; });
-    P.push(epsPie([{ l: 'Victoires', v: r.v, c: '#1B9E5A' }, { l: 'Nuls', v: r.n, c: '#C9A227' }, { l: 'Défaites', v: r.d, c: '#D64545' }], `Matchs joués (${ms.length})`)); }
+    P.push(epsPie([{ l: 'Victoires', v: r.v, c: '#1B9E5A' }, { l: 'Nuls', v: r.n, c: '#C9A227' }, { l: 'Défaites', v: r.d, c: '#D64545' }], `Matchs joués (${ms.length})`));
+    const nb = [0, 0]; ms.forEach(m => { const t = m.a === n || (m.pa || []).includes(n) ? 0 : 1; (m.ev || []).filter(e => e.team === t).forEach(e => { if (e.kind === 'score') nb[0] += e.pts || 0; else if (e.kind === 'bonus') nb[1] += e.pts || 0; }); });
+    if (nb[1]) P.push(epsPie([{ l: 'Points normaux', v: nb[0], c: '#1E5BD8' }, { l: 'Points bonus', v: nb[1], c: '#1B9E5A' }], 'Points de son équipe : normaux / bonus')); }
   const ob = {}; (DB.matchs || []).forEach(m => (m.obs || []).filter(o => o.name === n).forEach(o => (typeof obsCrit === 'function' ? obsCrit(m.sport) : []).forEach(([k, l]) => { ob[l] = (ob[l] || 0) + (o.c[k] || 0); })));
   if (Object.keys(ob).length) P.push(epsPie(epsSegs(ob), 'Observations en match'));
   if (typeof luAgg === 'function') { const x = luAgg([n])[0];
