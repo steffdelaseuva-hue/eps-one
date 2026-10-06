@@ -219,7 +219,9 @@ if (!document.getElementById('cx-css')) document.head.insertAdjacentHTML('before
     o.querySelector('[data-x]').onclick = () => o.remove();
     if (pdf) o.querySelector('[data-pdf]').onclick = () => { try { pdf(); } catch (e) { toast('PDF impossible : ' + e.message); } };
     // Impression dans la page même (iPad / iPhone / appli installée : l'impression d'un cadre ou d'une page « blob: » échoue sur Safari)
+    const iOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
     o.querySelector('[data-p]').onclick = () => {
+      if (pdf && iOS) { try { pdf(); } catch (e) { toast('PDF impossible : ' + e.message); } return; }   // iPhone / iPad : le PDF (toutes les pages) s'ouvre dans le menu Partager → « Imprimer »
       const d = new DOMParser().parseFromString(html, 'text/html'); d.querySelectorAll('script').forEach(x => x.remove());
       document.getElementById('cx-print')?.remove(); document.getElementById('cx-print-css')?.remove();
       const st = document.createElement('style'); st.id = 'cx-print-css'; st.media = 'print';
@@ -243,7 +245,7 @@ ${css}
 </style></head><body>${body}<script>function fit(){document.body.style.zoom=Math.min(1,(innerWidth-20)/794)}fit();addEventListener('resize',fit);addEventListener('beforeprint',function(){document.body.style.zoom=1});addEventListener('afterprint',fit);<\/script></body></html>`;
 
   /* Dossards en PDF (4 par page A4, mêmes informations que l'impression) — pour envoi par e-mail */
-  function bibsPdf(E, list) {
+  function bibsPdf(E, list, silent) {
     const K = compute(E), P = PdfMini(), CW = 105, CH = 148.5;
     list.forEach((s, i) => {
       if (i % 4 === 0) { P.page(); for (let k = 0; k < 4; k++) P.rect((k % 2) * CW, Math.floor(k / 2) * CH, CW, CH, { stroke: '#999999', dash: [1.2, 1], lw: .3 }); }
@@ -259,6 +261,7 @@ ${css}
       M.forEach((row, y) => { let x = 0; while (x < n) { if (!row[x]) { x++; continue; } let e = x; while (e < n && row[e]) e++; P.rect(qx + (x + 4) * q, qy + (y + 4) * q, (e - x) * q + .02, q + .02, { fill: '#000000' }); x = e; } });
       P.text(`Dossard n° ${s.b} · à scanner à l'arrivée`, cx, y0 + CH - 5, 7, { color: '#777777', align: 'center' });
     });
+    if (!silent) toast(`📄 PDF : ${list.length} dossard${list.length > 1 ? 's' : ''} · ${P.pages} page${P.pages > 1 ? 's' : ''}`);
     return P.blob();
   }
   function bibsDoc(E, list) {
@@ -458,7 +461,8 @@ tr:nth-child(-n+4) td{font-weight:700}`,
           <div class="cx-cls">${sortCls(E, E.classes).map(c => `<button data-pc="${esc(c)}" class="${gsel.has(c) ? 'on' : ''}">${esc(c)}</button>`).join('')}</div>
           <label class="cx-chk"><input type="checkbox" id="cx-abs"> Inclure les absents et dispensés</label>
           <div class="row" style="margin-top:10px"><button class="btn btn-grad" id="cx-pp">🖨 Imprimer la sélection</button><button class="btn btn-ghost" id="cx-pa">Tout imprimer</button></div>
-          <button class="btn btn-ghost btn-block" style="margin-top:8px" id="cx-pdf">📄 PDF de la sélection (à envoyer par e-mail)</button></div>
+          <div class="row" style="margin-top:8px"><button class="btn btn-ghost" id="cx-pdf">📄 Un PDF (toute la sélection)</button><button class="btn btn-ghost" id="cx-pdfc">📄 Un PDF par classe</button></div>
+          <p class="muted" style="margin:4px 0 0;font-size:.75rem">À envoyer par e-mail : un PDF par classe = fichiers plus légers.</p></div>
         ${sortCls(E, E.classes).map(c => `<div class="section-title"><h2>${esc(c)}</h2><button class="link" data-p1="${esc(c)}">🖨 Imprimer une classe</button></div>
           <div class="card" data-cfg="bare" style="padding:4px 12px">${stuOf(E, c).map(s => { const co = K.cOf.get(s.k); return `<div class="cx-st ${s.st ? 'off' : ''}"><div class="nm"><b>${esc(s.name)}</b><small>${s.st ? (s.st === 'abs' ? 'Absent' : 'Dispensé') : co ? esc(co.name) : '⚠️ sans course'}</small></div><input class="cx-bibin" type="number" inputmode="numeric" data-bk="${esc(s.k)}" value="${s.b || ''}" aria-label="Dossard"></div>`; }).join('')}</div>`).join('')}`;
       const $ = s => box.querySelector(s);
@@ -470,10 +474,14 @@ tr:nth-child(-n+4) td{font-weight:700}`,
       box.querySelectorAll('[data-bk]').forEach(inp => inp.onchange = () => { const v = +inp.value || '', k = inp.dataset.bk;
         if (v && stu(E).some(s => s.k !== k && +s.b === v)) { toast(`Le n° ${v} est déjà pris`); inp.value = (E.el[k] || {}).b || ''; return; } setEl(E, k, { b: v }); commit(); });
       const print = cls => { const inc = $('#cx-abs').checked, list = stu(E).filter(s => cls.includes(s.cls) && s.b && (inc || !s.st));
-        if (!list.length) return toast(miss ? 'Attribuez d\'abord les dossards' : 'Aucun dossard à imprimer'); printPreview(`Dossards · ${list.length}`, bibsDoc(E, list), () => epsSharePdf(bibsPdf(E, list), `dossards-${E.name}${cls.length === 1 ? '-' + cls[0] : ''}.pdf`.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^\w.-]+/g, '-'), 'Dossards · ' + E.name)); };
+        if (!list.length) return toast(miss ? 'Attribuez d\'abord les dossards' : 'Aucun dossard à imprimer'); printPreview(`Dossards · ${list.length}`, bibsDoc(E, list), () => epsSharePdf(bibsPdf(E, list), `dossards-${E.name}${cls.length === 1 ? '-' + cls[0] : ''}-${list.length}.pdf`.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^\w.-]+/g, '-'), 'Dossards · ' + E.name)); };
       $('#cx-pp').onclick = () => print([...gsel]);
+      $('#cx-pdfc').onclick = () => { const inc = $('#cx-abs').checked, cls = sortCls(E, [...gsel]), items = [];
+        cls.forEach(c => { const list = stu(E).filter(s => s.cls === c && s.b && (inc || !s.st)); if (list.length) items.push({ blob: bibsPdf(E, list, true), name: `dossards-${E.name}-${c}-${list.length}.pdf`.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^\w.-]+/g, '-'), n: list.length }); });
+        if (!items.length) return toast(miss ? 'Attribuez d\'abord les dossards' : 'Aucun dossard');
+        toast(`📄 ${items.length} PDF · ${items.reduce((a, x) => a + x.n, 0)} dossards`); epsSharePdfs(items, 'Dossards · ' + E.name); };
       $('#cx-pdf').onclick = () => { const cls = [...gsel], inc = $('#cx-abs').checked, list = stu(E).filter(s => cls.includes(s.cls) && s.b && (inc || !s.st));
-        if (!list.length) return toast(miss ? 'Attribuez d\'abord les dossards' : 'Aucun dossard'); epsSharePdf(bibsPdf(E, list), `dossards-${E.name}${cls.length === 1 ? '-' + cls[0] : ''}.pdf`.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^\w.-]+/g, '-'), 'Dossards · ' + E.name); };
+        if (!list.length) return toast(miss ? 'Attribuez d\'abord les dossards' : 'Aucun dossard'); epsSharePdf(bibsPdf(E, list), `dossards-${E.name}${cls.length === 1 ? '-' + cls[0] : ''}-${list.length}.pdf`.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^\w.-]+/g, '-'), 'Dossards · ' + E.name); };
       $('#cx-pa').onclick = () => print(E.classes);
       box.querySelectorAll('[data-p1]').forEach(b => b.onclick = () => print([b.dataset.p1]));
     }

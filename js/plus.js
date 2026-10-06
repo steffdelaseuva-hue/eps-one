@@ -4,9 +4,11 @@
    ========================================================= */
 /* Page Ko-fi : laisser vide tant qu'elle n'existe pas (le bouton est alors masqué) */
 const KOFI_URL = 'https://ko-fi.com/epsone';
-const APP_VERSION = '17.2';
+const APP_VERSION = '17.4';
 const APP_URL = 'https://steffdelaseuva-hue.github.io/eps-one/';
 const CHANGELOG = [
+  { v: '17.4', items: ['Cross : « 📄 Un PDF par classe » — un fichier de dossards par classe sélectionnée (plus léger), tous joints d\'un coup au même e-mail via le menu Partager'] },
+  { v: '17.3', items: ['Cross : le PDF des dossards indique le nombre de dossards et de pages (aussi dans le nom du fichier) ; sur iPhone / iPad, « 🖨 Imprimer » passe par ce PDF complet (menu Partager → Imprimer)'] },
   { v: '17.2', items: ['Cross : « 📄 PDF » des dossards (4 par page A4, QR codes) à envoyer par e-mail — sur iPhone / iPad la feuille de partage s\'ouvre (Mail, Fichiers, AirDrop…), sur ordinateur le PDF est téléchargé. Bouton dans l\'onglet Dossards et dans l\'aperçu avant impression'] },
   { v: '17.1', items: ['Cross : impression des dossards et des classements corrigée sur iPhone / iPad (le bouton « 🖨 Imprimer » imprime directement les dossards ; « ↗ Ouvrir » ne renvoie plus d\'erreur Safari)'] },
   { v: '17.0', items: ['Gymnastique : le lien du diaporama saisi sur un élément est copié dans tous les éléments (case « Le même lien pour tous les éléments », décochable pour un lien propre à un élément, ↶ Annuler). Acrosport : une nouvelle liaison reprend le dernier lien, case « Le même lien pour toutes les liaisons »', 'Gymnastique et Acrosport : « 🎬 Ajouter une vidéo » en plus de la photo (filmer ou choisir une vidéo), pour chaque élément ou figure de l\'enchaînement ; lecture en grand avec ralenti ×0,25 / ×0,5, aussi dans « ▶ Présenter l\'enchaînement ». Les vidéos restent sur la tablette qui les a filmées (trop lourdes pour la synchronisation)', 'Synthèses en camemberts pour les sports collectifs, de raquette et de combat : part des points, origine des points, points normaux / points bonus de chaque équipe ; dans le bilan du match, les tournois (points, victoires, normaux / bonus), les Résultats collectifs, les Résultats des élèves (synthèse de la classe et d\'un élève : matchs gagnés / nuls / perdus, points normaux / bonus de son équipe, observations, combats de lutte) et la lutte (bilan du combat, synthèse de la classe et d\'un élève)'] },

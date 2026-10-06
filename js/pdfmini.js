@@ -12,6 +12,7 @@ const PdfMini = (() => {
   return function () {
     const pages = []; let cur = null; const PH = 297;
     const api = {
+      get pages() { return pages.length; },
       page() { cur = []; pages.push(cur); return api; },
       width(s, size, bold) { const T = bold ? WB : WR; return enc(s).reduce((a, c) => a + (T[c - 32] || 556), 0) / 1000 * size / K; },   // en mm (size en pt)
       fit(s, size, bold, maxW) { s = String(s); if (api.width(s, size, bold) <= maxW) return s; while (s.length > 1 && api.width(s + '…', size, bold) > maxW) s = s.slice(0, -1); return s.trimEnd() + '…'; },
@@ -44,4 +45,11 @@ async function epsSharePdf(blob, name, title) {
   const file = new File([blob], name, { type: 'application/pdf' });
   try { if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], title }); return; } } catch (e) { if (e && e.name === 'AbortError') return; }
   const u = URL.createObjectURL(blob), a = document.createElement('a'); a.href = u; a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(u), 60000); toast('PDF téléchargé ✔');
+}
+/* Plusieurs PDF d'un coup : [{ blob, name }] — une seule feuille de partage (Mail joint tous les fichiers), sinon téléchargements successifs */
+async function epsSharePdfs(items, title) {
+  const files = items.map(x => new File([x.blob], x.name, { type: 'application/pdf' }));
+  try { if (navigator.canShare && navigator.canShare({ files })) { await navigator.share({ files, title }); return; } } catch (e) { if (e && e.name === 'AbortError') return; }
+  items.forEach((x, i) => setTimeout(() => { const u = URL.createObjectURL(x.blob), a = document.createElement('a'); a.href = u; a.download = x.name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(u), 60000); }, i * 400));
+  toast(`${items.length} PDF téléchargé${items.length > 1 ? 's' : ''} ✔`);
 }
