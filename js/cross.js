@@ -214,7 +214,7 @@ if (!document.getElementById('cx-css')) document.head.insertAdjacentHTML('before
     else {
       const p = parse(txt);
       if (!p) res = { kind: 'bad', msg: 'QR code non reconnu' };
-      else if (p.id !== E.id) { const o = X().events.find(e => e.id === p.id); res = { kind: 'bad', bib: p.bib, msg: o ? `Dossard du cross « ${o.name} »` : 'Dossard d\'un autre cross' }; }
+      else if (p.id !== E.id && !(E.src || []).includes(p.id)) { const o = X().events.find(e => e.id === p.id); res = { kind: 'bad', bib: p.bib, msg: o ? `Dossard du cross « ${o.name} »` : 'Dossard d\'un autre cross' }; }
       else { const l = seen.get(p.bib); if (l && Date.now() - l < 20000) return { kind: 'skip', bib: p.bib }; seen.set(p.bib, Date.now()); res = record(E, p.bib, 'cam'); }
     }
     if (window.__cxUI) window.__cxUI(res);
@@ -338,8 +338,8 @@ tr:nth-child(-n+4) td{font-weight:700}`,
         <div id="cx-body"></div>`;
       el.querySelector('#cx-ev').onchange = e => { setCur(e.target.value); insCls = ''; rc = ''; frame(); };
       el.querySelector('#cx-new').onclick = () => { const n = prompt('Nom du nouveau cross :', 'Cross ' + new Date().getFullYear()); if (!n) return; const N = newEvent(n.trim()); X().events.push(N); setCur(N.id); tab = 'courses'; commit(); frame(); };
-      el.querySelector('#cx-dup').onclick = () => { const n = prompt('Nom de la copie (courses, classes, sexes et dossards repris ; départs et arrivées vides) :', E.name + ' (copie)'); if (!n) return;
-        const N = JSON.parse(JSON.stringify(E)); Object.assign(N, { id: uid(4), name: n.trim(), created: Date.now(), date: new Date().toISOString().slice(0, 10), arr: [] }); N.courses.forEach(c => { c.start = null; c.id = uid(5); });
+      el.querySelector('#cx-dup').onclick = () => { const n = prompt('Nom de la copie (courses, classes, sexes et dossards repris : les dossards déjà imprimés restent valables ; départs et arrivées vides) :', E.name + ' (copie)'); if (!n) return;
+        const N = JSON.parse(JSON.stringify(E)); Object.assign(N, { id: uid(4), name: n.trim(), created: Date.now(), date: new Date().toISOString().slice(0, 10), arr: [], src: [E.id, ...(E.src || [])] });   /* src : les dossards déjà imprimés du cross d'origine restent valables au scan */ N.courses.forEach(c => { c.start = null; c.id = uid(5); });
         const map = Object.fromEntries(E.courses.map((c, i) => [c.id, N.courses[i].id])); Object.values(N.el).forEach(o => { if (o.c) o.c = map[o.c] || ''; });
         X().events.push(N); setCur(N.id); commit(); toast('Cross dupliqué ✔'); frame(); };
       el.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => { tab = b.dataset.tab; frame(); });

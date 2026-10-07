@@ -4,9 +4,10 @@
    ========================================================= */
 /* Page Ko-fi : laisser vide tant qu'elle n'existe pas (le bouton est alors masqué) */
 const KOFI_URL = 'https://ko-fi.com/epsone';
-const APP_VERSION = '19.7';
+const APP_VERSION = '19.8';
 const APP_URL = 'https://steffdelaseuva-hue.github.io/eps-one/';
 const CHANGELOG = [
+  { v: '19.8', items: ['Cross : un cross créé avec « Dupliquer » accepte aussi au scan les dossards QR déjà imprimés du cross d\'origine (mêmes numéros, mêmes élèves)'] },
   { v: '19.7', items: ['🛟 Copies de secours automatiques : une copie par jour sur chaque tablette (7 derniers jours) — Plus → Copies de secours : récupérer les classes manquantes, télécharger la copie ou tout remettre comme ce jour-là', 'Protection des classes : si une synchronisation (autre tablette ou autre connexion au compte) supprime des classes, un bandeau prévient et propose « ↶ Restaurer »'] },
   { v: '19.6', items: ['Mode Équipe EPS : chaque enseignant ne voit plus que ses propres résultats dans les outils (duathlon, combiné, crosstraining, CO, demi-fond, sauvetage, natation, escalade, relais, tournois et matchs, lutte, dispenses, résultats collectifs) — rien n\'est effacé, les données du collègue sont seulement masquées ; « Voir toutes les classes de l\'équipe » réaffiche tout'] },
   { v: '19.5', items: ['Natation : bouton ✅ Validation enseignant seulement en « Nager vite » (le test « Savoir nager » est déjà une validation)'] },
