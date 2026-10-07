@@ -300,8 +300,8 @@ function saveNow(){clearTimeout(_saveT);_saveT=null;let out=DB;
     if(window.epsImgLoaded)for(const k in _imgSaved)if(!(k in DB))del.push(k);
     put.forEach(([k,v])=>{_imgSaved[k]=v;});del.forEach(k=>{delete _imgSaved[k];});
     if(put.length||del.length)imgOpen().then(db=>{const st=db.transaction('i','readwrite').objectStore('i');put.forEach(([k,v])=>st.put(v,k));del.forEach(k=>st.delete(k));}).catch(()=>{});}
-  try{localStorage.setItem(KEY,JSON.stringify(out));_saveErr=0;}
-  catch(e){if(!_saveErr){_saveErr=1;setTimeout(()=>toast('⚠️ Mémoire de la tablette pleine : les dernières modifications ne sont pas enregistrées (Plus › Mes données)'),60);}}}
+  try{localStorage.setItem(KEY,JSON.stringify(out));_saveErr=0;window._saveOK=true;try{localStorage.setItem('epsone_db_t',String(Date.now()));}catch(e){}}
+  catch(e){window._saveOK=false;if(!_saveErr){_saveErr=1;setTimeout(()=>toast('⚠️ Mémoire de la tablette pleine : les dernières modifications ne sont pas enregistrées (Plus › Mes données)'),60);}}}
 function save(){if(!_saveT)_saveT=setTimeout(saveNow,400);}
 addEventListener('pagehide',()=>{if(_saveT)saveNow();});
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden'&&_saveT)saveNow();});
@@ -595,7 +595,7 @@ classes(el){
       if(!name||!st.length) return toast('Nom et élèves requis');
       const ex=DB.classes.findIndex(c=>c.name===name); if(ex>=0) DB.classes[ex].students=st; else DB.classes.push({name,students:st});
       save();toast('Classe enregistrée ✔');draw();};
-    el.querySelectorAll('[data-d]').forEach(b=>b.onclick=()=>{if(confirm('Supprimer cette classe ?')){DB.classes.splice(b.dataset.d,1);save();draw();}});
+    el.querySelectorAll('[data-d]').forEach(b=>b.onclick=()=>{if(confirm('Supprimer cette classe ?')){window.epsClsDeleted&&epsClsDeleted('classes',DB.classes[b.dataset.d]);DB.classes.splice(b.dataset.d,1);save();draw();}});
     el.querySelectorAll('[data-e]').forEach(b=>b.onclick=()=>{const c=DB.classes[b.dataset.e];el.querySelector('#cn').value=c.name;el.querySelector('#cl').value=c.students.join('\n');el.querySelector('#cn').scrollIntoView({behavior:'smooth'});});
   }; draw();
 },

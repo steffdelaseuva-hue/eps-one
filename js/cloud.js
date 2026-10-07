@@ -26,6 +26,9 @@
     const valOf = f => { try { return JSON.parse(f.v); } catch (e) { return undefined; } };
 
     let applying = false;
+    // données reçues écrites AVANT la base de fusion ; appareil en retard → 1re fusion sans suppression (voir sync.js)
+    const persist = () => { meta.applyT = Date.now(); applying = true; try { window.saveNow ? window.saveNow() : window.save(); } catch (e) {} applying = false; };
+    let stale = (() => { try { return (meta.applyT || 0) > (+localStorage.getItem('epsone_db_t') || 0); } catch (e) { return false; } })();
     async function pull() { try { return await pull0(); } catch (e) { C.status = 'error'; C.err = e.message; draw(); pill(); throw e; } }
     async function pull0() {
       if (!on() || !L() || !(await P.ensure())) { pill(); return false; }
@@ -37,13 +40,16 @@
         if (doc.dev === meta.dev && doc.t === meta.keys[k]?.t) continue;
         let rv = valOf(doc); if (rv === undefined) continue; rv = L().outb(k, rv);
         const local = L().outb(k), m = meta.keys[k], dirty = m && m.h !== L().hash(JSON.stringify(local));
-        const out = !m ? (local == null ? rv : L().mergeData(local, rv)) : dirty ? L().merge3(getBase(k), local, rv) : rv;
+        let out = !m ? (local == null ? rv : L().mergeData(local, rv)) : dirty ? (stale ? L().mergeData(local, rv) : L().merge3(getBase(k), local, rv)) : rv;
+        if (window.epsClsKeep) out = epsClsKeep(k, out, rv);
         setBase(k, rv); applying = true; (window.dbSet ? dbSet(k, L().withLocal(k, out)) : (DB[k] = L().withLocal(k, out))); applying = false;
         meta.keys[k] = { h: L().jeq(out, rv) ? L().hash(JSON.stringify(rv)) : 'x', t: doc.t };
         if (!L().jeq(out, local)) changed = true;
       }
-      saveMeta(); saveBase();
-      if (changed) { applying = true; window.save(); applying = false; try { if (!document.getElementById('screen').classList.contains('open')) renderHome(); } catch (e) {} toast(`🔄 Données ${P.name} synchronisées`); window.dispatchEvent(new Event('eps-remote')); }
+      stale = false;
+      if (changed) persist();
+      if (window._saveOK !== false) { saveMeta(); saveBase(); }
+      if (changed) { try { if (!document.getElementById('screen').classList.contains('open')) renderHome(); } catch (e) {} toast(`🔄 Données ${P.name} synchronisées`); window.dispatchEvent(new Event('eps-remote')); }
       return changed;
     }
 
@@ -52,7 +58,7 @@
     async function push() {
       if (!on() || !L() || C.busy) return;
       const keys = pending(); if (!keys.length) { C.status = 'ok'; draw(); return; }
-      C.busy = true; C.status = 'sync'; draw();
+      C.busy = true; C.status = 'sync'; draw(); let chg = false;
       try {
         if (!(await P.ensure())) throw new Error(`Reconnexion à ${P.name} nécessaire`);
         const files = await P.list(), byKey = Object.fromEntries(files.map(f => [f.key, f]));
@@ -60,7 +66,8 @@
           const f = byKey[k]; let base = getBase(k), local = L().outb(k), remote = f ? valOf(await P.read(f.id)) : undefined, out, t, id = f && f.id, rev = f && f.mt, ok = false;
           // Plusieurs tablettes peuvent envoyer en même temps (fin de séance) : aucune ne doit effacer l'envoi d'une autre.
           for (let attempt = 0; attempt < 8 && !ok; attempt++) {
-            out = remote === undefined ? local : L().merge3(base, local, L().outb(k, remote));
+            out = remote === undefined ? local : stale ? L().mergeData(local, L().outb(k, remote)) : L().merge3(base, local, L().outb(k, remote));
+            if (window.epsClsKeep) out = epsClsKeep(k, out, remote === undefined ? base : L().outb(k, remote));
             t = Date.now(); let w;
             try { w = await P.write(k, id, { t, dev: meta.dev, v: JSON.stringify(out ?? null) }, rev); }
             catch (e) { if (!e.conflict) throw e;                        // écriture conditionnelle refusée : une autre tablette vient d'écrire
@@ -76,11 +83,11 @@
           }
           if (!ok) throw new Error('Envoi simultané de plusieurs tablettes : réessayez dans un instant');
           setBase(k, out); meta.keys[k] = { h: L().hash(JSON.stringify(out ?? null)), t };
-          if (!L().jeq(out, L().outb(k))) { applying = true; (window.dbSet ? dbSet(k, L().withLocal(k, out)) : (DB[k] = L().withLocal(k, out))); window.save(); applying = false; }
+          if (!L().jeq(out, L().outb(k))) { applying = true; (window.dbSet ? dbSet(k, L().withLocal(k, out)) : (DB[k] = L().withLocal(k, out))); applying = false; chg = true; }
         }
         C.status = 'ok'; C.err = ''; C.last = meta.last = Date.now();
       } catch (e) { C.status = 'error'; C.err = e.message; }
-      C.busy = false; saveMeta(); saveBase(); draw(); pill();
+      C.busy = false; if (chg) persist(); if (window._saveOK !== false) { saveMeta(); saveBase(); } draw(); pill();
       if (on() && P.who && P.hasToken() && !meta.who) P.who().then(w => { if (w) { meta.who = w; saveMeta(); draw(); } }).catch(() => {});
     }
 

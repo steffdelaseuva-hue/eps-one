@@ -41,6 +41,23 @@
   try { dailyBackup(); } catch (e) {}
 
   /* ---------- Garde des classes ---------- */
+  /* Suppressions VOLONTAIRES faites sur cet appareil (Mes classes, nouvelle année…) :
+     seules celles-ci peuvent retirer une classe du compte. Une classe absente de cet appareil
+     pour une autre raison (appareil resté en retard, mémoire pleine, app fermée trop tôt…)
+     est gardée lors de la synchronisation au lieu d'être effacée partout. */
+  const DEL = 'epsone_cls_del', DEL_DAYS = 45;
+  window.epsClsDeleted = (k, c) => { if (!c || !c.name) return; const o = lsGet(DEL, {}); o[k + '|' + c.name] = Date.now(); lsSet(DEL, o); };
+  const delOK = (k, n) => { const t = lsGet(DEL, {})[k + '|' + n]; return t && Date.now() - t < DEL_DAYS * 864e5; };
+  // out = résultat de la fusion ; rem = version du serveur / cloud
+  window.epsClsKeep = (k, out, rem) => {
+    if (!CK.includes(k) || !Array.isArray(out) || !Array.isArray(rem)) return out;
+    const have = new Set(out.map(c => c && c.name)), back = rem.filter(c => c && c.name && !have.has(c.name) && !delOK(k, c.name));
+    if (!back.length) return out;
+    try { console.warn('EPS ONE : classes gardées (suppression non volontaire évitée)', back.map(c => c.name)); } catch (e) {}
+    return [...out, ...JSON.parse(JSON.stringify(back))];
+  };
+  // une classe recréée (même nom) n'est plus considérée comme supprimée
+  setInterval(() => { try { const o = lsGet(DEL, {}); let ch = 0; CK.forEach(k => (getK(k) || []).forEach(c => { if (c && o[k + '|' + c.name]) { delete o[k + '|' + c.name]; ch = 1; } })); if (ch) lsSet(DEL, o); } catch (e) {} }, 30000);
   let guardOff = 0;
   window.epsClsGuardOff = fn => { guardOff++; try { return fn(); } finally { guardOff--; } };
   const prevSet = window.dbSet;

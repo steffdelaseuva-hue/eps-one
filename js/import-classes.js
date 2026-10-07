@@ -219,9 +219,9 @@ TOOL_IMPL.classes = function (el) {
       if (!n) return; if (c.students.includes(n)) return toast('Cet élève est déjà dans la classe');
       c.students.push(n); save(); toast(`${n} ajouté·e en ${c.name} ✔`); draw(); });
     const ref = v => { const [k, i] = v.split(':'); return { k, i: +i, A: L(k) }; };
-    el.querySelectorAll('[data-mv]').forEach(b => b.onclick = () => { const { k, i, A } = ref(b.dataset.mv), c = A.splice(i, 1)[0]; L(k === 'eps' ? 'all' : 'eps').push(c);
+    el.querySelectorAll('[data-mv]').forEach(b => b.onclick = () => { const { k, i, A } = ref(b.dataset.mv), c = A.splice(i, 1)[0]; window.epsClsDeleted && epsClsDeleted(k === 'all' ? 'classesAll' : 'classes', c); L(k === 'eps' ? 'all' : 'eps').push(c);
       save(); toast(`${c.name} → ${k === 'eps' ? 'Autres classes' : 'Mes classes EPS'}`); draw(); });
-    el.querySelectorAll('[data-d]').forEach(b => b.onclick = () => { if (confirm('Supprimer cette classe ?')) { const { i, A } = ref(b.dataset.d); A.splice(i, 1); save(); draw(); } });
+    el.querySelectorAll('[data-d]').forEach(b => b.onclick = () => { if (confirm('Supprimer cette classe ?')) { const { k, i, A } = ref(b.dataset.d); window.epsClsDeleted && epsClsDeleted(k === 'all' ? 'classesAll' : 'classes', A[i]); A.splice(i, 1); save(); draw(); } });
     el.querySelectorAll('[data-e]').forEach(b => b.onclick = () => { const { k, i, A } = ref(b.dataset.e), c = A[i]; $('#cn').value = c.name; $('#cl').value = c.students.join('\n');
       nd = k === 'eps' && c.unss ? 'unss' : k; el.querySelectorAll('[data-nd]').forEach(x => x.classList.toggle('on', x.dataset.nd === nd)); $('#cn').scrollIntoView({ behavior: 'smooth' }); });
     el.querySelectorAll('[data-pf]').forEach(sl => sl.onchange = () => { const c = DB.classes[+sl.dataset.pf]; if (sl.value) c.prof = sl.value; else delete c.prof; save(); toast(`${c.name} → ${sl.value ? teamProfs().find(p => p.id === sl.value).name : 'commune'}`); });

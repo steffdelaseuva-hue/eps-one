@@ -110,8 +110,9 @@ async function pushChanged() {
     for (const k of keys) {
       const ref = doc(fb.db, 'epsone', S.user.uid, 'data', k); let out, t;
       await runTransaction(fb.db, async tx => {
-        const d = await tx.get(ref), local = outb(k); out = local;
-        if (d.exists()) { const r = d.data(); if (!(r.dev === meta.dev && r.t === meta.keys[k]?.t)) out = merge3(getBase(k), local, outb(k, await readDoc(r))); }
+        const d = await tx.get(ref), local = outb(k); out = local; let rem;
+        if (d.exists()) { const r = d.data(); if (!(r.dev === meta.dev && r.t === meta.keys[k]?.t)) { rem = outb(k, await readDoc(r)); out = staleLocal ? mergeData(local, rem) : merge3(getBase(k), local, rem); } }
+        out = keepCls(k, out, rem !== undefined ? rem : getBase(k));
         const j = JSON.stringify(out ?? null); if (j.length > 700000) throw new Error(`Rubrique « ${k} » trop volumineuse pour la synchronisation`);
         t = Date.now(); tx.set(ref, { c: await encrypt(j), t, dev: meta.dev });
       });
@@ -120,8 +121,8 @@ async function pushChanged() {
     }
     S.status = 'ok'; S.err = ''; S.last = meta.last = Date.now();
   } catch (e) { S.status = 'error'; S.err = e.message; }
-  pushing = false; saveBase(); saveMeta(); drawSendPill();
-  if (changedLocal) { _save(); try { if (!document.getElementById('screen').classList.contains('open')) renderHome(); } catch (e) {} window.dispatchEvent(new Event('eps-remote')); }
+  pushing = false; if (changedLocal) persistDB(); if (window._saveOK !== false) { saveBase(); saveMeta(); } drawSendPill();
+  if (changedLocal) { try { if (!document.getElementById('screen').classList.contains('open')) renderHome(); } catch (e) {} window.dispatchEvent(new Event('eps-remote')); }
   refreshUI();
 }
 // Envois groupés : au plus un envoi toutes les 10 s pendant que l'on saisit (économise le quota Firebase)
@@ -146,6 +147,14 @@ const forcePushAll = async () => { syncKeys().forEach(k => { meta.keys[k] = { h:
 /* Chaque sauvegarde locale programme un envoi groupé */
 const _save = window.save;
 window.save = function () { _save(); schedulePush(); };
+/* Sécurité des fusions :
+   · les données reçues sont écrites sur l'appareil AVANT la « base » de fusion (sinon, si l'app est fermée
+     ou la mémoire pleine, l'appareil croirait au démarrage suivant que l'utilisateur a supprimé ces données) ;
+   · appareil resté en retard (base plus récente que ses données) : 1re fusion sans suppression ;
+   · une classe n'est retirée du compte que si elle a été supprimée volontairement (epsClsKeep). */
+const persistDB = () => { meta.applyT = Date.now(); try { window.saveNow ? window.saveNow() : _save(); } catch (e) {} return window._saveOK !== false; };
+let staleLocal = (() => { try { return (meta.applyT || 0) > (+localStorage.getItem('epsone_db_t') || 0); } catch (e) { return false; } })();
+const keepCls = (k, out, rem) => window.epsClsKeep ? window.epsClsKeep(k, out, rem) : out;
 
 /* ---------- Réception : fusion des données venues des autres appareils ---------- */
 async function applyRemote(k, r) {
@@ -155,7 +164,7 @@ async function applyRemote(k, r) {
   if (rv === undefined) return false;
   rv = outb(k, rv);
   const local = outb(k), m = meta.keys[k], dirty = m && m.h !== hash(JSON.stringify(local));
-  const out = !m ? (replaceOnce || local == null ? rv : mergeData(local, rv)) : dirty ? merge3(getBase(k), local, rv) : rv;
+  const out = keepCls(k, !m ? (replaceOnce || local == null ? rv : mergeData(local, rv)) : dirty ? (staleLocal ? mergeData(local, rv) : merge3(getBase(k), local, rv)) : rv, rv);
   setBase(k, rv);
   applying = true; dbS(k, withLocal(k, out)); applying = false;
   meta.keys[k] = { h: dirty || !m ? (jeq(out, rv) ? hash(JSON.stringify(rv)) : 'x') : hash(JSON.stringify(rv)), t: r.t };
@@ -165,10 +174,11 @@ let replaceOnce = false;
 async function applySnap(docs) {
   let changed = false;
   for (const x of docs) { if (await applyRemote(x.id, x.data())) changed = true; }
-  replaceOnce = false;
-  saveBase(); saveMeta();
+  replaceOnce = false; staleLocal = false;
+  if (changed) persistDB();
+  if (window._saveOK !== false) { saveBase(); saveMeta(); }
   if (syncKeys().some(k => meta.keys[k]?.h === 'x')) schedulePush();
-  if (changed) { _save(); S.last = meta.last = Date.now(); S.status = 'ok'; refreshUI();
+  if (changed) { S.last = meta.last = Date.now(); S.status = 'ok'; refreshUI();
     try { if (!document.getElementById('screen').classList.contains('open')) renderHome(); } catch (e) {}
     toast('🔄 Données synchronisées'); window.dispatchEvent(new Event('eps-remote')); }
 }
@@ -223,7 +233,7 @@ async function startSync() {
         if (LOCAL_TOP.has(d.id)) continue;
         try { const rv = outb(d.id, JSON.parse(v)); dbS(d.id, dbG(d.id) === undefined ? rv : withLocal(d.id, mergeData(outb(d.id), rv))); } catch (e) {}
       }
-      _save(); meta.keys = {}; meta.linked = true; saveMeta();
+      persistDB(); meta.keys = {}; meta.linked = true; saveMeta();
       if (ok === null) await writeCheck();
       await forcePushAll(); listen(); refreshUI();
       try { if (!document.getElementById('screen').classList.contains('open')) renderHome(); } catch (e) {}

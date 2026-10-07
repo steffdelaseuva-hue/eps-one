@@ -4,9 +4,10 @@
    ========================================================= */
 /* Page Ko-fi : laisser vide tant qu'elle n'existe pas (le bouton est alors masqué) */
 const KOFI_URL = 'https://ko-fi.com/epsone';
-const APP_VERSION = '20.0';
+const APP_VERSION = '20.1';
 const APP_URL = 'https://steffdelaseuva-hue.github.io/eps-one/';
 const CHANGELOG = [
+  { v: '20.1', items: ['Synchronisation plus sûre : une classe n\'est plus jamais retirée du compte si elle n\'a pas été supprimée volontairement (Mes classes) — un appareil resté en retard, à la mémoire pleine ou fermé trop vite ne peut plus effacer les classes des collègues', 'Les données reçues sont enregistrées sur l\'appareil avant la mise à jour de la synchronisation ; un appareil en retard refait une fusion sans suppression'] },
   { v: '20.0', items: ['Mon cloud : Dropbox proposé en premier (« conseillé » : connexion durable)', 'Google Drive : la connexion (limitée à 1 h par Google) est renouvelée automatiquement au premier toucher dans l\'app, puis la synchronisation reprend'] },
   { v: '19.9', items: ['Google Drive / Dropbox : le compte connecté est affiché (le même doit être utilisé sur tous les appareils)', 'Nouveaux boutons « 🔍 Vérifier ce qui est sur Google Drive » (classes sur le cloud / sur l\'appareil) et « ⬇️ Tout récupérer »', 'Quand la connexion Google a expiré (au bout d\'1 h), une pastille « 🔑 Reconnecter pour envoyer » apparaît : plus de modifications qui restent bloquées sans le savoir'] },
   { v: '19.8', items: ['Cross : un cross créé avec « Dupliquer » accepte aussi au scan les dossards QR déjà imprimés du cross d\'origine (mêmes numéros, mêmes élèves)'] },
@@ -411,6 +412,7 @@ function openNewYear(back) {
       if (!saved && !confirm('Vous n\'avez pas téléchargé de sauvegarde. Continuer quand même ?')) return;
       if (!confirm(`Démarrer l'année ${ny} ?\nLes éléments cochés seront définitivement effacés de cet appareil.`)) return;
       if (opt('classes')) {
+        if (!opt('keepNames') && window.epsClsDeleted) { (dbGet('classes') || []).forEach(c => epsClsDeleted('classes', c)); (DB.classesAll || []).forEach(c => epsClsDeleted('classesAll', c)); }
         (window.epsClsGuardOff || (f => f()))(() => dbSet('classes', opt('keepNames') ? (dbGet('classes') || []).map(c => ({ name: c.name, students: [], ...(c.prof ? { prof: c.prof } : {}), ...(c.unss ? { unss: 1 } : {}) })) : []));
         DB.classesAll = opt('keepNames') ? (DB.classesAll || []).map(c => ({ name: c.name, students: [] })) : [];
         try { const S = JSON.parse(localStorage.getItem('chronos-eps-v1')); if (Array.isArray(S)) { S.forEach(c => c.name = ''); localStorage.setItem('chronos-eps-v1', JSON.stringify(S)); } } catch (e) {}
