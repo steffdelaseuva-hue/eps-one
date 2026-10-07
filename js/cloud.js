@@ -26,8 +26,9 @@
     const valOf = f => { try { return JSON.parse(f.v); } catch (e) { return undefined; } };
 
     let applying = false;
-    async function pull() {
-      if (!on() || !L() || !(await P.ensure())) return false;
+    async function pull() { try { return await pull0(); } catch (e) { C.status = 'error'; C.err = e.message; draw(); pill(); throw e; } }
+    async function pull0() {
+      if (!on() || !L() || !(await P.ensure())) { pill(); return false; }
       const files = await P.list(); let changed = false;
       for (const f of files) {
         const k = f.key; if (!L().syncKeys().includes(k) && DB[k] !== undefined) continue;
@@ -80,21 +81,23 @@
         C.status = 'ok'; C.err = ''; C.last = meta.last = Date.now();
       } catch (e) { C.status = 'error'; C.err = e.message; }
       C.busy = false; saveMeta(); saveBase(); draw(); pill();
+      if (on() && P.who && P.hasToken() && !meta.who) P.who().then(w => { if (w) { meta.who = w; saveMeta(); draw(); } }).catch(() => {});
     }
 
     /* Rythme : envois groupés, ou fin de séance en mode collecte */
     let timer = null;
     const _save = window.save;
-    window.save = function () { _save(); if (applying || !on()) return; if (meta.collect) { setTimeout(pill, 50); return; } if (!timer) timer = setTimeout(() => { timer = null; push(); }, 15000); };
+    window.save = function () { _save(); if (applying || !on()) return; if (meta.collect || !P.hasToken()) { setTimeout(pill, 50); if (meta.collect) return; } if (!timer) timer = setTimeout(() => { timer = null; push(); }, 15000); };
     setInterval(() => { if (on() && !meta.collect && document.visibilityState === 'visible' && P.hasToken()) pull().catch(() => {}); }, 60000);
     document.addEventListener('visibilitychange', () => { if (!on() || !P.hasToken()) return; if (document.visibilityState === 'hidden') push(); else pull().then(() => !meta.collect && push()).catch(() => {}); });
     function pill() {
-      const pid = P.id + '-pill'; let b = document.getElementById(pid); const n = on() && meta.collect ? pending().length : 0;
+      const pid = P.id + '-pill'; let b = document.getElementById(pid); const np = on() ? pending().length : 0, lost = on() && (!P.hasToken() || C.status === 'error');
+      const n = on() && (meta.collect || lost) ? np : 0;
       if (!n) { if (b) b.remove(); return; }
       if (!b) { b = document.createElement('button'); b.id = pid; b.className = 'btn btn-grad';
         b.style.cssText = 'position:fixed;right:14px;bottom:calc(84px + env(safe-area-inset-bottom));z-index:150;padding:12px 16px;border-radius:999px;box-shadow:var(--shadow);font-weight:800;width:auto';
         b.onclick = () => sendNow(); document.body.appendChild(b); }
-      b.textContent = `📤 Envoyer sur ${P.name} (${n})`;
+      b.textContent = lost ? `🔑 Reconnecter ${P.name} pour envoyer (${n})` : `📤 Envoyer sur ${P.name} (${n})`;
     }
     async function sendNow() { try { if (!(await P.ensure())) await P.reauth(); await push(); await pull(); toast(pending().length ? 'Envoi incomplet : réessayez' : `${P.name} à jour ✔`); } catch (e) { C.err = e.message; toast(e.message); } draw(); pill(); }
 
@@ -107,9 +110,12 @@
       host.innerHTML = on() ? `<div class="card" style="border:2px solid #1E5BD8"><h3>🟢 ${P.name} activé</h3>
           <p style="margin:6px 0;line-height:1.45">Vos données sont enregistrées sur <b>votre propre ${P.name}</b>, ${P.where}. Connectez le même compte sur vos autres tablettes.</p>
           <p class="muted" style="margin:0;font-size:.82rem">État : ${C.status === 'sync' ? 'envoi…' : C.status === 'error' ? 'erreur' : 'à jour'} · dernière synchro : ${last}${pending().length ? ` · ${pending().length} rubrique(s) à envoyer` : ''}</p>
+          ${meta.who ? `<p class="muted" style="margin:4px 0 0;font-size:.82rem">👤 Compte : <b>${esc(meta.who)}</b> — le même compte doit être connecté sur tous vos appareils.</p>` : ''}
           ${C.err ? `<p style="color:var(--danger);font-size:.85rem">${esc(C.err)}</p>` : ''}
           ${!P.hasToken() ? `<button class="btn btn-grad btn-block" style="margin-top:10px" id="cl-re">🔑 Reconnecter ${P.name}</button>` : `<button class="btn btn-grad btn-block" style="margin-top:10px" id="cl-now">🔄 Synchroniser maintenant</button>`}
           <label style="display:flex;gap:8px;align-items:flex-start;margin-top:12px;color:var(--text);font-weight:600"><input type="checkbox" id="cl-col" ${meta.collect ? 'checked' : ''} style="width:auto;margin-top:3px"><span>📥 Tablette de collecte (envoi en fin de séance)<br><span class="muted" style="font-weight:400;font-size:.82rem">Rien n'est envoyé pendant la séance ; touchez « 📤 Envoyer sur ${P.name} » à la fin du cours.</span></span></label>
+          <div class="row" style="margin-top:10px;gap:6px"><button class="btn btn-ghost" id="cl-chk">🔍 Vérifier ce qui est sur ${P.name}</button><button class="btn btn-ghost" id="cl-all">⬇️ Tout récupérer</button></div>
+          <div id="cl-diag"></div>
           <button class="btn btn-ghost btn-block" style="margin-top:10px" id="cl-off">Arrêter ${P.name} sur cet appareil</button></div>`
         : `<div class="card"><h3>${P.icon} ${P.name}</h3>
           <p style="margin:6px 0;line-height:1.45">Enregistrez et synchronisez vos données sur <b>votre ${P.name}</b> (plusieurs tablettes, fusion en fin de cours), sans passer par le serveur d'EPS ONE.</p>
@@ -120,6 +126,16 @@
       if ($('#cl-on')) $('#cl-on').onclick = () => connect();
       if ($('#cl-re')) $('#cl-re').onclick = () => sendNow();
       if ($('#cl-now')) $('#cl-now').onclick = () => sendNow();
+      if ($('#cl-all')) $('#cl-all').onclick = async () => { try { if (!(await P.ensure())) await P.reauth(); meta.mt = {}; saveMeta(); const ch = await pull(); await push(); toast(ch ? `Données récupérées depuis ${P.name} ✔` : `Rien de nouveau sur ${P.name}`); } catch (e) { toast(e.message); } draw(); };
+      if ($('#cl-chk')) $('#cl-chk').onclick = async () => { const d = $('#cl-diag'); d.innerHTML = '<p class="muted">Lecture…</p>';
+        try { if (!(await P.ensure())) await P.reauth(); if (P.who) { const w = await P.who().catch(() => ''); if (w) { meta.who = w; saveMeta(); } }
+          const files = await P.list(), fc = files.find(f => f.key === 'classes'); let nc = '—';
+          if (fc) { try { const v = valOf(await P.read(fc.id)); nc = Array.isArray(v) ? v.length : '?'; } catch (e) { nc = '?'; } }
+          const loc = (window.dbGet ? dbGet('classes') : DB.classes) || [];
+          d.innerHTML = `<div class="card" style="margin-top:10px;background:var(--grad-soft)">${meta.who ? `👤 <b>${esc(meta.who)}</b><br>` : ''}📁 ${files.length} rubrique(s) sur ${P.name}${fc ? ` · dernière modification des classes : ${new Date(fc.mt && /\d{4}-/.test(fc.mt) ? fc.mt : Date.now()).toLocaleString('fr-FR')}` : ''}<br>
+            🏫 Classes sur ${P.name} : <b>${nc}</b> · sur cet appareil : <b>${loc.length}</b>${pending().length ? `<br>⏳ ${pending().length} rubrique(s) pas encore envoyée(s) depuis cet appareil` : ''}
+            <p class="muted" style="margin:6px 0 0;font-size:.8rem">${!files.length ? `Rien sur ce ${P.name} : l'autre appareil n'a encore rien envoyé, ou il est connecté à un autre compte.` : nc !== '—' && +nc > loc.length ? '« ⬇️ Tout récupérer » ramène les classes sur cet appareil.' : +nc < loc.length ? '« 🔄 Synchroniser maintenant » envoie les classes de cet appareil.' : 'Tout est à jour.'}</p></div>`; }
+        catch (e) { d.innerHTML = `<p style="color:var(--danger);font-size:.85rem">${esc(e.message)}</p>`; } };
       if ($('#cl-col')) $('#cl-col').onchange = e => { meta.collect = e.target.checked; saveMeta(); pill(); if (!meta.collect) push(); draw(); };
       if ($('#cl-off')) $('#cl-off').onclick = () => { if (!confirm(`Arrêter ${P.name} sur cet appareil ?\nVos données restent sur cet appareil et sur votre ${P.name}.\nVous pourrez continuer sans synchronisation (données sur cet appareil).`)) return;
         ls.set(STORE, null); ls.set('epsone_free', '1'); try { P.revoke(); } catch (e) {} pill(); L() && L().resumeFirebase(); L() && L().refreshUI(); L() && L().gate(); window.cloudRefresh && window.cloudRefresh(); toast(`${P.name} arrêté`); };
@@ -128,7 +144,7 @@
     // Activation après autorisation (pas besoin de validation par l'administrateur)
     async function activate() {
       ls.set(STORE, P.id); L() && L().stopFirebase();
-      meta.keys = {}; meta.mt = {}; BASE = {}; saveMeta(); saveBase(); L() && L().gate();
+      meta.keys = {}; meta.mt = {}; delete meta.who; BASE = {}; saveMeta(); saveBase(); L() && L().gate();
       await pull(); await push(); toast(`${P.name} activé ✔`);
     }
     async function connect() { C.err = ''; try { if ((await P.authorize()) === 'redirect') return; await activate(); } catch (e) { C.err = e.message; toast(e.message); } L() && L().refreshUI(); draw(); }
@@ -172,6 +188,7 @@
       scopeTxt: 'L\'app n\'a accès qu\'à un dossier caché qui lui est réservé : elle ne voit pas vos autres fichiers.',
       configured: () => !!CID(), hasToken: tokenOK, ensure: async () => tokenOK(),
       authorize: () => requestToken('consent'), reauth: () => requestToken(''),
+      who: async () => ((await (await api(`${API}/about?fields=user(emailAddress)`)).json()).user || {}).emailAddress || '',
       list: async () => ((await (await api(`${API}/files?spaces=appDataFolder&pageSize=1000&fields=files(id,name,modifiedTime)`)).json()).files || [])
         .filter(f => /^epsone_.*\.json$/.test(f.name)).map(f => ({ id: f.id, key: KEY(f.name), mt: f.modifiedTime })),
       read: async id => (await api(`${API}/files/${id}?alt=media`)).json(),
@@ -233,6 +250,7 @@
       where: 'dans le dossier « Applications/EPS ONE »',
       scopeTxt: 'L\'app n\'a accès qu\'à son propre dossier « Applications/EPS ONE » : elle ne voit pas vos autres fichiers.',
       configured: () => !!KEYAPP(), hasToken: () => tokenOK() || !!tok?.r, ensure, authorize, reauth: authorize,
+      who: async () => { const r = await api(API + '/2/users/get_current_account', { headers: {} }); if (!r.ok) return ''; return ((await r.json()).email) || ''; },
       list: async () => {
         let out = [], r = await api(API + '/2/files/list_folder', { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path: '', limit: 2000 }) });
         if (r.status === 409) return [];
