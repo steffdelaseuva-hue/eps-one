@@ -4,9 +4,10 @@
    ========================================================= */
 /* Page Ko-fi : laisser vide tant qu'elle n'existe pas (le bouton est alors masqué) */
 const KOFI_URL = 'https://ko-fi.com/epsone';
-const APP_VERSION = '19.2';
+const APP_VERSION = '19.3';
 const APP_URL = 'https://steffdelaseuva-hue.github.io/eps-one/';
 const CHANGELOG = [
+  { v: '19.3', items: ['Validation enseignant (✅) en sports collectifs : critères propres à chaque sport (handball, basket-ball, football, volley-ball, rugby, ultimate) ou « Général », tous modifiables', 'Bouton ✅ Validation enseignant aussi en natation, sauvetage aquatique, crosstraining / HYROX et cross : créez vos critères (ou ajoutez les critères proposés 💡)'] },
   { v: '19.2', items: ['Cross : décalage des départs différés réglable en minutes et en secondes (ex. 0 min 30 s)', 'Validation enseignant (✅) aussi dans les activités de duel : sports collectifs, sports de raquette, escrime et lutte — critères rangés en Attaque / Défense / Rôles (porteur, tireur, passeur, non-porteur, prise d\'informations, choix, replacement, arbitrage…), 4 niveaux de maîtrise en couleur, critères modifiables'] },
   { v: '19.1', items: ['Cross : départs différés dans les réglages de chaque course — une ou plusieurs classes, un ou plusieurs élèves partent plus tard, avec un décalage en minutes (départ automatique) ou leur propre « 🔫 TOP » ; leur temps est compté depuis leur départ', 'Validation enseignant (bouton ✅ en haut de l\'outil, protégé par le code enseignant) en combiné, demi-fond, duathlon, danse, escalade et course d\'orientation : 4 niveaux de maîtrise par critère et par élève, tableau de la classe, critères modifiables, export CSV, bilan enregistré dans Résultats des élèves'] },
   { v: '19.0', items: ['Escalade : choix de l\'assureur et du contre-assureur pour chaque passage (à la main, « 🎲 Assureurs au hasard » ou « 🎲 Cordée complète au hasard » — le tirage choisit ceux qui ont le moins tenu le rôle) ; sur la tablette d\'une cordée, rotation automatique après chaque voie', 'Escalade · Résultats : tableau « 🪢 Rôles dans la cordée » (nombre de fois grimpeur, assureur, contre-assureur par élève), cordée affichée sur chaque passage et dans l\'export CSV'] },

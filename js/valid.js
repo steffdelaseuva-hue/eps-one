@@ -12,16 +12,28 @@ const VAL_TOOLS = {
   duathlon: { n: 'Duathlon athlétique', c: ['Course : allure régulière', 'Course : gestion de l\'effort', 'Lancer : placement et orientation', 'Lancer : action du bras', 'Transition course → lancer', 'Sécurité dans la zone de lancer'] },
   danse: { n: 'Danse', c: ['Engagement, concentration, regard', 'Utilisation de l\'espace (niveaux, directions)', 'Rythme, utilisation du temps', 'Énergie, qualités de mouvement', 'Composition (procédés)', 'Relation aux autres, synchronisation', 'Mémorisation de la chorégraphie', 'Rôle de spectateur / juge'] },
   escalade: { n: 'Escalade', c: ['Encordement, nœud de huit', 'Assurage : avaler, bloquer', 'Contre-assurage', 'Communication de la cordée', 'Lecture de la voie', 'Pieds précis, poids sur les jambes', 'Fluidité, économie', 'Descente, mouflage'] },
-  match: { n: 'Sports collectifs', c: ['Attaque · Porteur : conserver, progresser vers la cible', 'Attaque · Tireur : tirer au bon moment, tir efficace', 'Attaque · Passeur : passe adaptée vers un partenaire démarqué', 'Attaque · Non-porteur : se démarquer, offrir une solution', 'Attaque · Prise d\'informations (lever la tête)', 'Attaque · Choix pertinents (passer, tirer, dribbler)', 'Défense · Récupérer le ballon (harceler, intercepter)', 'Défense · Se replacer, défendre sa cible', 'Défense · Marquer un adversaire', 'Défense · Prise d\'informations (ballon et adversaire)', 'Rôles · Respect des règles, fair-play', 'Rôles · Arbitre / observateur'] },
+  match: { n: 'Sports collectifs', c: ['Attaque · Porteur : conserver, progresser vers la cible', 'Attaque · Tireur : tirer au bon moment, tir efficace', 'Attaque · Passeur : passe adaptée vers un partenaire démarqué', 'Attaque · Non-porteur : se démarquer, offrir une solution', 'Attaque · Prise d\'informations (lever la tête)', 'Attaque · Choix pertinents (passer, tirer, dribbler)', 'Défense · Récupérer le ballon (harceler, intercepter)', 'Défense · Se replacer, défendre sa cible', 'Défense · Marquer un adversaire', 'Défense · Prise d\'informations (ballon et adversaire)', 'Rôles · Respect des règles, fair-play', 'Rôles · Arbitre / observateur'], sub: {
+    handball: { n: 'Handball', c: ['Attaque · Porteur : progresser, fixer un défenseur', 'Attaque · Tireur : tir en suspension, viser les angles', 'Attaque · Passeur : passe vers un partenaire démarqué', 'Attaque · Non-porteur : se démarquer, appel de balle', 'Attaque · Prise d\'informations (lever la tête)', 'Attaque · Choix : passer, tirer, dribbler', 'Défense · Harceler le porteur, gêner le tir', 'Défense · Se replacer entre l\'adversaire et le but', 'Défense · Interception, récupération', 'Défense · Gardien : se placer, fermer l\'angle', 'Rôles · Respect des règles (zone, marcher, contacts)', 'Rôles · Arbitre / observateur'] },
+    basket: { n: 'Basket-ball', c: ['Attaque · Porteur : dribble, progression', 'Attaque · Tireur : tir en course, tir à mi-distance', 'Attaque · Passeur : passe vers un partenaire démarqué', 'Attaque · Non-porteur : se démarquer, couper vers le panier', 'Attaque · Rebond offensif', 'Attaque · Prise d\'informations, choix', 'Défense · Défendre entre l\'adversaire et le panier', 'Défense · Aide défensive', 'Défense · Rebond défensif', 'Défense · Défendre sans faute (contacts)', 'Rôles · Respect des règles (marcher, reprise de dribble)', 'Rôles · Arbitre / observateur'] },
+    football: { n: 'Football', c: ['Attaque · Porteur : conduite de balle, protéger le ballon', 'Attaque · Tireur : frappe cadrée', 'Attaque · Passeur : passe précise vers un partenaire libre', 'Attaque · Non-porteur : se démarquer, appel de balle', 'Attaque · Contrôle orienté', 'Attaque · Prise d\'informations, choix', 'Défense · Harceler, retarder le porteur', 'Défense · Couvrir un partenaire, se replacer', 'Défense · Récupérer proprement le ballon', 'Défense · Gardien : se placer, capter', 'Rôles · Respect des règles, fair-play', 'Rôles · Arbitre / observateur'] },
+    volley: { n: 'Volley-ball', c: ['Attaque · Service réussi et orienté', 'Attaque · Passe haute (10 doigts) vers un partenaire', 'Attaque · Renvoi offensif vers un espace libre', 'Attaque · Smash / attaque au filet', 'Attaque · Construire l\'échange (1-2-3 touches)', 'Défense · Réception en manchette vers le passeur', 'Défense · Se déplacer vers la balle, lire la trajectoire', 'Défense · Couvrir le terrain, placement', 'Défense · Contre au filet', 'Rôles · Rotation, communication (« j\'ai »)', 'Rôles · Arbitre / marqueur'] },
+    rugby: { n: 'Rugby', c: ['Attaque · Porteur : avancer, franchir la ligne', 'Attaque · Percuter ou éviter le défenseur', 'Attaque · Passe vers l\'arrière au bon moment', 'Attaque · Soutien du porteur', 'Attaque · Prise d\'informations (espaces, partenaires)', 'Attaque · Choix : passer, avancer, conserver', 'Défense · Plaquer en sécurité', 'Défense · Monter en ligne, ne pas laisser d\'espace', 'Défense · Contester le ballon (ruck, maul)', 'Rôles · Règles : hors-jeu, en-avant', 'Rôles · Sécurité, respect de l\'adversaire', 'Rôles · Arbitre / observateur'] },
+    ultimate: { n: 'Ultimate', c: ['Attaque · Lanceur : revers / coup droit précis', 'Attaque · Pivot pour trouver une solution', 'Attaque · Réceptionneur : appel, prise sûre', 'Attaque · Démarquage, couper dans les espaces', 'Attaque · Prise d\'informations, choix de passe', 'Défense · Marquage individuel', 'Défense · Marqueur : compter, fermer un côté', 'Défense · Interception, défense de zone', 'Rôles · Esprit du jeu, auto-arbitrage', 'Rôles · Observateur'] },
+    gen: { n: 'Général (tous sports)', c: null } } },
   matchr: { n: 'Sports de raquette', c: ['Attaque · Rompre l\'échange (accélérer, varier)', 'Attaque · Viser les espaces libres', 'Attaque · Frappe décisive au bon moment', 'Attaque · Service varié et réglementaire', 'Défense · Se replacer au centre', 'Défense · Renvoyer les balles / volants difficiles', 'Défense · Prise d\'informations sur l\'adversaire', 'Choix tactiques (long / court, gauche / droite)', 'Rôles · Arbitre / compteur', 'Rôles · Respect, fair-play'] },
   escrime: { n: 'Escrime', c: ['Attaque · Toucher au bon moment (distance)', 'Attaque · Fente, marche-fente', 'Attaque · Feinte, attaque composée', 'Défense · Parade et riposte', 'Défense · Garder la distance (rompre)', 'Prise d\'informations (lire l\'adversaire)', 'Choix d\'action (attaque, contre, attente)', 'Garde et déplacements', 'Rôles · Sécurité, salut, respect', 'Rôles · Arbitre'] },
   lutte: { n: 'Lutte', c: ['Attaque · Déséquilibrer, amener au sol', 'Attaque · Retourner (mettre en danger)', 'Attaque · Immobiliser', 'Attaque · Enchaîner les actions', 'Défense · Se protéger (rester à plat ventre, en boule)', 'Défense · Se dégager, contrer', 'Prise d\'informations (appuis, poids de l\'adversaire)', 'Choix d\'action', 'Rôles · Règle d\'or : sécurité, respect', 'Rôles · Arbitre'] },
+  natation: { n: 'Natation', c: [], sug: ['Entrée dans l\'eau', 'Coulée, alignement', 'Respiration aquatique', 'Propulsion bras / jambes', 'Allure régulière', 'Virages', 'Savoir-nager : enchaînement des actions'] },
+  sauvetage: { n: 'Sauvetage aquatique', c: [], sug: ['Entrée dans l\'eau adaptée', 'Recherche, immersion, remontée du mannequin', 'Remorquage, maintien des voies respiratoires', 'Passage des obstacles', 'Gestion de l\'effort', 'Sécurité, communication'] },
+  wod: { n: 'Crosstraining / HYROX', c: [], sug: ['Placement et postures sécuritaires', 'Amplitude des mouvements', 'Respect du nombre de répétitions', 'Gestion de l\'effort, récupération', 'Coopération dans le groupe', 'Rôle de juge / coach'] },
+  cross: { n: 'Cross du collège', c: [], sug: ['Allure régulière', 'Respect de son projet', 'Gestion de l\'effort', 'Engagement jusqu\'à l\'arrivée'] },
   co: { n: 'Course d\'orientation', c: ['Orienter la carte', 'Lire les symboles, la légende', 'Choisir un itinéraire', 'Se situer en permanence', 'Gérer son allure', 'Contrôler / poinçonner', 'Respect des consignes de sécurité'] }
 };
 const valSplit = n => { const m = /^([^·]{2,20}) · (.+)$/.exec(n); return m ? [m[1].trim(), m[2]] : [null, n]; };
 const VAL_SEC = { Attaque: '#D64545', 'Défense': '#1E5BD8', 'Rôles': '#8E44AD' };
 const VD = () => { if (!DB.valid || typeof DB.valid !== 'object') DB.valid = {}; const v = DB.valid; v.crit = v.crit || {}; v.v = v.v || {}; return v; };
-const valCrit = tool => { const v = VD(); if (!Array.isArray(v.crit[tool])) v.crit[tool] = VAL_TOOLS[tool].c.map((n, i) => ({ id: 'c' + i, n })); return v.crit[tool]; };
+const valDef = k => { const [t, sb] = k.split(':'), T = VAL_TOOLS[t]; return (sb && T.sub && T.sub[sb] && T.sub[sb].c) || T.c || []; };
+const valCrit = k => { const v = VD(); if (!Array.isArray(v.crit[k])) v.crit[k] = valDef(k).map((n, i) => ({ id: 'c' + i, n })); return v.crit[k]; };
 const valOf = (tool, cls) => { const v = VD(); v.v[tool] = v.v[tool] || {}; return (v.v[tool][cls] = v.v[tool][cls] || {}); };
 const valLvls = o => Object.keys(o || {}).filter(k => k[0] !== '_').map(k => o[k]).filter(x => x != null);
 
@@ -29,23 +41,27 @@ function openValid(tool) {
   const T = VAL_TOOLS[tool]; if (!T) return;
   if (!DB.classes.length) return toast('Créez d\'abord une classe');
   let cls = DB.classes.some(c => c.name === DB.lastClass) ? DB.lastClass : DB.classes[0].name, si = 0, view = 'eleve', undo = null;
+  VD().last = VD().last || {}; let sub = T.sub ? (T.sub[VD().last[tool]] ? VD().last[tool] : Object.keys(T.sub)[0]) : '';
+  const K = () => sub && sub !== 'gen' ? tool + ':' + sub : tool, NM = () => T.n + (sub && sub !== 'gen' ? ' · ' + T.sub[sub].n : '');
+  if (!valCrit(K()).length) view = 'crit';
   const o = document.createElement('div'); o.style.cssText = 'position:fixed;inset:0;z-index:300;background:var(--bg,#fff);overflow:auto;padding:14px 14px 40px';
   document.body.appendChild(o);
   const close = () => { o.remove(); };
   const commit = () => { save(); window.syncFlush && window.syncFlush(); };
   const sync = (n, V) => { const L = valLvls(V); if (typeof saveResult !== 'function') return; const av = epsMAvg(L);
-    if (av == null) return; const C = valCrit(tool);
-    saveResult({ key: `valid|${tool}|${cls}|${n}`, tool, label: T.n + ' · validation enseignant', classe: cls, eleve: n, valeur: EPS_M[av][0],
+    if (av == null) return; const C = valCrit(K());
+    saveResult({ key: `valid|${K()}|${cls}|${n}`, tool, label: NM() + ' · validation enseignant', classe: cls, eleve: n, valeur: EPS_M[av][0],
       detail: C.filter(c => V[c.id] != null).map(c => `${c.n} : ${EPS_M[V[c.id]][2]}`).join(' · ') }); };
   const draw = () => {
-    const st = studentsOf(cls), C = valCrit(tool), all = valOf(tool, cls); if (si >= st.length) si = 0; const n = st[si], V = all[n] || {};
+    const st = studentsOf(cls), C = valCrit(K()), all = valOf(K(), cls); if (si >= st.length) si = 0; const n = st[si], V = all[n] || {};
     const L = valLvls(V), av = epsMAvg(L);
-    o.innerHTML = `<div style="display:flex;align-items:center;gap:8px;max-width:900px;margin:0 auto"><h2 style="flex:1;margin:0;font-size:1.15rem">✅ Validation enseignant · ${esc(T.n)}</h2><button class="btn btn-ghost" style="flex:0 0 auto" data-q>✕ Fermer</button></div>
+    o.innerHTML = `<div style="display:flex;align-items:center;gap:8px;max-width:900px;margin:0 auto"><h2 style="flex:1;margin:0;font-size:1.15rem">✅ Validation enseignant · ${esc(NM())}</h2><button class="btn btn-ghost" style="flex:0 0 auto" data-q>✕ Fermer</button></div>
       <div style="max-width:900px;margin:10px auto 0">
       <div class="card"><div class="row"><div><label style="margin-top:0">Classe</label><select id="vc">${DB.classes.map(c => `<option ${c.name === cls ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</select></div>
         ${view === 'eleve' ? `<div><label style="margin-top:0">Élève</label><select id="ve">${st.map((x, k) => { const q = epsMAvg(valLvls(all[x])); return `<option value="${k}" ${k === si ? 'selected' : ''}>${q != null ? '✓ ' : ''}${esc(x)}</option>`; }).join('')}</select></div>` : ''}</div>
+        ${T.sub ? `<label>Sport</label><div class="tog">${Object.entries(T.sub).map(([k, x]) => `<button data-sub="${k}" class="${sub === k ? 'on' : ''}">${esc(x.n)}</button>`).join('')}</div>` : ''}
         <div class="tog" style="margin-top:10px">${[['eleve', '👤 Par élève'], ['classe', '📋 Tableau de la classe'], ['crit', '⚙️ Critères']].map(([k, l]) => `<button data-v="${k}" class="${view === k ? 'on' : ''}">${l}</button>`).join('')}</div></div>
-      ${view === 'eleve' ? (st.length ? `<div class="card" style="margin-top:12px"><div style="display:flex;align-items:center;gap:8px"><button class="btn btn-ghost" style="flex:0 0 auto;padding:8px 12px" id="vp" ${si ? '' : 'disabled'}>◀</button><h3 style="flex:1;margin:0;text-align:center">${esc(n)}</h3><button class="btn btn-ghost" style="flex:0 0 auto;padding:8px 12px" id="vn" ${si < st.length - 1 ? '' : 'disabled'}>▶</button></div>
+      ${view === 'eleve' && !C.length ? '<div class="card empty" style="margin-top:12px">Aucun critère pour l\'instant : créez-les dans <b>⚙️ Critères</b>.</div>' : view === 'eleve' ? (st.length ? `<div class="card" style="margin-top:12px"><div style="display:flex;align-items:center;gap:8px"><button class="btn btn-ghost" style="flex:0 0 auto;padding:8px 12px" id="vp" ${si ? '' : 'disabled'}>◀</button><h3 style="flex:1;margin:0;text-align:center">${esc(n)}</h3><button class="btn btn-ghost" style="flex:0 0 auto;padding:8px 12px" id="vn" ${si < st.length - 1 ? '' : 'disabled'}>▶</button></div>
           ${C.map((c, i) => { const [sec, nm] = valSplit(c.n), prev = i ? valSplit(C[i - 1].n)[0] : null;
             return `${sec && sec !== prev ? `<div style="margin-top:12px;font-size:.78rem;font-weight:900;text-transform:uppercase;letter-spacing:.05em;color:${VAL_SEC[sec] || 'var(--muted)'}">${esc(sec)}</div>` : ''}<div data-crow="${c.id}" style="padding:10px 0;border-top:1px solid var(--line)"><div style="font-weight:800;margin-bottom:6px">${esc(nm)} ${epsMTag(V[c.id])}</div>${epsMBar(V[c.id], 'data-vm')}</div>`; }).join('')}
           <div style="margin-top:10px;padding-top:10px;border-top:2px solid var(--line)">${av != null ? `Bilan : <b style="color:${EPS_M[av][1]}">${EPS_M[av][0]}</b> <span class="muted" style="font-size:.8rem">(${L.length}/${C.length} critères · enregistré dans Résultats des élèves)</span>` : '<span class="muted">Touchez un niveau pour chaque critère observé.</span>'}</div>
@@ -59,7 +75,8 @@ function openValid(tool) {
       : `<div class="card" style="margin-top:12px"><b>⚙️ Critères observés</b><div class="muted" style="font-size:.8rem">Modifiez, ajoutez ou retirez des critères (pour toutes les classes). Astuce : « Attaque · … », « Défense · … » ou « Rôles · … » range le critère dans une rubrique.</div>
           ${C.map((c, i) => `<div class="row" style="margin-top:8px;gap:6px"><input data-cn="${c.id}" value="${esc(c.n)}" style="flex:3"><button class="btn btn-ghost" style="flex:0 0 auto;padding:8px" data-cu="${i}" ${i ? '' : 'disabled'}>↑</button><button class="btn btn-ghost" style="flex:0 0 auto;padding:8px" data-cx="${c.id}">🗑</button></div>`).join('')}
           <div class="row" style="margin-top:10px;gap:6px"><input id="cnew" placeholder="Nouveau critère…" style="flex:3"><button class="btn btn-grad" style="flex:0 0 auto" id="cadd">＋ Ajouter</button></div>
-          <button class="btn btn-ghost btn-block" style="margin-top:10px" id="cdef">↺ Revenir aux critères proposés</button>
+          ${(T.sug || []).length ? `<button class="btn btn-ghost btn-block" style="margin-top:10px" id="csug">💡 Ajouter des critères proposés (${T.sug.length})</button>` : ''}
+          ${valDef(K()).length ? '<button class="btn btn-ghost btn-block" style="margin-top:10px" id="cdef">↺ Revenir aux critères proposés</button>' : ''}
           ${undo ? `<button class="btn btn-ghost btn-block" style="margin-top:8px" id="vund">↶ Annuler : ${esc(undo.l)}</button>` : ''}</div>`}
       </div>`;
     const $ = s => o.querySelector(s), A = s => o.querySelectorAll(s), snap = l => { undo = { l, v: JSON.stringify(VD()) }; };
@@ -67,6 +84,8 @@ function openValid(tool) {
     $('#vc').onchange = e => { cls = e.target.value; DB.lastClass = cls; si = 0; save(); draw(); };
     if ($('#ve')) $('#ve').onchange = e => { si = +e.target.value; draw(); };
     A('[data-v]').forEach(b => b.onclick = () => { view = b.dataset.v; draw(); });
+    A('[data-sub]').forEach(b => b.onclick = () => { sub = b.dataset.sub; VD().last[tool] = sub; commit(); if (!valCrit(K()).length) view = 'crit'; draw(); });
+    if ($('#csug')) $('#csug').onclick = () => { const have = new Set(C.map(c => c.n)); (T.sug || []).filter(x => !have.has(x)).forEach((x, i) => C.push({ id: 'u' + Date.now().toString(36) + i, n: x })); commit(); draw(); };
     if ($('#vp')) $('#vp').onclick = () => { si--; draw(); };
     if ($('#vn')) $('#vn').onclick = () => { si++; draw(); };
     if ($('#vnext')) $('#vnext').onclick = () => { si++; draw(); o.scrollTo(0, 0); };
@@ -75,12 +94,12 @@ function openValid(tool) {
     if ($('#vclr')) $('#vclr').onclick = () => { if (!confirm(`Effacer la validation de ${n} ?`)) return; snap('validation de ' + n + ' effacée'); delete all[n]; commit(); draw(); };
     if ($('#vund')) $('#vund').onclick = () => { DB.valid = JSON.parse(undo.v); undo = null; commit(); draw(); };
     A('[data-go]').forEach(b => b.onclick = () => { si = +b.dataset.go; view = 'eleve'; draw(); });
-    if ($('#vcsv')) $('#vcsv').onclick = () => { const st = studentsOf(cls); download(`validation-${tool}-${cls}.csv`.replace(/[^\w.-]+/g, '-'), csv([['Élève', ...C.map(c => c.n), 'Bilan'], ...st.map(x => { const W = all[x] || {}, q = epsMAvg(valLvls(W)); return [x, ...C.map(c => W[c.id] != null ? EPS_M[W[c.id]][0] : ''), q != null ? EPS_M[q][0] : '']; })])); };
+    if ($('#vcsv')) $('#vcsv').onclick = () => { const st = studentsOf(cls); download(`validation-${K().replace(':', '-')}-${cls}.csv`.replace(/[^\w.-]+/g, '-'), csv([['Élève', ...C.map(c => c.n), 'Bilan'], ...st.map(x => { const W = all[x] || {}, q = epsMAvg(valLvls(W)); return [x, ...C.map(c => W[c.id] != null ? EPS_M[W[c.id]][0] : ''), q != null ? EPS_M[q][0] : '']; })])); };
     A('[data-cn]').forEach(i => i.onchange = () => { const c = C.find(x => x.id === i.dataset.cn); if (c && i.value.trim()) { c.n = i.value.trim(); commit(); } });
     A('[data-cu]').forEach(b => b.onclick = () => { const i = +b.dataset.cu; [C[i - 1], C[i]] = [C[i], C[i - 1]]; commit(); draw(); });
-    A('[data-cx]').forEach(b => b.onclick = () => { const c = C.find(x => x.id === b.dataset.cx); if (!confirm(`Retirer le critère « ${c.n} » ? (les niveaux déjà donnés pour ce critère ne comptent plus)`)) return; snap('critère retiré'); VD().crit[tool] = C.filter(x => x !== c); commit(); draw(); });
+    A('[data-cx]').forEach(b => b.onclick = () => { const c = C.find(x => x.id === b.dataset.cx); if (!confirm(`Retirer le critère « ${c.n} » ? (les niveaux déjà donnés pour ce critère ne comptent plus)`)) return; snap('critère retiré'); VD().crit[K()] = C.filter(x => x !== c); commit(); draw(); });
     if ($('#cadd')) $('#cadd').onclick = () => { const v = $('#cnew').value.trim(); if (!v) return; C.push({ id: 'u' + Date.now().toString(36), n: v }); commit(); draw(); };
-    if ($('#cdef')) $('#cdef').onclick = () => { if (!confirm('Revenir aux critères proposés par l\'appli ?')) return; snap('critères réinitialisés'); delete VD().crit[tool]; commit(); draw(); };
+    if ($('#cdef')) $('#cdef').onclick = () => { if (!confirm('Revenir aux critères proposés par l\'appli ?')) return; snap('critères réinitialisés'); delete VD().crit[K()]; commit(); draw(); };
   };
   draw();
 }
