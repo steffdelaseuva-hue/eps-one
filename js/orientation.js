@@ -417,7 +417,7 @@ TOOL_IMPL.co = function (el) {
 
   /* ================= 3. BILAN ================= */
   function bilan(box) {
-    const S = DB.co.seances;
+    const S = window.teamFilter ? teamFilter(DB.co.seances) : DB.co.seances;
     if (!S.length) { box.innerHTML = '<div class="card empty">Aucune séance enregistrée pour l\'instant.</div>'; return; }
     const classes = [...new Set(S.map(s => s.classe || '—'))];
     let cls = classes[0];
@@ -440,7 +440,7 @@ TOOL_IMPL.co = function (el) {
       $('#bc').onchange = () => { cls = $('#bc').value; draw(); };
       box.querySelectorAll('[data-x]').forEach(b => b.onclick = () => { const g = gs[+b.dataset.x];
         if (!confirm(g.recs.length > 1 ? `Supprimer cette séance ? (${g.recs.length} enregistrements de tablettes seront supprimés)` : 'Supprimer cette séance ?')) return;
-        g.recs.forEach(s => { const i = S.indexOf(s); if (i >= 0) S.splice(i, 1); }); save(); bilan(box); });
+        g.recs.forEach(s => { const A0 = DB.co.seances, i = A0.indexOf(s); if (i >= 0) A0.splice(i, 1); }); save(); bilan(box); });
       box.querySelectorAll('[data-v]').forEach(b => b.onclick = () => { const g = gs[+b.dataset.v], p = g.p;
         $('#det').innerHTML = `<div class="section-title"><h2>${new Date(g.date).toLocaleDateString('fr-FR')} — ${esc(p.nom)}${g.recs.length > 1 ? ` <small class="muted">(${g.recs.length} tablettes)</small>` : ''}</h2></div>${ranking(g.runs.map(({ r, p: q }) => ({ r, x: result(r, q) })), p)}`; $('#det').scrollIntoView({ behavior: 'smooth' }); });
       $('#exp').onclick = () => download(`course-orientation-${cls}.csv`, csv([

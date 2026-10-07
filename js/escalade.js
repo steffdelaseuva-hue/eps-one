@@ -359,10 +359,10 @@ TOOL_IMPL.escalade = function (el) {
   /* ---------- Résultats ---------- */
   function resultats(box) {
     const f = E.filt || (E.filt = { cls: '', el: '', voie: '' });
-    const pool = E.passages.filter(p => !f.cls || p.classe === f.cls), names = [...new Set(pool.map(p => p.eleve))].sort();
+    const PS = window.teamFilter ? teamFilter(E.passages) : E.passages, pool = PS.filter(p => !f.cls || p.classe === f.cls), names = [...new Set(pool.map(p => p.eleve))].sort();
     const rows = pool.filter(p => (!f.el || p.eleve === f.el) && (!f.voie || p.voie === f.voie)).reverse();
     box.innerHTML = `<div class="card"><div class="row">
-        <div><label>Classe</label><select id="fc"><option value="">Toutes</option>${[...new Set(E.passages.map(p => p.classe))].map(c => `<option ${c === f.cls ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select></div>
+        <div><label>Classe</label><select id="fc"><option value="">Toutes</option>${[...new Set(PS.map(p => p.classe))].map(c => `<option ${c === f.cls ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select></div>
         <div><label>Élève</label><select id="fe"><option value="">Tous</option>${names.map(n => `<option ${n === f.el ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select></div></div>
         <label>Voie</label><select id="fv"><option value="">Toutes</option>${E.voies.map(w => `<option value="${w.id}" ${w.id === f.voie ? 'selected' : ''}>${esc(w.cot)} — ${esc(w.nom)}</option>`).join('')}</select></div>
       ${(() => { const c = {}, f2 = (n, k) => { if (n && (!f.el || n === f.el)) (c[n] = c[n] || { g: 0, a: 0, c: 0 })[k]++; };

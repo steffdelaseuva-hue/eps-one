@@ -54,7 +54,7 @@ function natationVite(el) {
       DB.natation.push({ date: Date.now(), classe: $('#cl')?.value || '', eleve, d, t: Math.round(t * 100) / 100, c }); save(); toast(`${eleve} : enregistré ✔`);
       run = false; acc = 0; { const e = $('#el'); if (e.tagName === 'SELECT') { if (e.selectedIndex < e.options.length - 1) e.selectedIndex++; } else e.value = ''; } $('#c').value = 0; $('#mm').value = ''; $('#ss').value = ''; $('#go').textContent = '▶ Départ'; $('#tm').textContent = '00:00,00'; res(); list(); };
     const list = () => {
-      const own = r => !(window.eleveMode && eleveMode()) || r.classe === ($('#cl')?.value || '');   // mode élève : seulement la classe en cours
+      const own = r => (!window.teamSees || teamSees(r)) && (!(window.eleveMode && eleveMode()) || r.classe === ($('#cl')?.value || ''));   // mode élève : seulement la classe en cours
       const cur = $('#fl').value, names = [...new Set(DB.natation.filter(own).map(r => r.eleve))].sort();
       $('#fl').innerHTML = '<option value="">Tous les élèves</option>' + names.map(n => `<option ${n === cur ? 'selected' : ''}>${esc(n)}</option>`).join('');
       const rows = DB.natation.map((r, i) => ({ ...r, i })).filter(r => own(r) && (!$('#fl').value || r.eleve === $('#fl').value)).reverse();
@@ -64,9 +64,9 @@ function natationVite(el) {
       $('#ls').querySelectorAll('[data-x]').forEach(b => b.onclick = () => { if (confirm('Supprimer ?')) { DB.natation.splice(+b.dataset.x, 1); save(); list(); } });
     };
     $('#fl').onchange = list;
-    $('#exp').onclick = () => { if ((window.eleveMode && eleveMode())) return profAsk(() => { profUnlock(); $('#exp').click(); }, 'Export réservé à l\'enseignant'); if (!DB.natation.length) return toast('Rien à exporter');
+    $('#exp').onclick = () => { if ((window.eleveMode && eleveMode())) return profAsk(() => { profUnlock(); $('#exp').click(); }, 'Export réservé à l\'enseignant'); const NL = window.teamFilter ? teamFilter(DB.natation) : DB.natation; if (!NL.length) return toast('Rien à exporter');
       download(`natation-${new Date().toISOString().slice(0, 10)}.csv`, csv([['Élève', 'Classe', 'Date', 'Distance (m)', 'Temps', 'Coups de bras', 'Vitesse (m/s)', 'Temps au 100 m', 'Distance par coup de bras (m)', 'Coups de bras / min', 'Indice de nage 25 m'],
-        ...DB.natation.map(r => { const x = calc(r.d, r.t, r.c); return [r.eleve, r.classe, new Date(r.date).toLocaleDateString('fr-FR'), r.d, fmt(r.t * 1000), r.c, n2(x.v), fmt(x.t100 * 1000), n2(x.amp), x.freq ? Math.round(x.freq) : '', natI(natIndice(r.d, r.t, r.c)).replace('–', '')]; })])); };
+        ...NL.map(r => { const x = calc(r.d, r.t, r.c); return [r.eleve, r.classe, new Date(r.date).toLocaleDateString('fr-FR'), r.d, fmt(r.t * 1000), r.c, n2(x.v), fmt(x.t100 * 1000), n2(x.amp), x.freq ? Math.round(x.freq) : '', natI(natIndice(r.d, r.t, r.c)).replace('–', '')]; })])); };
     res(); list();
   };
   draw();
@@ -116,7 +116,7 @@ function natationMulti(el, n) {
       if (!k) return toast('Aucun temps à enregistrer'); save(); toast(`${k} nageur(s) enregistré(s) ✔`);
       const next = Math.max(...S.lanes.map(L => L.si)) + 1;
       S.lanes.forEach((L, i) => Object.assign(L, { si: st.length ? (next + i) % st.length : 0, t0: 0, acc: 0, run: false, c: 0 })); draw(); };
-    const R = DB.natation.filter(r => !(window.eleveMode && eleveMode()) || r.classe === S.cls).slice(-8).reverse();
+    const R = DB.natation.filter(r => (!window.teamSees || teamSees(r)) && (!(window.eleveMode && eleveMode()) || r.classe === S.cls)).slice(-8).reverse();
     $('#mls').innerHTML = R.length ? `<table><tr><th>Élève</th><th>Dist.</th><th>Temps</th><th>Coups</th><th>Indice 25 m</th></tr>${R.map(r => `<tr><td><b>${esc(r.eleve)}</b></td><td>${r.d} m</td><td>${fmt(r.t * 1000)}</td><td>${r.c || '–'}</td><td><b>${natI(natIndice(r.d, r.t, r.c))}</b></td></tr>`).join('')}</table>
       <p class="muted" style="font-size:.75rem;margin:6px 0 0">Tous les résultats, avec l'export CSV, sont visibles en mode « 1 nageur ».</p>` : '<div class="empty">Aucun résultat enregistré.</div>';
   };
@@ -337,6 +337,8 @@ TOOL_IMPL.natation = function (el) {
     if (mode === 'vite' && DB.classes.length) { const mb = document.createElement('button'); mb.className = 'btn btn-ghost btn-block'; mb.setAttribute('data-cfg', 'bare'); mb.style.marginBottom = '12px'; mb.textContent = SP_BTN;
       mb.onclick = () => natManual(box, frame); box.prepend(mb); }
     if (typeof partMount === 'function') partMount(box, 'natation', p => natJoin(box, p, frame));
+    // ✅ Validation enseignant : inutile en « Savoir nager » (le test est déjà une validation)
+    const vb = document.getElementById('val-btn'); if (vb) vb.style.display = mode === 'savoir' ? 'none' : '';
   };
   frame();
   return () => { if (stop) stop(); };

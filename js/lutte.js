@@ -260,8 +260,8 @@ TOOL_IMPL.lutte = function (el) {
   function home() {
     stop(); M = null; S.view = null;
     const c = luCfg(), T = c.type, R = c.rules[T], cur = LU().current;
-    const rec = LU().seances.filter(s => s.date >= Date.now() - 7 * 864e5).sort((x, y) => y.date - x.date);
-    const hist = LU().combats.filter(m => !(window.eleveMode && eleveMode()) || !S.cls || m.cls === S.cls).sort((x, y) => (y.date || 0) - (x.date || 0));
+    const rec = LU().seances.filter(s => s.date >= Date.now() - 7 * 864e5 && (!window.teamSees || teamSees(s))).sort((x, y) => y.date - x.date);
+    const hist = LU().combats.filter(m => (!window.teamSees || teamSees(m)) && (!(window.eleveMode && eleveMode()) || !S.cls || m.cls === S.cls)).sort((x, y) => (y.date || 0) - (x.date || 0));
     el.innerHTML = `${gold()}${safety(false)}
       ${cur && cur.o ? `<div class="card" style="margin-top:12px;border:2px solid #1E9E5A"><h3>⏸ Combat en cours sur cette tablette</h3>
         <div class="mo-vs" style="margin:6px 0"><span style="background:#B8912A">${esc(cur.o.a)}</span><span class="muted" style="color:var(--muted);padding:0">vs</span><span style="background:#1E5BD8">${esc(cur.o.b)}</span></div>
@@ -606,7 +606,7 @@ TOOL_IMPL.lutte = function (el) {
   }
   function saveRec(m, o) {
     const L = LU(), i = L.combats.findIndex(x => x.id === m.id);   // anti-doublon (double appui, reprise)
-    if (i >= 0) L.combats[i] = m; else L.combats.push(m);
+    if (i >= 0) L.combats[i] = m; else L.combats.push(window.teamTag ? teamTag(m) : m);
     luResults(m);
     if (o && o.enc && o.own && !m.obsOnly) { const s = findS(o.sid); if (s) s.enCours = luEnc(s).filter(e => e.id !== o.enc); }
     delete L.current; M = null; flush(); beep(1200, .15);
@@ -661,7 +661,7 @@ TOOL_IMPL.lutte = function (el) {
         const base = C.nom.trim() || def(), ids = [], zg = C.zones > 1 ? luId() : null;
         for (let z = 0; z < C.teams.length / 2; z++) { const tm = luClone(C.teams.slice(z * 2, z * 2 + 2)); if (tm[0].name === tm[1].name) tm[1].name += ' (2)';
           const s = { id: luId(), date: Date.now() + z, kind: 'relais', nom: C.zones > 1 ? `${base} · Zone ${z + 1}` : base, classe: C.cls || '', type: T, saisie: C.saisie, variant: C.variant, teams: tm, regles: luSnap(T), enCours: [], ...(C.zones > 1 ? { zone: z + 1, zg, zn: C.zones } : {}) };
-          LU().seances.push(s); ids.push(s.id); }
+          LU().seances.push(window.teamTag ? teamTag(s) : s); ids.push(s.id); }
         flush(); beep(1200, .15); toast(C.zones > 1 ? `${C.zones} relais créés ✔ (une zone = un relais)` : 'Relais créé ✔');
         if (C.zones > 1) { home(); top(); } else sview(ids[0]); };
     };
@@ -700,7 +700,7 @@ TOOL_IMPL.lutte = function (el) {
       $('#t-ok').onclick = () => { keepC(); const ps = players(); if (ps.length < 2) return toast('Au moins 2 lutteurs');
         const order = C.mx ? shuffle(ps) : ps;
         const s = { id: luId(), date: Date.now(), kind: 'tournoi', nom: C.nom.trim() || def(), classe: C.cls || '', type: T, saisie: C.saisie, players: order, rencontres: luBracket(order), regles: luSnap(T), enCours: [], qualif: {} };
-        LU().seances.push(s); flush(); beep(1200, .15); toast(`Tournoi créé ✔ ${order.length} lutteurs`); sview(s.id); };
+        LU().seances.push(window.teamTag ? teamTag(s) : s); flush(); beep(1200, .15); toast(`Tournoi créé ✔ ${order.length} lutteurs`); sview(s.id); };
     };
     draw(); top();
   }
@@ -736,7 +736,7 @@ TOOL_IMPL.lutte = function (el) {
       el.querySelectorAll('[data-ab]').forEach(b => b.onclick = () => { keepC(); const x = st[+b.dataset.ab]; C.off.has(x) ? C.off.delete(x) : C.off.add(x); draw(); });
       $('#a-ok').onclick = () => { keepC(); const ps = players(); if (ps.length < 2) return toast('Au moins 2 lutteurs');
         const s = { id: luId(), date: Date.now(), kind: 'atp', nom: C.nom.trim() || def(), classe: C.cls || '', type: T, saisie: C.saisie, players: shuffle(ps), start: C.start, regles: luSnap(T), enCours: [] };
-        LU().seances.push(s); flush(); beep(1200, .15); toast(`Tournoi ATP créé ✔ ${ps.length} lutteurs`); sview(s.id); };
+        LU().seances.push(window.teamTag ? teamTag(s) : s); flush(); beep(1200, .15); toast(`Tournoi ATP créé ✔ ${ps.length} lutteurs`); sview(s.id); };
     };
     draw(); top();
   }

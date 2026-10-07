@@ -535,7 +535,7 @@ TOOL_IMPL.wod = function (el) {
 
   /* ================= 3. RÉSULTATS ================= */
   function resultats(box) {
-    const S = DB.wod.seances;
+    const S = window.teamFilter ? teamFilter(DB.wod.seances) : DB.wod.seances;
     if (!S.length) { box.innerHTML = '<div class="card empty">Aucune séance enregistrée pour l\'instant.</div>'; return; }
     // Regroupement à l'affichage : même jour + même classe + même épreuve = une seule séance (plusieurs tablettes)
     const day = t => new Date(t).toLocaleDateString('fr-FR'), G = [];
@@ -551,7 +551,7 @@ TOOL_IMPL.wod = function (el) {
             ${rows.map(({ g }) => { const se = x.list.find(s => s.groups.includes(g)).snap; return wodMulti(se) ? `<div style="margin-top:12px"><b>${esc(g.name)}</b>${se.blocs.map((b, k) => `<div style="margin-top:6px"><span class="muted" style="font-size:.82rem;font-weight:800">Bloc ${k + 1}</span>${synthHTML(g, se, k)}</div>`).join('')}</div>` : ''; }).join('')}</details>` : ''}</div>`; }).join('')}`;
     box.querySelectorAll('[data-x]').forEach(b => b.onclick = () => { const L = G[+b.dataset.x].list;
       if (!confirm(L.length > 1 ? `Supprimer cette séance ? (${L.length} enregistrements de tablettes)` : 'Supprimer cette séance ?')) return;
-      DB.wod.seances = S.filter(s => !L.includes(s)); save(); resultats(box); });
+      DB.wod.seances = DB.wod.seances.filter(s => !L.includes(s)); save(); resultats(box); });
     const NB = Math.max(...S.map(s => s.snap.blocs.length)), anyM = S.some(s => wodMulti(s.snap));
     // CSV : une ligne par groupe ; duo/trio/quatuor : puis une ligne par élève (profil) avec ce qu'il a fait bloc par bloc
     box.querySelector('#exp').onclick = () => download(`crosstraining-hyrox-${new Date().toISOString().slice(0, 10)}.csv`, csv([

@@ -12,15 +12,18 @@ function partToday(tool) {
   const L = Array.isArray(DB.partages) ? DB.partages : null; if (!L) return [];
   const today = partDay(Date.now()), old = L.filter(x => !x || partDay(x.date) !== today);
   if (old.length) { DB.partages = L.filter(x => !old.includes(x)); save(); }
-  return DB.partages.filter(x => x.tool === tool).sort((a, b) => b.date - a.date);
+  return DB.partages.filter(x => x.tool === tool && partMine(x)).sort((a, b) => b.date - a.date);
 }
+/* Mode Équipe (un compte pour plusieurs collègues) : on ne montre que les séances
+   de l'enseignant actif (ou celles de ses classes pour les anciennes séances non marquées) */
+function partMine(x) { return !window.teamSees || teamSees(x); }
 const partGet = id => (Array.isArray(DB.partages) ? DB.partages : []).find(x => x && x.id === id);
 // Publie (create = true) ou met à jour le modèle d'une séance ; id = id de la séance en cours
 function partPublish(tool, id, info, create) {
   if (!id) return;
   const o = partGet(id);
   if (!o) { if (!create) return; if (!Array.isArray(DB.partages)) DB.partages = [];
-    DB.partages.push({ id, tool, date: Date.now(), ...JSON.parse(JSON.stringify(info)) }); save(); return; }
+    const prof = window.teamProfOf && teamProfOf(); DB.partages.push({ id, tool, date: Date.now(), ...(prof ? { prof } : {}), ...JSON.parse(JSON.stringify(info)) }); save(); return; }
   const n = JSON.parse(JSON.stringify(info));
   if (JSON.stringify(Object.keys(n).map(k => o[k])) === JSON.stringify(Object.values(n))) return;   // rien de changé
   Object.assign(o, n); save();
@@ -45,7 +48,7 @@ function partMount(box, tool, onJoin) {
             <div class="muted">${[p.classe ? esc(p.classe) : '', new Date(p.date).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }), `${p.ng} ${p.indiv ? 'élève' : 'groupe'}${p.ng > 1 ? 's' : ''}`, p.ep ? esc(p.ep) : ''].filter(Boolean).join(' · ')}</div></div>
             <button class="btn btn-ghost" data-cfg="bare" data-px="${esc(p.id)}" title="Retirer cette séance des tablettes" style="padding:8px 12px">✕</button></div>
           <button class="btn btn-grad btn-block" data-pj="${esc(p.id)}" style="margin-top:8px;padding:16px;font-size:1.15rem">▶ Rejoindre</button></div>`).join('')}
-        <p class="muted" style="margin:8px 0 0;font-size:.8rem">Une séance lancée ici apparaît sur vos autres tablettes (même compte, synchronisées) : elles peuvent la rejoindre et suivre un groupe.</p></div>`
+        <p class="muted" style="margin:8px 0 0;font-size:.8rem">Une séance lancée ici apparaît sur vos autres tablettes (même compte, synchronisées) : elles peuvent la rejoindre et suivre un groupe.${window.teamOn && teamOn() ? '' : ' <b>Compte partagé avec un collègue ?</b> Activez « 👥 Équipe EPS » (menu Plus) : chacun ne verra que ses classes et ses séances.'}</p></div>`
       : `<p class="muted" style="margin:0 0 10px;font-size:.8rem">📥 Une séance lancée ici apparaît sur vos autres tablettes (même compte, synchronisées) : elles peuvent la rejoindre et suivre un groupe.</p>`);
     if (REC) partRecoverBind(host, tool);
     host.querySelectorAll('[data-pj]').forEach(b => b.onclick = () => { const p = partGet(b.dataset.pj); if (!p) { toast('Cette séance n\'est plus partagée'); return draw(); } onJoin(JSON.parse(JSON.stringify(p))); });

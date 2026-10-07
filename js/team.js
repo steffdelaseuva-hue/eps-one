@@ -47,6 +47,21 @@ ICONS.team = '<circle cx="9" cy="8" r="3.2"/><path d="M3 19.5c0-3.3 2.7-6 6-6s6 
   window.dbGet = k => KEYS.includes(k) && Object.getOwnPropertyDescriptor(DB, k)?.get ? RAW[k] : DB[k];
   window.dbSet = (k, v) => { if (KEYS.includes(k) && Object.getOwnPropertyDescriptor(DB, k)?.get) RAW[k] = v; else DB[k] = v; };
   teamInstall();
+  /* Mode Équipe : ce résultat / cette séance concerne-t-il l'enseignant actif ?
+     Masqué seulement s'il appartient clairement à un collègue (classe attribuée à un autre prof,
+     ou marqué à son nom). Les données restent intactes (seulement masquées à l'affichage). */
+  window.teamSees = x => {
+    const p = activeProf(); if (!p || seeAll() || !x) return true;
+    const ids = new Set(teamProfs().map(q => q.id)), other = id => id && id !== p.id && ids.has(id);
+    if (typeof x === 'object') { if (x.prof) return !other(x.prof); x = x.classe || x.cls; }
+    if (!x) return true;
+    const raw = Array.isArray(RAW.classes) ? RAW.classes : [];
+    const parts = String(x).split(/\s*[,+·/]\s*/).filter(Boolean);
+    return parts.some(n => { const c = raw.find(k => k.name === n); return !c || !other(c.prof); });
+  };
+  // marque un nouvel enregistrement au nom de l'enseignant actif
+  window.teamTag = o => { const p = activeProf(); if (p && o && !o.prof) o.prof = p.id; return o; };
+  window.teamFilter = L => (Array.isArray(L) ? L : []).filter(teamSees);
 
   const uid = () => 'p' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
   const COLS = ['#1E5BD8', '#C9A227', '#16A34A', '#DC2626', '#7C3AED', '#0891B2', '#EA580C', '#DB2777'];

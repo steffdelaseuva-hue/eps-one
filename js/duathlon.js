@@ -318,7 +318,7 @@ TOOL_IMPL.duathlon = function (el) {
       m.recs.push(C); m.groups.push(...C.groups); m.date = Math.min(m.date, C.date); if (!m.noms.includes(C.nom)) m.noms.push(C.nom); });
     return [...M.values()].map(m => (m.groups.sort((a, b) => a.name.localeCompare(b.name, 'fr', { numeric: true })), m)); };
   function results(box) {
-    const S = D.seances;
+    const S = window.teamFilter ? teamFilter(D.seances) : D.seances;
     if (!S.length) { box.innerHTML = '<div class="card empty">Aucun duathlon enregistré pour l\'instant.</div>'; return; }
     const M = merged(S);
     box.innerHTML = `<div class="section-title" style="margin-top:0"><h2>Épreuves (${M.length})</h2><button class="link" id="exp">Exporter CSV</button></div>
@@ -327,7 +327,7 @@ TOOL_IMPL.duathlon = function (el) {
         return `<div style="margin-top:12px"><div style="display:flex;justify-content:space-between;align-items:center"><div><b>${new Date(m.date).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })} · ${esc(m.classe)} · ${m.groups.length} groupe${m.groups.length > 1 ? 's' : ''}${m.recs.length > 1 ? ` (${m.recs.length} tablettes)` : ''}</b><div class="muted">${m.noms.map(esc).join(' / ')}</div></div><button class="btn btn-ghost" data-cfg="bare" data-x="${i}">🗑</button></div>${table(m, rk === 'coef')}</div>`; }).join('')}`;
     box.querySelectorAll('[data-rk]').forEach(b => b.onclick = () => { rk = b.dataset.rk; results(box); });
     box.querySelectorAll('[data-x]').forEach(b => b.onclick = () => { const m = M[+b.dataset.x];
-      if (confirm(`Supprimer cette épreuve${m.recs.length > 1 ? ` (${m.recs.length} enregistrements de tablettes)` : ''} ?`)) { m.recs.forEach(r => { const k = S.indexOf(r); if (k >= 0) S.splice(k, 1); }); save(); results(box); } });
+      if (confirm(`Supprimer cette épreuve${m.recs.length > 1 ? ` (${m.recs.length} enregistrements de tablettes)` : ''} ?`)) { m.recs.forEach(r => { const k = D.seances.indexOf(r); if (k >= 0) D.seances.splice(k, 1); }); save(); results(box); } });
     box.querySelector('#exp').onclick = () => download(`duathlon-${new Date().toISOString().slice(0, 10)}.csv`, csv([
       ['Épreuve', 'Date', 'Classe', 'Groupe', 'Élève', 'Étape', 'Points lancers', 'Tours', 'Lancers non valides', 'Boucles de pénalité', 'Pénalités course', 'Temps étape (groupe)', 'Temps cumulé (groupe)',
         'Distance (m)', 'VMA élève (km/h)', 'Potentiel VMA (km/h)', 'VMA moyenne (km/h)', 'Vitesse réalisée (km/h)', 'Coef. maîtrise (%)'],

@@ -388,9 +388,10 @@ TOOL_IMPL.match = function (el, grp = 'col') {
     clearInterval(iv); M = null; S.view = null;
     const sp = SP(), lt = S.tid && TR().find(x => x.id === S.tid), lr = lt && S.rid && lt.rencontres.find(r => r.id === S.rid);
     if (S.tid && !lt) S.tid = S.rid = null;                     // tournoi supprimé entre-temps
+    const tSee = x => !window.teamSees || teamSees(x), mSee = m => { if (!window.teamSees) return true; if (!teamSees(m)) return false; const t = m.tid && TR().find(x => x.id === m.tid); return !t || teamSees(t); };
     const lastAct = x => Math.max(x.date || 0, ...DB.matchs.filter(m => m.tid === x.id).map(m => m.date || 0));
-    const recent = TR().filter(x => inG(x.sport) && !x.fin).sort((x, y) => lastAct(y) - lastAct(x));   // tous les tournois non terminés, quelle que soit leur date
-    const finis = TR().filter(x => inG(x.sport) && x.fin).sort((x, y) => lastAct(y) - lastAct(x)), corb = (Array.isArray(DB.tournoisDel) ? DB.tournoisDel : []).filter(x => x && inG(x.sport));
+    const recent = TR().filter(x => inG(x.sport) && !x.fin && tSee(x)).sort((x, y) => lastAct(y) - lastAct(x));   // tous les tournois non terminés, quelle que soit leur date
+    const finis = TR().filter(x => inG(x.sport) && x.fin && tSee(x)).sort((x, y) => lastAct(y) - lastAct(x)), corb = (Array.isArray(DB.tournoisDel) ? DB.tournoisDel : []).filter(x => x && inG(x.sport) && tSee(x));
     el.innerHTML = `${lt ? `<div class="card" style="margin-bottom:12px;border:2px solid #B8912A"><h3>🏆 ${esc(lt.nom)}</h3>
         <div class="mo-vs" style="margin:6px 0"><span style="background:#B8912A">${esc(S.a)}</span><span class="muted" style="color:var(--muted);padding:0">vs</span><span style="background:#1E5BD8">${esc(S.b)}</span></div>
         <div class="muted" style="text-align:center;font-size:.85rem">${S.defi ? tFmt(lt) === 'atp' ? `${atpI(lt.sport)} ${S.libre ? `Match libre ATP · ${esc(S.defi.challenger)} vs ${esc(S.defi.defie)}` : `Défi ATP · ${esc(S.defi.challenger)} défie ${esc(S.defi.defie)}`}${S.arb ? ' · arbitre : ' + esc(S.arb) : ''} · compte pour le classement` : `🔺 Défi de la pyramide · ${esc(S.defi.challenger)} défie ${esc(S.defi.defie)} · compte pour le classement` : lr ? `${tFmt(lt) === 'elim' ? `🏅 ${elimName(lt, lr.round)} · le vainqueur se qualifie` : `Rencontre du tour ${lr.round}${lr.g ? ' · ' + esc(lr.g) : ''} · compte pour le classement`}` : 'Match amical · hors classement'} · ${esc(SPORTS[lt.sport]?.name || '')}</div>
@@ -430,7 +431,7 @@ TOOL_IMPL.match = function (el, grp = 'col') {
       ${S.sport === 'rugby' ? RLA_BOX : ''}
       <button class="btn btn-grad btn-block" style="margin-top:14px;padding:16px;font-size:1.05rem" id="go">▶ Lancer le match</button>
       ${(window.eleveMode && eleveMode()) ? '<div class="card muted" style="margin-top:14px;text-align:center">🔒 Historique des matchs réservé à l\'enseignant</div>' : ''}<div class="section-title" style="${(window.eleveMode && eleveMode()) ? 'display:none' : ''}"><h2>Historique des matchs</h2>${DB.matchs.length ? '<button class="link" id="hx">Exporter CSV</button>' : ''}</div>
-      <div class="card" style="padding:0;${(window.eleveMode && eleveMode()) ? 'display:none' : ''}">${DB.matchs.length ? DB.matchs.map((m, i) => [m, i]).reverse().filter(([m]) => inG(m.sport)).slice(0, 15).map(([m, i]) => {
+      <div class="card" style="padding:0;${(window.eleveMode && eleveMode()) ? 'display:none' : ''}">${DB.matchs.length ? DB.matchs.map((m, i) => [m, i]).reverse().filter(([m]) => inG(m.sport) && mSee(m)).slice(0, 15).map(([m, i]) => {
         return `<div class="list-item"><div style="flex:1"><b>${m.obsOnly ? `👁 Observations · ${esc(m.a)} vs ${esc(m.b)}` : `${esc(m.a)} ${m.sa} – ${m.sb} ${esc(m.b)}`}</b>${m.tid ? `<span class="tn-tag">🏆 ${esc((TR().find(x => x.id === m.tid) || {}).nom || m.tn || 'Tournoi')}${m.defi && !m.obsOnly ? m.libre ? ' · libre' : ' · défi' : m.tid && !m.rid && !m.obsOnly ? ' · amical' : ''}</span>` : ''}<div class="muted">${esc(SPORTS[m.sport]?.name || m.sport)} · ${new Date(m.date).toLocaleDateString('fr-FR')} ${new Date(m.date).toLocaleTimeString('fr-FR').slice(0, 5)}</div></div><button class="btn btn-ghost" data-v="${i}">👁</button><button class="btn btn-ghost" data-cfg="bare" data-x="${i}">🗑</button></div>`; }).join('') : '<div class="empty">Aucun match enregistré.</div>'}</div></div>`;
     const $ = s => el.querySelector(s);
     if ($('#tl-more')) $('#tl-more').onclick = () => { const r = $('#setup-rest'), on = r.style.display === 'none'; r.style.display = on ? '' : 'none'; $('#tl-more').textContent = on ? '⚙️ Masquer les réglages du match' : '⚙️ Afficher les réglages du match'; };
@@ -467,7 +468,7 @@ TOOL_IMPL.match = function (el, grp = 'col') {
     el.querySelectorAll('[data-v]').forEach(b => b.onclick = () => summary(DB.matchs[+b.dataset.v], true));
     if ($('#hx')) $('#hx').onclick = () => download(`matchs-${new Date().toISOString().slice(0, 10)}.csv`, csv([
       ['Date', 'Sport', 'Équipe A', 'Score A', 'Score B', 'Équipe B', 'Tirs A', 'Marqués A', 'Pertes A', 'Passes déc. A', 'Bonus A', 'Tirs B', 'Marqués B', 'Pertes B', 'Passes déc. B', 'Bonus B', 'Joueurs A', 'Joueurs B'],
-      ...DB.matchs.map(m => [new Date(m.date).toLocaleString('fr-FR'), SPORTS[m.sport]?.name || m.sport, m.a, m.sa, m.sb, m.b, ...[0, 1].flatMap(t => { const s = m.stats[t]; return [s.tirs, s.marques, s.pertes, s.passes, s.bonus]; }), (m.pa || []).join(', '), (m.pb || []).join(', ')])]));
+      ...DB.matchs.filter(mSee).map(m => [new Date(m.date).toLocaleString('fr-FR'), SPORTS[m.sport]?.name || m.sport, m.a, m.sa, m.sb, m.b, ...[0, 1].flatMap(t => { const s = m.stats[t]; return [s.tirs, s.marques, s.pertes, s.passes, s.bonus]; }), (m.pa || []).join(', '), (m.pb || []).join(', ')])]));
     if (NEW && !lt) wizard();
 
     /* ----- Préparation en 4 étapes (comme l'outil Lutte) ----- */
@@ -721,7 +722,7 @@ TOOL_IMPL.match = function (el, grp = 'col') {
         for (let k = 2, c = size / 4; c >= 1; k++, c /= 2) for (let i = 0; i < c; i++) tn.rencontres.push({ id: tuid(), round: k, slot: i, a: null, b: null });
         tn.qualif = {}; msg = `tableau de ${size}`;
       } else { tn.order = C.mx ? shuffle(names) : [...names]; msg = 'pyramide prête'; }
-      TR().push(tn); save(); beep(1200, .15); toast(`Tournoi créé ✔ ${msg}`); tview(tn.id);
+      TR().push(window.teamTag ? teamTag(tn) : tn); save(); beep(1200, .15); toast(`Tournoi créé ✔ ${msg}`); tview(tn.id);
     };
     draw(); window.scrollTo(0, 0);
   }
@@ -761,7 +762,7 @@ TOOL_IMPL.match = function (el, grp = 'col') {
       $('#a-ok').onclick = () => { keepC(); const ps = players(); if (ps.length < 2) return toast('Au moins 2 élèves présents');
         const tn = { id: tuid(), date: Date.now(), nom: C.nom.trim() || def(), classe: C.cls || '', sport: S.sport, format: 'atp', teams: ps.map(x => ({ name: x, members: [x] })), rencontres: [],
           start: C.start, confirm: C.cf, saisie: C.saisie, enCours: [], regles: curRegles() };
-        TR().push(tn); S.atp = null; save(); beep(1200, .15); toast(`Défi ATP créé ✔ ${ps.length} joueurs · ${fmtP(C.start)} pts chacun`); tview(tn.id); };
+        TR().push(window.teamTag ? teamTag(tn) : tn); S.atp = null; save(); beep(1200, .15); toast(`Défi ATP créé ✔ ${ps.length} joueurs · ${fmtP(C.start)} pts chacun`); tview(tn.id); };
     };
     draw(); window.scrollTo(0, 0);
   }
@@ -1080,7 +1081,7 @@ TOOL_IMPL.match = function (el, grp = 'col') {
           const sc = scNum(F.sa), sd = scNum(F.sb); if (sc == null || sd == null) return toast('Score invalide'); if (!sc && !sd) return toast('Saisissez le score des deux joueurs');
           const m = atpRec(T0, e.challenger, e.defie, sc, sd, $('#e-arb').value, { enc: e.id });
           if (T0.confirm !== false && !confirm(atpMsg(T0, m))) return;
-          DB.matchs.push(m); T0.enCours = atpEnc(T0).filter(x => x.id !== e.id); S.encF = null; done('Résultat enregistré ✔ classement mis à jour'); };
+          DB.matchs.push(window.teamTag ? teamTag(m) : m); T0.enCours = atpEnc(T0).filter(x => x.id !== e.id); S.encF = null; done('Résultat enregistré ✔ classement mis à jour'); };
         // match libre
         const libAB = () => { L.a = +$('#t-fa').value; L.b = +$('#t-fb').value; L.arb = $('#t-farb').value; };
         $('#t-fa').onchange = $('#t-fb').onchange = () => { libAB(); re(); };
@@ -1092,7 +1093,7 @@ TOOL_IMPL.match = function (el, grp = 'col') {
           if (sa == null || sb == null) return toast('Score invalide'); if (!sa && !sb) return toast('Saisissez le score des deux joueurs');
           const m = atpRec(T0, a, b, sa, sb, L.arb, { libre: true });
           if (T0.confirm !== false && !confirm(atpMsg(T0, m))) return;
-          DB.matchs.push(m); S.libF = null; done('Match libre enregistré ✔ classement mis à jour'); };
+          DB.matchs.push(window.teamTag ? teamTag(m) : m); S.libF = null; done('Match libre enregistré ✔ classement mis à jour'); };
         // enseignant
         const openProf = () => { const s = el.querySelector('summary[data-prof]'); if (s) s.parentElement.open = true; };
         el.querySelectorAll('[data-sai]').forEach(b => b.onclick = () => { const T0 = cur(); if (!T0 || atpMode(T0) === b.dataset.sai) return; T0.saisie = b.dataset.sai; save(); window.syncFlush && window.syncFlush();
@@ -1272,7 +1273,7 @@ TOOL_IMPL.match = function (el, grp = 'col') {
     if (!obs.length) return toast('Aucune observation saisie');
     M.acc = now(); M.run = false; M.over = true; clearInterval(iv);
     const m = { id: tuid(), ...tlink(), date: Date.now(), sport: S.sport, a: S.a, b: S.b, sa: 0, sb: 0, duree: Math.round(M.acc / 1000), nz: 0, pa: M.pa, pb: M.pb, obs, obsOnly: true, coll: false, stats: stats([], 0), ev: [] };
-    DB.matchs.push(m); saveObsResults(m); save(); window.syncFlush && window.syncFlush(); beep(1000, .3); toast('Observations enregistrées ✔'); afterSave(m);
+    DB.matchs.push(window.teamTag ? teamTag(m) : m); saveObsResults(m); save(); window.syncFlush && window.syncFlush(); beep(1000, .3); toast('Observations enregistrées ✔'); afterSave(m);
   }
   function paintZones() {
     if (!el.querySelector('[data-zl]')) return;
@@ -1340,7 +1341,7 @@ TOOL_IMPL.match = function (el, grp = 'col') {
     if (fromHistory) { $('#bk').onclick = () => { const v = S.view; v ? tview(v) : setup(); }; return; }
     $('#sv').onclick = () => { const lt = m.tid && m.defi && !m.obsOnly && TR().find(x => x.id === m.tid);
       if (lt && tFmt(lt) === 'atp' && lt.confirm !== false && !confirm(atpMsg(lt, m))) return;
-      DB.matchs.push(m); saveObsResults(m);
+      DB.matchs.push(window.teamTag ? teamTag(m) : m); saveObsResults(m);
       if (m.enc) { const T0 = TR().find(x => x.id === m.tid); if (T0) T0.enCours = atpEnc(T0).filter(e => e.id !== m.enc); }   // défi joué : retiré des défis en cours
       save(); window.syncFlush && window.syncFlush(); toast('Match enregistré ✔'); afterSave(m); };
     $('#nw').onclick = () => { const e = myEnc(); if (!confirm(`Quitter sans enregistrer ?${e ? '\n' + encMsg(e) : ''}`)) return; relEnc(); setup(); };

@@ -235,7 +235,7 @@ if (!document.getElementById('cl-css')) document.head.insertAdjacentHTML('before
   /* Classes : celles de « Mes classes » + celles trouvées dans les résultats (classe supprimée ou renommée) */
   const allClasses = () => { const s = new Set(DB.classes.map(c => c.name));
     [...(typeof TR === 'function' ? TR() : []).map(t => t.classe), ...((DB.wod || {}).seances || []).map(x => x.classe), ...((DB.co || {}).seances || []).map(x => x.classe),
-      ...((DB.combine || {}).seances || []).map(x => x.classe), ...((DB.duathlon || {}).seances || []).map(x => x.classe), ...((DB.relais || {}).courses || []).map(x => x.classe), ...((DB.cross || {}).events || []).flatMap(e => e.classes || [])].forEach(c => c && s.add(c));
+      ...((DB.combine || {}).seances || []).map(x => x.classe), ...((DB.duathlon || {}).seances || []).map(x => x.classe), ...((DB.relais || {}).courses || []).map(x => x.classe), ...((DB.cross || {}).events || []).flatMap(e => e.classes || [])].forEach(c => c && (!window.teamSees || teamSees(c)) && s.add(c));
     return [...s]; };
   const inPer = d => { if (per === 'all') return true; if (per === 'day') return new Date(d).toDateString() === new Date().toDateString(); return d >= Date.now() - 7 * 864e5; };
   const collect = cls => { const all = {}; Object.keys(SRC).forEach(k => { try { all[k] = SRC[k](cls).filter(e => inPer(e.date)).sort((a, b) => b.date - a.date); } catch (err) { console.warn('collectifs', k, err); all[k] = []; } }); return all; };

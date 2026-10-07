@@ -664,7 +664,7 @@ TOOL_IMPL.demifond = function (el) {
     C.sent = Date.now(); save(); toast(nMaj ? `${n} résultat(s) mis à jour ✔ (déjà envoyés : remplacés, sans doublon)` : `${n} résultat(s) envoyé(s) ✔`);
   }
   function results(box) {
-    const C = cur(), S = D.seances.slice().sort((a, b) => b.date - a.date);
+    const C = cur(), S = (window.teamFilter ? teamFilter(D.seances) : D.seances.slice()).sort((a, b) => b.date - a.date);
     box.innerHTML = `${C ? `<div class="card" style="border:2px solid var(--gold)"><h3 style="margin-top:0">⏱ Séance en cours · ${esc(C.nom)}</h3><div class="muted">${esc(C.classe || '')} · ${dfFormat(C.cfg)} · résultats provisoires (courses terminées)</div>
         <div id="rcur"></div><button class="btn btn-grad btn-block" data-cfg="bare" style="margin-top:10px" id="save">💾 Terminer et enregistrer</button></div>` : ''}
       <div class="section-title"><h2>Historique (${S.length})</h2>${S.length ? '<button class="link" id="expall">Exporter tout (CSV)</button>' : ''}</div>
@@ -682,7 +682,7 @@ TOOL_IMPL.demifond = function (el) {
     box.querySelectorAll('[data-send]').forEach(b => b.onclick = () => { const R = byId(b.dataset.send); if (R) { sendRes(R); results(box); } });
     box.querySelectorAll('[data-csv]').forEach(b => b.onclick = () => { const R = byId(b.dataset.csv); if (R) download(`demi-fond-${(R.classe || 'classe').replace(/\W+/g, '_')}-${new Date(R.date).toISOString().slice(0, 10)}.csv`, csvOf([R])); });
     box.querySelectorAll('[data-del]').forEach(b => b.onclick = () => { const R = byId(b.dataset.del); if (R && confirm(`Supprimer la séance « ${R.nom} » ?`)) { D.seances.splice(D.seances.indexOf(R), 1); save(); results(box); } });
-    if ($('#expall')) $('#expall').onclick = () => download(`demi-fond-${new Date().toISOString().slice(0, 10)}.csv`, csvOf(D.seances));
+    if ($('#expall')) $('#expall').onclick = () => download(`demi-fond-${new Date().toISOString().slice(0, 10)}.csv`, csvOf(S));
   }
 
   /* ---------- Calculette ---------- */

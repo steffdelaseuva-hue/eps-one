@@ -548,7 +548,7 @@ TOOL_IMPL.combine = function (el) {
 
   /* ================= 3. BILAN (cumuls) ================= */
   function bilan(box) {
-    const L = DB.combine.seances;
+    const L = window.teamFilter ? teamFilter(DB.combine.seances) : DB.combine.seances;
     if (!L.length) { box.innerHTML = '<div class="card empty">Aucune épreuve enregistrée pour l\'instant.</div>'; return; }
     const classes = [...new Set(L.map(s => s.classe))]; let cls = classes.includes(DB.lastClass) ? DB.lastClass : classes[0];
     const draw = () => {
@@ -580,7 +580,7 @@ TOOL_IMPL.combine = function (el) {
       const $ = s => box.querySelector(s);
       $('#bc').onchange = () => { cls = $('#bc').value; draw(); };
       box.querySelectorAll('[data-x]').forEach(b => b.onclick = () => { const m = M[+b.dataset.x];
-        if (confirm(`Supprimer cette épreuve${m.recs.length > 1 ? ` (${m.recs.length} enregistrements de tablettes)` : ''} ?`)) { m.recs.forEach(r => { const k = L.indexOf(r); if (k >= 0) L.splice(k, 1); }); save(); bilan(box); } });
+        if (confirm(`Supprimer cette épreuve${m.recs.length > 1 ? ` (${m.recs.length} enregistrements de tablettes)` : ''} ?`)) { m.recs.forEach(r => { const A0 = DB.combine.seances, k = A0.indexOf(r); if (k >= 0) A0.splice(k, 1); }); save(); bilan(box); } });
       $('#exp').onclick = () => download(`combine-athletique-${cls}.csv`, csv(csvRows(ss)));
     };
     draw();

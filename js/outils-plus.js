@@ -254,7 +254,7 @@ dispenses(el) {
   let edit = null;   // dispense en cours de modification
   const draw = () => {
     const f = el.querySelector('#fc')?.value ?? '';
-    const list = DB.dispenses.filter(d => !f || d.classe === f).sort((a, b) => (b.fin || '9').localeCompare(a.fin || '9'));
+    const list = DB.dispenses.filter(d => (!f || d.classe === f) && (!window.teamSees || teamSees(d))).sort((a, b) => (b.fin || '9').localeCompare(a.fin || '9'));
     const actives = list.filter(d => !d.fin || d.fin >= today()), passees = list.filter(d => d.fin && d.fin < today());
     const item = d => `<div class="list-item"><div style="flex:1"><b>${esc(d.eleve)}</b> <span class="muted">${esc(d.classe || '')}</span><br>
       <span class="pill ${d.type === 'Totale' ? 'warn' : ''}">${d.type}</span> <span class="muted">du ${frDate(d.debut)}${d.fin ? ' au ' + frDate(d.fin) : ' (sans date de fin)'}</span>
@@ -478,7 +478,7 @@ relais(el) {
   };
   // Historique : courses du même jour, même classe, même nombre de relais = une seule course (affichage seulement)
   const groupsOf = () => { const G = [];
-    DB.relais.courses.slice().sort((a, b) => (a.at || 0) - (b.at || 0)).forEach(c => { const g = c.classe && G.find(x => x.classe === c.classe && x.date === c.date && x.legs === c.legs);
+    DB.relais.courses.filter(c => !window.teamSees || teamSees(c)).sort((a, b) => (a.at || 0) - (b.at || 0)).forEach(c => { const g = c.classe && G.find(x => x.classe === c.classe && x.date === c.date && x.legs === c.legs);
       if (g) g.recs.push(c); else G.push({ date: c.date, classe: c.classe, legs: c.legs, recs: [c] }); });
     G.forEach(g => { const M = new Map(); g.recs.forEach(r => (r.teams || []).forEach(t => M.set(t.name, t))); // même équipe enregistrée 2 fois : la plus récente
       g.dist = (g.recs.find(r => r.dist) || {}).dist || 0; Object.assign(g, zOf(g.recs.slice().reverse().find(r => r.zt != null) || {})); g.teams = [...M.values()].sort((a, b) => (a.total || Infinity) - (b.total || Infinity) || b.legs.length - a.legs.length); });
@@ -569,12 +569,14 @@ journal(el) {
     <select id="fl"></select><div class="card" style="padding:0;margin-top:10px" id="ls"></div>`;
   const $ = s => el.querySelector(s);
   $('#rp').oninput = () => $('#rpv').textContent = $('#rp').value;
+  // mode Équipe : on masque le carnet des élèves des classes d'un collègue
+  const jSee = j => { if (!window.teamSees || teamSees(j)) { if (!window.activeProf || !activeProf() || j.prof) return true; const raw = dbGet('classes') || []; const cs = raw.filter(c => (c.students || []).includes(j.eleve)); return !cs.length || cs.some(c => teamSees(c.name)); } return false; };
   const draw = () => {
-    const names = [...new Set([...DB.journal.map(j => j.eleve), ...DB.classes.flatMap(c => c.students)])].sort();
+    const names = [...new Set([...DB.journal.filter(jSee).map(j => j.eleve), ...DB.classes.flatMap(c => c.students)])].sort();
     $('#dle').innerHTML = names.map(n => `<option value="${esc(n)}">`).join('');
-    const cur = $('#fl').value, used = [...new Set(DB.journal.map(j => j.eleve))].sort();
+    const cur = $('#fl').value, used = [...new Set(DB.journal.filter(jSee).map(j => j.eleve))].sort();
     $('#fl').innerHTML = '<option value="">Tous les élèves</option>' + used.map(n => `<option ${n === cur ? 'selected' : ''}>${esc(n)}</option>`).join('');
-    const list = DB.journal.map((j, i) => ({ ...j, i })).filter(j => !$('#fl').value || j.eleve === $('#fl').value).sort((a, b) => b.date.localeCompare(a.date));
+    const list = DB.journal.map((j, i) => ({ ...j, i })).filter(j => jSee(j) && (!$('#fl').value || j.eleve === $('#fl').value)).sort((a, b) => b.date.localeCompare(a.date));
     $('#ls').innerHTML = list.map(j => `<div class="list-item"><div style="flex:1"><b>${esc(j.exercice)}</b> — ${j.charge || 0} kg · ${j.series}×${j.reps} <span class="pill">RPE ${j.rpe}</span>
       <div class="muted">${esc(j.eleve)} · ${frDate(j.date)} · volume ${Math.round((j.charge || 0) * j.series * j.reps)} kg${j.note ? ' · ' + esc(j.note) : ''}</div></div><button class="btn btn-ghost" data-d="${j.i}" data-cfg="bare">🗑</button></div>`).join('') || '<div class="empty">Journal vide.</div>';
     $('#ls').querySelectorAll('[data-d]').forEach(b => b.onclick = () => { DB.journal.splice(b.dataset.d, 1); save(); draw(); });
@@ -582,11 +584,11 @@ journal(el) {
   $('#fl').onchange = draw;
   $('#add').onclick = () => {
     const eleve = $('#el').value.trim(), exercice = $('#ex').value.trim(); if (!eleve || !exercice) return toast('Élève et exercice requis');
-    DB.journal.push({ eleve, date: $('#dt').value, exercice, charge: +$('#ch').value || 0, series: +$('#se').value || 0, reps: +$('#re').value || 0, rpe: +$('#rp').value, note: $('#nt').value.trim() });
+    DB.journal.push((window.teamTag || (o => o))({ eleve, date: $('#dt').value, exercice, charge: +$('#ch').value || 0, series: +$('#se').value || 0, reps: +$('#re').value || 0, rpe: +$('#rp').value, note: $('#nt').value.trim() }));
     save(); $('#nt').value = ''; toast('Ajouté ✔'); draw();
   };
   $('#exp').onclick = () => download(`journal-muscu-${today()}.csv`, csv([['Élève', 'Date', 'Exercice', 'Charge', 'Séries', 'Répétitions', 'Ressenti', 'Volume', 'Remarque'],
-    ...DB.journal.map(j => [j.eleve, frDate(j.date), j.exercice, j.charge, j.series, j.reps, j.rpe, (j.charge || 0) * j.series * j.reps, j.note])]));
+    ...DB.journal.filter(jSee).map(j => [j.eleve, frDate(j.date), j.exercice, j.charge, j.series, j.reps, j.rpe, (j.charge || 0) * j.series * j.reps, j.note])]));
   draw();
 },
 
