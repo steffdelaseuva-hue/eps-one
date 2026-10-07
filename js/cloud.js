@@ -117,7 +117,8 @@
           <div class="row" style="margin-top:10px;gap:6px"><button class="btn btn-ghost" id="cl-chk">🔍 Vérifier ce qui est sur ${P.name}</button><button class="btn btn-ghost" id="cl-all">⬇️ Tout récupérer</button></div>
           <div id="cl-diag"></div>
           <button class="btn btn-ghost btn-block" style="margin-top:10px" id="cl-off">Arrêter ${P.name} sur cet appareil</button></div>`
-        : `<div class="card"><h3>${P.icon} ${P.name}</h3>
+        : `<div class="card"${P.rec ? ' style="border:2px solid #1E9E5A"' : ''}><h3>${P.icon} ${P.name}${P.rec ? ' <span class="pill" style="background:#1E9E5A;color:#fff;font-size:.72rem;vertical-align:middle">✓ conseillé</span>' : ''}</h3>
+          ${P.rec ? '<p style="margin:4px 0 0;font-size:.85rem;color:#1E9E5A;font-weight:700">Connexion durable (plusieurs mois) : le plus simple pour plusieurs appareils.</p>' : P.id === 'gdrive' ? '<p class="muted" style="margin:4px 0 0;font-size:.82rem">ℹ️ Google limite la connexion à 1 h : elle est renouvelée au premier toucher dans l\'app (une fenêtre Google peut s\'ouvrir un instant).</p>' : ''}
           <p style="margin:6px 0;line-height:1.45">Enregistrez et synchronisez vos données sur <b>votre ${P.name}</b> (plusieurs tablettes, fusion en fin de cours), sans passer par le serveur d'EPS ONE.</p>
           <p class="muted" style="margin:0;font-size:.82rem">${P.scopeTxt}</p>
           ${C.err ? `<p style="color:var(--danger);font-size:.85rem">${esc(C.err)}</p>` : ''}
@@ -182,7 +183,7 @@
       if (!r.ok) throw new Error('Google Drive : erreur ' + r.status);
       return r;
     }
-    makeCloud({
+    const GE = makeCloud({
       id: 'gdrive', name: 'Google Drive', icon: '<img src="icons/gdrive.png" alt="" style="width:1.3em;height:1.3em;vertical-align:-.28em;border-radius:5px;background:#fff">', metaK: 'epsone_gd_meta', baseK: 'epsone_gd_base',
       where: 'dans un dossier caché réservé à EPS ONE',
       scopeTxt: 'L\'app n\'a accès qu\'à un dossier caché qui lui est réservé : elle ne voit pas vos autres fichiers.',
@@ -202,6 +203,25 @@
       },
       revoke: () => { try { tok && google.accounts.oauth2.revoke(tok.t); } catch (e) {} tok = null; ls.set(TOK, null); },
     });
+    /* Reconnexion « invisible » : Google n'accorde qu'1 h aux applis sans serveur. Quand la connexion a expiré
+       (ou expire dans moins de 5 min), le premier toucher dans l'app la renouvelle (le navigateur exige un geste
+       de l'utilisateur ; si le compte est déjà autorisé, la fenêtre Google se referme toute seule). */
+    let lastTry = 0;
+    const gdOn = () => ls.get(STORE) === 'gdrive' && !!CID();
+    if (gdOn()) setTimeout(() => loadGIS().catch(() => {}), 1500);
+    document.addEventListener('pointerdown', () => {
+      if (!gdOn() || (tok && tok.exp > Date.now() + 300000) || Date.now() - lastTry < 120000 || !navigator.onLine) return;
+      if (!window.google?.accounts?.oauth2) { loadGIS().catch(() => {}); return; }
+      lastTry = Date.now();
+      try {
+        const c = google.accounts.oauth2.initTokenClient({ client_id: CID(), scope: SCOPE, callback: r => {
+          if (r.error || !r.access_token) return;
+          tok = { t: r.access_token, exp: Date.now() + (r.expires_in || 3600) * 1000 }; ls.set(TOK, JSON.stringify(tok));
+          GE.pull().catch(() => {}).then(() => GE.collect() || GE.push()); GE.pill(); window.cloudRefresh && window.cloudRefresh(); },
+          error_callback: () => {} });
+        c.requestAccessToken({ prompt: '' });
+      } catch (e) {}
+    }, true);
   })();
 
   /* =================== Dropbox (OAuth PKCE, dossier « Applications/EPS ONE ») =================== */
@@ -246,7 +266,7 @@
     const fail = async (r, step) => { let t = ''; try { t = (await r.text()).replace(/\s+/g, ' ').slice(0, 220); } catch (e) {} throw new Error(`Dropbox (${step}) : erreur ${r.status}${t ? ' · ' + t : ''}`); };
     const arg = o => JSON.stringify(o).replace(/[\u007f-￿]/g, c => '\\u' + c.charCodeAt(0).toString(16).padStart(4, '0'));
     const E = makeCloud({
-      id: 'dropbox', name: 'Dropbox', icon: '<img src="icons/dropbox.png" alt="" style="width:1.3em;height:1.3em;vertical-align:-.28em;border-radius:5px;background:#fff">', metaK: 'epsone_dbx_meta', baseK: 'epsone_dbx_base',
+      id: 'dropbox', name: 'Dropbox', rec: true, icon: '<img src="icons/dropbox.png" alt="" style="width:1.3em;height:1.3em;vertical-align:-.28em;border-radius:5px;background:#fff">', metaK: 'epsone_dbx_meta', baseK: 'epsone_dbx_base',
       where: 'dans le dossier « Applications/EPS ONE »',
       scopeTxt: 'L\'app n\'a accès qu\'à son propre dossier « Applications/EPS ONE » : elle ne voit pas vos autres fichiers.',
       configured: () => !!KEYAPP(), hasToken: () => tokenOK() || !!tok?.r, ensure, authorize, reauth: authorize,
@@ -283,8 +303,8 @@
   })();
 
   /* =================== Accès communs =================== */
-  const list = () => Object.values(ENGINES);
-  window.EPS_CLOUDS = () => list().filter(e => e.P.configured()).map(e => ({ id: e.P.id, name: e.P.name, icon: e.P.icon }));
+  const list = () => Object.values(ENGINES).sort((a, b) => (b.P.rec ? 1 : 0) - (a.P.rec ? 1 : 0));   // Dropbox (conseillé) en premier
+  window.EPS_CLOUDS = () => list().filter(e => e.P.configured()).map(e => ({ id: e.P.id, name: e.P.name + (e.P.rec ? ' · conseillé' : ''), icon: e.P.icon, rec: !!e.P.rec }));
   window.cloudInfo = () => { const e = list().find(x => x.on()); return e ? e.info() : null; };
   window.cloudActive = () => { const e = list().find(x => x.on()); return e ? { id: e.P.id, name: e.P.name } : null; };
   window.cloudConnect = id => ENGINES[id] && ENGINES[id].connect();
