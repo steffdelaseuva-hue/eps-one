@@ -4,9 +4,10 @@
    ========================================================= */
 /* Page Ko-fi : laisser vide tant qu'elle n'existe pas (le bouton est alors masqué) */
 const KOFI_URL = 'https://ko-fi.com/epsone';
-const APP_VERSION = '19.6';
+const APP_VERSION = '19.7';
 const APP_URL = 'https://steffdelaseuva-hue.github.io/eps-one/';
 const CHANGELOG = [
+  { v: '19.7', items: ['🛟 Copies de secours automatiques : une copie par jour sur chaque tablette (7 derniers jours) — Plus → Copies de secours : récupérer les classes manquantes, télécharger la copie ou tout remettre comme ce jour-là', 'Protection des classes : si une synchronisation (autre tablette ou autre connexion au compte) supprime des classes, un bandeau prévient et propose « ↶ Restaurer »'] },
   { v: '19.6', items: ['Mode Équipe EPS : chaque enseignant ne voit plus que ses propres résultats dans les outils (duathlon, combiné, crosstraining, CO, demi-fond, sauvetage, natation, escalade, relais, tournois et matchs, lutte, dispenses, résultats collectifs) — rien n\'est effacé, les données du collègue sont seulement masquées ; « Voir toutes les classes de l\'équipe » réaffiche tout'] },
   { v: '19.5', items: ['Natation : bouton ✅ Validation enseignant seulement en « Nager vite » (le test « Savoir nager » est déjà une validation)'] },
   { v: '19.4', items: ['Mode Équipe EPS (compte partagé entre collègues) : « Séances en cours sur vos autres tablettes » ne montre plus que les séances de l\'enseignant actif et de ses classes'] },
@@ -407,7 +408,7 @@ function openNewYear(back) {
       if (!saved && !confirm('Vous n\'avez pas téléchargé de sauvegarde. Continuer quand même ?')) return;
       if (!confirm(`Démarrer l'année ${ny} ?\nLes éléments cochés seront définitivement effacés de cet appareil.`)) return;
       if (opt('classes')) {
-        dbSet('classes', opt('keepNames') ? (dbGet('classes') || []).map(c => ({ name: c.name, students: [], ...(c.prof ? { prof: c.prof } : {}), ...(c.unss ? { unss: 1 } : {}) })) : []);
+        (window.epsClsGuardOff || (f => f()))(() => dbSet('classes', opt('keepNames') ? (dbGet('classes') || []).map(c => ({ name: c.name, students: [], ...(c.prof ? { prof: c.prof } : {}), ...(c.unss ? { unss: 1 } : {}) })) : []));
         DB.classesAll = opt('keepNames') ? (DB.classesAll || []).map(c => ({ name: c.name, students: [] })) : [];
         try { const S = JSON.parse(localStorage.getItem('chronos-eps-v1')); if (Array.isArray(S)) { S.forEach(c => c.name = ''); localStorage.setItem('chronos-eps-v1', JSON.stringify(S)); } } catch (e) {}
       }
@@ -457,6 +458,7 @@ function renderPlus() {
       ${item('team', 'grad', 'Équipe EPS · tablettes partagées', window.teamOn && teamOn() ? `Mode Équipe · ${teamProfs().length} enseignant(s)${activeProf() ? ' · ' + esc(activeProf().name) : ''}` : 'Plusieurs collègues sur le même lot de tablettes', 'openTeam()')}
       ${window.isEpsAdmin && window.isEpsAdmin() ? item('lock', 'gold', 'Accès des collègues', 'Valider ou retirer les accès à EPS ONE', 'openAccessAdmin()') : ''}
       ${item('save', 'navy', 'Espace utilisé', 'Données, photos et vidéos sur cette tablette', 'openStorage()')}
+      ${item('restore', 'grad', 'Copies de secours', 'Une copie automatique par jour · récupérer des classes', 'openBackups()')}
       ${item('save', 'blue', 'Exporter mes données', 'Fichier de sauvegarde JSON', 'exportData()')}
       ${item('restore', 'blue', 'Importer une sauvegarde', 'Restaurer depuis un fichier JSON', "document.getElementById('imp').click()")}
       ${item('share', 'grad', 'Partager l\'app', 'QR code et lien', 'openShare()')}
