@@ -27,9 +27,9 @@ const DA_OEU = [
     { n: 'Danseuses (La Classe de danse)', a: 'Edgar Degas', d: 1874, p: 'Attente, échauffement, poses.', t: [['Danseuses au repos', 'Immobilité / reprise du mouvement'], ['Le maître', 'Un meneur, les autres suivent']] }
   ] },
   { cat: 'Architecture', ic: '🏛️', L: [
-    { n: 'La Tour Eiffel', a: 'Gustave Eiffel', d: 1889, p: 'Verticalité, entrelacs, ascension.', t: [['Les piliers', 'Appuis solides, bases larges'], ['Le treillis', 'Bras et jambes entrecroisés'], ['Le sommet', 'Monter, s\'affiner']] },
-    { n: 'Musée Guggenheim de Bilbao', a: 'Frank Gehry', d: 1997, p: 'Courbes, ondulations, reflets.', t: [['Façades courbes', 'Mouvements enveloppants'], ['Reflets', 'Miroir à deux']] },
-    { n: 'Viaduc de Millau', a: 'Norman Foster', d: 2004, p: 'Lignes, tension, haubans.', t: [['Haubans', 'Lignes tendues entre deux danseurs'], ['Le tablier', 'Trajet long et continu']] }
+    { n: 'La Tour Eiffel', a: 'Gustave Eiffel', d: 1889, im: 'icons/danse/tour-eiffel.jpg', p: 'Verticalité, entrelacs, ascension.', t: [['Les piliers', 'Appuis solides, bases larges'], ['Le treillis', 'Bras et jambes entrecroisés'], ['Le sommet', 'Monter, s\'affiner']] },
+    { n: 'Musée Guggenheim de Bilbao', a: 'Frank Gehry', d: 1997, im: 'icons/danse/guggenheim-bilbao.jpg', p: 'Courbes, ondulations, reflets.', t: [['Façades courbes', 'Mouvements enveloppants'], ['Reflets', 'Miroir à deux']] },
+    { n: 'Viaduc de Millau', a: 'Norman Foster', d: 2004, im: 'icons/danse/viaduc-millau.jpg', p: 'Lignes, tension, haubans.', t: [['Haubans', 'Lignes tendues entre deux danseurs'], ['Le tablier', 'Trajet long et continu']] }
   ] },
   { cat: 'Littérature & poésie', ic: '📖', L: [
     { n: 'Liberté', a: 'Paul Éluard', d: 1942, p: 'Chaque strophe devient une phrase chorégraphique qui s\'élargit.', t: [['« J\'écris ton nom »', 'Écrire un mot avec une partie du corps'], ['Les strophes', 'Une phrase de plus à chaque strophe'], ['Le dernier vers', 'Ouverture, libération de l\'espace']] },
@@ -46,15 +46,15 @@ const DA_OEU = [
     { n: 'La migration / Le voyage', a: '', d: '', p: 'Traversée de l\'espace, valises imaginaires, soutien mutuel, usure.', t: [['La traversée', 'Grand trajet d\'un bout à l\'autre'], ['Les valises', 'Porter un poids imaginaire'], ['L\'entraide', 'Porter, soutenir, relever']] }
   ] },
   { cat: 'Musique & spectacle', ic: '🎵', L: [
-    { n: 'Le Sacre du printemps', a: 'Igor Stravinsky', d: 1913, p: 'Mouvements ancrés dans le sol, pulsation primitive, énergie brute.', t: [['Pulsation', 'Frapper le sol, rebonds'], ['Le rituel', 'Cercle, élu au centre']] },
-    { n: 'L\'Apprenti sorcier', a: 'Paul Dukas', d: 1897, p: 'Montée en puissance, répétition incontrôlable.', t: [['Le balai', 'Un geste répété qui se multiplie'], ['Le débordement', 'Accumulation, chaos']] },
-    { n: 'Boléro', a: 'Maurice Ravel', d: 1928, p: 'Répétition, crescendo, accumulation.', t: [['Le thème répété', 'Une phrase reprise par de plus en plus de danseurs'], ['Le crescendo', 'Amplitude et énergie croissantes']] },
-    { n: 'Gymnopédie n° 1', a: 'Erik Satie', d: 1888, p: 'Lenteur, continuité, douceur.', t: [['Tempo lent', 'Mouvements continus, sans arrêt']] },
-    { n: 'Clapping Music', a: 'Steve Reich', d: 1972, p: 'Canon, décalage.', t: [['Le décalage', 'Même phrase, départs décalés (canon)']] },
+    { n: 'Le Sacre du printemps', a: 'Igor Stravinsky', d: 1913, q: 'Stravinsky Le Sacre du printemps', p: 'Mouvements ancrés dans le sol, pulsation primitive, énergie brute.', t: [['Pulsation', 'Frapper le sol, rebonds'], ['Le rituel', 'Cercle, élu au centre']] },
+    { n: 'L\'Apprenti sorcier', a: 'Paul Dukas', d: 1897, q: 'Dukas L\'Apprenti sorcier', p: 'Montée en puissance, répétition incontrôlable.', t: [['Le balai', 'Un geste répété qui se multiplie'], ['Le débordement', 'Accumulation, chaos']] },
+    { n: 'Boléro', a: 'Maurice Ravel', d: 1928, q: 'Ravel Boléro', p: 'Répétition, crescendo, accumulation.', t: [['Le thème répété', 'Une phrase reprise par de plus en plus de danseurs'], ['Le crescendo', 'Amplitude et énergie croissantes']] },
+    { n: 'Gymnopédie n° 1', a: 'Erik Satie', d: 1888, q: 'Satie Gymnopédie 1', p: 'Lenteur, continuité, douceur.', t: [['Tempo lent', 'Mouvements continus, sans arrêt']] },
+    { n: 'Clapping Music', a: 'Steve Reich', d: 1972, q: 'Steve Reich Clapping Music', p: 'Canon, décalage.', t: [['Le décalage', 'Même phrase, départs décalés (canon)']] },
     { n: 'Bandes dessinées / romans graphiques', a: '', d: '', p: 'Reproduire la succession des cases.', t: [['Vignettes', 'Arrêts sur image'], ['Ellipses', 'Transitions rapides'], ['Onomatopées', 'Gestes explosifs']] },
   ] },
   { cat: 'Cinéma & récits', ic: '🎬', L: [
-    { n: 'Contagion', a: 'Steven Soderbergh', d: 2011, p: 'La propagation : contact et transmission, isolement contre groupe, invasion de l\'espace à partir d\'un point.', t: [['Gros plan sur les mains', 'Contact / toucher'], ['Affiche « biorisque »', 'Espace / forme du groupe'], ['Le geste « se toucher le visage »', 'Énergie / rupture'], ['Pulsation musicale', 'Temps / rythme'], ['L\'isolement / le groupe', 'Un corps contraint, en quarantaine, face à la masse en mouvement'], ['L\'invasion de l\'espace', 'Occuper peu à peu tout l\'espace scénique à partir d\'un seul point']],
+    { n: 'Contagion', a: 'Steven Soderbergh', d: 2011, q: 'Cliff Martinez Contagion', p: 'La propagation : contact et transmission, isolement contre groupe, invasion de l\'espace à partir d\'un point.', t: [['Gros plan sur les mains', 'Contact / toucher'], ['Affiche « biorisque »', 'Espace / forme du groupe'], ['Le geste « se toucher le visage »', 'Énergie / rupture'], ['Pulsation musicale', 'Temps / rythme'], ['L\'isolement / le groupe', 'Un corps contraint, en quarantaine, face à la masse en mouvement'], ['L\'invasion de l\'espace', 'Occuper peu à peu tout l\'espace scénique à partir d\'un seul point']],
       c: 'Créez un canon où chaque danseur reproduit la même phrase avec un temps de retard, puis vient toucher un camarade pour lui transmettre le mouvement.',
       x: [{ ty: '🎬 Vidéo', n: 'La scène du restaurant : la chaîne de transmission (début du film)', e: 'En gros plan, une série de contacts anodins : un bol de cacahuètes, une carte bancaire tendue au serveur, le lecteur de carte, puis la poignée de porte.', i: 'La micro-transmission et la réaction en chaîne.', c: 'En quatuor : le danseur 1 initie un geste précis sur une partie de son corps (ex. toucher son épaule). Dès qu\'il entre en contact avec le danseur 2, il lui « donne » ce geste. Le danseur 2 l\'incorpore, le transforme et le transmet au danseur 3, et ainsi de suite.' },
         { ty: '🖼️ Visuel', n: 'L\'affiche du film / le symbole biorisque', e: 'Un symbole compact, aux formes rayonnantes et symétriques.', i: 'L\'espace et la forme du groupe.', c: 'Partez d\'un noyau compact (le symbole). À partir de ce noyau, créez 3 formes géométriques successives (symétriques puis dissymétriques) en explorant les niveaux haut, moyen et bas, sans jamais rompre le contact.' },
@@ -127,6 +127,7 @@ TOOL_IMPL.danse = function (el) {
 .da-ov{position:fixed;inset:0;z-index:320;background:#0E1A33;color:#fff;overflow:auto;padding:18px}
 .da-ov h1{font-size:clamp(1.6rem,5vw,2.6rem);margin:6px 0}
 .da-tabs{grid-template-columns:repeat(3,1fr)}
+.da-x{border:0;background:rgba(0,0,0,.08);color:inherit;border-radius:99px;width:22px;height:22px;padding:0;font-size:.72rem;font-weight:900;line-height:22px;margin-left:4px;cursor:pointer;vertical-align:middle}.da-x.on{background:rgba(255,255,255,.3);color:#fff}
 .da-lv{display:inline-block;margin-left:6px;padding:1px 6px;border-radius:6px;font-size:.66rem;font-weight:900;background:#1B9E5A;color:#fff;vertical-align:middle}.da-lv.l2{background:#D64545}
 .da-lvs{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:8px}.da-lvs button{padding:8px 4px;border-radius:10px;border:1.5px solid var(--line);background:var(--card);font-weight:800;font-size:.78rem;color:var(--text)}
 .da-lvs button.on{background:var(--navy,#0B2A5B);color:#fff;border-color:transparent}
@@ -147,28 +148,31 @@ TOOL_IMPL.danse = function (el) {
   /* Supports de la banque : { ty: img|txt|vid|snd, k } → { n, html (aperçu), big (grand) } */
   const supOf = s => { const d = D();
     if (s.ty === 'img') { if (s.k.startsWith('svg:')) { const x = DA_SVG.find(y => y.k === s.k.slice(4)); return x && { n: x.n, c: x.c, html: x.s }; }
+      if (s.k.startsWith('oeu:')) { const o = DA_OEU.flatMap(c => c.L).find(y => y.n === s.k.slice(4)); return o && { n: o.n + (o.a ? ' · ' + o.a : ''), c: o.p, html: `<img src="${o.im}" style="width:100%;border-radius:10px">` }; }
       if (s.k.startsWith('art:')) { const a = DA_ART[+s.k.slice(4)], im = DB[daImgKey('art' + s.k.slice(4))]; return a && { n: a[0] + ' · ' + a[1], c: a[2], html: im ? `<img src="${im}" style="width:100%;border-radius:10px">` : '' }; }
       const m = d.bank.img.find(y => y.id === s.k.slice(3)), im = m && DB[daImgKey(m.id)]; return m && { n: m.n, c: m.c, html: im ? `<img src="${im}" style="width:100%;border-radius:10px">` : '' }; }
     if (s.ty === 'txt') { const x = s.k.startsWith('txt:') ? DA_TXT[+s.k.slice(4)] : d.bank.txt.find(y => y.id === s.k.slice(3)); return x && { n: x.n + (x.a ? ' · ' + x.a : ''), c: x.c, html: `<div class="da-txt">${esc(x.t)}</div>` }; }
     if (s.ty === 'vid') { const x = s.k.startsWith('vid:') ? DA_VID[+s.k.slice(4)] : null, m = !x && d.bank.vid.find(y => y.id === s.k.slice(3)); return x ? { n: x[0], c: x[2], vid: d.bank.av[s.k] } : m && { n: m.n, c: m.c, vid: m.id, url: m.url }; }
+    if (s.ty === 'mus') { const x = s.k.startsWith('mus:') ? DA_MUS[+s.k.slice(4)] : null, m = !x && d.bank.snd.find(y => y.id === s.k.slice(3)); return x ? { n: '🎼 ' + x[0] + ' · ' + x[1], c: x[3], q: x[2] } : m && { n: '🎼 ' + m.n, c: m.c, url: m.url }; }
     if (s.ty === 'snd') { const x = s.k.startsWith('snd:') ? DA_SND.find(y => y[0] === s.k.slice(4)) : null, m = !x && d.bank.snd.find(y => y.id === s.k.slice(3)); return x ? { n: x[1] + ' ' + x[2], c: x[3], gen: x[0] } : m && { n: '🎵 ' + m.n, c: m.c, aud: m.id }; }
     return null; };
-  const supChip = s => { const x = supOf(s); return x ? `<span class="da-chip on" style="background:#5B6782">${{ img: '🖼️', txt: '📖', vid: '🎬', snd: '🎵' }[s.ty]} ${esc(x.n)}</span>` : ''; };
+  const supChip = s => { const x = supOf(s); return x ? `<span class="da-chip on" style="background:#5B6782">${{ img: '🖼️', txt: '📖', vid: '🎬', snd: '🎵', mus: '🎼' }[s.ty]} ${esc(x.n)}</span>` : ''; };
   const hasSup = (ty, k) => D().cur.sup.some(s => s.ty === ty && s.k === k);
   const togSup = (ty, k) => { const C = D().cur, i = C.sup.findIndex(s => s.ty === ty && s.k === k); snapCur(i >= 0 ? 'support retiré' : 'support ajouté'); if (i >= 0) C.sup.splice(i, 1); else C.sup.push({ ty, k }); commit(); toast(i >= 0 ? 'Retiré du projet' : 'Ajouté au projet ✔'); };
   const playSnd = (k, btn) => { if (sndKey === k) { sndOff(); return false; } sndOff(); sndStop = daSound(k); sndKey = k; return true; };
   const playAud = async id => { const u = await epsVidUrl(id); if (!u) return toast('Son enregistré sur une autre tablette'); sndOff(); const a = new Audio(u); a.loop = true; a.play().catch(() => {}); sndStop = () => a.pause(); sndKey = 'a:' + id; };
   const oLine = o => o ? `${esc(o.n)}${o.a ? ' · ' + esc(o.a) : ''}${o.d ? ' (' + esc(String(o.d)) + ')' : ''}` : '';
-  const curCard = () => { const C = D().cur, o = C.o, img = o && o.img ? DB[daImgKey(o.img)] : null;
+  const curCard = () => { const C = D().cur, o = C.o, img = o && o.img ? DB[daImgKey(o.img)] : (o && o.im) || null;
     return `<div class="card da-cur"><div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start"><div><small class="muted" style="font-weight:800">🎬 PROJET EN COURS</small>
-        <div style="font-weight:900;font-size:1.05rem;margin-top:2px">${o ? oLine(o) : '<span class="muted">Aucune œuvre / thème choisi</span>'}</div>${o && o.p ? `<div class="muted" style="font-size:.82rem">${esc(o.p)}</div>` : ''}</div>
+        <div style="font-weight:900;font-size:1.05rem;margin-top:2px">${o ? `${oLine(o)} <button class="da-x" data-rm="o|0" title="Retirer">✕</button>` : '<span class="muted">Aucune œuvre / thème choisi</span>'}</div>${o && o.p ? `<div class="muted" style="font-size:.82rem">${esc(o.p)}</div>` : ''}</div>
         ${img ? `<img src="${img}" data-zi style="width:70px;height:70px;object-fit:cover;border-radius:10px;cursor:zoom-in">` : ''}</div>
-      ${C.sup.length ? `<div class="da-chips">${C.sup.map(supChip).join('')}</div>` : ''}
-      <div class="da-chips">${C.ind.length ? C.ind.map(indChip).join('') : '<span class="muted" style="font-size:.82rem">Aucun inducteur</span>'}</div>
-      ${C.proc.length ? `<div class="da-chips">${C.proc.map(prChip).join('')}</div>` : ''}
-      <div class="row" style="margin-top:10px;gap:6px"><button class="btn btn-grad" style="padding:9px" id="da-big">📺 Afficher en grand</button><button class="btn btn-ghost" style="padding:9px" id="da-sv">💾 Enregistrer pour un groupe</button></div>
+      ${C.sup.length ? `<div class="da-chips">${C.sup.map((x, i) => rmw(supChip(x), 'sup', i)).join('')}</div>` : ''}
+      <div class="da-chips">${C.ind.length ? C.ind.map((x, i) => rmw(indChip(x), 'ind', i)).join('') : '<span class="muted" style="font-size:.82rem">Aucun inducteur</span>'}</div>
+      ${C.proc.length ? `<div class="da-chips">${C.proc.map((x, i) => rmw(prChip(x), 'proc', i)).join('')}</div>` : ''}
+      <div class="row" style="margin-top:10px;gap:6px"><button class="btn btn-grad" style="padding:9px" id="da-big">📺 Afficher en grand</button><button class="btn btn-ghost" style="padding:9px" id="da-sv">💾 Enregistrer pour un groupe</button>${o || C.sup.length || C.ind.length || C.proc.length ? '<button class="btn btn-ghost" style="padding:9px;flex:0 0 auto" id="da-rz">🗑 Tout supprimer</button>' : ''}</div>
       ${undo ? `<button class="btn btn-ghost btn-block" style="margin-top:6px;padding:8px" id="da-undo">↶ Annuler : ${esc(undo.l)}</button>` : ''}</div>`; };
   const snapCur = l => { undo = { l, v: JSON.stringify(D().cur) }; };
+  const rmw = (chip, k, i) => chip ? chip.replace(/<\/span>$/, ` <button class="da-x on" data-rm="${k}|${i}" title="Retirer">✕</button></span>`) : '';
 
   function frame() {
     el.innerHTML = `<div class="da-tabs">${[['oeuvre', '🎨 Œuvre / thème'], ['banque', '🗂️ Banque'], ['ind', '🎲 Inducteurs'], ['proc', '🧩 Procédés'], ['fiches', '📋 Groupes'], ['video', '🎬 Vidéo']].map(([k, l]) => `<button data-tab="${k}" class="${tab === k ? 'on' : ''}">${l}</button>`).join('')}</div>
@@ -178,6 +182,9 @@ TOOL_IMPL.danse = function (el) {
     const $ = q => el.querySelector(q);
     if ($('#da-big')) $('#da-big').onclick = () => big(D().cur);
     if ($('#da-sv')) $('#da-sv').onclick = saveFiche;
+    el.querySelectorAll('[data-rm]').forEach(b => b.onclick = e => { e.stopPropagation(); const [k, i] = b.dataset.rm.split('|'), C = D().cur;
+      snapCur('élément retiré'); if (k === 'o') C.o = null; else C[k].splice(+i, 1); commit(); frame(); });
+    if ($('#da-rz')) $('#da-rz').onclick = () => { if (!confirm('Vider le projet en cours (œuvre, supports, inducteurs, procédés) ?\n↶ Annuler possible.')) return; snapCur('projet vidé'); D().cur = { o: null, ind: [], sup: [], proc: [] }; commit(); frame(); toast('Projet vidé · ↶ Annuler possible'); };
     if ($('#da-undo')) $('#da-undo').onclick = () => { D().cur = JSON.parse(undo.v); undo = null; commit(); frame(); };
     if ($('[data-zi]')) $('[data-zi]').onclick = e => acroZoom(e.target.src);
     ({ oeuvre: tabO, banque: tabB, ind: tabI, proc: tabP, fiches: tabF, video: tabV })[tab](el.querySelector('#da-b'));
@@ -188,8 +195,8 @@ TOOL_IMPL.danse = function (el) {
     const A = allO(), cat = A[oCat] || A[0], C = D().cur;
     box.innerHTML = `<div class="da-cats">${A.map((c, i) => `<button data-oc="${i}" class="${i === oCat ? 'on' : ''}">${c.ic} ${esc(c.cat)}${c.cat === 'Mes œuvres' ? ` (${c.L.length})` : ''}</button>`).join('')}</div>
       <button class="btn btn-ghost btn-block" style="margin-top:8px" id="da-ro">🎲 Œuvre ou thème au hasard (${esc(cat.cat)})</button>
-      ${cat.L.map((o, i) => { if (cat.cat !== 'Mes œuvres' && !ok(o.n)) return ''; const on = C.o && C.o.n === o.n, op = oOpen === oCat + '|' + i, img = o.img ? DB[daImgKey(o.img)] : null;
-        return `<div class="card da-o ${on ? 'sel' : ''}" data-oi="${i}"><div style="display:flex;gap:10px;align-items:flex-start">${img ? `<img src="${img}" style="width:56px;height:56px;object-fit:cover;border-radius:8px">` : ''}<div style="flex:1;min-width:0"><b>${on ? '✔ ' : ''}${esc(o.n)}${cat.cat !== 'Mes œuvres' ? lvB(o.n) : ''}</b><div class="muted">${[o.a, o.d].filter(Boolean).map(esc).join(' · ')}</div><div style="font-size:.84rem;margin-top:3px">${esc(o.p || '')}</div></div></div>
+      ${cat.L.map((o, i) => { if (cat.cat !== 'Mes œuvres' && !ok(o.n)) return ''; const on = C.o && C.o.n === o.n, op = oOpen === oCat + '|' + i, img = o.img ? DB[daImgKey(o.img)] : o.im || null;
+        return `<div class="card da-o ${on ? 'sel' : ''}" data-oi="${i}"><div style="display:flex;gap:10px;align-items:flex-start">${img ? `<img src="${img}" data-zi2 style="width:${o.im ? 96 : 56}px;height:${o.im ? 72 : 56}px;object-fit:cover;border-radius:8px;cursor:zoom-in">` : ''}<div style="flex:1;min-width:0"><b>${on ? '✔ ' : ''}${esc(o.n)}${cat.cat !== 'Mes œuvres' ? lvB(o.n) : ''}</b><div class="muted">${[o.a, o.d].filter(Boolean).map(esc).join(' · ')}</div><div style="font-size:.84rem;margin-top:3px">${esc(o.p || '')}</div>${o.q ? `<div style="margin-top:6px">${daMusLinks(o.q)}</div>` : ''}</div></div>
           ${op && (o.x || []).length ? `<div style="margin-top:8px;display:grid;gap:6px">${o.x.map(x => daX(x)).join('')}</div>` : ''}
           ${op && o.c ? `<div style="margin-top:8px;font-size:.85rem;padding:8px 10px;border-radius:10px;background:rgba(142,68,173,.1)">💬 <strong>Consigne :</strong> ${esc(o.c)}</div>` : ''}
           ${op && (o.t || []).length ? `<table class="da-tr"><tr><td class="muted">Élément de l'œuvre</td><td class="muted" style="font-weight:800">Consigne de mouvement</td></tr>${o.t.map(([a, b]) => `<tr><td>${esc(a)}</td><td>${esc(b)}</td></tr>`).join('')}</table>` : ''}
@@ -204,8 +211,9 @@ TOOL_IMPL.danse = function (el) {
         <button class="btn btn-grad btn-block" style="margin-top:10px" id="da-cs">💾 Ajouter et choisir</button></details>`;
     const $ = q => box.querySelector(q); let photo = null;
     box.querySelectorAll('[data-oc]').forEach(b => b.onclick = () => { oCat = +b.dataset.oc; oOpen = null; tabO(box); });
+    box.querySelectorAll('[data-zi2]').forEach(i => i.onclick = e => { e.stopPropagation(); acroZoom(i.src); });
     box.querySelectorAll('[data-ot]').forEach(b => b.onclick = () => { const k = oCat + '|' + b.dataset.ot; oOpen = oOpen === k ? null : k; tabO(box); });
-    const pickO = o => { snapCur('œuvre / thème'); D().cur.o = o ? { n: o.n, a: o.a || '', d: o.d || '', p: o.p || '', t: o.t || [], c: o.c || '', x: o.x || [], img: o.img || null } : null; commit(); frame(); };
+    const pickO = o => { snapCur('œuvre / thème'); D().cur.o = o ? { n: o.n, a: o.a || '', d: o.d || '', p: o.p || '', t: o.t || [], c: o.c || '', x: o.x || [], q: o.q || '', im: o.im || '', img: o.img || null } : null; commit(); frame(); };
     box.querySelectorAll('[data-os]').forEach(b => b.onclick = () => { const o = cat.L[+b.dataset.os]; pickO(C.o && C.o.n === o.n ? null : o); });
     $('#da-ro').onclick = () => { const L = cat.L.filter(o => cat.cat === 'Mes œuvres' || ok(o.n)); if (!L.length) return toast('Aucune œuvre dans cette catégorie'); const o = L[Math.floor(Math.random() * L.length)]; pickO(o); toast('🎲 ' + o.n); };
     box.querySelectorAll('[data-cx]').forEach(b => b.onclick = () => { const o = cat.L[+b.dataset.cx]; if (!confirm(`Supprimer « ${o.n} » de mes œuvres ?`)) return; D().custom.splice(+b.dataset.cx, 1); if (o.img) DB[daImgKey(o.img)] = null; commit(); tabO(box); });
@@ -271,9 +279,10 @@ TOOL_IMPL.danse = function (el) {
     let body = '';
     if (bt === 'img') body = `<div class="section-title"><h2>Images à danser</h2><span class="muted" style="font-size:.75rem">dessinées pour l'appli</span></div>
       <div class="da-bg">${DA_SVG.filter(x => ok(x.k)).map(x => card('img', 'svg:' + x.k, `${x.s}<b>${esc(x.n)}${lvB(x.k)}</b><div class="muted">${esc(x.c)}</div><button class="btn btn-ghost" style="padding:6px" data-zsvg="${x.k}">🔍 En grand</button>`)).join('')}</div>
-      <div class="section-title"><h2>Œuvres célèbres</h2></div><p class="muted" style="font-size:.78rem;margin:0 2px">« 🔎 Voir l'œuvre » ouvre une recherche d'images ; enregistrez l'image puis « 📷 Ajouter l'image » pour l'avoir dans l'appli (vous la projetez ensuite en grand).</p>
-      <div class="da-bg">${DA_ART.map((a, i) => { if (!ok(a[0])) return ''; const im = DB[daImgKey('art' + i)]; return card('img', 'art:' + i, `${im ? `<img src="${im}" style="width:100%;border-radius:10px">` : ''}<b>${esc(a[0])}${lvB(a[0])}</b><div class="muted">${esc(a[1])}</div><div style="font-size:.82rem">${esc(a[2])}</div>
-        <div class="row" style="gap:6px"><a class="btn btn-ghost" style="padding:6px;text-align:center" href="https://www.google.com/search?tbm=isch&q=${q(a[0] + ' ' + a[1])}" target="_blank" rel="noopener">🔎 Voir l'œuvre</a><label class="btn btn-ghost" style="padding:6px;text-align:center;margin:0;cursor:pointer">📷 ${im ? 'Changer' : 'Ajouter l\'image'}<input type="file" accept="image/*" data-artimg="${i}" style="display:none"></label></div>`); }).join('')}</div>
+      ${(() => { const L = DA_OEU.flatMap(c => c.L).filter(o => o.im && ok(o.n)); return L.length ? `<div class="section-title"><h2>Images des œuvres</h2></div><div class="da-bg">${L.map(o => card('img', 'oeu:' + o.n, `<img src="${o.im}" style="width:100%;border-radius:10px;aspect-ratio:4/3;object-fit:cover">${''}<b>${esc(o.n)}${lvB(o.n)}</b><div class="muted">${esc(o.a || '')}</div><div style="font-size:.82rem">${esc(o.p || '')}</div>`)).join('')}</div>` : ''; })()}
+      <div class="section-title"><h2>Œuvres célèbres</h2></div>${DA_ART.some((a, i) => !DB[daImgKey('art' + i)]) ? '<p class="muted" style="font-size:.78rem;margin:0 2px">Œuvre sans image : « 🔎 Voir l\'œuvre » ouvre une recherche ; enregistrez l\'image puis « 📷 Ajouter l\'image ».</p>' : ''}
+      <div class="da-bg">${DA_ART.map((a, i) => { if (!ok(a[0])) return ''; const im = DB[daImgKey('art' + i)]; return card('img', 'art:' + i, `${im ? `<img src="${im}" data-zi3 style="width:100%;border-radius:10px;cursor:zoom-in">` : ''}<b>${esc(a[0])}${lvB(a[0])}</b><div class="muted">${esc(a[1])}</div><div style="font-size:.82rem">${esc(a[2])}</div>
+        ${im ? '' : `<div class="row" style="gap:6px"><a class="btn btn-ghost" style="padding:6px;text-align:center" href="https://www.google.com/search?tbm=isch&q=${q(a[0] + ' ' + a[1])}" target="_blank" rel="noopener">🔎 Voir l'œuvre</a><label class="btn btn-ghost" style="padding:6px;text-align:center;margin:0;cursor:pointer">📷 Ajouter l'image<input type="file" accept="image/*" data-artimg="${i}" style="display:none"></label></div>`}`); }).join('')}</div>
       <div class="section-title"><h2>Mes images (${B.img.length})</h2></div>
       <div class="da-bg">${B.img.map(m => { const im = DB[daImgKey(m.id)]; return card('img', 'my' + m.id.slice(0, 0) + ':' + m.id, `${im ? `<img src="${im}" style="width:100%;border-radius:10px">` : ''}<b>${esc(m.n)}</b><div class="muted">${esc(m.c || '')}</div><button class="btn btn-ghost" style="padding:6px" data-bx="img|${m.id}">🗑 Supprimer</button>`); }).join('')}</div>
       <div class="card" style="margin-top:10px"><b>＋ Ajouter une image</b><input id="bn" placeholder="Titre" style="margin-top:6px"><input id="bc" placeholder="Consigne / piste de mouvement" style="margin-top:6px"><label class="btn btn-grad" style="display:block;text-align:center;cursor:pointer;margin-top:8px">📷 Choisir l'image<input id="bf" type="file" accept="image/*" style="display:none"></label></div>`;
@@ -286,18 +295,34 @@ TOOL_IMPL.danse = function (el) {
         ${B.vid.map(m => card('vid', 'my:' + m.id, `<b>🎬 ${esc(m.n)}</b>${m.c ? `<div style="font-size:.84rem">💬 ${esc(m.c)}</div>` : ''}<div class="row" style="gap:6px">${m.url ? `<a class="btn btn-ghost" style="padding:6px;text-align:center" href="${esc(m.url)}" target="_blank" rel="noopener">▶ Ouvrir le lien</a>` : `<button class="btn btn-ghost" style="padding:6px" data-pv="${m.id}">▶ Lire</button>`}<button class="btn btn-ghost" style="padding:6px" data-bx="vid|${m.id}">🗑</button></div>`)).join('')}</div>
       <div class="card" style="margin-top:10px"><b>＋ Ajouter un extrait vidéo</b><input id="bn" placeholder="Titre (ex. : Pina Bausch, la chute)" style="margin-top:6px"><input id="bc" placeholder="Consigne pour les élèves" style="margin-top:6px"><input id="bu" placeholder="Lien (YouTube, ENT…) — ou fichier ci-dessous" inputmode="url" autocapitalize="off" style="margin-top:6px">
         <div class="row" style="margin-top:8px;gap:6px"><button class="btn btn-grad" id="bok">💾 Ajouter le lien</button><label class="btn btn-ghost" style="text-align:center;margin:0;cursor:pointer">🎬 Fichier vidéo<input id="bf" type="file" accept="video/*" style="display:none"></label></div></div>`;
-    if (bt === 'snd') body = `<p class="muted" style="font-size:.78rem;margin:10px 2px 0">Sons créés par l'appli (aucun fichier, fonctionne sans connexion). Touchez ▶ pour écouter, ⏹ pour arrêter.</p>
+    if (bt === 'snd') body = `<div class="section-title"><h2>🎼 Musiques des œuvres</h2></div><p class="muted" style="font-size:.78rem;margin:0 2px">Le bouton ouvre la plateforme sur le morceau (l'application s'ouvre si elle est installée, sinon le site).</p>
+      <div class="da-bg">${DA_MUS.map((x, i) => !ok(x[0]) ? '' : card('mus', 'mus:' + i, `<b>🎼 ${esc(x[0])}${lvB(x[0])}</b><div class="muted">${esc(x[1])}</div><div style="font-size:.84rem">💬 ${esc(x[3])}</div>${daMusLinks(x[2])}`)).join('')}
+        ${B.snd.filter(m => m.url).map(m => card('mus', 'my:' + m.id, `<b>🎼 ${esc(m.n)}</b>${m.c ? `<div style="font-size:.84rem">💬 ${esc(m.c)}</div>` : ''}<div class="row" style="gap:6px"><a class="btn btn-ghost" style="padding:6px;text-align:center" href="${esc(m.url)}" target="_blank" rel="noopener">🎵 Écouter</a><button class="btn btn-ghost" style="padding:6px" data-bx="snd|${m.id}">🗑</button></div>`)).join('')}</div>
+      <div class="section-title"><h2>🔊 Sons créés par l'appli</h2></div><p class="muted" style="font-size:.78rem;margin:0 2px">Sons créés par l'appli (aucun fichier, fonctionne sans connexion). Touchez ▶ pour écouter, ⏹ pour arrêter.</p>
       <div class="da-bg">${DA_SND.filter(x => ok(x[0])).map(([k, e, n, c]) => card('snd', 'snd:' + k, `<b style="font-size:1.05rem">${e} ${esc(n)}${lvB(k)}</b><div style="font-size:.84rem">💬 ${esc(c)}</div><button class="btn ${sndKey === k ? 'btn-grad' : 'btn-ghost'}" style="padding:7px" data-snd="${k}">${sndKey === k ? '⏹ Arrêter' : '▶ Écouter'}</button>`)).join('')}
-        ${B.snd.map(m => card('snd', 'my:' + m.id, `<b>🎵 ${esc(m.n)}</b>${m.c ? `<div style="font-size:.84rem">💬 ${esc(m.c)}</div>` : ''}<div class="row" style="gap:6px"><button class="btn ${sndKey === 'a:' + m.id ? 'btn-grad' : 'btn-ghost'}" style="padding:6px" data-aud="${m.id}">${sndKey === 'a:' + m.id ? '⏹ Arrêter' : '▶ Écouter'}</button><button class="btn btn-ghost" style="padding:6px" data-bx="snd|${m.id}">🗑</button></div>`)).join('')}</div>
-      <div class="card" style="margin-top:10px"><b>＋ Ajouter un son ou une musique</b><input id="bn" placeholder="Titre" style="margin-top:6px"><input id="bc" placeholder="Consigne pour les élèves" style="margin-top:6px"><label class="btn btn-grad" style="display:block;text-align:center;cursor:pointer;margin-top:8px">🎵 Choisir le fichier audio<input id="bf" type="file" accept="audio/*" style="display:none"></label><p class="muted" style="font-size:.75rem;margin:6px 0 0">Gardé sur cette tablette.</p></div>`;
-    box.innerHTML = `<div class="da-cats">${[['img', '🖼️ Images'], ['txt', '📖 Textes'], ['vid', '🎬 Vidéos'], ['snd', '🎵 Sons']].map(([k, l]) => `<button data-bt="${k}" class="${bt === k ? 'on' : ''}">${l}</button>`).join('')}</div>${body}`;
+        ${B.snd.filter(m => !m.url).map(m => card('snd', 'my:' + m.id, `<b>🎵 ${esc(m.n)}</b>${m.c ? `<div style="font-size:.84rem">💬 ${esc(m.c)}</div>` : ''}<div class="row" style="gap:6px"><button class="btn ${sndKey === 'a:' + m.id ? 'btn-grad' : 'btn-ghost'}" style="padding:6px" data-aud="${m.id}">${sndKey === 'a:' + m.id ? '⏹ Arrêter' : '▶ Écouter'}</button><button class="btn btn-ghost" style="padding:6px" data-bx="snd|${m.id}">🗑</button></div>`)).join('')}</div>
+      <div class="card" style="margin-top:10px"><b>＋ Ajouter un son ou une musique</b><input id="bn" placeholder="Titre" style="margin-top:6px"><input id="bc" placeholder="Consigne pour les élèves" style="margin-top:6px"><input id="bu" placeholder="Lien vers la musique (Spotify, Deezer, Apple Music, YouTube…)" inputmode="url" autocapitalize="off" style="margin-top:6px">
+        <div class="row" style="margin-top:8px;gap:6px"><button class="btn btn-grad" id="bok">💾 Ajouter le lien</button><label class="btn btn-ghost" style="text-align:center;margin:0;cursor:pointer">🎵 Fichier audio<input id="bf" type="file" accept="audio/*" style="display:none"></label></div><p class="muted" style="font-size:.75rem;margin:6px 0 0">Un fichier audio reste sur cette tablette ; un lien fonctionne partout.</p></div>`;
+    const pools = { img: () => [...DA_OEU.flatMap(c => c.L).filter(o => o.im && ok(o.n)).map(o => ['img', 'oeu:' + o.n]), ...DA_SVG.filter(x => ok(x.k)).map(x => ['img', 'svg:' + x.k]), ...DA_ART.map((a, i) => ok(a[0]) && DB[daImgKey('art' + i)] ? ['img', 'art:' + i] : null).filter(Boolean), ...B.img.map(m => ['img', 'my:' + m.id])],
+      txt: () => [...DA_TXT.map((x, i) => ok(x.n) ? ['txt', 'txt:' + i] : null).filter(Boolean), ...B.txt.map(m => ['txt', 'my:' + m.id])],
+      vid: () => [...DA_VID.map((x, i) => ok(x[0]) ? ['vid', 'vid:' + i] : null).filter(Boolean), ...B.vid.map(m => ['vid', 'my:' + m.id])],
+      snd: () => [...DA_MUS.map((x, i) => ok(x[0]) ? ['mus', 'mus:' + i] : null).filter(Boolean), ...DA_SND.filter(x => ok(x[0])).map(x => ['snd', 'snd:' + x[0]]), ...B.snd.map(m => [m.url ? 'mus' : 'snd', 'my:' + m.id])] };
+    const pick = t => { const L = pools[t]().filter(([ty, k]) => !hasSup(ty, k)); return L.length ? L[Math.floor(Math.random() * L.length)] : null; };
+    const TN = { img: 'une image', txt: 'un texte', vid: 'une vidéo', snd: 'une musique ou un son' };
+    box.innerHTML = `<div class="card" style="margin-top:10px"><b>🎲 Tirer au sort dans la banque</b><div class="muted" style="font-size:.78rem">Le support tiré s'ajoute au projet (selon le niveau choisi en haut). Un support tiré qui ne convient pas : ✕ dans le projet, puis on retire.</div>
+        <div class="row" style="margin-top:8px;gap:6px;flex-wrap:wrap"><button class="btn btn-grad" style="padding:9px" id="br1">🎲 ${TN[bt][0].toUpperCase() + TN[bt].slice(1)} au hasard</button><button class="btn btn-ghost" style="padding:9px" id="br4">🎲 Un de chaque (image, texte, vidéo, musique)</button></div></div>
+      <div class="da-cats">${[['img', '🖼️ Images'], ['txt', '📖 Textes'], ['vid', '🎬 Vidéos'], ['snd', '🎵 Musiques & sons']].map(([k, l]) => `<button data-bt="${k}" class="${bt === k ? 'on' : ''}">${l}</button>`).join('')}</div>${body}`;
     const $ = s => box.querySelector(s), val = s => ($(s) ? $(s).value.trim() : ''), id = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
     box.querySelectorAll('[data-bt]').forEach(b => b.onclick = () => { sndOff(); bt = b.dataset.bt; tabB(box); });
+    const addR = L => { L = L.filter(Boolean); if (!L.length) return toast('Rien à tirer (tout est déjà dans le projet)'); snapCur('tirage dans la banque'); L.forEach(([ty, k]) => D().cur.sup.push({ ty, k })); commit(); frame(); toast('🎲 ' + L.map(([ty, k]) => (supOf({ ty, k }) || {}).n).join(' · ')); };
+    $('#br1').onclick = () => addR([pick(bt)]);
+    $('#br4').onclick = () => addR(['img', 'txt', 'vid', 'snd'].map(pick));
     box.querySelectorAll('[data-sup]').forEach(b => b.onclick = () => { const [ty, ...k] = b.dataset.sup.split('|'); togSup(ty, k.join('|')); frame(); });
     box.querySelectorAll('[data-zsvg]').forEach(b => b.onclick = () => { const x = DA_SVG.find(y => y.k === b.dataset.zsvg); big({ o: null, ind: [], sup: [{ ty: 'img', k: 'svg:' + x.k }], proc: [] }); });
+    box.querySelectorAll('[data-zi3]').forEach(i => i.onclick = () => acroZoom(i.src));
     box.querySelectorAll('[data-artimg]').forEach(i => i.onchange = async e => { const f = e.target.files[0]; if (!f) return; try { DB[daImgKey('art' + i.dataset.artimg)] = await acroPhoto(f); commit(); tabB(box); } catch (er) { toast(er.message); } });
     box.querySelectorAll('[data-bx]').forEach(b => b.onclick = () => { const [ty, i2] = b.dataset.bx.split('|'), L = B[ty], m = L.find(x => x.id === i2); if (!m || !confirm(`Supprimer « ${m.n} » de la banque ?`)) return;
-      B[ty] = L.filter(x => x.id !== i2); if (ty === 'img') DB[daImgKey(i2)] = null; if ((ty === 'vid' && !m.url) || ty === 'snd') epsVidDel(i2); d.cur.sup = d.cur.sup.filter(s => !(s.ty === ty && s.k === 'my:' + i2)); commit(); tabB(box); });
+      B[ty] = L.filter(x => x.id !== i2); if (ty === 'img') DB[daImgKey(i2)] = null; if ((ty === 'vid' || ty === 'snd') && !m.url) epsVidDel(i2); d.cur.sup = d.cur.sup.filter(s => !(s.ty === 'mus' && s.k === 'my:' + i2)); d.cur.sup = d.cur.sup.filter(s => !(s.ty === ty && s.k === 'my:' + i2)); commit(); tabB(box); });
     box.querySelectorAll('[data-snd]').forEach(b => b.onclick = () => { playSnd(b.dataset.snd); tabB(box); });
     box.querySelectorAll('[data-aud]').forEach(b => b.onclick = async () => { if (sndKey === 'a:' + b.dataset.aud) sndOff(); else await playAud(b.dataset.aud); tabB(box); });
     box.querySelectorAll('[data-pv]').forEach(b => b.onclick = async () => { const u = await epsVidUrl(b.dataset.pv); u ? epsVidPlay(u) : toast('Vidéo enregistrée sur une autre tablette'); });
@@ -309,7 +334,7 @@ TOOL_IMPL.danse = function (el) {
         commit(); toast('Ajouté à la banque ✔'); tabB(box); } catch (er) { toast('Impossible : ' + (er.message || '')); } };
     if ($('#bok')) $('#bok').onclick = () => { const n = val('#bn'); if (!n) return toast('Indiquez un titre');
       if (bt === 'txt') { const t = $('#bt').value.trim(); if (!t) return toast('Collez le texte'); B.txt.push({ id: id(), n, a: val('#ba'), t, c: val('#bc') }); }
-      else { const u = val('#bu'); if (!/^https?:\/\//i.test(u)) return toast('Le lien doit commencer par https://'); B.vid.push({ id: id(), n, c: val('#bc'), url: u }); }
+      else { const u = val('#bu'); if (!/^https?:\/\//i.test(u)) return toast('Le lien doit commencer par https://'); B[bt === 'snd' ? 'snd' : 'vid'].push({ id: id(), n, c: val('#bc'), url: u }); }
       commit(); toast('Ajouté à la banque ✔'); tabB(box); };
   }
 
@@ -351,14 +376,14 @@ TOOL_IMPL.danse = function (el) {
 
   /* ---------- 📺 Affichage en grand (élèves) ---------- */
   function big(P) {
-    const o = document.createElement('div'); o.className = 'da-ov'; const img = P.o && P.o.img ? DB[daImgKey(P.o.img)] : null;
+    const o = document.createElement('div'); o.className = 'da-ov'; const img = P.o && P.o.img ? DB[daImgKey(P.o.img)] : (P.o && P.o.im) || null;
     o.innerHTML = `<div style="display:flex;justify-content:space-between;gap:8px;align-items:center"><b style="opacity:.8">${P.nom ? esc(P.nom) : '💃 Danse'}</b><button class="btn btn-white" style="flex:0 0 auto" data-q>✕ Fermer</button></div>
-      ${P.o ? `<h1>🎨 ${esc(P.o.n)}</h1><div style="opacity:.85;font-size:1.1rem">${[P.o.a, P.o.d].filter(Boolean).map(esc).join(' · ')}</div>${P.o.p ? `<p style="font-size:1.2rem">${esc(P.o.p)}</p>` : ''}` : ''}
+      ${P.o ? `<h1>🎨 ${esc(P.o.n)}</h1><div style="opacity:.85;font-size:1.1rem">${[P.o.a, P.o.d].filter(Boolean).map(esc).join(' · ')}</div>${P.o.p ? `<p style="font-size:1.2rem">${esc(P.o.p)}</p>` : ''}${P.o.q ? daMusLinks(P.o.q, true) : ''}` : ''}
       ${P.o && P.o.c ? `<p style="font-size:1.25rem;padding:12px 14px;border-radius:14px;background:rgba(255,255,255,.12)">💬 ${esc(P.o.c)}</p>` : ''}
       ${P.o && (P.o.x || []).length ? `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:10px;margin:10px 0">${P.o.x.map(x => daX(x, true)).join('')}</div>` : ''}
       ${img ? `<img src="${img}" style="max-width:100%;max-height:45vh;border-radius:14px;display:block;margin:10px 0">` : ''}
       ${P.o && (P.o.t || []).length ? `<table class="da-tr" style="color:#fff;font-size:1.05rem">${P.o.t.map(([a, b]) => `<tr><td style="border-color:rgba(255,255,255,.2)">${esc(a)}</td><td style="border-color:rgba(255,255,255,.2)">${esc(b)}</td></tr>`).join('')}</table>` : ''}
-      ${(P.sup || []).map(sp => { const x = supOf(sp); if (!x) return ''; return `<div style="margin-top:14px"><h2 style="margin:0 0 6px">${{ img: '🖼️', txt: '📖', vid: '🎬', snd: '🎵' }[sp.ty]} ${esc(x.n)}</h2>${x.html ? `<div style="max-width:760px">${x.html}</div>` : ''}
+      ${(P.sup || []).map(sp => { const x = supOf(sp); if (!x) return ''; return `<div style="margin-top:14px"><h2 style="margin:0 0 6px">${{ img: '🖼️', txt: '📖', vid: '🎬', snd: '🎵', mus: '' }[sp.ty]} ${esc(x.n)}</h2>${x.q ? daMusLinks(x.q, true) : ''}${x.html ? `<div style="max-width:760px">${x.html}</div>` : ''}
         ${x.gen ? `<button class="btn btn-white" style="margin-top:6px" data-bsnd="${x.gen}">▶ Écouter</button>` : ''}${x.aud ? `<button class="btn btn-white" style="margin-top:6px" data-baud="${x.aud}">▶ Écouter</button>` : ''}${x.vid ? `<button class="btn btn-white" style="margin-top:6px" data-bvid="${x.vid}">▶ Voir la vidéo</button>` : ''}${x.url ? `<a class="btn btn-white" style="margin-top:6px;display:inline-block" href="${esc(x.url)}" target="_blank" rel="noopener">▶ Ouvrir le lien</a>` : ''}
         ${x.c ? `<p style="font-size:1.2rem;padding:10px 12px;border-radius:12px;background:rgba(255,255,255,.12)">💬 ${esc(x.c)}</p>` : ''}</div>`; }).join('')}
       ${(P.ind || []).length ? `<h2 style="margin:16px 0 6px">🎲 Inducteurs</h2>${bigCards(P.ind, famOf)}` : ''}

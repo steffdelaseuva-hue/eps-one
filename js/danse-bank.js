@@ -216,4 +216,25 @@ const DA_N2 = new Set([
   'Le Sacre du printemps', 'Clapping Music', 'Contagion', 'Un monde · l\'exclusion', 'Black Swan', 'La Peste', 'Le langage du cinéma', 'Café Müller', 'L\'Après-midi d\'un faune',
   'La métamorphose', 'Le temps qui passe', 'L\'enfermement', 'La foule'
 ]);
-const daLv = n => DA_N2.has(n) ? 2 : 1;
+const daLv = n => DA_N2.has(n) || (typeof DA_MUS_N2 !== 'undefined' && DA_MUS_N2.has(n)) ? 2 : 1;
+
+/* ---------- Musiques des œuvres : lien direct vers les plateformes (Apple Music, Spotify, Deezer, YouTube Music) ---------- */
+const DA_MUS = [
+  ['Boléro', 'Maurice Ravel', 'Ravel Boléro', 'Une phrase reprise par de plus en plus de danseurs, de plus en plus fort (accumulation).'],
+  ['Le Sacre du printemps', 'Igor Stravinsky', 'Stravinsky Le Sacre du printemps', 'Frapper le sol, rebonds, énergie brute ; un cercle, un élu au centre.'],
+  ['L\'Apprenti sorcier', 'Paul Dukas', 'Dukas L\'Apprenti sorcier', 'Un geste répété qui se multiplie et déborde : le chaos.'],
+  ['Dans l\'antre du roi de la montagne', 'Edvard Grieg', 'Grieg Peer Gynt Dans l\'antre du roi de la montagne', 'La même phrase de plus en plus vite et de plus en plus fort, jusqu\'à la rupture.'],
+  ['Gymnopédie n° 1', 'Erik Satie', 'Satie Gymnopédie 1', 'Gestes lents et continus, sans jamais s\'arrêter.'],
+  ['Les Quatre Saisons · L\'Hiver', 'Antonio Vivaldi', 'Vivaldi Quatre Saisons Hiver', 'Le froid : tremblements, gestes saccadés, se serrer les uns contre les autres.'],
+  ['Le Carnaval des animaux · Aquarium', 'Camille Saint-Saëns', 'Saint-Saëns Carnaval des animaux Aquarium', 'Flotter, onduler, glisser comme dans l\'eau.'],
+  ['Danse macabre', 'Camille Saint-Saëns', 'Saint-Saëns Danse macabre', 'Des corps raides qui se réveillent, s\'animent puis se figent au chant du coq.'],
+  ['Le Vol du bourdon', 'Nikolaï Rimski-Korsakov', 'Rimski-Korsakov Le Vol du bourdon', 'Petits gestes très rapides, trajets en zigzag.'],
+  ['Clapping Music', 'Steve Reich', 'Steve Reich Clapping Music', 'Même phrase, départs décalés (canon), puis on se retrouve.'],
+  ['Contagion · bande originale', 'Cliff Martinez', 'Cliff Martinez Contagion', 'Groupe A sur la pulsation (robots), groupe B à contre-temps (panique).'],
+  ['Le Lac des cygnes', 'Piotr Ilitch Tchaïkovski', 'Tchaikovsky Lac des cygnes', 'Bras comme des ailes, glisser, se poser ; le cygne blanc contre le cygne noir.']
+];
+const DA_MUS_N2 = new Set(['Clapping Music', 'Contagion · bande originale', 'Danse macabre', 'Le Sacre du printemps']);
+/* Boutons d'écoute : la plateforme s'ouvre sur la recherche du morceau (l'application s'ouvre si elle est installée) */
+const daMusLinks = (q, dark) => { const e = encodeURIComponent(q), st = `padding:6px 9px;font-size:.78rem;text-align:center${dark ? ';background:#fff;color:#0E1A33' : ''}`;
+  return `<div style="display:flex;flex-wrap:wrap;gap:5px">${[['Apple Music', 'https://music.apple.com/fr/search?term=' + e], ['Spotify', 'https://open.spotify.com/search/' + e], ['Deezer', 'https://www.deezer.com/fr/search/' + e], ['YouTube Music', 'https://music.youtube.com/search?q=' + e]]
+    .map(([n, u]) => `<a class="btn btn-ghost" style="${st}" href="${u}" target="_blank" rel="noopener">🎵 ${n}</a>`).join('')}</div>`; };

@@ -284,7 +284,24 @@ try{const s=localStorage.getItem(KEY); if(s) DB=Object.assign(DB,JSON.parse(s));
 /* Sauvegarde regroupée : plusieurs save() rapprochés → une seule écriture (évite les ralentissements
    quand les données sont volumineuses) ; écriture immédiate quand l'app passe en arrière-plan. */
 let _saveT=null;
-function saveNow(){clearTimeout(_saveT);_saveT=null;try{localStorage.setItem(KEY,JSON.stringify(DB));}catch(e){}}
+/* Photos (acrosport, gym, escalade, danse) rangées à part dans IndexedDB : les données restent légères dans
+   localStorage (enregistrement instantané, pas de limite des 5 Mo) ; elles restent dans DB en mémoire
+   (affichage et synchronisation inchangés). Sans IndexedDB : ancien fonctionnement (tout dans localStorage). */
+const IMG_RE=/^(acroImg_|gymImg_|escImg_|danseImg_)/, _imgSaved={};
+let _imgDB=null,_imgOK=false,_saveErr=0;
+const imgOpen=()=>_imgDB||(_imgDB=new Promise((ok,ko)=>{try{const r=indexedDB.open('epsone-images',1);r.onupgradeneeded=()=>r.result.createObjectStore('i');r.onsuccess=()=>ok(r.result);r.onerror=()=>ko(r.error);}catch(e){ko(e);}}));
+window.epsImgLoaded=false;
+window.epsImgReady=imgOpen().then(db=>new Promise(ok=>{_imgOK=true;try{const rq=db.transaction('i','readonly').objectStore('i').openCursor();
+  rq.onsuccess=()=>{const c=rq.result;if(!c)return ok();if(DB[c.key]===undefined)DB[c.key]=c.value;_imgSaved[c.key]=c.value;c.continue();};rq.onerror=()=>ok();}catch(e){ok();}}))
+  .catch(()=>{}).then(()=>{window.epsImgLoaded=true;if(_imgOK)save();try{window.dispatchEvent(new Event('eps-remote'));}catch(e){}});
+function saveNow(){clearTimeout(_saveT);_saveT=null;let out=DB;
+  if(_imgOK){out={};const put=[],del=[];
+    for(const k in DB){if(!IMG_RE.test(k)){out[k]=DB[k];continue;}const v=DB[k];if(v){if(_imgSaved[k]!==v)put.push([k,v]);}else if(_imgSaved[k]!==undefined)del.push(k);}
+    if(window.epsImgLoaded)for(const k in _imgSaved)if(!(k in DB))del.push(k);
+    put.forEach(([k,v])=>{_imgSaved[k]=v;});del.forEach(k=>{delete _imgSaved[k];});
+    if(put.length||del.length)imgOpen().then(db=>{const st=db.transaction('i','readwrite').objectStore('i');put.forEach(([k,v])=>st.put(v,k));del.forEach(k=>st.delete(k));}).catch(()=>{});}
+  try{localStorage.setItem(KEY,JSON.stringify(out));_saveErr=0;}
+  catch(e){if(!_saveErr){_saveErr=1;setTimeout(()=>toast('⚠️ Mémoire de la tablette pleine : les dernières modifications ne sont pas enregistrées (Plus › Mes données)'),60);}}}
 function save(){if(!_saveT)_saveT=setTimeout(saveNow,400);}
 addEventListener('pagehide',()=>{if(_saveT)saveNow();});
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden'&&_saveT)saveNow();});

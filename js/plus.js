@@ -4,9 +4,13 @@
    ========================================================= */
 /* Page Ko-fi : laisser vide tant qu'elle n'existe pas (le bouton est alors masqué) */
 const KOFI_URL = 'https://ko-fi.com/epsone';
-const APP_VERSION = '18.3';
+const APP_VERSION = '18.7';
 const APP_URL = 'https://steffdelaseuva-hue.github.io/eps-one/';
 const CHANGELOG = [
+  { v: '18.7', items: ['Photos (acrosport, gym, escalade, danse) rangées à part sur la tablette : l\'enregistrement redevient instantané même avec beaucoup de photos, et elles ne remplissent plus l\'espace limité des données (déplacement automatique au premier lancement, synchronisation inchangée)', 'Plus › « 💾 Espace utilisé » : jauge des données, nombre et poids des photos, espace des vidéos ; alerte si la mémoire de la tablette est pleine'] },
+  { v: '18.6', items: ['Danse · Banque : une œuvre célèbre dont l\'image est ajoutée n\'affiche plus « Voir l\'œuvre » ni « Changer » ; touchez l\'image pour l\'agrandir'] },
+  { v: '18.5', items: ['Danse : dans le projet en cours, chaque élément se retire avec ✕ (œuvre, supports, inducteurs, procédés) et « 🗑 Tout supprimer » vide le projet (↶ Annuler possible)', 'Danse : tirage au sort dans la banque — un support au hasard du type affiché, ou « un de chaque » (image, texte, vidéo, musique), selon le niveau choisi'] },
+  { v: '18.4', items: ['Danse : musiques des œuvres (Boléro, Sacre du printemps, Apprenti sorcier, Grieg, Satie, Vivaldi, Saint-Saëns, Lac des cygnes…) avec un lien direct vers Apple Music, Spotify, Deezer et YouTube Music ; ajout de vos propres liens de musique ou fichiers audio', 'Danse : images des œuvres d\'architecture (Tour Eiffel, Guggenheim de Bilbao, Viaduc de Millau) dans l\'onglet Œuvre, la Banque et l\'affichage en grand'] },
   { v: '18.3', items: ['Danse : nouvel onglet « 🗂️ Banque » — images à danser (dessinées pour l\'appli), œuvres célèbres à retrouver et à ajouter en photo, textes (La Fontaine, Hugo, Verlaine, Rimbaud, Apollinaire, Éluard, haïkus), extraits vidéo (lien de recherche ou votre propre fichier), 12 sons créés par l\'appli (cœur, pulsations, pluie, vent, tambours…) et vos propres images, textes, vidéos et sons ; chaque support s\'ajoute au projet et s\'affiche en grand', 'Danse : inducteurs reformulés simplement pour les élèves (« Léger comme une plume », « Ton coude guide tout ton corps »…)', 'Danse : nouvel onglet « 🧩 Procédés » de composition (temps, espace, groupe, énergie) à choisir ou tirer au sort', 'Danse : tout est classé en Niveau 1 (basiques) et Niveau 2 (plus complexes), avec un filtre et des tirages par niveau'] },
   { v: '18.2', items: ['Danse : les œuvres peuvent proposer des extraits précis (🎬 vidéo, 🖼️ visuel, 📖 texte, 🎵 son) avec l\'extrait, l\'inducteur et la consigne pour les élèves — exemple complet avec Contagion (scène du restaurant, affiche biorisque, explications de l\'épidémiologiste, bande originale) et son récapitulatif des déclencheurs ; affichés aussi en grand pour la classe'] },
   { v: '18.1', items: ['Nouvel outil « Danse » (Activités gymniques & artistiques) : 1/ choisir une œuvre ou un thème (arts visuels, architecture, littérature, histoire, musique, cinéma & récits, repères en danse, thèmes) avec pistes, grille de transposition « élément de l\'œuvre → consigne de mouvement » et consigne type, ou ajouter ses propres œuvres avec photo ; 2/ inducteurs en 5 familles (visuels, sonores, corporels, relationnels, imaginaires) choisis à la main ou tirés au sort, avec verrouillage 🔒 ; 3/ projets enregistrés par groupe, affichage en grand pour les élèves ; 4/ filmer les groupes et comparer deux vidéos côte à côte (départs calés, lecture synchronisée, ralenti)'] },
@@ -326,10 +330,34 @@ function openPrivacy() {
       </div>
       <div class="section-title"><h2>Mes données sur cet appareil</h2></div>
       <div class="card"><div class="result" style="margin-top:0">
-          <div class="card"><b>${DB.classes.length}</b><small>classes</small></div><div class="card"><b>${nbEleves}</b><small>élèves</small></div><div class="card"><b>${size} Ko</b><small>stockés</small></div></div>
+          <div class="card"><b>${DB.classes.length}</b><small>classes</small></div><div class="card"><b>${nbEleves}</b><small>élèves</small></div><div class="card"><b>${size} Ko</b><small>données</small></div></div>
+        <div id="mem-g" style="margin-top:12px"></div>
         <div class="row" style="margin-top:12px"><button class="btn btn-ghost" onclick="exportData()">💾 Exporter</button><button class="btn btn-danger" id="del">🗑 Tout effacer</button></div></div>`;
     el.querySelector('#del').onclick = () => { resetAll(); closeTool(); };
+    memGauge(el.querySelector('#mem-g'), size);
   });
+}
+
+/* ---------- 💾 Jauge « Espace utilisé » ---------- */
+function openStorage() {
+  openPanel('Espace utilisé', el => {
+    const size = (() => { try { return Math.round(((localStorage.getItem('mesOutilsEPS_v1') || '').length + (localStorage.getItem('chronos-eps-v1') || '').length) / 1024); } catch (e) { return 0; } })();
+    el.innerHTML = `<div class="card"><div id="mem-g"></div><button class="btn btn-ghost btn-block" style="margin-top:12px" onclick="exportData()">💾 Exporter une sauvegarde</button></div>
+      <p class="muted" style="margin:12px 4px;font-size:.82rem">Les photos (acrosport, gym, escalade, danse) et les vidéos sont rangées à part : elles ne remplissent pas l'espace des données et sont synchronisées comme avant (sauf les vidéos, qui restent sur la tablette qui les a filmées).</p>`;
+    memGauge(el.querySelector('#mem-g'), size);
+  });
+}
+async function memGauge(box, dataKo) {
+  if (!box) return;
+  const imgK = Object.keys(DB).filter(k => /^(acroImg_|gymImg_|escImg_|danseImg_)/.test(k) && DB[k]), imgKo = Math.round(imgK.reduce((a, k) => a + String(DB[k]).length, 0) / 1024);
+  let tot = null; try { if (navigator.storage && navigator.storage.estimate) tot = await navigator.storage.estimate(); } catch (e) {}
+  const pct = Math.min(100, Math.round(dataKo / 4800 * 100)), col = pct > 85 ? 'var(--danger,#D64545)' : pct > 60 ? '#E0892F' : 'var(--ok,#1B9E5A)';
+  const mo = b => (b / 1048576).toFixed(b > 1048576 * 10 ? 0 : 1).replace('.', ',') + ' Mo';
+  box.innerHTML = `<b>💾 Espace utilisé</b>
+    <div style="margin-top:6px;font-size:.85rem">Données (classes, résultats, réglages…) : <b>${dataKo} Ko</b> sur ~5 Mo</div>
+    <div style="height:12px;border-radius:99px;background:var(--line);overflow:hidden;margin-top:4px"><i style="display:block;height:100%;width:${Math.max(2, pct)}%;background:${col}"></i></div>
+    <div class="muted" style="font-size:.78rem;margin-top:4px">${pct > 85 ? '⚠️ Presque plein : exportez puis faites du tri (anciennes séances, résultats).' : 'Rangées à part, sans cette limite :'}</div>
+    <div style="font-size:.85rem;margin-top:4px">🖼️ Photos : <b>${imgK.length}</b> (${imgKo} Ko)${tot && tot.usage != null ? ` · 🎬 Vidéos et appli : <b>${mo(tot.usage)}</b>${tot.quota ? ` sur ${mo(tot.quota)} disponibles` : ''}` : ''}</div>`;
 }
 
 /* ---------- 🗓 Nouvelle année scolaire ---------- */
@@ -419,6 +447,7 @@ function renderPlus() {
       ${item('lock', 'navy', 'Code enseignant', (window.curPin ? curPin() : DB.profPin) ? 'Code défini · protège les réglages des outils' : 'Protéger les réglages des outils face aux élèves', 'openProfPin()')}
       ${item('team', 'grad', 'Équipe EPS · tablettes partagées', window.teamOn && teamOn() ? `Mode Équipe · ${teamProfs().length} enseignant(s)${activeProf() ? ' · ' + esc(activeProf().name) : ''}` : 'Plusieurs collègues sur le même lot de tablettes', 'openTeam()')}
       ${window.isEpsAdmin && window.isEpsAdmin() ? item('lock', 'gold', 'Accès des collègues', 'Valider ou retirer les accès à EPS ONE', 'openAccessAdmin()') : ''}
+      ${item('save', 'navy', 'Espace utilisé', 'Données, photos et vidéos sur cette tablette', 'openStorage()')}
       ${item('save', 'blue', 'Exporter mes données', 'Fichier de sauvegarde JSON', 'exportData()')}
       ${item('restore', 'blue', 'Importer une sauvegarde', 'Restaurer depuis un fichier JSON', "document.getElementById('imp').click()")}
       ${item('share', 'grad', 'Partager l\'app', 'QR code et lien', 'openShare()')}

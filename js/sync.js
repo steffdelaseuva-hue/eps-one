@@ -101,7 +101,7 @@ const readDoc = async r => { if (!r) return undefined; if (typeof r.c === 'strin
 /* ---------- Envoi (groupé) des rubriques modifiées ---------- */
 let pushing = false;
 async function pushChanged() {
-  if (!fb || !S.user || !CK || S.mismatch || !syncAllowed() || pushing) return;
+  if (!fb || !S.user || !CK || S.mismatch || !syncAllowed() || pushing || window.epsImgLoaded === false) return;
   const { doc, runTransaction } = fb.fs;
   const keys = syncKeys().filter(k => meta.keys[k]?.h !== hash(JSON.stringify(outb(k))));
   if (!keys.length) return;
@@ -207,6 +207,7 @@ function mergeData(a, b) {
 /* Branchement d'un appareil sur le compte (clé disponible) */
 async function startSync() {
   if (!syncAllowed() || !S.user) return;
+  if (window.epsImgReady) await window.epsImgReady;                     // photos rangées à part : chargées avant toute synchronisation
   S.needKey = false; S.mismatch = false;
   const ok = await keyMatches(CK);
   if (ok === false) { S.mismatch = true; S.status = 'error'; refreshUI(); return; }
