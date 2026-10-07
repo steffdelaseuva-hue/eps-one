@@ -104,6 +104,11 @@ if (!document.getElementById('cx-css')) document.head.insertAdjacentHTML('before
   const hms = t => t ? new Date(t).toLocaleTimeString('fr-FR') : '';
   const km = v => v ? v.toFixed(1).replace('.', ',') : '–';
   const col = (E, c) => COLORS[E.courses.indexOf(c) % COLORS.length] || COLORS[0];
+  /* Départs différés : vagues d'une course (classes et / ou élèves) — TOP séparé, ou décalage en minutes après le départ de la course */
+  const waveOf = (c, s) => { const W = (c && c.waves) || []; return s ? W.find(w => (w.stu || []).includes(s.k)) || W.find(w => (w.cls || []).includes(s.cls)) || null : null; };
+  const offS = w => w ? (w.offS != null ? +w.offS || 0 : +w.off > 0 ? w.off * 60 : 0) : 0;   // décalage en secondes (anciennes vagues : minutes)
+  const offTxt = w => { const t = offS(w), m = Math.floor(t / 60), x = t % 60; return m && x ? `${m} min ${x} s` : m ? `${m} min` : `${x} s`; };
+  const startOf = (c, s) => { const w = waveOf(c, s); if (!w) return c.start; if (w.start) return w.start; return c.start && offS(w) > 0 ? c.start + offS(w) * 1000 : null; };
   /* Ce que le coureur doit faire (dossards) : distance (+ nombre de tours si le tour est indiqué) ou durée */
   const tours = (d, l) => { const t = Math.round(d / l * 10) / 10; return String(t).replace('.', ',') + ' tour' + (t > 1 ? 's' : ''); };
   const todo = c => c.mode === 'temps' ? `Course aux tours${c.lap ? ' · boucle de ' + c.lap + ' m' : ''}` : `${c.dist} m${+c.lapD > 0 ? ' · ' + tours(c.dist, +c.lapD) : ''}`;
@@ -140,9 +145,9 @@ if (!document.getElementById('cx-css')) document.head.insertAdjacentHTML('before
     const courses = E.courses.map(c => {
       const P = S.filter(s => cOf.get(s.k) === c), temps = c.mode === 'temps';
       const rows = P.map(s => {
-        const T = (arrBy.get(+s.b) || []).filter(t => c.start && t >= c.start);
-        if (temps) { const L = []; T.filter(t => t <= c.start + c.dur * 60000).forEach(t => { if (!L.length || t - L[L.length - 1] >= 30000) L.push(t); });   /* même tour scanné sur 2 tablettes : compté 1 fois */ return { s, c, laps: L.length, last: L.length ? L[L.length - 1] - c.start : null, dist: L.length * (c.lap || 0), ok: L.length > 0 }; }
-        return { s, c, time: T.length ? T[0] - c.start : null, dist: c.dist, ok: T.length > 0 };
+        const S0 = startOf(c, s), T = (arrBy.get(+s.b) || []).filter(t => S0 && t >= S0);
+        if (temps) { const L = []; T.filter(t => t <= S0 + c.dur * 60000).forEach(t => { if (!L.length || t - L[L.length - 1] >= 30000) L.push(t); });   /* même tour scanné sur 2 tablettes : compté 1 fois */ return { s, c, laps: L.length, last: L.length ? L[L.length - 1] - S0 : null, dist: L.length * (c.lap || 0), ok: L.length > 0 }; }
+        return { s, c, time: T.length ? T[0] - S0 : null, dist: c.dist, ok: T.length > 0 };
       });
       const R = rows.filter(r => r.ok).sort(temps ? (a, b) => b.laps - a.laps || a.last - b.last : (a, b) => a.time - b.time);
       R.forEach((r, i) => { r.place = i + 1; const t = temps ? r.last : r.time; r.speed = t && r.dist ? r.dist / (t / 1000) * 3.6 : 0;
@@ -171,7 +176,7 @@ if (!document.getElementById('cx-css')) document.head.insertAdjacentHTML('before
   /* Remise à zéro d'une course : départ annulé + passages de ses coureurs effacés */
   function resetCourse(E, c) {
     const K = compute(E), bibs = new Set(K.S.filter(s => K.cOf.get(s.k) === c && s.b).map(s => +s.b));
-    E.arr = E.arr.filter(a => !(bibs.has(+a.b) && a.t >= c.start)); c.start = null;
+    E.arr = E.arr.filter(a => !(bibs.has(+a.b) && a.t >= c.start)); c.start = null; (c.waves || []).forEach(w => { w.start = null; });
   }
   /* ---------- Enregistrement d'un passage (caméra ou pavé) ---------- */
   const seen = new Map();   // dossard -> dernier scan caméra (anti-doublon 20 s, propre à la tablette)
@@ -180,18 +185,19 @@ if (!document.getElementById('cx-css')) document.head.insertAdjacentHTML('before
     if (!s) return { kind: 'bad', bib, msg: 'Dossard inconnu' };
     const c = K.cOf.get(s.k);
     if (!c) return { kind: 'bad', bib, s, msg: s.st === 'abs' ? 'Élève noté absent' : s.st === 'disp' ? 'Élève noté dispensé' : 'Aucune course pour cet élève' };
-    if (!c.start) {   // départ donné sur une autre tablette, pas encore reçu (hors connexion) : le passage est gardé et compté à la synchronisation
+    const S0 = startOf(c, s), wv = waveOf(c, s);
+    if (!S0) {   // départ donné sur une autre tablette, pas encore reçu (hors connexion) : le passage est gardé et compté à la synchronisation
       const mine0 = K.arrBy.get(+bib) || []; if (mine0.length && now - mine0[mine0.length - 1] < 30000) return { kind: 'warn', bib, s, c, msg: 'Déjà scanné' };
       E.arr.push({ id: uid(8), b: +bib, t: now, d: DEV, src }); commit();
-      return { kind: 'ok', bib, s, c, msg: 'Passage enregistré ✔ · départ pas reçu sur cette tablette : rang calculé après synchronisation' }; }
-    if (now < c.start) return { kind: 'warn', bib, s, c, msg: 'Avant le départ' };
-    const mine = K.arrBy.get(+bib) || [], after = mine.filter(t => t >= c.start);
+      return { kind: 'ok', bib, s, c, msg: wv && c.start ? `Passage enregistré ✔ · départ de « ${wv.n} » pas encore donné ici : compté après le TOP / la synchronisation` : 'Passage enregistré ✔ · départ pas reçu sur cette tablette : rang calculé après synchronisation' }; }
+    if (now < S0) return { kind: 'warn', bib, s, c, msg: 'Avant le départ' };
+    const mine = K.arrBy.get(+bib) || [], after = mine.filter(t => t >= S0);
     if (c.mode !== 'temps' && after.length) {
       const r = K.courses.find(x => x.c === c).R.find(x => x.s.k === s.k);
       return { kind: 'warn', bib, s, c, r, msg: 'Déjà arrivé' };
     }
     if (c.mode === 'temps') {
-      if (now > c.start + c.dur * 60000) return { kind: 'warn', bib, s, c, msg: 'Temps écoulé : passage non compté' };
+      if (now > S0 + c.dur * 60000) return { kind: 'warn', bib, s, c, msg: 'Temps écoulé : passage non compté' };
       const last = after[after.length - 1];
       if (last && now - last < 30000) return { kind: 'warn', bib, s, c, msg: 'Tour trop rapide (< 30 s)' };
     }
@@ -341,6 +347,7 @@ tr:nth-child(-n+4) td{font-weight:700}`,
       ({ courses, inscr, bibs, scan, rank })[tab](body, E);
     }
     const again = () => { const y = el.scrollTop; frame(); el.scrollTop = y; };
+    const openW = new Set();
 
     /* ---------- 🏁 Courses ---------- */
     function courses(box, E) {
@@ -356,6 +363,14 @@ tr:nth-child(-n+4) td{font-weight:700}`,
           <label>Niveaux</label><div class="seg">${LV.map(l => `<button data-lv="${l}" class="${(c.lv || []).includes(l) ? 'on' : ''}">${LVN[l]}</button>`).join('')}</div>
           <label>Sexe</label><div class="seg">${['F', 'G', 'X'].map(s => `<button data-sx="${s}" class="${c.sx === s ? 'on' : ''}">${SXN[s]}</button>`).join('')}</div>
           <label class="cx-chk"><input type="checkbox" data-main ${c.main !== false ? 'checked' : ''}> Course principale (affectation automatique + classements généraux et des classes)</label>
+          <details class="cx-wv" style="margin-top:10px" ${(c.waves || []).length || openW.has(c.id) ? 'open' : ''} data-wvd="${c.id}"><summary style="cursor:pointer;font-weight:800">⏱ Départs différés (${(c.waves || []).length})</summary>
+            ${(c.waves || []).map((w, j) => { const CS = stu(E).filter(s2 => K.cOf.get(s2.k) === c), clsC = [...new Set(CS.map(s2 => s2.cls))];
+              return `<div class="card" style="padding:8px 10px;margin-top:8px;box-shadow:none;border:1.5px solid var(--line)"><div class="row" style="gap:6px;align-items:flex-end"><div style="flex:2"><label style="margin-top:0">Nom</label><input data-wn="${i}|${j}" value="${esc(w.n)}"></div><div><label style="margin-top:0">Décalage</label><div style="display:flex;gap:4px;align-items:center"><input type="number" min="0" data-wom="${i}|${j}" value="${offS(w) ? Math.floor(offS(w) / 60) : ''}" placeholder="min" style="min-width:0"><span class="muted">min</span><input type="number" min="0" max="59" data-wos="${i}|${j}" value="${offS(w) ? offS(w) % 60 : ''}" placeholder="s" style="min-width:0"><span class="muted">s</span></div></div><button class="btn btn-ghost" style="flex:0 0 auto;padding:10px" data-wx="${i}|${j}">🗑</button></div>
+                <label>Classes</label><div class="cx-cls">${clsC.map(cl => `<button data-wc="${i}|${j}|${esc(cl)}" class="${(w.cls || []).includes(cl) ? 'on' : ''}">${esc(cl)}</button>`).join('') || '<span class="muted">—</span>'}</div>
+                <label>Élèves</label><div class="cx-cls">${(w.stu || []).map(k => { const s2 = CS.find(y => y.k === k); return s2 ? `<button class="on" data-wsx="${i}|${j}|${esc(k)}">${esc(s2.name)} ✕</button>` : ''; }).join('')}</div>
+                <select data-ws="${i}|${j}" style="margin-top:6px"><option value="">＋ Ajouter un élève…</option>${clsC.map(cl => `<optgroup label="${esc(cl)}">${CS.filter(s2 => s2.cls === cl && !(w.stu || []).includes(s2.k)).map(s2 => `<option value="${esc(s2.k)}">${esc(s2.name)}</option>`).join('')}</optgroup>`).join('')}</select></div>`; }).join('')}
+            <button class="btn btn-ghost btn-block" style="margin-top:8px" data-wadd="${i}">＋ Ajouter un départ différé</button>
+            <p class="muted" style="font-size:.76rem;margin:6px 0 0">Classes ou élèves qui partent plus tard sur cette course. <b>Décalage</b> (minutes et / ou secondes, ex. 0 min 30 s) : départ automatique après le TOP de la course. <b>Vide</b> : TOP séparé donné dans 🔫 TOP DÉPART. Leur temps est compté depuis leur propre départ.</p></details>
           <div class="muted" style="margin-top:8px">${x.n} coureur${x.n > 1 ? 's' : ''} · ${c.start ? `départ ${hms(c.start)} · ${x.R.length} arrivé${x.R.length > 1 ? 's' : ''}` : 'pas encore partie'}</div>
           <button class="btn btn-ghost btn-block" style="margin-top:10px" data-prof data-del="${i}">🗑 Supprimer la course</button></div>`; }).join('')}
         <details class="card cx-prof" data-cfg="bare"><summary data-prof>🔒 Enseignant</summary>
@@ -375,6 +390,16 @@ tr:nth-child(-n+4) td{font-weight:700}`,
         card.querySelectorAll('[data-sx]').forEach(b => b.onclick = () => { c.sx = b.dataset.sx; commit(); again(); });
         card.querySelector('[data-main]').onchange = e => { c.main = e.target.checked; commit(); again(); };
       });
+      const W = v => { const [i, j] = v.split('|').map(Number); return E.courses[i].waves[j]; };
+      box.querySelectorAll('[data-wvd]').forEach(d => d.ontoggle = () => { d.open ? openW.add(d.dataset.wvd) : openW.delete(d.dataset.wvd); });
+      box.querySelectorAll('[data-wadd]').forEach(b => b.onclick = () => { const c = E.courses[+b.dataset.wadd]; c.waves = c.waves || []; c.waves.push({ id: uid(5), n: 'Départ ' + (c.waves.length + 2), cls: [], stu: [], off: null, start: null }); openW.add(c.id); commit(); again(); });
+      box.querySelectorAll('[data-wn]').forEach(inp => inp.onchange = () => { W(inp.dataset.wn).n = inp.value.trim() || 'Départ différé'; commit(); });
+      box.querySelectorAll('[data-wom],[data-wos]').forEach(inp => inp.onchange = () => { const key = inp.dataset.wom || inp.dataset.wos, card = inp.closest('.card'), w = W(key);
+        const m = Math.max(0, +card.querySelector('[data-wom]').value || 0), x = Math.max(0, +card.querySelector('[data-wos]').value || 0), t = m * 60 + x; w.offS = t || null; delete w.off; commit(); });
+      box.querySelectorAll('[data-wx]').forEach(b => b.onclick = () => { const [i, j] = b.dataset.wx.split('|').map(Number), c = E.courses[i]; if (!confirm(`Supprimer « ${c.waves[j].n} » ? Ses élèves partiront avec la course.`)) return; c.waves.splice(j, 1); commit(); again(); });
+      box.querySelectorAll('[data-wc]').forEach(b => b.onclick = () => { const [i, j, ...cl] = b.dataset.wc.split('|'), w = W(i + '|' + j), n = cl.join('|'); w.cls = (w.cls || []).includes(n) ? w.cls.filter(x => x !== n) : [...(w.cls || []), n]; commit(); again(); });
+      box.querySelectorAll('[data-wsx]').forEach(b => b.onclick = () => { const [i, j, ...k] = b.dataset.wsx.split('|'), w = W(i + '|' + j); w.stu = (w.stu || []).filter(x => x !== k.join('|')); commit(); again(); });
+      box.querySelectorAll('[data-ws]').forEach(sl => sl.onchange = () => { if (!sl.value) return; const w = W(sl.dataset.ws); w.stu = [...(w.stu || []), sl.value]; commit(); again(); });
       const mv = (i, d) => { const a = E.courses; [a[i], a[i + d]] = [a[i + d], a[i]]; commit(); again(); };
       box.querySelectorAll('[data-up]').forEach(b => b.onclick = () => mv(+b.dataset.up, -1));
       box.querySelectorAll('[data-dn]').forEach(b => b.onclick = () => mv(+b.dataset.dn, 1));
@@ -509,10 +534,15 @@ tr:nth-child(-n+4) td{font-weight:700}`,
         const K = compute(E), ns = E.courses.filter(c => !c.start);
         [...gstart].forEach(id => { if (!ns.some(c => c.id === id)) gstart.delete(id); });
         $('#cx-starts').innerHTML = `${E.courses.map((c, i) => { const x = K.courses[i]; return `<div class="cx-start" style="--cc:${col(E, c)}"><span class="cx-dot"></span><div class="nm">${esc(c.name)}<small>${x.n} coureur${x.n > 1 ? 's' : ''} · ${c.mode === 'temps' ? 'aux tours · ' + c.dur + ' min' : c.dist + ' m'}${c.start ? ` · ${x.R.length} arrivé${x.R.length > 1 ? 's' : ''}` : ''}</small></div>
-            ${c.start ? `<span class="clk" data-clk="${i}"></span><button class="cx-stop" data-prof data-stop="${i}" aria-label="Arrêter et remettre à zéro">⏹ Stop</button>` : `<button class="cx-go" data-go="${i}">🔫 TOP DÉPART !</button>`}</div>`; }).join('')}
+            ${c.start ? `<span class="clk" data-clk="${i}"></span><button class="cx-stop" data-prof data-stop="${i}" aria-label="Arrêter et remettre à zéro">⏹ Stop</button>` : `<button class="cx-go" data-go="${i}">🔫 TOP DÉPART !</button>`}</div>
+            ${(c.waves || []).map((w, j) => { const n = stu(E).filter(s2 => K.cOf.get(s2.k) === c && waveOf(c, s2) === w).length, plan = offS(w) > 0 && c.start ? c.start + offS(w) * 1000 : null;
+              return `<div class="cx-start" style="--cc:${col(E, c)};margin-left:22px;opacity:.95"><span class="cx-dot" style="opacity:.5"></span><div class="nm">⏱ ${esc(w.n)}<small>${n} coureur${n > 1 ? 's' : ''}${offS(w) > 0 ? ` · prévu +${offTxt(w)}` : ''}${w.start ? ' · TOP ' + hms(w.start) : plan ? ' · départ auto ' + hms(plan) : ''}</small></div>
+                ${w.start || (plan && Date.now() >= plan) ? `<span class="clk" data-wclk="${i}|${j}"></span>${w.start ? `<button class="cx-stop" data-prof data-wclr="${i}|${j}" aria-label="Annuler le TOP">↺</button>` : ''}` : `<button class="cx-go" data-wgo="${i}|${j}">🔫 TOP ${esc(w.n)}</button>`}</div>`; }).join('')}`; }).join('')}
           ${ns.length > 1 ? `<div style="margin-top:10px"><b>Départ groupé</b> <span class="muted" style="font-size:.78rem">· touchez les courses à lancer ensemble</span><div class="cx-gsel">${ns.map(c => `<button data-gs="${c.id}" class="${gstart.has(c.id) ? 'on' : ''}">${esc(c.name)}</button>`).join('')}</div><button class="btn btn-danger btn-block" id="cx-gg">🔫 TOP DÉPART groupé ! (${[...gstart].length})</button></div>` : ''}`;
         const go = L => { const t = Date.now(); L.forEach(c => { c.start = t; }); commit(); beep(1500, .5, .5); toast('🔫 TOP DÉPART ! ' + L.map(c => c.name).join(', ')); gstart.clear(); drawStarts(); };
         box.querySelectorAll('[data-go]').forEach(b => b.onclick = () => go([E.courses[+b.dataset.go]]));
+        box.querySelectorAll('[data-wgo]').forEach(b => b.onclick = () => { const [i, j] = b.dataset.wgo.split('|').map(Number), w = E.courses[i].waves[j]; w.start = Date.now(); commit(); beep(1500, .5, .5); toast('🔫 TOP ' + w.n + ' !'); drawStarts(); drawLast(); });
+        box.querySelectorAll('[data-wclr]').forEach(b => b.onclick = () => { const [i, j] = b.dataset.wclr.split('|').map(Number), w = E.courses[i].waves[j]; if (!confirm(`Annuler le TOP de « ${w.n} » ?`)) return; w.start = null; commit(); drawStarts(); drawLast(); });
         box.querySelectorAll('[data-stop]').forEach(b => b.onclick = () => { const c = E.courses[+b.dataset.stop]; if (!c || !c.start) return;
           if (!confirm(`Arrêter « ${c.name} » et la remettre à zéro ?\nLe départ est annulé et les passages de cette course sont effacés.`)) return;
           resetCourse(E, c); commit(); toast(`⏹ « ${c.name} » remise à zéro`); drawStarts(); drawLast(); });
@@ -522,13 +552,15 @@ tr:nth-child(-n+4) td{font-weight:700}`,
       };
       const tick = () => { const now = Date.now(); box.querySelectorAll('[data-clk]').forEach(s => { const c = E.courses[+s.dataset.clk]; if (!c || !c.start) return;
         if (c.mode === 'temps') { const left = c.start + c.dur * 60000 - now; s.textContent = left > 0 ? '⏳ ' + tm(left) : '🏁 ' + tm(c.dur * 60000); } else s.textContent = tm(now - c.start); }); };
+      const tickW = () => { const now = Date.now(); box.querySelectorAll('[data-wclk]').forEach(sp => { const [i, j] = sp.dataset.wclk.split('|').map(Number), c = E.courses[i], w = c && (c.waves || [])[j]; if (!w) return;
+        const st0 = w.start || (c.start && offS(w) > 0 ? c.start + offS(w) * 1000 : null); if (!st0) return; if (c.mode === 'temps') { const left = st0 + c.dur * 60000 - now; sp.textContent = left > 0 ? '⏳ ' + tm(left) : '🏁 ' + tm(c.dur * 60000); } else sp.textContent = tm(Math.max(0, now - st0)); }); };
       const drawLast = () => {
         const K = compute(E), rk = new Map(); K.courses.forEach(x => x.R.forEach(r => rk.set(r.s.k, r)));
         const A = [...E.arr].sort((a, b) => b.t - a.t);
         $('#cx-cnt').textContent = `${A.length} passage${A.length > 1 ? 's' : ''}`;
         const row = (a, del) => { const s = K.byBib.get(+a.b), c = s && K.cOf.get(s.k), r = s && rk.get(s.k);
           return `<div class="cx-last"><span class="b">${a.b}</span><div class="nm"><b>${s ? esc(s.name) : 'Dossard inconnu'}</b><small>${s ? esc(s.cls) + ' · ' : ''}${c ? esc(c.name) : ''}${a.d !== DEV ? ' · 📱 autre tablette' : ''}${a.src === 'manual' ? ' · ⌨️' : ''}</small></div>
-            <span class="t">${c && c.start ? tm(a.t - c.start) : hms(a.t)}${r && c.mode !== 'temps' ? `<br><small class="muted">${r.place}e</small>` : r ? `<br><small class="muted">${r.laps} t.</small>` : ''}</span>${del ? `<button class="btn btn-ghost" style="flex:0 0 auto;padding:6px 9px" data-rm="${esc(a.id)}">✕</button>` : ''}</div>`; };
+            <span class="t">${c && startOf(c, s) ? tm(a.t - startOf(c, s)) : hms(a.t)}${r && c.mode !== 'temps' ? `<br><small class="muted">${r.place}e</small>` : r ? `<br><small class="muted">${r.laps} t.</small>` : ''}</span>${del ? `<button class="btn btn-ghost" style="flex:0 0 auto;padding:6px 9px" data-rm="${esc(a.id)}">✕</button>` : ''}</div>`; };
         $('#cx-last').innerHTML = A.length ? A.slice(0, 12).map(a => row(a)).join('') : '<div class="empty">Aucun passage pour l\'instant.</div>';
         $('#cx-all').innerHTML = A.map(a => row(a, true)).join('') || '<div class="muted">Aucun passage.</div>';
         box.querySelectorAll('[data-rm]').forEach(b => b.onclick = () => { if (!confirm('Supprimer ce passage ?')) return; E.arr = E.arr.filter(a => a.id !== b.dataset.rm); commit(); drawLast(); drawStarts(); });
@@ -584,7 +616,7 @@ tr:nth-child(-n+4) td{font-weight:700}`,
       $('#cx-cam').onclick = () => { if (stream) { camOff(); cmsg.style.display = ''; cmsg.textContent = '📷 Caméra arrêtée'; $('#cx-cam').textContent = '📷 Activer la caméra'; } else camOn(); };
       stopCam = () => { camOff(); if (window.__cxUI === flash) window.__cxUI = null; };
       drawStarts(); drawLast(); disp();
-      clockIv = setInterval(tick, 250);
+      clockIv = setInterval(() => { tick(); tickW(); }, 250);
       camOn();
       scanRefresh = () => { drawStarts(); drawLast(); };
     }
