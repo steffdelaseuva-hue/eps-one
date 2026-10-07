@@ -4,9 +4,12 @@
    ========================================================= */
 /* Page Ko-fi : laisser vide tant qu'elle n'existe pas (le bouton est alors masqué) */
 const KOFI_URL = 'https://ko-fi.com/epsone';
-const APP_VERSION = '18.7';
+const APP_VERSION = '19.0';
 const APP_URL = 'https://steffdelaseuva-hue.github.io/eps-one/';
 const CHANGELOG = [
+  { v: '19.0', items: ['Escalade : choix de l\'assureur et du contre-assureur pour chaque passage (à la main, « 🎲 Assureurs au hasard » ou « 🎲 Cordée complète au hasard » — le tirage choisit ceux qui ont le moins tenu le rôle) ; sur la tablette d\'une cordée, rotation automatique après chaque voie', 'Escalade · Résultats : tableau « 🪢 Rôles dans la cordée » (nombre de fois grimpeur, assureur, contre-assureur par élève), cordée affichée sur chaque passage et dans l\'export CSV'] },
+  { v: '18.9', items: ['Élimination directe : carte « 🎯 Match suivant » avec les arbitres désignés automatiquement — les perdants des tours précédents arbitrent (le moins d\'arbitrages d\'abord) ; au 1er tour, arbitres pris parmi ceux qui attendent leur match ; « ⏭ Autre match » et « 🔄 Autres arbitres »'] },
+  { v: '18.8', items: ['Tournois en poules (championnat) : carte « 🎯 Match suivant » dans chaque poule — l\'appli désigne qui joue (les plus reposés d\'abord) et qui arbitre (1 ou 2 arbitres selon le nombre de joueurs de la poule, le moins d\'arbitrages d\'abord) ; « ⏭ Autre match » et « 🔄 Autres arbitres » si besoin ; arbitres affichés sur chaque rencontre, colonne ⚖️ (nombre d\'arbitrages) au classement et dans l\'export CSV'] },
   { v: '18.7', items: ['Photos (acrosport, gym, escalade, danse) rangées à part sur la tablette : l\'enregistrement redevient instantané même avec beaucoup de photos, et elles ne remplissent plus l\'espace limité des données (déplacement automatique au premier lancement, synchronisation inchangée)', 'Plus › « 💾 Espace utilisé » : jauge des données, nombre et poids des photos, espace des vidéos ; alerte si la mémoire de la tablette est pleine'] },
   { v: '18.6', items: ['Danse · Banque : une œuvre célèbre dont l\'image est ajoutée n\'affiche plus « Voir l\'œuvre » ni « Changer » ; touchez l\'image pour l\'agrandir'] },
   { v: '18.5', items: ['Danse : dans le projet en cours, chaque élément se retire avec ✕ (œuvre, supports, inducteurs, procédés) et « 🗑 Tout supprimer » vide le projet (↶ Annuler possible)', 'Danse : tirage au sort dans la banque — un support au hasard du type affiché, ou « un de chaque » (image, texte, vidéo, musique), selon le niveau choisi'] },

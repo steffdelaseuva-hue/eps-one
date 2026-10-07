@@ -134,6 +134,23 @@ TOOL_IMPL.escalade = function (el) {
     if ($('#edel')) $('#edel').onclick = () => { if (!confirm('Supprimer les équipes de la classe ?')) return; E.equipes[P.cls] = []; P.eq = ''; save(); equipes(box); };
   }
 
+  /* ---------- 🪢 Cordée : grimpeur, assureur, contre-assureur (choix manuel ou tirage équitable) ---------- */
+  const roleCnt = cls => { const c = {}, f = (n, k) => { if (n) (c[n] = c[n] || { g: 0, a: 0, c: 0 })[k]++; };
+    E.passages.filter(p => p.classe === cls).forEach(p => { f(p.eleve, 'g'); f(p.as, 'a'); f(p.ca, 'c'); }); return c; };
+  const pickFair = (L, cnt, k) => L.map(n => [n, (cnt[n] || {})[k] || 0, Math.random()]).sort((x, y) => x[1] - y[1] || x[2] - y[2]).map(x => x[0])[0] || '';
+  const drawRoles = (pool, g, cls, withG) => { const cnt = roleCnt(cls); if (withG) g = pickFair(pool, cnt, 'g'); P.as = pickFair(pool.filter(n => n !== g), cnt, 'a'); P.ca = pool.length > 2 ? pickFair(pool.filter(n => n !== g && n !== P.as), cnt, 'c') : ''; return g; };
+  const fixRoles = (pool, g, auto) => { if (!pool.includes(P.as) || P.as === g) P.as = auto ? auto[0] || '' : ''; if (!pool.includes(P.ca) || P.ca === g || P.ca === P.as) P.ca = auto && auto[1] !== P.as ? auto[1] || '' : ''; };
+  const roleHTML = (pool, g, cls, big) => { const cnt = roleCnt(cls), lab = (n, k) => `${esc(n)} (${(cnt[n] || {})[k] || 0})`, st = big ? 'padding:12px;font-weight:800;font-size:1.05rem' : '';
+    return `<div class="row"><div><label>🪢 Assureur</label><select id="r-as" style="${st}"><option value="">—</option>${pool.filter(n => n !== g).map(n => `<option value="${esc(n)}" ${n === P.as ? 'selected' : ''}>${lab(n, 'a')}</option>`).join('')}</select></div>
+        <div><label>🤝 Contre-assureur</label><select id="r-ca" style="${st}"><option value="">— aucun —</option>${pool.filter(n => n !== g && n !== P.as).map(n => `<option value="${esc(n)}" ${n === P.ca ? 'selected' : ''}>${lab(n, 'c')}</option>`).join('')}</select></div></div>
+      <div class="row" style="margin-top:8px;gap:6px"><button class="btn btn-ghost" style="padding:9px" id="r-rnd">🎲 Assureurs au hasard</button><button class="btn btn-ghost" style="padding:9px" id="r-all">🎲 Cordée complète au hasard</button></div>
+      <div class="muted" style="font-size:.75rem;margin-top:4px">Entre parenthèses : nombre de fois dans ce rôle. Le tirage choisit ceux qui l'ont été le moins.</div>`; };
+  const roleWire = (box, pool, g, cls, redraw, setG) => { const q = s2 => box.querySelector(s2);
+    q('#r-as').onchange = e => { P.as = e.target.value; if (P.ca === P.as) P.ca = ''; redraw(); };
+    q('#r-ca').onchange = e => { P.ca = e.target.value; redraw(); };
+    q('#r-rnd').onclick = () => { drawRoles(pool, g, cls, false); toast(`🪢 ${P.as || '—'}${P.ca ? ' · 🤝 ' + P.ca : ''}`); redraw(); };
+    q('#r-all').onclick = () => { const ng = drawRoles(pool, g, cls, true); setG(ng); toast(`🧗 ${ng} · 🪢 ${P.as || '—'}${P.ca ? ' · 🤝 ' + P.ca : ''}`); redraw(); }; };
+  const rolesTxt = r => [r.as ? '🪢 ' + r.as : '', r.ca ? '🤝 ' + r.ca : ''].filter(Boolean).join(' · ');
   /* ---------- 2/ & 3/ Passage : mode + observables ---------- */
   function passage(box) {
     if (!DB.classes.length) { box.innerHTML = noClassMsg; return escMount(box); }
@@ -142,12 +159,13 @@ TOOL_IMPL.escalade = function (el) {
     if (!DB.classes.some(c => c.name === P.cls)) P.cls = DB.classes[0].name;
     const TM = teamsOf(P.cls); if (!TM.some(t => t.name === P.eq)) P.eq = '';
     const st = P.eq ? TM.find(t => t.name === P.eq).members : studentsOf(P.cls); if (P.si >= st.length) P.si = 0;
-    const V = E.voies.find(w => w.id === P.voie), img = DB[escImgKey(V.id)];
+    const V = E.voies.find(w => w.id === P.voie), img = DB[escImgKey(V.id)], RC = roleCnt(P.cls); fixRoles(st, st[P.si]);
     const counter = (k, label) => `<label>${label}</label><div class="row" style="align-items:center"><button class="btn btn-ghost" style="flex:0 0 60px;font-size:1.3rem" data-m="${k}">−</button><div style="flex:0 0 70px;text-align:center;font-size:1.8rem;font-weight:900" id="n-${k}">${P[k]}</div><button class="btn btn-grad" style="flex:1;font-size:1.05rem;padding:14px" data-p="${k}">＋1</button></div>`;
     box.innerHTML = `<div class="card">
         <div class="row"><div><label>Classe</label><select id="cl">${DB.classes.map(c => `<option ${c.name === P.cls ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</select></div>
           ${TM.length ? `<div><label>Équipe</label><select id="eqf"><option value="">Toute la classe</option>${TM.map(t => `<option ${t.name === P.eq ? 'selected' : ''}>${esc(t.name)}</option>`).join('')}</select></div>` : ''}
-          <div><label>Élève</label><select id="st">${st.map((n, k) => `<option value="${k}" ${k === P.si ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select></div></div>
+          <div><label>🧗 Grimpeur</label><select id="st">${st.map((n, k) => `<option value="${k}" ${k === P.si ? 'selected' : ''}>${esc(n)} (${(RC[n] || {}).g || 0})</option>`).join('')}</select></div></div>
+        ${roleHTML(st, st[P.si], P.cls)}
         <label>Voie</label><select id="vo">${E.voies.map(w => `<option value="${w.id}" ${w.id === P.voie ? 'selected' : ''}>${esc(w.cot)} — ${esc(w.nom)}</option>`).join('')}</select>
         ${img ? `<img src="${img}" id="vimg" style="width:100%;max-height:220px;object-fit:contain;border-radius:12px;background:#000;margin-top:8px;cursor:zoom-in">` : ''}
         <label>Mode de grimpe</label><div class="seg" id="md">${Object.entries(ESC_MODES).map(([k, l]) => `<button data-md="${k}" class="${P.mode === k ? 'on' : ''}">${l}</button>`).join('')}</div>
@@ -165,6 +183,7 @@ TOOL_IMPL.escalade = function (el) {
     const $ = s => box.querySelector(s), all = s => box.querySelectorAll(s);
     $('#cl').onchange = e => { P.cls = e.target.value; DB.lastClass = P.cls; P.si = 0; P.eq = ''; save(); passage(box); };
     $('#st').onchange = e => { P.si = +e.target.value; passage(box); };
+    roleWire(box, st, st[P.si], P.cls, () => passage(box), g => { P.si = Math.max(0, st.indexOf(g)); });
     if ($('#eqf')) $('#eqf').onchange = e => { P.eq = e.target.value; P.si = 0; passage(box); };
     $('#vo').onchange = e => { P.voie = e.target.value; E.lastVoie = P.voie; save(); passage(box); };
     if ($('#vimg')) $('#vimg').onclick = () => zoom(V.id);
@@ -179,7 +198,7 @@ TOOL_IMPL.escalade = function (el) {
     $('#rz').onclick = () => { P.run = false; P.acc = 0; $('#tm').textContent = escTime(0); $('#go').textContent = '▶ Départ'; };
     $('#sv').onclick = () => { const n = st[P.si]; if (!n) return toast('Classe vide');
       const t = Math.round(sec() * 10) / 10;
-      const r = { id: Date.now().toString(36), date: Date.now(), classe: P.cls, eleve: n, voie: V.id, voieNom: V.nom, cot: V.cot, mode: P.mode, temps: t || null, pieds: P.pieds, pme: P.pme, flu: P.flu || null };
+      const r = { id: Date.now().toString(36), date: Date.now(), classe: P.cls, eleve: n, voie: V.id, voieNom: V.nom, cot: V.cot, mode: P.mode, temps: t || null, pieds: P.pieds, pme: P.pme, flu: P.flu || null, as: P.as || null, ca: P.ca || null };
       E.passages.push(r);
       saveResult({ tool: 'escalade', label: 'Escalade', classe: P.cls, eleve: n, valeur: `${V.cot} ${ESC_MODES[P.mode].toLowerCase()}`, detail: detailOf(r) });
       toast(`${n} : ${V.cot} ✔`);
@@ -199,12 +218,13 @@ TOOL_IMPL.escalade = function (el) {
     const V = E.voies.find(w => w.id === P.voie), img = DB[escImgKey(V.id)];
     const mine = E.passages.filter(p => p.classe === cls && M.includes(p.eleve) && isToday(p.date)), doneBy = id => [...new Set(mine.filter(p => p.voie === id).map(p => p.eleve))];
     const gi = M.indexOf(P.gw), rot = k => M[(gi + k) % M.length];
+    fixRoles(M, P.gw, M.length > 1 ? [rot(1), M.length > 2 ? rot(2) : ''] : null);
     const counter = (k, label) => `<label>${label}</label><div class="row" style="align-items:center"><button class="btn btn-ghost" style="flex:0 0 70px;font-size:1.5rem;padding:14px 0" data-m="${k}">−</button><div style="flex:0 0 80px;text-align:center;font-size:2.4rem;font-weight:900" id="n-${k}">${P[k]}</div><button class="btn btn-grad" style="flex:1;font-size:1.3rem;padding:18px" data-p="${k}">＋1</button></div>`;
     box.innerHTML = `<div class="esc-tab"><div class="card" style="text-align:center"><div style="font-weight:900;font-size:1.3rem">🧗 ${esc(team.name)}</div><div class="muted">${M.map(esc).join(', ')} · ${esc(cls)}</div>
         <div class="muted" style="font-size:.85rem;margin-top:4px">${mine.length} passage${mine.length > 1 ? 's' : ''} enregistré${mine.length > 1 ? 's' : ''} aujourd'hui par la cordée</div></div>
       <div class="card" style="margin-top:10px"><b>1. Qui grimpe ?</b>
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin-top:8px">${M.map(n => `<button class="btn ${n === P.gw ? 'btn-grad' : 'btn-ghost'}" style="font-size:1.15rem;padding:14px 8px;flex-direction:column;gap:2px" data-gw="${esc(n)}">${esc(n)}<div style="font-size:.75rem;font-weight:600;opacity:.8">${mine.filter(p => p.eleve === n).length} voie(s) aujourd'hui</div></button>`).join('')}</div>
-        ${M.length > 1 ? `<div class="muted" style="margin-top:8px;font-size:.9rem">🪢 Assureur : <b>${esc(rot(1))}</b>${M.length > 2 ? ` · Contre-assureur : <b>${esc(rot(2))}</b>` : ''}</div>` : ''}</div>
+        ${M.length > 1 ? `<div style="margin-top:4px">${roleHTML(M, P.gw, cls, true)}</div>` : ''}</div>
       <div class="card" style="margin-top:10px"><b>2. Quelle voie ?</b> <span class="muted" style="font-size:.8rem">✓ = déjà réussie par ${esc(P.gw)} aujourd'hui</span>
         ${E.voies.map(w => { const d = doneBy(w.id), me = d.includes(P.gw), s = w.id === P.voie;
           return `<button class="gv-it ${me ? 'on' : ''}" data-vo="${w.id}" style="${s ? 'border-color:#2F6BD8;box-shadow:inset 0 0 0 2px #2F6BD8' : ''}"><span class="bx">${me ? '✓' : ''}</span><span style="flex:1;min-width:0">${escBadge(w.cot)} <span>${esc(w.nom)}</span>${d.length ? `<div class="muted" style="font-size:.78rem;font-weight:600;margin-top:3px">Réussie par ${d.map(esc).join(', ')}</div>` : ''}</span>${s ? '<span style="font-size:1.4rem">👈</span>' : ''}</button>`; }).join('')}
@@ -221,7 +241,8 @@ TOOL_IMPL.escalade = function (el) {
       ${mine.length ? `<div class="section-title"><h2>Passages de la cordée aujourd'hui</h2></div><div class="card sheet-table">${rowsTable(mine.slice().reverse(), false)}</div>` : ''}
       <div style="text-align:center;margin:18px 0 6px"><button class="link" id="gv-prof">🔒 Mode enseignant</button></div></div>`;
     const $ = s => box.querySelector(s), all = s => box.querySelectorAll(s);
-    all('[data-gw]').forEach(b => b.onclick = () => { P.gw = b.dataset.gw; tablette(box); });
+    all('[data-gw]').forEach(b => b.onclick = () => { P.gw = b.dataset.gw; P.as = P.ca = ''; tablette(box); });
+    if (M.length > 1) roleWire(box, M, P.gw, cls, () => tablette(box), g => { P.gw = g; });
     all('[data-vo]').forEach(b => b.onclick = () => { P.voie = E.lastVoie = b.dataset.vo; save(); tablette(box); });
     if ($('#vimg')) $('#vimg').onclick = () => zoom(V.id);
     all('[data-md]').forEach(b => b.onclick = () => { P.mode = E.lastMode = b.dataset.md; save(); all('[data-md]').forEach(x => x.classList.toggle('on', x === b)); });
@@ -235,17 +256,17 @@ TOOL_IMPL.escalade = function (el) {
     $('#sv').onclick = () => { const n = P.gw; if (!n) return toast('Cordée vide');
       const t = Math.round(sec() * 10) / 10;
       if (!t && !P.pieds && !P.pme && !P.flu && !confirm(`Aucun observable saisi pour ${n}. Enregistrer quand même la voie ${V.cot} ?`)) return;
-      const r = { id: Date.now().toString(36), date: Date.now(), classe: cls, eleve: n, voie: V.id, voieNom: V.nom, cot: V.cot, mode: P.mode, temps: t || null, pieds: P.pieds, pme: P.pme, flu: P.flu || null };
+      const r = { id: Date.now().toString(36), date: Date.now(), classe: cls, eleve: n, voie: V.id, voieNom: V.nom, cot: V.cot, mode: P.mode, temps: t || null, pieds: P.pieds, pme: P.pme, flu: P.flu || null, as: P.as || null, ca: P.ca || null };
       E.passages.push(r);
       saveResult({ tool: 'escalade', label: 'Escalade', classe: cls, eleve: n, valeur: `${V.cot} ${ESC_MODES[P.mode].toLowerCase()}`, detail: detailOf(r) });
       toast(`${n} : ${V.cot} ✔`); beep(1000, .15);
-      Object.assign(P, { pieds: 0, pme: 0, flu: 0, run: false, acc: 0, gw: rot(1) || n });
+      Object.assign(P, { pieds: 0, pme: 0, flu: 0, run: false, acc: 0, gw: rot(1) || n, as: '', ca: '' });
       tablette(box); box.scrollIntoView?.({ block: 'start' }); };
     $('#gv-prof').onclick = () => { if (!confirm('Passer en mode enseignant (toutes les cordées, réglages) ?')) return; delete DB.tablette.escalade; save(); tab = 'passage'; frame(); };
   }
-  const detailOf = r => [r.temps != null ? 'temps ' + escTime(r.temps) : '', `${r.pieds} poses de pieds`, `${r.pme} PME`, r.flu ? 'fluidité ' + r.flu + '/4' : ''].filter(Boolean).join(' · ');
-  const rowsTable = (rows, del) => `<table><tr><th>Élève</th><th>Date</th><th>Voie</th><th>Mode</th><th>Temps</th><th>Pieds</th><th>PME</th><th>Fluidité</th>${del ? '<th></th>' : ''}</tr>
-    ${rows.map(r => `<tr><td><b>${esc(r.eleve)}</b></td><td>${new Date(r.date).toLocaleDateString('fr-FR')}</td><td>${escBadge(r.cot)} ${esc(r.voieNom)}</td><td>${ESC_MODES[r.mode]}</td><td>${escTime(r.temps)}</td><td>${r.pieds}</td><td>${r.pme}</td><td>${r.flu ? r.flu + ' · ' + ESC_FLU[r.flu] : '–'}</td>${del ? `<td><button class="btn btn-ghost" data-cfg="bare" style="padding:4px 8px" data-x="${r.id}">✕</button></td>` : ''}</tr>`).join('')}</table>`;
+  const detailOf = r => [r.temps != null ? 'temps ' + escTime(r.temps) : '', `${r.pieds} poses de pieds`, `${r.pme} PME`, r.flu ? 'fluidité ' + r.flu + '/4' : '', r.as ? 'assureur ' + r.as : '', r.ca ? 'contre-assureur ' + r.ca : ''].filter(Boolean).join(' · ');
+  const rowsTable = (rows, del) => `<table><tr><th>Élève</th><th>Date</th><th>Voie</th><th>Mode</th><th>Temps</th><th>Pieds</th><th>PME</th><th>Fluidité</th><th>Cordée</th>${del ? '<th></th>' : ''}</tr>
+    ${rows.map(r => `<tr><td><b>${esc(r.eleve)}</b></td><td>${new Date(r.date).toLocaleDateString('fr-FR')}</td><td>${escBadge(r.cot)} ${esc(r.voieNom)}</td><td>${ESC_MODES[r.mode]}</td><td>${escTime(r.temps)}</td><td>${r.pieds}</td><td>${r.pme}</td><td>${r.flu ? r.flu + ' · ' + ESC_FLU[r.flu] : '–'}</td><td class="muted" style="font-size:.8rem">${esc(rolesTxt(r)) || '–'}</td>${del ? `<td><button class="btn btn-ghost" data-cfg="bare" style="padding:4px 8px" data-x="${r.id}">✕</button></td>` : ''}</tr>`).join('')}</table>`;
 
   /* ---------- Défis entre élèves ---------- */
   const CRIT = { pieds: 'Poses de pieds', pme: 'PME', temps: 'Temps' };
@@ -344,6 +365,11 @@ TOOL_IMPL.escalade = function (el) {
         <div><label>Classe</label><select id="fc"><option value="">Toutes</option>${[...new Set(E.passages.map(p => p.classe))].map(c => `<option ${c === f.cls ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select></div>
         <div><label>Élève</label><select id="fe"><option value="">Tous</option>${names.map(n => `<option ${n === f.el ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select></div></div>
         <label>Voie</label><select id="fv"><option value="">Toutes</option>${E.voies.map(w => `<option value="${w.id}" ${w.id === f.voie ? 'selected' : ''}>${esc(w.cot)} — ${esc(w.nom)}</option>`).join('')}</select></div>
+      ${(() => { const c = {}, f2 = (n, k) => { if (n && (!f.el || n === f.el)) (c[n] = c[n] || { g: 0, a: 0, c: 0 })[k]++; };
+        pool.filter(p => !f.voie || p.voie === f.voie).forEach(p => { f2(p.eleve, 'g'); f2(p.as, 'a'); f2(p.ca, 'c'); });
+        const L = Object.entries(c).sort((x, y) => x[0].localeCompare(y[0], 'fr')); if (!L.length || !pool.some(p => p.as || p.ca)) return '';
+        return `<div class="section-title"><h2>🪢 Rôles dans la cordée</h2></div><div class="card sheet-table"><table><tr><th>Élève</th><th>🧗 Grimpeur</th><th>🪢 Assureur</th><th>🤝 Contre-assureur</th></tr>
+          ${L.map(([n, v]) => `<tr><td><b>${esc(n)}</b></td><td>${v.g}</td><td>${v.a}</td><td>${v.c}</td></tr>`).join('')}</table></div>`; })()}
       <div class="section-title"><h2>Passages (${rows.length})</h2><button class="link" id="exp">Exporter CSV</button></div>
       <div class="card sheet-table">${rows.length ? rowsTable(rows, true) : '<div class="empty">Aucun passage enregistré.</div>'}</div>`;
     const $ = s => box.querySelector(s);
@@ -352,8 +378,8 @@ TOOL_IMPL.escalade = function (el) {
     $('#fv').onchange = e => { f.voie = e.target.value; resultats(box); };
     box.querySelectorAll('[data-x]').forEach(b => b.onclick = () => { if (!confirm('Supprimer ce passage ?')) return; const i = E.passages.findIndex(p => p.id === b.dataset.x); if (i >= 0) E.passages.splice(i, 1); save(); resultats(box); });
     $('#exp').onclick = () => { if (!rows.length) return toast('Rien à exporter');
-      download(`escalade-${new Date().toISOString().slice(0, 10)}.csv`, csv([['Élève', 'Classe', 'Date', 'Voie', 'Cotation', 'Mode', 'Temps de grimpe (s)', 'Poses de pieds', 'PME', 'Fluidité (1-4)'],
-        ...rows.map(r => [r.eleve, r.classe, new Date(r.date).toLocaleDateString('fr-FR'), r.voieNom, r.cot, ESC_MODES[r.mode], r.temps != null ? String(r.temps).replace('.', ',') : '', r.pieds, r.pme, r.flu || ''])])); };
+      download(`escalade-${new Date().toISOString().slice(0, 10)}.csv`, csv([['Élève', 'Classe', 'Date', 'Voie', 'Cotation', 'Mode', 'Temps de grimpe (s)', 'Poses de pieds', 'PME', 'Fluidité (1-4)', 'Assureur', 'Contre-assureur'],
+        ...rows.map(r => [r.eleve, r.classe, new Date(r.date).toLocaleDateString('fr-FR'), r.voieNom, r.cot, ESC_MODES[r.mode], r.temps != null ? String(r.temps).replace('.', ',') : '', r.pieds, r.pme, r.flu || '', r.as || '', r.ca || ''])])); };
   }
 
   frame();
