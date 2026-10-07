@@ -442,7 +442,7 @@ function openTool(id){
   document.getElementById('screen').classList.add('open');
   requestWake();
 }
-function closeTool(){ if(cleanup) cleanup(); cleanup=null; document.getElementById('screen').classList.remove('open'); releaseWake(); renderHome(); renderTools(); }
+function closeTool(){ if(typeof cleanup==='function'){try{cleanup();}catch(e){console.warn(e);}} cleanup=null; document.getElementById('screen').classList.remove('open'); releaseWake(); renderHome(); renderTools(); }
 function updateScreenStar(){document.getElementById('screen-star').textContent=DB.favs.includes(currentTool)?'★':'☆'}
 
 /* Écran toujours allumé pendant un outil */

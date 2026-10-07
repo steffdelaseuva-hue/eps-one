@@ -93,7 +93,7 @@
   setTimeout(banner, 1500);
 
   /* ---------- Écran « Copies de secours » ---------- */
-  window.openBackups = () => openPanel('Copies de secours', async el => {
+  window.openBackups = () => openPanel('Copies de secours', el => {
     const draw = async () => {
       let L = []; try { L = await bakAll(); } catch (e) {}
       const lost = lsGet(LOST, []);
