@@ -4,9 +4,10 @@
    ========================================================= */
 /* Page Ko-fi : laisser vide tant qu'elle n'existe pas (le bouton est alors masqué) */
 const KOFI_URL = 'https://ko-fi.com/epsone';
-const APP_VERSION = '21.0';
+const APP_VERSION = '21.1';
 const APP_URL = 'https://steffdelaseuva-hue.github.io/eps-one/';
 const CHANGELOG = [
+  { v: '21.1', items: ['Confidentialité & RGPD : chiffrement de bout en bout avec Google Drive et Dropbox, et nouvelle rubrique « Caméra, photos et vidéos » (ce qui reste sur l\'appareil, ce qui est partagé chiffré, droit à l\'image)'] },
   { v: '21.0', items: ['Google Drive / Dropbox : chiffrement de bout en bout (comme Firebase) avec une phrase de chiffrement choisie par l\'enseignant — le cloud ne stocke plus que du contenu illisible ; la phrase est demandée une fois sur chaque appareil (Plus → Stockage & synchronisation)'] },
   { v: '20.9', items: ['Synchronisation : les grosses rubriques (historique des matchs…) sont découpées en plusieurs morceaux — elles ne sont plus bloquées par la limite de taille (« trop volumineuse »), qui empêchait les matchs de partir vers les autres tablettes', 'Une rubrique en erreur ne bloque plus l\'envoi des autres, et une erreur de synchronisation est maintenant signalée à l\'écran'] },
   { v: '20.8', items: ['Camemberts de résultats : camemberts pleins, une part par critère avec le pourcentage écrit dans la part (au lieu des anneaux)'] },
@@ -336,12 +337,16 @@ function openPrivacy() {
           <li>Elles sont rattachées à votre compte : les règles de sécurité font que <b>seul votre compte peut les lire ou les modifier</b>.</li>
           <li>L'adresse e-mail sert uniquement à la connexion. Le mot de passe est géré par Firebase Authentication ; l'app ne le conserve pas, elle s'en sert seulement sur l'appareil pour créer la clé de chiffrement. En cas d'oubli, les données en ligne deviennent illisibles, mais celles de vos appareils sont conservées.</li>
           <li><b>Option « Mon cloud » (Google Drive ou Dropbox)</b> : si vous la choisissez, vos données sont enregistrées sur <b>votre propre</b> Google Drive ou Dropbox, dans un dossier réservé à EPS ONE (l'app n'a accès à aucun autre fichier), et ne passent pas par le serveur d'EPS ONE. Elles sont alors soumises aux conditions de votre compte chez ce fournisseur.</li>
+          <li><b>Chiffrement de bout en bout aussi avec Google Drive et Dropbox</b> (recommandé : Plus → Stockage & synchronisation → « 🔒 Chiffrer mes données ») : avec une <b>phrase de chiffrement</b> choisie par l'enseignant, les données sont chiffrées sur l'appareil (AES-256) avant l'envoi. Google ou Dropbox ne stockent que du contenu illisible. La phrase est saisie une fois sur chaque appareil et n'est jamais envoyée ; en cas d'oubli, les données du cloud deviennent illisibles, celles des appareils sont conservées.</li>
           <li>Vous pouvez à tout moment <b>supprimer toutes vos données en ligne</b> (Plus → Stockage & synchronisation) : la synchronisation s'arrête et les données restent seulement sur l'appareil.</li>
           <li><b>Conseil</b> : en mode synchronisé, préférez <b>prénom + initiale</b> pour les élèves. Pour toute question sur l'usage d'outils numériques avec des données d'élèves, votre établissement reste l'interlocuteur de référence.</li></ul>
-        <h3>📷 Caméra</h3>
-        <p>La vidéo différée et le photo-finish utilisent la caméra uniquement pendant que l'outil est ouvert. Les images restent en mémoire vive, ne sont jamais enregistrées ni envoyées, et sont effacées à la fermeture de l'outil.</p>
+        <h3>📷 Caméra, photos et vidéos</h3>
+        <ul><li><b>Vidéo différée, photo-finish, scan des dossards</b> : la caméra n'est utilisée que pendant que l'outil est ouvert ; les images restent en mémoire vive, ne sont jamais enregistrées ni envoyées.</li>
+          <li><b>Vidéos</b> ajoutées en danse, gym ou acrosport : enregistrées <b>uniquement sur l'appareil</b>, jamais envoyées en ligne.</li>
+          <li><b>Photos</b> ajoutées en acrosport, gym, escalade ou danse : enregistrées sur l'appareil et, si la synchronisation est activée, partagées avec vos autres appareils <b>chiffrées de bout en bout</b> (Firebase, ou Google Drive / Dropbox avec phrase de chiffrement).</li>
+          <li><b>Droit à l'image</b> : photographier ou filmer des élèves suppose l'autorisation des responsables légaux (souvent recueillie par l'établissement en début d'année). Effacez les photos et vidéos qui ne servent plus, au plus tard en fin d'année.</li></ul>
         <h3>🌐 Hébergement</h3>
-        <p>L'application est hébergée sur GitHub Pages. Comme pour tout site web, l'hébergeur peut enregistrer des données techniques de connexion (adresse IP) lors du chargement de la page. Aucune donnée d'élève ne transite par ce biais (en mode synchronisé, elles transitent uniquement vers Firebase, chiffrées de bout en bout).</p>
+        <p>L'application est hébergée sur GitHub Pages. Comme pour tout site web, l'hébergeur peut enregistrer des données techniques de connexion (adresse IP) lors du chargement de la page. Aucune donnée d'élève ne transite par ce biais (en mode synchronisé, elles transitent uniquement vers Firebase, ou vers votre Google Drive / Dropbox, chiffrées de bout en bout).</p>
         <h3>🧑‍🏫 Bonnes pratiques pour l'enseignant</h3>
         <ul><li><b>Minimiser</b> : prénom + initiale du nom suffisent le plus souvent.</li>
           <li><b>Dispenses</b> : ne pas saisir de motif médical ni de diagnostic, seulement les dates et les aménagements.</li>
