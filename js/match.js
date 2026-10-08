@@ -46,8 +46,11 @@ const sgnP = x => x > 0 ? '+' + fmtP(x) : x < 0 ? '−' + fmtP(-x) : '=';
 /* Classement ATP rejoué à partir de tous les défis enregistrés, dans l'ordre chronologique (chaque match utilise les points d'avant) */
 function tAtp(t) {
   const st = {}, log = [];
-  t.teams.forEach(x => { st[x.name] = { n: x.name, pts: (+t.start || 0) + (+((t.adj || {})[x.name]) || 0), v: 0, d: 0, nul: 0, arb: 0, last: null }; });   // adj : points ajoutés / retirés à la main par l'enseignant
-  const rank = () => Object.values(st).sort((a, b) => b.pts - a.pts || b.v - a.v || a.n.localeCompare(b.n));
+  // lvl : classement initial par niveau (1 = meilleur) → points de départ + (nbNiveaux − niveau) × écart ; seed : ordre initial à égalité
+  const NL = +t.lvlN || Math.max(0, ...Object.values(t.lvl || {}).map(Number)), gap = +t.lvlGap || 0, lvlPts = n => t.lvl && t.lvl[n] ? (NL - t.lvl[n]) * gap : 0;
+  const seed = Array.isArray(t.seed) ? t.seed : [], si = n => { const i = seed.indexOf(n); return i < 0 ? 1e6 : i; };
+  t.teams.forEach(x => { st[x.name] = { n: x.name, pts: (+t.start || 0) + lvlPts(x.name) + (+((t.adj || {})[x.name]) || 0), v: 0, d: 0, nul: 0, arb: 0, last: null }; });   // adj : points ajoutés / retirés à la main par l'enseignant
+  const rank = () => Object.values(st).sort((a, b) => b.pts - a.pts || b.v - a.v || si(a.n) - si(b.n) || a.n.localeCompare(b.n));
   const encSeen = new Set();   // un défi en cours saisi sur deux tablettes à la fois ne compte qu'une fois
   DB.matchs.filter(m => m.tid === t.id && m.defi && !m.obsOnly).sort((x, y) => (x.date || 0) - (y.date || 0)).forEach(m => {
     if (m.enc) { if (encSeen.has(m.enc)) return; encSeen.add(m.enc); }
@@ -330,10 +333,17 @@ const PIE_COLS = ['#1E5BD8', '#C9A227', '#1B9E5A', '#E0892F', '#8E44AD', '#D6454
 function epsPie(seg, title, size = 132) {
   seg = seg.filter(x => x.v > 0); const tot = seg.reduce((a, x) => a + x.v, 0);
   if (!tot) return `<div class="pie-box pie-empty"><b class="pie-t">${title}</b><div class="muted" style="font-size:.8rem">—</div></div>`;
-  const r = 42, C = 2 * Math.PI * r; let off = 0;
-  const arcs = seg.map((x, i) => { const len = x.v / tot * C, a = `<circle r="${r}" cx="60" cy="60" fill="none" stroke="${x.c || PIE_COLS[i % PIE_COLS.length]}" stroke-width="22" stroke-dasharray="${len.toFixed(2)} ${(C - len).toFixed(2)}" stroke-dashoffset="${(-off).toFixed(2)}" transform="rotate(-90 60 60)"/>`; off += len; return a; }).join('');
-  return `<div class="pie-box"><b class="pie-t">${title}</b><svg viewBox="0 0 120 120" width="${size}" height="${size}" role="img">${arcs}<text x="60" y="58" text-anchor="middle" font-size="18" font-weight="900" fill="currentColor">${tot}</text><text x="60" y="74" text-anchor="middle" font-size="9" fill="currentColor" opacity=".6">total</text></svg>
-    <div class="pie-lg">${seg.map((x, i) => `<div><i style="background:${x.c || PIE_COLS[i % PIE_COLS.length]}"></i><span>${esc(x.l)}</span><b>${x.v} · ${Math.round(x.v / tot * 100)} %</b></div>`).join('')}</div></div>`;
+  // camembert PLEIN : une part par critère, séparée par un liseré blanc, pourcentage écrit dans la part
+  const R = 56, cx = 60, cy = 60, col = (x, i) => x.c || PIE_COLS[i % PIE_COLS.length]; let a0 = -Math.PI / 2;
+  const pt = (a, r = R) => `${(cx + r * Math.cos(a)).toFixed(2)},${(cy + r * Math.sin(a)).toFixed(2)}`;
+  const parts = seg.map((x, i) => { const f = x.v / tot, a1 = a0 + f * 2 * Math.PI, mid = (a0 + a1) / 2;
+    const shape = f >= 0.9999 ? `<circle cx="${cx}" cy="${cy}" r="${R}" fill="${col(x, i)}"/>`
+      : `<path d="M${cx},${cy} L${pt(a0)} A${R},${R} 0 ${f > 0.5 ? 1 : 0} 1 ${pt(a1)} Z" fill="${col(x, i)}" stroke="#fff" stroke-width="1.6" stroke-linejoin="round"/>`;
+    const pc = Math.round(f * 100), lab = pc >= 8 ? `<text x="${pt(mid, f >= 0.9999 ? 0 : R * 0.6).split(',')[0]}" y="${(+pt(mid, f >= 0.9999 ? 0 : R * 0.6).split(',')[1] + 4).toFixed(2)}" text-anchor="middle" font-size="${pc >= 20 ? 12 : 10}" font-weight="900" fill="#fff" style="paint-order:stroke;stroke:rgba(0,0,0,.35);stroke-width:2px">${pc}%</text>` : '';
+    a0 = a1; return { shape, lab }; });
+  return `<div class="pie-box"><b class="pie-t">${title}</b><svg viewBox="0 0 120 120" width="${size}" height="${size}" role="img" aria-label="${esc(String(title).replace(/<[^>]+>/g, ''))}">${parts.map(p => p.shape).join('')}${parts.map(p => p.lab).join('')}</svg>
+    <div class="muted" style="font-size:.75rem;text-align:center;margin-top:2px">Total : <b style="color:var(--text)">${tot}</b></div>
+    <div class="pie-lg">${seg.map((x, i) => `<div><i style="background:${col(x, i)}"></i><span>${esc(x.l)}</span><b>${x.v} · ${Math.round(x.v / tot * 100)} %</b></div>`).join('')}</div></div>`;
 }
 /* Bloc « 📊 Synthèse » : titre + carte contenant plusieurs camemberts (vides ignorés) */
 function epsPieCard(title, pies, bare) { pies = pies.filter(x => x && !x.includes('pie-empty')); if (!pies.length) return '';
@@ -730,13 +740,15 @@ TOOL_IMPL.match = function (el, grp = 'col') {
   /* ----- Défi ATP : création (élèves d'une classe, absents décochés) ----- */
   function createAtp(o = {}) {
     clearInterval(iv); M = null; S.view = null;
-    const C = { cls: DB.classes.some(c => c.name === o.cls) ? o.cls : o.txt ? '' : (DB.classes[0] || {}).name || '', off: new Set(), start: 100, cf: true, saisie: o.saisie === 'simple' ? 'simple' : 'obs', txt: o.txt || '' };
+    const C = { cls: DB.classes.some(c => c.name === o.cls) ? o.cls : o.txt ? '' : (DB.classes[0] || {}).name || '', off: new Set(), start: 100, cf: true, saisie: o.saisie === 'simple' ? 'simple' : 'obs', txt: o.txt || '', ini: 'alpha', nl: 3, gap: 10, lv: {} };
     const def = () => `Défi ATP ${C.cls ? C.cls + ' · ' : '· '}${SP().name}`;
     C.nom = def();
     const $ = q => el.querySelector(q);
     const all = () => C.cls ? [...new Set(studentsOf(C.cls))] : [];
     const players = () => C.cls ? all().filter(n => !C.off.has(n)) : [...new Set(C.txt.split('\n').map(x => x.trim()).filter(Boolean))];
-    const keepC = () => { C.nom = $('#a-nom').value; C.start = +$('#a-st').value || 0; C.cf = $('#a-cf').checked; if ($('#a-txt')) C.txt = $('#a-txt').value; };
+    const keepC = () => { C.nom = $('#a-nom').value; C.start = +$('#a-st').value || 0; C.cf = $('#a-cf').checked; if ($('#a-txt')) C.txt = $('#a-txt').value;
+      if ($('#a-nl')) C.nl = Math.max(2, Math.min(6, +$('#a-nl').value || 3)); if ($('#a-gap')) C.gap = Math.max(0, +$('#a-gap').value || 0); };
+    const lvOf = x => Math.min(C.nl, C.lv[x] || Math.ceil(C.nl / 2));
     const draw = () => {
       const st = all(), n = players().length;
       el.innerHTML = `<button class="btn btn-ghost" id="a-bk">← Annuler</button>
@@ -752,7 +764,16 @@ TOOL_IMPL.match = function (el, grp = 'col') {
             <div class="atp-ck">${st.map((x, i) => `<button class="pl-chip ${C.off.has(x) ? '' : 'sel'}" data-ab="${i}">${C.off.has(x) ? '' : '✓ '}${esc(x)}</button>`).join('')}</div>
             <div class="row" style="margin-top:10px"><button class="btn btn-ghost" id="a-all">✓ Tous présents</button><button class="btn btn-ghost" id="a-none">Tout décocher</button></div>`
           : `<label>Un élève par ligne</label><textarea id="a-txt" rows="8" style="width:100%;font-size:1rem">${esc(C.txt)}</textarea>`}</div>
+        <div class="card" data-cfg style="margin-top:12px"><h3>📶 Classement de départ</h3>
+          <div class="seg">${[['alpha', '🔤 Ordre alphabétique'], ['rand', '🎲 Au hasard'], ['lvl', '📶 Par niveau']].map(([k, l]) => `<button data-ini="${k}" class="${C.ini === k ? 'on' : ''}">${l}</button>`).join('')}</div>
+          ${C.ini === 'lvl' ? `<div class="row" style="margin-top:8px"><div><label>Nombre de niveaux</label><input id="a-nl" type="number" min="2" max="6" value="${C.nl}"></div><div><label>Écart de points entre 2 niveaux</label><input id="a-gap" type="number" min="0" value="${C.gap}"></div></div>
+            <p class="muted" style="font-size:.8rem;margin:6px 0 0">Niveau 1 = le plus fort, en haut du classement (${fmtP(C.start + (C.nl - 1) * C.gap)} pts) ; niveau ${C.nl} : ${fmtP(C.start)} pts. Au sein d'un niveau : ordre tiré au sort. Battre un joueur d'un niveau au-dessus rapporte plus.</p>
+            ${players().map(x => `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-top:1px solid var(--line)"><b style="flex:1;min-width:0">${esc(x)}</b><div class="seg" style="flex:0 0 auto;margin:0">${Array.from({ length: C.nl }, (_, i) => `<button data-lv="${esc(x)}|${i + 1}" class="${lvOf(x) === i + 1 ? 'on' : ''}" style="padding:6px 11px">${i + 1}</button>`).join('')}</div></div>`).join('') || '<p class="muted">Aucun participant.</p>'}`
+            : C.ini === 'rand' ? '<p class="muted" style="font-size:.8rem;margin:6px 0 0">L\'ordre de départ est tiré au sort à la création.</p>' : '<p class="muted" style="font-size:.8rem;margin:6px 0 0">Tout le monde part avec les mêmes points, classés par ordre alphabétique.</p>'}</div>
         <button class="btn btn-grad btn-block" data-cfg="bare" id="a-ok" style="margin-top:14px;padding:17px;font-size:1.15rem">✔ Créer le Défi ATP</button>`;
+      el.querySelectorAll('[data-ini]').forEach(b => b.onclick = () => { keepC(); C.ini = b.dataset.ini; draw(); });
+      el.querySelectorAll('[data-lv]').forEach(b => b.onclick = () => { keepC(); const [x, v] = b.dataset.lv.split('|'); C.lv[x] = +v; draw(); });
+      ['#a-nl', '#a-gap'].forEach(q => { if ($(q)) $(q).onchange = () => { keepC(); draw(); }; });
       $('#a-bk').onclick = () => (o.back || setup)();
       if ($('#a-cls')) $('#a-cls').onchange = () => { keepC(); const wasDef = C.nom === def(); C.cls = $('#a-cls').value; C.off = new Set(); if (wasDef) C.nom = def(); draw(); };
       el.querySelectorAll('[data-sai]').forEach(b => b.onclick = () => { keepC(); C.saisie = b.dataset.sai; draw(); });
@@ -762,6 +783,8 @@ TOOL_IMPL.match = function (el, grp = 'col') {
       $('#a-ok').onclick = () => { keepC(); const ps = players(); if (ps.length < 2) return toast('Au moins 2 élèves présents');
         const tn = { id: tuid(), date: Date.now(), nom: C.nom.trim() || def(), classe: C.cls || '', sport: S.sport, format: 'atp', teams: ps.map(x => ({ name: x, members: [x] })), rencontres: [],
           start: C.start, confirm: C.cf, saisie: C.saisie, enCours: [], regles: curRegles() };
+        if (C.ini !== 'alpha') { const sh = ps.slice(); for (let i = sh.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [sh[i], sh[j]] = [sh[j], sh[i]]; } tn.seed = sh; }
+        if (C.ini === 'lvl') { tn.lvl = Object.fromEntries(ps.map(x => [x, lvOf(x)])); tn.lvlGap = C.gap; tn.lvlN = C.nl; }
         TR().push(window.teamTag ? teamTag(tn) : tn); S.atp = null; save(); beep(1200, .15); toast(`Défi ATP créé ✔ ${ps.length} joueurs · ${fmtP(C.start)} pts chacun`); tview(tn.id); };
     };
     draw(); window.scrollTo(0, 0);
@@ -789,6 +812,15 @@ TOOL_IMPL.match = function (el, grp = 'col') {
     const indiv = RACKET.includes(t.sport) || ['escrime', 'lutte'].includes(t.sport) || t.teams.every(x => (x.members || []).length <= 1);
     const nArbOf = n => Math.max(0, Math.min(indiv ? 2 : 1, n - 2));
     S.nx = S.nx || {};
+    /* Calendrier des arbitres prévu à l'avance pour chaque rencontre non jouée : d'abord les équipes exemptes du tour,
+       puis celles qui ne jouent ni juste avant ni juste après, en équilibrant le nombre d'arbitrages */
+    const PLAN = {};
+    groups.forEach(g => { const rs = t.rencontres.filter(r => (r.g || '') === g).slice().sort((x, y) => x.round - y.round), gt = t.teams.filter(x => (x.g || '') === g).map(x => x.name), cnt = {};
+      gt.forEach(n => { cnt[n] = 0; }); rs.forEach(r => { if (res[r.id] || RE[r.id]) (r.arb || []).forEach(n => { if (n in cnt) cnt[n]++; }); });
+      const k = nArbOf(gt.length); if (!k) return;
+      rs.forEach((r, i) => { if (res[r.id] || RE[r.id]) return; const inR = new Set(rs.filter(x => x.round === r.round).flatMap(x => [x.a, x.b])), nb = new Set([rs[i - 1], rs[i + 1]].filter(Boolean).flatMap(x => [x.a, x.b]));
+        const C = gt.filter(n => n !== r.a && n !== r.b).sort((x, y) => (inR.has(x) ? 1 : 0) - (inR.has(y) ? 1 : 0) || (nb.has(x) ? 1 : 0) - (nb.has(y) ? 1 : 0) || cnt[x] - cnt[y] || x.localeCompare(y));
+        PLAN[r.id] = C.slice(0, k); PLAN[r.id].forEach(n => cnt[n]++); }); });
     const nextOf = g => { const rs = t.rencontres.filter(r => (r.g || '') === g), gt = t.teams.filter(x => (x.g || '') === g).map(x => x.name), st = S.nx[t.id + '|' + g] || (S.nx[t.id + '|' + g] = { s: 0, a: 0 });
       const busy = new Set(rs.filter(r => RE[r.id]).flatMap(r => [r.a, r.b, ...(r.arb || [])])), cnt = {}, lastA = {}, lastP = {};
       gt.forEach(n => { cnt[n] = 0; lastA[n] = 0; lastP[n] = 0; });
@@ -796,7 +828,8 @@ TOOL_IMPL.match = function (el, grp = 'col') {
       const Q = rs.filter(r => !res[r.id] && !RE[r.id] && !busy.has(r.a) && !busy.has(r.b)).sort((x, y) => x.round - y.round || Math.max(lastP[x.a], lastP[x.b]) - Math.max(lastP[y.a], lastP[y.b]));
       if (!Q.length) return { left: rs.filter(r => !res[r.id]).length, cnt };
       const pk = Q[st.s % Q.length], C = gt.filter(n => n !== pk.a && n !== pk.b && !busy.has(n)).sort((x, y) => cnt[x] - cnt[y] || lastA[x] - lastA[y] || lastP[y] - lastP[x]);
-      const k = Math.min(nArbOf(gt.length), C.length), off = C.length > k ? st.a % C.length : 0, arbs = [...C.slice(off), ...C.slice(0, off)].slice(0, k);
+      const k = Math.min(nArbOf(gt.length), C.length), off = C.length > k ? st.a % C.length : 0, pl = PLAN[pk.id] || [];
+      const arbs = !st.a && pl.length === k && pl.every(n => C.includes(n)) ? pl : [...C.slice(off), ...C.slice(0, off)].slice(0, k);   // arbitre prévu au calendrier s'il est libre
       return { pk, arbs, nQ: Q.length, nC: C.length, k, left: rs.filter(r => !res[r.id]).length, cnt }; };
     const nextCard = g => { const N = nextOf(g); if (!N.pk) return N.left ? '' : `<div class="card" style="margin-top:12px;text-align:center;font-weight:800">✅ ${g ? esc(g) + ' : ' : ''}tous les matchs sont joués</div>`;
       return `<div class="card tn-next" style="margin-top:12px;border:2px solid var(--gold,#C9A227)"><b>🎯 Match suivant${g ? ' · ' + esc(g) : ''}</b>
@@ -813,12 +846,12 @@ TOOL_IMPL.match = function (el, grp = 'col') {
       ${rounds.map(k => { const rr = rs.filter(r => r.round === k), inR = new Set(rr.flatMap(r => [r.a, r.b])), bye = gt.filter(x => !inR.has(x.name));
         return `<div class="card" style="margin-top:10px;padding:10px 14px"><h3 style="margin:0">Tour ${k}</h3>${bye.length ? `<div class="muted" style="font-size:.8rem">Exempt : ${bye.map(x => esc(x.name)).join(', ')}</div>` : ''}
           ${rr.map(r => { const m = res[r.id], sc = m && tScore(r, m);
-            return `<div style="border-top:1px solid var(--line);margin-top:6px"><div class="tn-r"><span class="ta">${esc(r.a)}</span>${m ? `<button class="tn-sc" data-tr="${r.id}" title="Voir le match">${sc[0]} – ${sc[1]}</button>` : '<span class="muted">vs</span>'}<span class="tb">${esc(r.b)}</span></div>${(r.arb || []).length ? `<div class="muted" style="text-align:center;font-size:.78rem;margin:-2px 0 4px">⚖️ ${r.arb.map(esc).join(', ')}</div>` : ''}
+            return `<div style="border-top:1px solid var(--line);margin-top:6px"><div class="tn-r"><span class="ta">${esc(r.a)}</span>${m ? `<button class="tn-sc" data-tr="${r.id}" title="Voir le match">${sc[0]} – ${sc[1]}</button>` : '<span class="muted">vs</span>'}<span class="tb">${esc(r.b)}</span></div>${(m || RE[r.id]) && (r.arb || []).length ? `<div class="muted" style="text-align:center;font-size:.78rem;margin:-2px 0 4px">⚖️ ${r.arb.map(esc).join(', ')}</div>` : !m && (PLAN[r.id] || []).length ? `<div style="text-align:center;font-size:.82rem;font-weight:800;margin:-2px 0 6px">⚖️ Arbitre${PLAN[r.id].length > 1 ? 's' : ''} : ${PLAN[r.id].map(esc).join(' et ')}</div>` : ''}
               ${RE[r.id] ? rEncLine(t, RE[r.id]) : m ? `<div style="text-align:center;margin-bottom:6px"><button class="link" data-tp="${r.id}" style="font-size:.8rem">↻ Rejouer (le dernier score enregistré compte)</button></div>` : `<button class="btn btn-grad btn-block tn-go" data-tp="${r.id}">▶ Jouer ce match</button>`}</div>`; }).join('')}</div>`; }).join('')}`; }).join('');
     const rLbl = r => `Tour ${r.round}${r.g ? ' · ' + r.g : ''}`;
     const ne = Object.keys(RE).length;
     return { info: `Victoire ${P.v} pts · Nul ${P.n} pts · Défaite ${P.d} pt${P.d > 1 ? 's' : ''}${groups.length > 1 ? ` · ${groups.length} poules par niveau` : ''}${ne ? ` · ⏳ ${ne} en cours` : ''}`, html: rEncCard(t, rLbl) + html, csvLbl: 'Exporter le classement (CSV)',
-      wire: () => { rEncWire(t); el.querySelectorAll('[data-tp]').forEach(b => b.onclick = () => rPlay(t, b.dataset.tp));
+      wire: () => { rEncWire(t); el.querySelectorAll('[data-tp]').forEach(b => b.onclick = () => rPlay(t, b.dataset.tp, res[b.dataset.tp] ? undefined : PLAN[b.dataset.tp]));
         const reV = () => { const y = window.scrollY; tview(t.id); window.scrollTo(0, y); };
         el.querySelectorAll('[data-nx]').forEach(b => b.onclick = () => { const [rid, g] = b.dataset.nx.split('|'), N = nextOf(g); if (!N.pk || N.pk.id !== rid) return reV(); rPlay(t, rid, N.arbs); });
         el.querySelectorAll('[data-nxs]').forEach(b => b.onclick = () => { const st = S.nx[t.id + '|' + b.dataset.nxs]; st.s++; st.a = 0; reV(); });
@@ -829,7 +862,7 @@ TOOL_IMPL.match = function (el, grp = 'col') {
         ['Rang', 'Équipe', 'Pts', 'J', 'G', 'N', 'P', 'Buts pour', 'Buts contre', 'Diff', 'Joueurs', 'Poule'],
         ...groups.flatMap(g => tStand(t, g).map((r, i) => [i + 1, r.t, r.pts, r.j, r.g, r.n, r.p, r.bp, r.bc, r.bp - r.bc, members(t, r.t), g])),
         [], ['Tour', 'Équipe A', 'Score A', 'Score B', 'Équipe B', 'Poule', 'Arbitre(s)'],
-        ...t.rencontres.map(r => { const m = res[r.id], sc = m ? tScore(r, m) : ['', '']; return [r.round, r.a, sc[0], sc[1], r.b, r.g || '', (r.arb || []).join(', ')]; })])) };
+        ...t.rencontres.map(r => { const m = res[r.id], sc = m ? tScore(r, m) : ['', '']; return [r.round, r.a, sc[0], sc[1], r.b, r.g || '', ((m ? r.arb : PLAN[r.id] || r.arb) || []).join(', ')]; })])) };
   }
 
   /* ----- Élimination directe ----- */

@@ -12,6 +12,16 @@
   const jget = k => { try { return JSON.parse(ls.get(k)); } catch (e) { return null; } };
   const FN = k => 'epsone_' + k + '.json', KEY = n => n.replace(/^epsone_/, '').replace(/\.json$/, '');
   const ENGINES = {};
+  /* Chiffrement de bout en bout (comme Firebase) : AES-256-GCM, clé tirée d'une PHRASE DE CHIFFREMENT
+     choisie par l'enseignant (PBKDF2) ; la même phrase est saisie sur chaque appareil. Le cloud ne voit que du contenu illisible. */
+  const TE = new TextEncoder(), TD = new TextDecoder(), CHK = '_cle', CHK_TXT = 'epsone-ok';
+  const b64 = u8 => { let s = ''; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000)); return btoa(s); };
+  const unb64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
+  const deriveK = async (pid, phrase) => crypto.subtle.deriveKey({ name: 'PBKDF2', salt: TE.encode('epsone-cloud-v1|' + pid), iterations: 210000, hash: 'SHA-256' },
+    await crypto.subtle.importKey('raw', TE.encode(phrase), 'PBKDF2', false, ['deriveKey']), { name: 'AES-GCM', length: 256 }, true, ['encrypt', 'decrypt']);
+  const encS = async (K, str) => { const iv = crypto.getRandomValues(new Uint8Array(12)), ct = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, K, TE.encode(str))), o = new Uint8Array(12 + ct.length); o.set(iv); o.set(ct, 12); return b64(o); };
+  const decS = async (K, s) => { const u = unb64(s); return TD.decode(await crypto.subtle.decrypt({ name: 'AES-GCM', iv: u.subarray(0, 12) }, K, u.subarray(12))); };
+  const NEEDKEY = 'Phrase de chiffrement requise sur cet appareil';
 
   /* =================== Moteur générique =================== */
   function makeCloud(P) {
@@ -23,7 +33,14 @@
     const setBase = (k, v) => { BASE[k] = JSON.stringify(v ?? null); };
     const C = { status: 'off', err: '', last: meta.last || null, busy: false };
     const sleep = ms => new Promise(r => setTimeout(r, ms));
-    const valOf = f => { try { return JSON.parse(f.v); } catch (e) { return undefined; } };
+    /* clé de chiffrement de cet appareil (gardée localement) */
+    const KK = 'epsone_ck_' + P.id; let K = null;
+    const loadK = async () => { try { const r = localStorage.getItem(KK); if (r) K = await crypto.subtle.importKey('raw', unb64(r), { name: 'AES-GCM' }, true, ['encrypt', 'decrypt']); } catch (e) { K = null; } };
+    const kReady = loadK();
+    const valOf = async f => { if (!f) return undefined; if (typeof f.e === 'string') { await kReady; if (!K) { const e = new Error(NEEDKEY); e.needKey = true; throw e; }
+        try { return JSON.parse(await decS(K, f.e)); } catch (e) { const x = new Error('Phrase de chiffrement incorrecte sur cet appareil'); x.needKey = true; throw x; } }
+      try { return JSON.parse(f.v); } catch (e) { return undefined; } };
+    const packOf = async (t, v) => { await kReady; return K ? { t, dev: meta.dev, e: await encS(K, v) } : { t, dev: meta.dev, v }; };
 
     let applying = false;
     // données reçues écrites AVANT la base de fusion ; appareil en retard → 1re fusion sans suppression (voir sync.js)
@@ -32,13 +49,15 @@
     async function pull() { try { return await pull0(); } catch (e) { C.status = 'error'; C.err = e.message; draw(); pill(); throw e; } }
     async function pull0() {
       if (!on() || !L() || !(await P.ensure())) { pill(); return false; }
-      const files = await P.list(); let changed = false;
+      const files = await P.list(); let changed = false; await kReady;
+      meta.enc = files.some(f => f.key === CHK); C.needKey = meta.enc && !K;
       for (const f of files) {
-        const k = f.key; if (!L().syncKeys().includes(k) && DB[k] !== undefined) continue;
+        const k = f.key; if (k === CHK || (!L().syncKeys().includes(k) && DB[k] !== undefined)) continue;
         if (meta.mt[k] === f.mt) continue;
-        const doc = await P.read(f.id); meta.mt[k] = f.mt;
-        if (doc.dev === meta.dev && doc.t === meta.keys[k]?.t) continue;
-        let rv = valOf(doc); if (rv === undefined) continue; rv = L().outb(k, rv);
+        const doc = await P.read(f.id);
+        if (doc.dev === meta.dev && doc.t === meta.keys[k]?.t) { meta.mt[k] = f.mt; continue; }
+        let rv; try { rv = await valOf(doc); } catch (e) { if (e.needKey) { C.needKey = true; C.err = e.message; continue; } throw e; }
+        meta.mt[k] = f.mt; if (rv === undefined) continue; rv = L().outb(k, rv);
         const local = L().outb(k), m = meta.keys[k], dirty = m && m.h !== L().hash(JSON.stringify(local));
         let out = !m ? (local == null ? rv : L().mergeData(local, rv)) : dirty ? (stale ? L().mergeData(local, rv) : L().merge3(getBase(k), local, rv)) : rv;
         if (window.epsClsKeep) out = epsClsKeep(k, out, rv);
@@ -61,25 +80,26 @@
       C.busy = true; C.status = 'sync'; draw(); let chg = false;
       try {
         if (!(await P.ensure())) throw new Error(`Reconnexion à ${P.name} nécessaire`);
-        const files = await P.list(), byKey = Object.fromEntries(files.map(f => [f.key, f]));
+        const files = await P.list(), byKey = Object.fromEntries(files.map(f => [f.key, f])); await kReady;
+        if (byKey[CHK] && !K) { C.needKey = true; throw new Error(NEEDKEY); }   // jamais d'envoi en clair sur un cloud chiffré
         for (const k of keys) {
-          const f = byKey[k]; let base = getBase(k), local = L().outb(k), remote = f ? valOf(await P.read(f.id)) : undefined, out, t, id = f && f.id, rev = f && f.mt, ok = false;
+          const f = byKey[k]; let base = getBase(k), local = L().outb(k), remote = f ? await valOf(await P.read(f.id)) : undefined, out, t, id = f && f.id, rev = f && f.mt, ok = false;
           // Plusieurs tablettes peuvent envoyer en même temps (fin de séance) : aucune ne doit effacer l'envoi d'une autre.
           for (let attempt = 0; attempt < 8 && !ok; attempt++) {
             out = remote === undefined ? local : stale ? L().mergeData(local, L().outb(k, remote)) : L().merge3(base, local, L().outb(k, remote));
             if (window.epsClsKeep) out = epsClsKeep(k, out, remote === undefined ? base : L().outb(k, remote));
             t = Date.now(); let w;
-            try { w = await P.write(k, id, { t, dev: meta.dev, v: JSON.stringify(out ?? null) }, rev); }
+            try { w = await P.write(k, id, await packOf(t, JSON.stringify(out ?? null)), rev); }
             catch (e) { if (!e.conflict) throw e;                        // écriture conditionnelle refusée : une autre tablette vient d'écrire
               await sleep(300 + Math.random() * 900);
               const fl = (await P.list()).find(x => x.key === k); if (!fl) continue;
-              base = remote === undefined ? undefined : L().outb(k, remote); local = out; id = fl.id; rev = fl.mt; remote = valOf(await P.read(fl.id)); continue; }
+              base = remote === undefined ? undefined : L().outb(k, remote); local = out; id = fl.id; rev = fl.mt; remote = await valOf(await P.read(fl.id)); continue; }
             id = w.id; rev = w.mt; meta.mt[k] = w.mt;
             if (P.cas) { ok = true; break; }                              // Dropbox : écriture conditionnelle (aucun écrasement possible)
             // Google Drive : on laisse aux autres tablettes le temps d'écrire, puis on vérifie que notre envoi est toujours là
             await sleep(900 + Math.random() * 1600);
             const back = await P.read(id); if (back.dev === meta.dev && back.t === t) { ok = true; break; }
-            base = remote === undefined ? undefined : L().outb(k, remote); local = out; remote = valOf(back);
+            base = remote === undefined ? undefined : L().outb(k, remote); local = out; remote = await valOf(back);
           }
           if (!ok) throw new Error('Envoi simultané de plusieurs tablettes : réessayez dans un instant');
           setBase(k, out); meta.keys[k] = { h: L().hash(JSON.stringify(out ?? null)), t };
@@ -117,6 +137,7 @@
       host.innerHTML = on() ? `<div class="card" style="border:2px solid #1E5BD8"><h3>🟢 ${P.name} activé</h3>
           <p style="margin:6px 0;line-height:1.45">Vos données sont enregistrées sur <b>votre propre ${P.name}</b>, ${P.where}. Connectez le même compte sur vos autres tablettes.</p>
           <p class="muted" style="margin:0;font-size:.82rem">État : ${C.status === 'sync' ? 'envoi…' : C.status === 'error' ? 'erreur' : 'à jour'} · dernière synchro : ${last}${pending().length ? ` · ${pending().length} rubrique(s) à envoyer` : ''}</p>
+          ${encBlock()}
           ${meta.who ? `<p class="muted" style="margin:4px 0 0;font-size:.82rem">👤 Compte : <b>${esc(meta.who)}</b> — le même compte doit être connecté sur tous vos appareils.</p>` : ''}
           ${C.err ? `<p style="color:var(--danger);font-size:.85rem">${esc(C.err)}</p>` : ''}
           ${!P.hasToken() ? `<button class="btn btn-grad btn-block" style="margin-top:10px" id="cl-re">🔑 Reconnecter ${P.name}</button>` : `<button class="btn btn-grad btn-block" style="margin-top:10px" id="cl-now">🔄 Synchroniser maintenant</button>`}
@@ -134,11 +155,12 @@
       if ($('#cl-on')) $('#cl-on').onclick = () => connect();
       if ($('#cl-re')) $('#cl-re').onclick = () => sendNow();
       if ($('#cl-now')) $('#cl-now').onclick = () => sendNow();
+      if ($('#ck-go')) $('#ck-go').onclick = () => setPhrase($('#ck-p1').value, $('#ck-p2') ? $('#ck-p2').value : null);
       if ($('#cl-all')) $('#cl-all').onclick = async () => { try { if (!(await P.ensure())) await P.reauth(); meta.mt = {}; saveMeta(); const ch = await pull(); await push(); toast(ch ? `Données récupérées depuis ${P.name} ✔` : `Rien de nouveau sur ${P.name}`); } catch (e) { toast(e.message); } draw(); };
       if ($('#cl-chk')) $('#cl-chk').onclick = async () => { const d = $('#cl-diag'); d.innerHTML = '<p class="muted">Lecture…</p>';
         try { if (!(await P.ensure())) await P.reauth(); if (P.who) { const w = await P.who().catch(() => ''); if (w) { meta.who = w; saveMeta(); } }
           const files = await P.list(), fc = files.find(f => f.key === 'classes'); let nc = '—';
-          if (fc) { try { const v = valOf(await P.read(fc.id)); nc = Array.isArray(v) ? v.length : '?'; } catch (e) { nc = '?'; } }
+          if (fc) { try { const v = await valOf(await P.read(fc.id)); nc = Array.isArray(v) ? v.length : '?'; } catch (e) { nc = '?'; } }
           const loc = (window.dbGet ? dbGet('classes') : DB.classes) || [];
           d.innerHTML = `<div class="card" style="margin-top:10px;background:var(--grad-soft)">${meta.who ? `👤 <b>${esc(meta.who)}</b><br>` : ''}📁 ${files.length} rubrique(s) sur ${P.name}${fc ? ` · dernière modification des classes : ${new Date(fc.mt && /\d{4}-/.test(fc.mt) ? fc.mt : Date.now()).toLocaleString('fr-FR')}` : ''}<br>
             🏫 Classes sur ${P.name} : <b>${nc}</b> · sur cet appareil : <b>${loc.length}</b>${pending().length ? `<br>⏳ ${pending().length} rubrique(s) pas encore envoyée(s) depuis cet appareil` : ''}
@@ -149,10 +171,31 @@
         ls.set(STORE, null); ls.set('epsone_free', '1'); try { P.revoke(); } catch (e) {} pill(); L() && L().resumeFirebase(); L() && L().refreshUI(); L() && L().gate(); window.cloudRefresh && window.cloudRefresh(); toast(`${P.name} arrêté`); };
     }
 
+    /* ----- Phrase de chiffrement ----- */
+    function encBlock() {
+      if (K) return `<div style="margin:8px 0 0;padding:8px 10px;border-radius:12px;background:rgba(30,158,90,.10);font-size:.85rem">🔒 <b>Données chiffrées</b> sur l'appareil avant l'envoi : ${P.name} ne stocke que du contenu illisible.</div>`;
+      if (meta.enc || C.needKey) return `<div style="margin:8px 0 0;padding:10px;border-radius:12px;border:2px solid #E0892F"><b>🔐 Vos données ${P.name} sont chiffrées</b><div class="muted" style="font-size:.8rem">Saisissez la phrase de chiffrement choisie sur votre premier appareil.</div>
+          <input id="ck-p1" type="password" placeholder="Phrase de chiffrement" autocomplete="off" style="margin-top:6px"><button class="btn btn-grad btn-block" style="margin-top:6px" id="ck-go">🔓 Déverrouiller</button></div>`;
+      return `<details style="margin-top:8px"><summary style="cursor:pointer;font-weight:800">🔒 Chiffrer mes données (recommandé)</summary><div class="muted" style="font-size:.8rem;margin-top:4px">Comme avec la synchronisation EPS ONE : vos données sont chiffrées sur l'appareil, ${P.name} ne peut pas les lire. Choisissez une phrase (8 caractères minimum) : elle sera demandée une fois sur chaque appareil. <b>Notez-la</b> : sans elle, les données du cloud sont illisibles (celles des appareils restent intactes).</div>
+          <input id="ck-p1" type="password" placeholder="Phrase de chiffrement" autocomplete="new-password" style="margin-top:6px"><input id="ck-p2" type="password" placeholder="Confirmer la phrase" autocomplete="new-password" style="margin-top:6px">
+          <button class="btn btn-grad btn-block" style="margin-top:6px" id="ck-go">🔒 Chiffrer mes données</button></details>`;
+    }
+    async function setPhrase(p1, p2) {
+      p1 = (p1 || '').trim(); if (p1.length < 8) return toast('8 caractères minimum');
+      if (p2 != null && p1 !== p2.trim()) return toast('Les deux phrases sont différentes');
+      try { if (!(await P.ensure())) await P.reauth();
+        const key = await deriveK(P.id, p1), files = await P.list(), fc = files.find(f => f.key === CHK);
+        if (fc) { const d = await P.read(fc.id); let ok = false; try { ok = (await decS(key, d.e)) === CHK_TXT; } catch (e) {} if (!ok) return toast('❌ Phrase incorrecte'); }
+        K = key; localStorage.setItem(KK, b64(new Uint8Array(await crypto.subtle.exportKey('raw', key)))); C.needKey = false; C.err = '';
+        if (!fc) { await P.write(CHK, null, { t: Date.now(), dev: meta.dev, e: await encS(K, CHK_TXT) }); meta.enc = true;
+          Object.keys(meta.keys).forEach(k => { meta.keys[k] = { ...meta.keys[k], h: 'x' }; }); saveMeta(); await push(); toast('🔒 Données chiffrées ✔ — saisissez la même phrase sur vos autres appareils'); }
+        else { meta.mt = {}; saveMeta(); await pull(); await push(); toast('🔓 Appareil déverrouillé ✔'); }
+      } catch (e) { toast(e.message); } draw();
+    }
     // Activation après autorisation (pas besoin de validation par l'administrateur)
     async function activate() {
       ls.set(STORE, P.id); L() && L().stopFirebase();
-      meta.keys = {}; meta.mt = {}; delete meta.who; BASE = {}; saveMeta(); saveBase(); L() && L().gate();
+      meta.keys = {}; meta.mt = {}; delete meta.who; delete meta.enc; BASE = {}; saveMeta(); saveBase(); L() && L().gate();
       await pull(); await push(); toast(`${P.name} activé ✔`);
     }
     async function connect() { C.err = ''; try { if ((await P.authorize()) === 'redirect') return; await activate(); } catch (e) { C.err = e.message; toast(e.message); } L() && L().refreshUI(); draw(); }

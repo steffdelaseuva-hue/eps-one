@@ -4,9 +4,14 @@
    ========================================================= */
 /* Page Ko-fi : laisser vide tant qu'elle n'existe pas (le bouton est alors masqué) */
 const KOFI_URL = 'https://ko-fi.com/epsone';
-const APP_VERSION = '20.5';
+const APP_VERSION = '21.0';
 const APP_URL = 'https://steffdelaseuva-hue.github.io/eps-one/';
 const CHANGELOG = [
+  { v: '21.0', items: ['Google Drive / Dropbox : chiffrement de bout en bout (comme Firebase) avec une phrase de chiffrement choisie par l\'enseignant — le cloud ne stocke plus que du contenu illisible ; la phrase est demandée une fois sur chaque appareil (Plus → Stockage & synchronisation)'] },
+  { v: '20.9', items: ['Synchronisation : les grosses rubriques (historique des matchs…) sont découpées en plusieurs morceaux — elles ne sont plus bloquées par la limite de taille (« trop volumineuse »), qui empêchait les matchs de partir vers les autres tablettes', 'Une rubrique en erreur ne bloque plus l\'envoi des autres, et une erreur de synchronisation est maintenant signalée à l\'écran'] },
+  { v: '20.8', items: ['Camemberts de résultats : camemberts pleins, une part par critère avec le pourcentage écrit dans la part (au lieu des anneaux)'] },
+  { v: '20.7', items: ['Gestion de match · championnat par poule : l\'arbitre de chaque rencontre est désigné automatiquement à l\'avance dans la liste des tours (équipe exempte d\'abord, arbitrages équilibrés) ; « Jouer ce match » et « Match suivant » le reprennent, export CSV compris'] },
+  { v: '20.6', items: ['Duathlon : impossible de passer à l\'étape 2 ou 3 tant que le chrono de l\'étape précédente n\'est pas arrêté (🔒 sur la tablette d\'un groupe ; côté enseignant, blocage tant qu\'un groupe est encore en course)', 'Défi ATP : classement de départ au choix — ordre alphabétique, au hasard ou par niveau (2 à 6 niveaux, écart de points réglable ; tirage au sort au sein d\'un niveau)'] },
   { v: '20.5', items: ['Interclasses : choisir soit le nombre d\'équipes, soit le nombre de joueurs par équipe (le nombre d\'équipes est alors calculé) ; aperçu « 11 équipes de 6 à 7 joueurs » avant de créer'] },
   { v: '20.4', items: ['Interclasses : boutons de points adaptés au sport et modifiables (rugby 5 / 2 / 3, basket 1 / 2 / 3…)', 'Interclasses : points bonus donnés par l\'enseignant pendant le match (valeurs réglables : 3, 5, 10, 100, 1000…), ajoutés au score et affichés « dont bonus » ; « ↶ Annuler le dernier ajout » dans la feuille de score'] },
   { v: '20.3', items: ['Nouvel outil « Interclasses » (Activités de duel · sports collectifs) : 2 classes ou plus, équipes par classe ou mélangées (tirage équilibré, déplacements d\'élèves, absents), handball / basket / football / rugby / ultimate / volley', 'Formule poules + phases finales (des 16es à la finale, 3e place) ou championnat simple, aller ou aller-retour, plusieurs terrains (une poule par terrain ou placement libre)', 'Calendrier par rotations avec chrono commun, arbitres désignés parmi les équipes au repos, points V/N/D/forfait, bonus offensif et défensif, classements et tableau final automatiques, export CSV et envoi dans Résultats des élèves'] },

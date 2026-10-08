@@ -96,7 +96,13 @@ function withLocal(k, v) {                                       // réattache l
   const sub = LOCAL_SUB[k]; if (!sub || !isObj(v)) return v;
   const o = { ...v }; sub.forEach(f => { if (isObj(DB[k]) && f in DB[k]) o[f] = DB[k][f]; else delete o[f]; }); return o;
 }
-const readDoc = async r => { if (!r) return undefined; if (typeof r.c === 'string') return JSON.parse(await decrypt(r.c)); if (typeof r.v === 'string') return JSON.parse(r.v); return undefined; };
+/* Rubriques volumineuses (ex. historique des matchs) : découpées en plusieurs documents Firestore
+   k (1re partie, n = nombre de parties) + k~1, k~2… (même horodatage t). Limite Firestore : 1 Mo par document. */
+const PART = '~', CHUNK = 800000, MAXPARTS = 24, isPart = id => id.includes(PART), PARTS = new Map();   // cache des documents reçus
+const NOTREADY = Symbol('parts');
+const joinParts = (k, r, get = id => PARTS.get(id)) => { if (!(r.n > 1)) return r.c; let c = r.c;
+  for (let i = 1; i < r.n; i++) { const p = get(k + PART + i); if (!p || p.t !== r.t || typeof p.c !== 'string') return NOTREADY; c += p.c; } return c; };
+const readDoc = async (r, k, get) => { if (!r) return undefined; if (typeof r.c === 'string') { const c = joinParts(k, r, get); if (c === NOTREADY) return NOTREADY; return JSON.parse(await decrypt(c)); } if (typeof r.v === 'string') return JSON.parse(r.v); return undefined; };
 
 /* ---------- Envoi (groupé) des rubriques modifiées ---------- */
 let pushing = false;
@@ -107,20 +113,29 @@ async function pushChanged() {
   if (!keys.length) return;
   pushing = true; S.status = 'sync'; refreshUI(); let changedLocal = false;
   try {
-    for (const k of keys) {
+    const errs = [];
+    for (const k of keys) { try {   // une rubrique en erreur ne bloque plus l'envoi des autres
       const ref = doc(fb.db, 'epsone', S.user.uid, 'data', k); let out, t;
       await runTransaction(fb.db, async tx => {
         const d = await tx.get(ref), local = outb(k); out = local; let rem;
-        if (d.exists()) { const r = d.data(); if (!(r.dev === meta.dev && r.t === meta.keys[k]?.t)) { rem = outb(k, await readDoc(r)); out = staleLocal ? mergeData(local, rem) : merge3(getBase(k), local, rem); } }
+        let oldN = 1;
+        if (d.exists()) { const r = d.data(); oldN = r.n > 1 ? r.n : 1;
+          if (!(r.dev === meta.dev && r.t === meta.keys[k]?.t)) { const PD = {}; for (let i = 1; i < oldN; i++) { const pd = await tx.get(doc(fb.db, 'epsone', S.user.uid, 'data', k + PART + i)); if (pd.exists()) PD[k + PART + i] = pd.data(); }
+            const rv0 = await readDoc(r, k, id => PD[id]); if (rv0 === NOTREADY) throw new Error('Envoi en cours depuis une autre tablette : réessai dans un instant');
+            rem = outb(k, rv0); out = staleLocal ? mergeData(local, rem) : merge3(getBase(k), local, rem); } }
         out = keepCls(k, out, rem !== undefined ? rem : getBase(k));
-        const j = JSON.stringify(out ?? null); if (j.length > 700000) throw new Error(`Rubrique « ${k} » trop volumineuse pour la synchronisation`);
-        t = Date.now(); tx.set(ref, { c: await encrypt(j), t, dev: meta.dev });
+        const j = JSON.stringify(out ?? null), c = await encrypt(j), n = Math.max(1, Math.ceil(c.length / CHUNK));
+        if (n > MAXPARTS) throw new Error(`Rubrique « ${k} » trop volumineuse pour la synchronisation (${Math.round(c.length / 1048576)} Mo)`);
+        t = Date.now(); tx.set(ref, n > 1 ? { c: c.slice(0, CHUNK), n, t, dev: meta.dev } : { c, t, dev: meta.dev });
+        for (let i = 1; i < n; i++) tx.set(doc(fb.db, 'epsone', S.user.uid, 'data', k + PART + i), { c: c.slice(i * CHUNK, (i + 1) * CHUNK), t });
+        for (let i = n; i < oldN; i++) tx.delete(doc(fb.db, 'epsone', S.user.uid, 'data', k + PART + i));
       });
       if (!jeq(out, outb(k))) { applying = true; dbS(k, withLocal(k, out)); applying = false; changedLocal = true; }
       setBase(k, out); meta.keys[k] = { h: hash(JSON.stringify(out ?? null)), t };
-    }
+    } catch (e) { errs.push(e); if (/offline|network|unavailable/i.test(e.message || '')) break; } }
+    if (errs.length) throw errs[0];
     S.status = 'ok'; S.err = ''; S.last = meta.last = Date.now();
-  } catch (e) { S.status = 'error'; S.err = e.message; }
+  } catch (e) { S.status = 'error'; S.err = e.message; syncErrToast(e.message); }
   pushing = false; if (changedLocal) persistDB(); if (window._saveOK !== false) { saveBase(); saveMeta(); } drawSendPill();
   if (changedLocal) { try { if (!document.getElementById('screen').classList.contains('open')) renderHome(); } catch (e) {} window.dispatchEvent(new Event('eps-remote')); }
   refreshUI();
@@ -152,16 +167,17 @@ window.save = function () { _save(); schedulePush(); };
      ou la mémoire pleine, l'appareil croirait au démarrage suivant que l'utilisateur a supprimé ces données) ;
    · appareil resté en retard (base plus récente que ses données) : 1re fusion sans suppression ;
    · une classe n'est retirée du compte que si elle a été supprimée volontairement (epsClsKeep). */
+const errSeen = new Set(), syncErrToast = m => { if (!m || !navigator.onLine || /offline|network|unavailable|autre tablette/i.test(m) || errSeen.has(m)) return; errSeen.add(m); setTimeout(() => toast('⚠️ Synchronisation : ' + m), 400); };
 const persistDB = () => { meta.applyT = Date.now(); try { window.saveNow ? window.saveNow() : _save(); } catch (e) {} return window._saveOK !== false; };
 let staleLocal = (() => { try { return (meta.applyT || 0) > (+localStorage.getItem('epsone_db_t') || 0); } catch (e) { return false; } })();
 const keepCls = (k, out, rem) => window.epsClsKeep ? window.epsClsKeep(k, out, rem) : out;
 
 /* ---------- Réception : fusion des données venues des autres appareils ---------- */
 async function applyRemote(k, r) {
-  if (k === CHECK_ID || !r || LOCAL_TOP.has(k)) return false;
+  if (k === CHECK_ID || !r || LOCAL_TOP.has(k) || isPart(k)) return false;
   if (r.dev === meta.dev && meta.keys[k]?.t >= r.t) return false;          // notre propre envoi
-  let rv; try { rv = await readDoc(r); } catch (e) { S.mismatch = true; S.status = 'error'; refreshUI(); return false; }
-  if (rv === undefined) return false;
+  let rv; try { rv = await readDoc(r, k); } catch (e) { S.mismatch = true; S.status = 'error'; refreshUI(); return false; }
+  if (rv === undefined || rv === NOTREADY) return false;                    // parties pas encore toutes reçues : traité à leur arrivée
   rv = outb(k, rv);
   const local = outb(k), m = meta.keys[k], dirty = m && m.h !== hash(JSON.stringify(local));
   const out = keepCls(k, !m ? (replaceOnce || local == null ? rv : mergeData(local, rv)) : dirty ? (staleLocal ? mergeData(local, rv) : merge3(getBase(k), local, rv)) : rv, rv);
@@ -173,7 +189,9 @@ async function applyRemote(k, r) {
 let replaceOnce = false;
 async function applySnap(docs) {
   let changed = false;
-  for (const x of docs) { if (await applyRemote(x.id, x.data())) changed = true; }
+  docs.forEach(x => PARTS.set(x.id, x.data()));
+  const mains = new Set(docs.map(x => isPart(x.id) ? x.id.split(PART)[0] : x.id));
+  for (const id of mains) { if (await applyRemote(id, PARTS.get(id))) changed = true; }
   replaceOnce = false; staleLocal = false;
   if (changed) persistDB();
   if (window._saveOK !== false) { saveBase(); saveMeta(); }
@@ -226,9 +244,10 @@ async function startSync() {
   const remoteHasData = snap.docs.some(d => d.id !== CHECK_ID), localHasData = DB.classes?.length || DB.grilles?.length || Object.keys(meta.keys).length;
   if (remoteHasData && localHasData && !meta.linked) {
     if (S.linkMode !== 'replace') {                                       // Combiner : on fusionne, rien n'est effacé
+      snap.docs.forEach(x => PARTS.set(x.id, x.data()));
       for (const d of snap.docs) {
-        if (d.id === CHECK_ID) continue; const r = d.data(); let v;
-        try { v = typeof r.c === 'string' ? await decrypt(r.c) : r.v; } catch (e) { continue; }
+        if (d.id === CHECK_ID || isPart(d.id)) continue; const r = d.data(); let v;
+        try { const c = typeof r.c === 'string' ? joinParts(d.id, r) : null; if (c === NOTREADY) continue; v = c != null ? await decrypt(c) : r.v; } catch (e) { continue; }
         if (typeof v !== 'string') continue;
         if (LOCAL_TOP.has(d.id)) continue;
         try { const rv = outb(d.id, JSON.parse(v)); dbS(d.id, dbG(d.id) === undefined ? rv : withLocal(d.id, mergeData(outb(d.id), rv))); } catch (e) {}

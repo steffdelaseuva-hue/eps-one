@@ -211,7 +211,7 @@ TOOL_IMPL.duathlon = function (el) {
       const gi = C.only, g = C.groups[gi], e = C.etape, E = g.etapes[e], s = stepOf(c, g, e), T = totalOf(c, g);
       const L = [['pts', '🎯 Points lancers'], ...(c.optL ? [['inval', '❌ Lancers non valides']] : []), ...(duaCommun(c, e) ? [] : [['tours', '🏃 Tours']]), ...(c.optC ? [['penC', '⚠️ Pénalités course']] : [])], sv = duaSeuil(c, e), lock = s.pts < sv, com = duaCommun(c, e);
       box.innerHTML = `<div class="card" style="text-align:center"><div style="font-weight:900;font-size:1.3rem">${esc(g.name)}</div><div class="muted">${g.members.map(esc).join(', ')}</div>
-          <div class="seg" style="margin-top:10px">${[0, 1, 2].map(k => `<button data-e="${k}" class="${k === e ? 'on' : ''}" style="padding:12px 4px">Étape ${k + 1}${g.etapes[k].arr ? ' ✅' : ''}${duaObj(k, c)}</button>`).join('')}</div>
+          <div class="seg" style="margin-top:10px">${[0, 1, 2].map(k => `<button data-e="${k}" class="${k === e ? 'on' : ''}" style="padding:12px 4px;${k && g.etapes.slice(0, k).some(E => !E.arr) ? 'opacity:.55' : ''}">${k && g.etapes.slice(0, k).some(E => !E.arr) ? '🔒 ' : ''}Étape ${k + 1}${g.etapes[k].arr ? ' ✅' : ''}${duaObj(k, c)}</button>`).join('')}</div>
           <div class="gv-clock" data-live="${gi}" style="color:${E.arr ? '#1B9E5A' : 'inherit'}">${dmss(etT(E))}</div>
           ${!E.dep ? `<button class="btn btn-grad btn-block gv-big" data-go="${gi}">▶ Départ — étape ${e + 1}</button>` : ''}
           ${E.dep && !E.arr ? `<button class="btn btn-danger btn-block gv-big" data-fin="${gi}">🏁 Arrivée — étape ${e + 1}</button>` : ''}
@@ -236,7 +236,14 @@ TOOL_IMPL.duathlon = function (el) {
     // actions communes aux deux vues
     const bind = () => {
       const $ = s => box.querySelector(s), all = s => box.querySelectorAll(s), keep = () => save(), e = C.etape, redraw = () => (C.only != null && C.groups[C.only] ? drawGroup() : draw());
-      all('[data-e]').forEach(b => b.onclick = () => { C.etape = +b.dataset.e; keep(); redraw(); });
+      // passage à l'étape suivante bloqué tant que le chrono de l'étape précédente n'est pas arrêté
+      all('[data-e]').forEach(b => b.onclick = () => { const k = +b.dataset.e, grp = C.only != null && C.groups[C.only];
+        if (k > 0) {
+          if (grp) { const j = grp.etapes.slice(0, k).findIndex(E => !E.arr);
+            if (j >= 0) { try { beep(300, .25); } catch (er) {} return toast(grp.etapes[j].dep ? `⛔ Arrête d'abord le chrono de l'étape ${j + 1} (🏁 Arrivée)` : `⛔ Termine d'abord l'étape ${j + 1} (départ puis arrivée)`); } }
+          else { const run = C.groups.filter(g => g.etapes.slice(0, k).some(E => E.dep && !E.arr));
+            if (run.length) { try { beep(300, .25); } catch (er) {} return toast(`⛔ Chrono encore en cours (étape précédente) : ${run.map(g => g.name).join(', ')} — arrêtez-le d'abord`); } } }
+        C.etape = k; keep(); redraw(); });
       all('[data-go]').forEach(b => b.onclick = () => { C.groups[+b.dataset.go].etapes[e].dep = Date.now(); beep(1300, .3); keep(); redraw(); });
       all('[data-fin]').forEach(b => b.onclick = () => { C.groups[+b.dataset.fin].etapes[e].arr = Date.now(); beep(1000, .3); keep(); redraw(); });
       all('[data-undo]').forEach(b => b.onclick = () => { C.groups[+b.dataset.undo].etapes[e].arr = null; keep(); redraw(); });
