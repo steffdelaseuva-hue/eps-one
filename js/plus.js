@@ -4,9 +4,12 @@
    ========================================================= */
 /* Page Ko-fi : laisser vide tant qu'elle n'existe pas (le bouton est alors masqué) */
 const KOFI_URL = 'https://ko-fi.com/epsone';
-const APP_VERSION = '20.2';
+const APP_VERSION = '20.5';
 const APP_URL = 'https://steffdelaseuva-hue.github.io/eps-one/';
 const CHANGELOG = [
+  { v: '20.5', items: ['Interclasses : choisir soit le nombre d\'équipes, soit le nombre de joueurs par équipe (le nombre d\'équipes est alors calculé) ; aperçu « 11 équipes de 6 à 7 joueurs » avant de créer'] },
+  { v: '20.4', items: ['Interclasses : boutons de points adaptés au sport et modifiables (rugby 5 / 2 / 3, basket 1 / 2 / 3…)', 'Interclasses : points bonus donnés par l\'enseignant pendant le match (valeurs réglables : 3, 5, 10, 100, 1000…), ajoutés au score et affichés « dont bonus » ; « ↶ Annuler le dernier ajout » dans la feuille de score'] },
+  { v: '20.3', items: ['Nouvel outil « Interclasses » (Activités de duel · sports collectifs) : 2 classes ou plus, équipes par classe ou mélangées (tirage équilibré, déplacements d\'élèves, absents), handball / basket / football / rugby / ultimate / volley', 'Formule poules + phases finales (des 16es à la finale, 3e place) ou championnat simple, aller ou aller-retour, plusieurs terrains (une poule par terrain ou placement libre)', 'Calendrier par rotations avec chrono commun, arbitres désignés parmi les équipes au repos, points V/N/D/forfait, bonus offensif et défensif, classements et tableau final automatiques, export CSV et envoi dans Résultats des élèves'] },
   { v: '20.2', items: ['Correction : la flèche retour ne répondait plus dans « Copies de secours »'] },
   { v: '20.1', items: ['Synchronisation plus sûre : une classe n\'est plus jamais retirée du compte si elle n\'a pas été supprimée volontairement (Mes classes) — un appareil resté en retard, à la mémoire pleine ou fermé trop vite ne peut plus effacer les classes des collègues', 'Les données reçues sont enregistrées sur l\'appareil avant la mise à jour de la synchronisation ; un appareil en retard refait une fusion sans suppression'] },
   { v: '20.0', items: ['Mon cloud : Dropbox proposé en premier (« conseillé » : connexion durable)', 'Google Drive : la connexion (limitée à 1 h par Google) est renouvelée automatiquement au premier toucher dans l\'app, puis la synchronisation reprend'] },
