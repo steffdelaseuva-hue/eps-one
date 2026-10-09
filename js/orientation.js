@@ -61,18 +61,18 @@ function patSVG(code, px = 44, col = '#0B2A5B') {
     return v === '1' ? `<circle cx="${x}" cy="${y}" r="3.4" fill="${col}"/>` : `<circle cx="${x}" cy="${y}" r="1.1" fill="#D5DBE5"/>`; }).join('')}</svg>`;
 }
 /* Sélecteur de symbole : répertoire, dessin libre, options supplémentaires */
-function patPicker({ title, options, draw = true, extra = [], current, used = [], onPick }) {
+function patPicker({ title, options, draw = true, extra = [], current, used = [], onPick, only }) {
   const o = document.createElement('div');
   o.style.cssText = 'position:fixed;inset:0;z-index:300;background:rgba(7,18,42,.72);display:grid;place-items:center;padding:12px';
-  let tab = 'rep', cells = [...(isPat(current) ? current : '0'.repeat(PAT_N))];
+  let tab = only === 'draw' ? 'draw' : 'rep', cells = [...(isPat(current) ? current : '0'.repeat(PAT_N))];
   const render = () => {
     o.innerHTML = `<div class="card" style="max-width:520px;width:100%;max-height:92vh;overflow:auto"><h3>${esc(title)}</h3>
-      ${draw ? `<div class="co-tabs" style="margin-top:8px"><button data-t="rep" class="${tab === 'rep' ? 'on' : ''}">📚 Répertoire</button><button data-t="draw" class="${tab === 'draw' ? 'on' : ''}">✏️ Dessiner</button></div>` : ''}
+      ${draw && only !== 'draw' ? `<div class="co-tabs" style="margin-top:8px"><button data-t="rep" class="${tab === 'rep' ? 'on' : ''}">📚 Répertoire</button><button data-t="draw" class="${tab === 'draw' ? 'on' : ''}">✏️ Dessiner</button></div>` : ''}
       ${tab === 'rep' ? `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(54px,1fr));gap:6px">${options.map(c => `<button data-c="${c}" style="padding:4px;border-radius:10px;border:2px solid ${c === current ? 'var(--gold)' : 'transparent'};background:${used.includes(c) && c !== current ? 'var(--line)' : 'transparent'};cursor:pointer;opacity:${used.includes(c) && c !== current ? .45 : 1}">${patSVG(c, 46)}</button>`).join('')}</div>
           ${extra.map(x => `<button class="btn ${x.cls || 'btn-ghost'} btn-block" style="margin-top:8px" data-x="${x.v}">${x.l}</button>`).join('')}`
         : `<p class="muted" style="margin:0 0 8px">Touchez les points pour reproduire le symbole de la pince.</p>
           <div style="display:grid;grid-template-columns:repeat(4,56px);gap:8px;justify-content:center">${cells.map((v, i) => `<button data-i="${i}" style="width:56px;height:56px;border-radius:50%;border:2px solid var(--line);background:${v === '1' ? '#0B2A5B' : 'var(--card)'};cursor:pointer"></button>`).join('')}</div>
-          <button class="btn btn-grad btn-block" style="margin-top:12px" id="pv">✔ Utiliser ce symbole</button>`}
+          <button class="btn btn-grad btn-block" style="margin-top:12px" id="pv">✔ ${only === 'draw' ? 'Valider mon dessin' : 'Utiliser ce symbole'}</button>${only === 'draw' ? extra.map(x => `<button class="btn ${x.cls || 'btn-ghost'} btn-block" style="margin-top:8px" data-x="${x.v}">${x.l}</button>`).join('') : ''}`}
       <button class="btn btn-ghost btn-block" style="margin-top:8px" id="pc">Annuler</button></div>`;
     o.querySelectorAll('[data-t]').forEach(b => b.onclick = () => { tab = b.dataset.t; render(); });
     o.querySelectorAll('[data-c]').forEach(b => b.onclick = () => { o.remove(); onPick(b.dataset.c); });
@@ -124,6 +124,9 @@ TOOL_IMPL.co = function (el) {
       <div class="card" style="margin-top:12px"><h3>Balises (${p.balises.length})</h3>
         <p class="muted" style="margin:0 0 6px;font-size:.8rem">Symbole : le motif de points de la pince de chaque balise (répertoire ou dessin), utilisé par l'onglet 🔎 Contrôle.</p>
         <button class="btn btn-ghost btn-block" id="autop" style="margin-bottom:6px">🎲 Attribuer un symbole différent à chaque balise</button>
+        <label>Contrôle des balises par l'élève (tablette de l'équipe)</label>
+        <div class="seg" id="ctl">${[['choix', '🔣 Choisir le symbole'], ['dessin', '✏️ Dessiner le symbole'], ['auto', '👀 Auto-correction']].map(([k, l]) => `<button data-ctl="${k}" class="${(p.ctrl || 'choix') === k ? 'on' : ''}">${l}</button>`).join('')}</div>
+        <p class="muted" style="margin:4px 0 8px;font-size:.78rem">${{ choix: 'L\'élève touche la balise trouvée puis choisit le symbole de la pince parmi ceux du parcours (bouton « Le symbole n\'est pas dans la liste » si sa pince n\'y figure pas).', dessin: 'L\'élève redessine sur la grille de points le symbole de la pince ; après l\'arrivée, il compare ses dessins aux symboles attendus.', auto: 'L\'élève coche ses balises pendant la course ; à l\'arrivée, les symboles attendus s\'affichent : il compare avec son carton et coche lui-même VALIDÉ ou FAUX.' }[p.ctrl || 'choix']}</p>
         <div class="row" style="align-items:end"><div><label>Nombre</label><input id="nb" type="number" min="1" value="${p.balises.length}"></div><div><label>1er numéro</label><input id="n0" type="number" value="${p.balises[0]?.num ?? 31}"></div><button class="btn btn-ghost" style="flex:0 0 auto" id="genb">Générer</button></div>
         <div class="row" style="margin-top:8px"><button class="btn btn-ghost" id="allob">Toutes obligatoires</button><button class="btn btn-ghost" id="allfa">Toutes facultatives</button></div>
         <div style="margin-top:8px">${p.balises.map((b, i) => `<div class="bal-row"><input class="num" type="number" data-num="${i}" value="${b.num}">
@@ -144,6 +147,7 @@ TOOL_IMPL.co = function (el) {
         box.querySelectorAll('[data-num]').forEach(i => p.balises[+i.dataset.num].num = +i.value || 0); };
       $('#ty').onchange = () => { read(); p.type = $('#ty').value; if (p.type === 'reseau') p.balises.forEach(b => b.ob = false); draw(); };
       $('#dn').onchange = () => { read(); draw(); };
+      box.querySelectorAll('[data-ctl]').forEach(b => b.onclick = () => { read(); p.ctrl = b.dataset.ctl; draw(); });
       $('#genb').onclick = () => { read(); const n = Math.max(1, +$('#nb').value || 1), n0 = +$('#n0').value || 31;
         p.balises = Array.from({ length: n }, (_, i) => p.balises[i] ? { ...p.balises[i], num: n0 + i } : { num: n0 + i, niv: 1, ob: p.type !== 'reseau' }); draw(); };
       $('#allob').onclick = () => { read(); p.balises.forEach(b => b.ob = true); draw(); };
@@ -232,25 +236,44 @@ TOOL_IMPL.co = function (el) {
           ${r.arr ? `<div style="margin-top:10px;font-weight:800">✅ Course terminée · ${x.score} pts${x.temps != null ? ` · RK ${x.rk}` : ''}${x.penS ? ` · pénalités +${hms(x.penS)}` : ''}${x.statut ? ' · ' + x.statut : ''}</div>` : ''}</div>
         <div class="card" style="margin-top:10px"><div style="display:flex;justify-content:space-between;align-items:center"><b>Balises</b><span class="muted" style="font-size:.8rem">${run ? p.balises.some(b => isPat(b.code)) ? 'Touchez une balise trouvée puis le symbole de sa pince' : 'Touchez une balise dès qu\'elle est trouvée' : !r.dep ? 'Appuyez sur ▶ Départ pour commencer' : ''}</span></div>
           ${p.balises.map(b => { const on = r.found.includes(b.num);
-            return `<button class="gv-it ${on ? 'on' : ''}" data-bal="${b.num}" ${run ? '' : 'disabled'}><span class="bx">${on ? '✓' : ''}</span><span class="t" style="flex:1">Balise ${b.num}</span><span class="muted" style="font-size:.8rem;font-weight:700">N${b.niv} · ${p.pts[b.niv - 1] || 0} pt${(p.pts[b.niv - 1] || 0) > 1 ? 's' : ''}${b.ob ? ' · <b style="color:var(--danger)">obligatoire</b>' : ''}</span>${on && isPat(b.code) ? patSVG(b.code, 34) : ''}</button>`; }).join('')}</div>
+            return `<button class="gv-it ${on ? 'on' : ''}" data-bal="${b.num}" ${run ? '' : 'disabled'}><span class="bx">${on ? '✓' : ''}</span><span class="t" style="flex:1">Balise ${b.num}</span><span class="muted" style="font-size:.8rem;font-weight:700">N${b.niv} · ${p.pts[b.niv - 1] || 0} pt${(p.pts[b.niv - 1] || 0) > 1 ? 's' : ''}${b.ob ? ' · <b style="color:var(--danger)">obligatoire</b>' : ''}</span>${on && isPat(b.code) && ((p.ctrl || 'choix') !== 'auto' || (r.auto || {})[b.num] === 'ok') ? patSVG(b.code, 34) : ''}</button>`; }).join('')}</div>
+        ${r.arr ? ctlCard(r, p) : ''}
         ${r.arr ? `<button class="btn btn-grad btn-block" style="margin-top:12px;font-size:1.1rem;padding:16px" id="save">💾 Enregistrer notre course</button><button class="btn btn-ghost btn-block" style="margin-top:8px" data-again="${i}">🔁 Enregistrer et repartir sur un nouveau parcours</button>` : ''}
         <div style="text-align:center;margin:18px 0 6px"><button class="link" id="gv-prof">🔒 Mode enseignant</button></div>`;
       const $ = s => box.querySelector(s);
       if ($('#gv-go')) $('#gv-go').onclick = () => { if (needSel(r)) return toast(`Choisissez ${r.libre} balises`); r.dep = Date.now(); beep(1300, .45); save(); drawGroup(); };
+      box.querySelectorAll('[data-ac]').forEach(bt => bt.onclick = () => { const [num0, v] = bt.dataset.ac.split('|'), num = +num0; r.auto = r.auto || {}; const was = r.auto[num];
+        if (was === v) return; if (v === 'ko') { r.found = r.found.filter(y => y !== num); r.wrong++; } else if (was === 'ko') { r.found = [...r.found, num]; r.wrong = Math.max(0, r.wrong - 1); }
+        r.auto[num] = v; save(); drawGroup(); });
       bindPick(box, drawGroup); box.querySelectorAll('[data-again]').forEach(b => b.onclick = () => again(+b.dataset.again, drawGroup));
       if ($('#gv-fin')) $('#gv-fin').onclick = () => { if (missOb && !confirm(`Il reste ${missOb} balise(s) obligatoire(s) à trouver. Valider l'arrivée ?`)) return; r.arr = Date.now(); beep(1000, .3); save(); drawGroup(); };
       const mark = num => { r.found = [...r.found, num]; beep(900, .06); save(); drawGroup(); };
       box.querySelectorAll('[data-bal]').forEach(bt => bt.onclick = () => { const num = +bt.dataset.bal, b = p.balises.find(y => y.num === num);
         if (r.found.includes(num)) { if (confirm(`Décocher la balise ${num} ?`)) { r.found = r.found.filter(y => y !== num); save(); drawGroup(); } return; }
-        if (!isPat(b.code)) return mark(num);
+        const ctl = p.ctrl || 'choix';
+        if (!isPat(b.code) || ctl === 'auto') return mark(num);   // auto-correction : vérification à l'arrivée
         // validation par le symbole de la pince : un mauvais symbole compte comme une mauvaise balise
-        const opts = [...new Set(p.balises.map(y => y.code).filter(isPat))].sort();
-        patPicker({ title: `Balise ${num} : quel symbole a laissé la pince ?`, options: opts, draw: false, onPick: c => {
+        const judge = c => { r.tries = { ...(r.tries || {}), [num]: c || 'X' };
           if (c === b.code) return mark(num);
-          r.wrong++; beep(300, .35); save(); toast('✗ Ce n\'est pas le symbole de cette balise (mauvaise balise)'); drawGroup(); } }); });
+          r.wrong++; beep(300, .35); save(); toast(c === 'X' ? '✗ Symbole absent : cette pince n\'est pas une balise de ton parcours (mauvaise balise)' : '✗ Ce n\'est pas le symbole de cette balise (mauvaise balise)'); drawGroup(); };
+        if (ctl === 'dessin') return patPicker({ title: `Balise ${num} : dessine le symbole laissé par la pince`, options: [], only: 'draw', onPick: judge });
+        const opts = [...new Set(p.balises.map(y => y.code).filter(isPat))].sort();
+        patPicker({ title: `Balise ${num} : quel symbole a laissé la pince ?`, options: opts, draw: false, extra: [{ v: 'X', l: '❓ Le symbole n\'est pas dans la liste' }], onPick: judge }); });
       $('#gv-prof').onclick = () => { if (!confirm('Passer en mode enseignant (toutes les équipes, réglages) ?')) return; cur.only = null; save(); draw(); };
       if ($('#save')) $('#save').onclick = saveSeance;
     };
+    /* Après l'arrivée : auto-correction (symboles attendus affichés, l'élève coche VALIDÉ / FAUX) ou comparaison de ses symboles */
+    const ctlCard = (r, p) => { const ctl = p.ctrl || 'choix', PB = p.balises.filter(b => isPat(b.code)); if (!PB.length) return '';
+      if (ctl === 'auto') { const L = PB.filter(b => r.found.includes(b.num) || (r.auto || {})[b.num]); if (!L.length) return '';
+        const left = L.filter(b => !(r.auto || {})[b.num]).length;
+        return `<div class="card" style="margin-top:10px;border:2px solid var(--gold,#C9A227)"><h3 style="margin-top:0">👀 Auto-correction</h3><p class="muted" style="margin:0 0 8px;font-size:.85rem">Compare chaque symbole avec la case de ton carton, puis coche <b>VALIDÉ</b> ou <b>FAUX</b>.${left ? ` Encore ${left} à vérifier.` : ' ✅ Tout est vérifié.'}</p>
+          ${L.map(b => { const v = (r.auto || {})[b.num]; return `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-top:1px solid var(--line)"><b style="min-width:84px">Balise ${b.num}</b>${patSVG(b.code, 48)}<div style="flex:1"></div>
+            <button class="btn ${v === 'ok' ? 'btn-grad' : 'btn-ghost'}" style="flex:0 0 auto;padding:9px 12px" data-ac="${b.num}|ok">✅ VALIDÉ</button><button class="btn ${v === 'ko' ? 'btn-danger' : 'btn-ghost'}" style="flex:0 0 auto;padding:9px 12px" data-ac="${b.num}|ko">❌ FAUX</button></div>`; }).join('')}</div>`; }
+      const T = r.tries || {}, L = PB.filter(b => T[b.num]); if (!L.length) return '';
+      return `<div class="card" style="margin-top:10px"><h3 style="margin-top:0">🔍 Mes symboles / symboles attendus</h3>
+        ${L.map(b => { const ok = T[b.num] === b.code; return `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-top:1px solid var(--line)"><b style="min-width:84px">Balise ${b.num}</b>
+          <div style="text-align:center"><div class="muted" style="font-size:.7rem">${ctl === 'dessin' ? 'mon dessin' : 'mon choix'}</div>${isPat(T[b.num]) ? patSVG(T[b.num], 44) : '<span style="font-size:1.6rem">❓</span>'}</div>
+          <div style="text-align:center"><div class="muted" style="font-size:.7rem">attendu</div>${patSVG(b.code, 44)}</div><b style="margin-left:auto;font-size:1.3rem;color:${ok ? '#1B9E5A' : '#D64545'}">${ok ? '✓' : '✗'}</b></div>`; }).join('')}</div>`; };
     const saveSeance = () => { const tab1 = cur.only != null && cur.runs[cur.only];
       if (!tab1 && cur.runs.some(r => r.dep && !r.arr) && !confirm('Certains élèves ne sont pas arrivés. Enregistrer quand même ?')) return;
       // tablette d'une équipe : seule SA course est enregistrée (pas de lignes vides pour les autres)

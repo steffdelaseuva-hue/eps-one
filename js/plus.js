@@ -4,9 +4,10 @@
    ========================================================= */
 /* Page Ko-fi : laisser vide tant qu'elle n'existe pas (le bouton est alors masqué) */
 const KOFI_URL = 'https://ko-fi.com/epsone';
-const APP_VERSION = '21.7';
+const APP_VERSION = '21.8';
 const APP_URL = 'https://steffdelaseuva-hue.github.io/eps-one/';
 const CHANGELOG = [
+  { v: '21.8', items: ['Course d\'orientation : bouton « ❓ Le symbole n\'est pas dans la liste » quand l\'élève a poinçonné une pince qui n\'appartient pas à son parcours (compte comme mauvaise balise)', 'Course d\'orientation : l\'enseignant choisit pour chaque parcours le contrôle par l\'élève — 🔣 choisir le symbole, ✏️ dessiner le symbole (comparaison « mon dessin / attendu » à l\'arrivée) ou 👀 auto-correction (à l\'arrivée, les symboles attendus s\'affichent et l\'élève coche VALIDÉ ou FAUX)'] },
   { v: '21.7', items: ['Cross · TOP sur la ligne : fonctionne aussi pour les courses aux tours — chaque passage scanné au couloir reçoit l\'heure du TOP correspondant (avant, ces courses restaient à l\'heure du scan)'] },
   { v: '21.6', items: ['Cross : chaque tablette cale automatiquement son horloge sur l\'heure du serveur (départs, TOP et arrivées comparables même si une tablette est mal réglée) ; l\'état de l\'horloge s\'affiche dans la carte « Arrivées »', 'Cross : bouton « 🗑 Effacer tous les départs, TOP et passages » (Enseignant) pour remettre un cross à zéro après un test, en gardant inscriptions et dossards ; « ↺ » aussi disponible sur une course terminée'] },
   { v: '21.5', items: ['Cross : la liste des derniers passages affiche le temps de course ⏱ en gros et l\'heure d\'arrivée en petit (ou « départ pas reçu » si le TOP départ n\'est pas encore arrivé sur la tablette)'] },
