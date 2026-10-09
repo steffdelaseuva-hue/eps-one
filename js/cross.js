@@ -193,7 +193,7 @@ if (!document.getElementById('cx-css')) document.head.insertAdjacentHTML('before
   /* Remise à zéro d'une course : départ annulé + passages de ses coureurs effacés */
   function resetCourse(E, c) {
     const K = compute(E), bibs = new Set(K.S.filter(s => K.cOf.get(s.k) === c && s.b).map(s => +s.b));
-    E.arr = E.arr.filter(a => !(bibs.has(+a.b) && a.t >= c.start)); if (!E.courses.some(x => x !== c && x.start)) E.tops = (E.tops || []).filter(x => x.t < c.start); c.start = null; (c.waves || []).forEach(w => { w.start = null; });
+    E.arr = E.arr.filter(a => !(bibs.has(+a.b) && a.t >= c.start)); if (!E.courses.some(x => x !== c && x.start)) E.tops = (E.tops || []).filter(x => x.t < c.start); c.start = null; delete c.end; (c.waves || []).forEach(w => { w.start = null; });
   }
   /* ---------- Enregistrement d'un passage (caméra ou pavé) ---------- */
   const seen = new Map();   // dossard -> dernier scan caméra (anti-doublon 20 s, propre à la tablette)
@@ -203,6 +203,7 @@ if (!document.getElementById('cx-css')) document.head.insertAdjacentHTML('before
     const c = K.cOf.get(s.k);
     if (!c) return { kind: 'bad', bib, s, msg: s.st === 'abs' ? 'Élève noté absent' : s.st === 'disp' ? 'Élève noté dispensé' : 'Aucune course pour cet élève' };
     const S0 = startOf(c, s), wv = waveOf(c, s);
+    if (c.end && now > c.end) return { kind: 'warn', bib, s, c, msg: `Course terminée à ${hms(c.end)} (« ↩ Rouvrir » pour accepter ce passage)` };
     if (!S0) {   // départ donné sur une autre tablette, pas encore reçu (hors connexion) : le passage est gardé et compté à la synchronisation
       const mine0 = K.arrBy.get(+bib) || []; if (mine0.length && now - mine0[mine0.length - 1] < 30000) return { kind: 'warn', bib, s, c, msg: 'Déjà scanné' };
       E.arr.push({ id: uid(8), b: +bib, t: now, d: DEV, src, ...(topOn(E) ? { ln: poste().ln } : {}) }); commit();
@@ -356,7 +357,7 @@ tr:nth-child(-n+4) td{font-weight:700}`,
       el.querySelector('#cx-ev').onchange = e => { setCur(e.target.value); insCls = ''; rc = ''; frame(); };
       el.querySelector('#cx-new').onclick = () => { const n = prompt('Nom du nouveau cross :', 'Cross ' + new Date().getFullYear()); if (!n) return; const N = newEvent(n.trim()); X().events.push(N); setCur(N.id); tab = 'courses'; commit(); frame(); };
       el.querySelector('#cx-dup').onclick = () => { const n = prompt('Nom de la copie (courses, classes, sexes et dossards repris : les dossards déjà imprimés restent valables ; départs et arrivées vides) :', E.name + ' (copie)'); if (!n) return;
-        const N = JSON.parse(JSON.stringify(E)); Object.assign(N, { id: uid(4), name: n.trim(), created: Date.now(), date: new Date().toISOString().slice(0, 10), arr: [], src: [E.id, ...(E.src || [])] });   /* src : les dossards déjà imprimés du cross d'origine restent valables au scan */ N.courses.forEach(c => { c.start = null; c.id = uid(5); });
+        const N = JSON.parse(JSON.stringify(E)); Object.assign(N, { id: uid(4), name: n.trim(), created: Date.now(), date: new Date().toISOString().slice(0, 10), arr: [], src: [E.id, ...(E.src || [])] });   /* src : les dossards déjà imprimés du cross d'origine restent valables au scan */ N.courses.forEach(c => { c.start = null; delete c.end; c.id = uid(5); });
         const map = Object.fromEntries(E.courses.map((c, i) => [c.id, N.courses[i].id])); Object.values(N.el).forEach(o => { if (o.c) o.c = map[o.c] || ''; });
         X().events.push(N); setCur(N.id); commit(); toast('Cross dupliqué ✔'); frame(); };
       el.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => { tab = b.dataset.tab; frame(); });
@@ -535,7 +536,10 @@ tr:nth-child(-n+4) td{font-weight:700}`,
     }
 
     /* ---------- 📷 Arrivée ---------- */
-    function scan(box, E) {
+    function scan(box, E0) {
+      /* La synchronisation remplace l'objet du cross quand une autre tablette envoie des données : on relit TOUJOURS
+         la version à jour (sinon les TOP, départs et passages faits ici partiraient dans une copie périmée). */
+      const E = liveDB(() => { const x = cur(); return x && x.id === E0.id ? x : E0; });
       const P0 = poste(), LINE = topOn(E) && P0.role === 'ligne';
       box.innerHTML = `<div class="card" data-cfg style="margin-bottom:12px"><b>🏁 Arrivées</b>
           <div class="seg" style="margin-top:6px">${[['scan', '📷 Heure du scan'], ['top', '🏁 TOP sur la ligne (classement exact)']].map(([k, l]) => `<button data-am="${k}" class="${(E.arrMode || 'scan') === k ? 'on' : ''}">${l}</button>`).join('')}</div>
@@ -558,7 +562,7 @@ tr:nth-child(-n+4) td{font-weight:700}`,
         ${topOn(E) ? '<details class="card cx-prof" data-cfg="bare" id="cx-ctl-d"><summary data-prof>🏁 Contrôle TOP ↔ dossards</summary><div id="cx-ctl"></div></details>' : ''}
         <details class="card cx-prof" data-cfg="bare"><summary data-prof>🔒 Enseignant</summary><p class="muted" style="font-size:.82rem">Supprimer un passage enregistré (toutes tablettes). Les heures de départ se corrigent dans l'onglet 🏁 Courses.</p><div id="cx-all"></div></details>`;
       const $ = s => box.querySelector(s), video = box.querySelector('video'), cmsg = $('#cx-cmsg');
-      const reScan = () => { stopCam(); clearInterval(clockIv); clockIv = null; scan(box, E); };
+      const reScan = () => { stopCam(); clearInterval(clockIv); clockIv = null; scan(box, E0); };
       box.querySelectorAll('[data-am]').forEach(b => b.onclick = () => { E.arrMode = b.dataset.am; commit(); reScan(); });
       box.querySelectorAll('[data-pr]').forEach(b => b.onclick = () => { setPoste({ role: b.dataset.pr }); reScan(); });
       box.querySelectorAll('[data-ln]').forEach(b => b.onclick = () => { setPoste({ ln: +b.dataset.ln }); reScan(); });
@@ -591,8 +595,10 @@ tr:nth-child(-n+4) td{font-weight:700}`,
       const drawStarts = () => {
         const K = compute(E), ns = E.courses.filter(c => !c.start);
         [...gstart].forEach(id => { if (!ns.some(c => c.id === id)) gstart.delete(id); });
-        $('#cx-starts').innerHTML = `${E.courses.map((c, i) => { const x = K.courses[i]; return `<div class="cx-start" style="--cc:${col(E, c)}"><span class="cx-dot"></span><div class="nm">${esc(c.name)}<small>${x.n} coureur${x.n > 1 ? 's' : ''} · ${c.mode === 'temps' ? 'aux tours · ' + c.dur + ' min' : c.dist + ' m'}${c.start ? ` · ${x.R.length} arrivé${x.R.length > 1 ? 's' : ''}` : ''}</small></div>
-            ${c.start ? `<span class="clk" data-clk="${i}"></span><button class="cx-stop" data-prof data-stop="${i}" aria-label="Arrêter et remettre à zéro">⏹ Stop</button>` : `<button class="cx-go" data-go="${i}">🔫 TOP DÉPART !</button>`}</div>
+        $('#cx-starts').innerHTML = `${E.courses.map((c, i) => { const x = K.courses[i]; return `<div class="cx-start" style="--cc:${col(E, c)}"><span class="cx-dot"></span><div class="nm">${esc(c.name)}<small>${x.n} coureur${x.n > 1 ? 's' : ''} · ${c.mode === 'temps' ? 'aux tours · ' + c.dur + ' min' : c.dist + ' m'}${c.start ? ` · ${x.R.length}/${x.n} arrivé${x.R.length > 1 ? 's' : ''}` : ''}${c.end ? ` · ✅ terminée à ${hms(c.end)}` : c.start && x.n && x.R.length >= x.n && c.mode !== 'temps' ? ' · 🎉 tous arrivés' : ''}</small></div>
+            ${c.end ? `<span class="clk" style="opacity:.6">🏁 ${tm(c.end - c.start)}</span><button class="cx-stop" data-prof data-reo="${i}" aria-label="Rouvrir la course">↩ Rouvrir</button>`
+              : c.start ? `<span class="clk" data-clk="${i}"></span><button class="cx-stop" data-prof data-end="${i}" aria-label="Course terminée" style="${x.n && x.R.length >= x.n ? 'background:#1E9E5A;color:#fff;border-color:transparent' : ''}">🏁 Terminée</button><button class="cx-stop" data-prof data-stop="${i}" aria-label="Faux départ : remettre la course à zéro">↺</button>`
+              : `<button class="cx-go" data-go="${i}">🔫 TOP DÉPART !</button>`}</div>
             ${(c.waves || []).map((w, j) => { const n = stu(E).filter(s2 => K.cOf.get(s2.k) === c && waveOf(c, s2) === w).length, plan = offS(w) > 0 && c.start ? c.start + offS(w) * 1000 : null;
               return `<div class="cx-start" style="--cc:${col(E, c)};margin-left:22px;opacity:.95"><span class="cx-dot" style="opacity:.5"></span><div class="nm">⏱ ${esc(w.n)}<small>${n} coureur${n > 1 ? 's' : ''}${offS(w) > 0 ? ` · prévu +${offTxt(w)}` : ''}${w.start ? ' · TOP ' + hms(w.start) : plan ? ' · départ auto ' + hms(plan) : ''}</small></div>
                 ${w.start || (plan && Date.now() >= plan) ? `<span class="clk" data-wclk="${i}|${j}"></span>${w.start ? `<button class="cx-stop" data-prof data-wclr="${i}|${j}" aria-label="Annuler le TOP">↺</button>` : ''}` : `<button class="cx-go" data-wgo="${i}|${j}">🔫 TOP ${esc(w.n)}</button>`}</div>`; }).join('')}`; }).join('')}
@@ -601,14 +607,18 @@ tr:nth-child(-n+4) td{font-weight:700}`,
         box.querySelectorAll('[data-go]').forEach(b => b.onclick = () => go([E.courses[+b.dataset.go]]));
         box.querySelectorAll('[data-wgo]').forEach(b => b.onclick = () => { const [i, j] = b.dataset.wgo.split('|').map(Number), w = E.courses[i].waves[j]; w.start = Date.now(); commit(); beep(1500, .5, .5); toast('🔫 TOP ' + w.n + ' !'); drawStarts(); drawLast(); });
         box.querySelectorAll('[data-wclr]').forEach(b => b.onclick = () => { const [i, j] = b.dataset.wclr.split('|').map(Number), w = E.courses[i].waves[j]; if (!confirm(`Annuler le TOP de « ${w.n} » ?`)) return; w.start = null; commit(); drawStarts(); drawLast(); });
+        box.querySelectorAll('[data-end]').forEach(b => b.onclick = () => { const c = E.courses[+b.dataset.end], x = compute(E).courses[+b.dataset.end]; if (!c || !c.start) return;
+          if (!confirm(`Terminer « ${c.name} » ?${x.n - x.R.length > 0 ? `\n⚠️ ${x.n - x.R.length} coureur(s) pas encore arrivé(s) : ils seront classés « non arrivés ».` : ''}\nLe classement est figé ; les scans suivants sont refusés (« Rouvrir » est possible).`)) return;
+          c.end = Date.now(); commit(); toast(`🏁 « ${c.name} » terminée`); drawStarts(); drawLast(); });
+        box.querySelectorAll('[data-reo]').forEach(b => b.onclick = () => { const c = E.courses[+b.dataset.reo]; if (!c) return; delete c.end; commit(); toast(`↩ « ${c.name} » rouverte`); drawStarts(); });
         box.querySelectorAll('[data-stop]').forEach(b => b.onclick = () => { const c = E.courses[+b.dataset.stop]; if (!c || !c.start) return;
-          if (!confirm(`Arrêter « ${c.name} » et la remettre à zéro ?\nLe départ est annulé et les passages de cette course sont effacés.`)) return;
+          if (!confirm(`FAUX DÉPART : remettre « ${c.name} » à zéro ?\n(inutile en fin de course : le chrono s'arrête tout seul pour chaque coureur à son arrivée)\nLe départ est annulé et les passages de cette course sont effacés.`)) return;
           resetCourse(E, c); commit(); toast(`⏹ « ${c.name} » remise à zéro`); drawStarts(); drawLast(); });
         box.querySelectorAll('[data-gs]').forEach(b => b.onclick = () => { const id = b.dataset.gs; gstart.has(id) ? gstart.delete(id) : gstart.add(id); drawStarts(); });
         if ($('#cx-gg')) $('#cx-gg').onclick = () => { const L = E.courses.filter(c => gstart.has(c.id) && !c.start); if (!L.length) return toast('Choisissez les courses à lancer'); go(L); };
         tick();
       };
-      const tick = () => { const now = Date.now(); box.querySelectorAll('[data-clk]').forEach(s => { const c = E.courses[+s.dataset.clk]; if (!c || !c.start) return;
+      const tick = () => { const now = Date.now(); box.querySelectorAll('[data-clk]').forEach(s => { const c = E.courses[+s.dataset.clk]; if (!c || !c.start || c.end) return;
         if (c.mode === 'temps') { const left = c.start + c.dur * 60000 - now; s.textContent = left > 0 ? '⏳ ' + tm(left) : '🏁 ' + tm(c.dur * 60000); } else s.textContent = tm(now - c.start); }); };
       const tickW = () => { const now = Date.now(); box.querySelectorAll('[data-wclk]').forEach(sp => { const [i, j] = sp.dataset.wclk.split('|').map(Number), c = E.courses[i], w = c && (c.waves || [])[j]; if (!w) return;
         const st0 = w.start || (c.start && offS(w) > 0 ? c.start + offS(w) * 1000 : null); if (!st0) return; if (c.mode === 'temps') { const left = st0 + c.dur * 60000 - now; sp.textContent = left > 0 ? '⏳ ' + tm(left) : '🏁 ' + tm(c.dur * 60000); } else sp.textContent = tm(Math.max(0, now - st0)); }); };
@@ -618,7 +628,7 @@ tr:nth-child(-n+4) td{font-weight:700}`,
         $('#cx-cnt').textContent = `${A.length} passage${A.length > 1 ? 's' : ''}`;
         const row = (a, del) => { const s = K.byBib.get(+a.b), c = s && K.cOf.get(s.k), r = s && rk.get(s.k), pend = K.PT && a.ln && c && c.mode !== 'temps' && !K.PT.time.has(a.id); a = K.PT && K.PT.time.has(a.id) ? { ...a, t: K.PT.time.get(a.id) } : a;
           return `<div class="cx-last"><span class="b">${a.b}</span><div class="nm"><b>${s ? esc(s.name) : 'Dossard inconnu'}</b><small>${s ? esc(s.cls) + ' · ' : ''}${c ? esc(c.name) : ''}${a.d !== DEV ? ' · 📱 autre tablette' : ''}${a.src === 'manual' ? ' · ⌨️' : ''}</small></div>
-            <span class="t">${pend ? '⏳ ' : ''}${c && startOf(c, s) ? tm(a.t - startOf(c, s)) : hms(a.t)}${r && c.mode !== 'temps' ? `<br><small class="muted">${r.place}e</small>` : r ? `<br><small class="muted">${r.laps} t.</small>` : ''}</span>${del ? `<button class="btn btn-ghost" style="flex:0 0 auto;padding:6px 9px" data-rm="${esc(a.id)}">✕</button>` : ''}</div>`; };
+            <span class="t">${pend ? '⏳ ' : ''}${c && startOf(c, s) ? `⏱ ${tm(a.t - startOf(c, s))}<br><small class="muted" style="font-weight:600">arrivée ${hms(a.t)}</small>` : `<small class="muted" style="font-weight:700">départ pas reçu</small><br>${hms(a.t)}`}${r && c.mode !== 'temps' ? `<br><small class="muted">${r.place}e</small>` : r ? `<br><small class="muted">${r.laps} t.</small>` : ''}</span>${del ? `<button class="btn btn-ghost" style="flex:0 0 auto;padding:6px 9px" data-rm="${esc(a.id)}">✕</button>` : ''}</div>`; };
         $('#cx-last').innerHTML = A.length ? A.slice(0, 12).map(a => row(a)).join('') : '<div class="empty">Aucun passage pour l\'instant.</div>';
         $('#cx-all').innerHTML = A.map(a => row(a, true)).join('') || '<div class="muted">Aucun passage.</div>';
         box.querySelectorAll('[data-rm]').forEach(b => b.onclick = () => { if (!confirm('Supprimer ce passage ?')) return; E.arr = E.arr.filter(a => a.id !== b.dataset.rm); commit(); drawLast(); drawStarts(); });

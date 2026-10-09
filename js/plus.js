@@ -4,9 +4,12 @@
    ========================================================= */
 /* Page Ko-fi : laisser vide tant qu'elle n'existe pas (le bouton est alors masqué) */
 const KOFI_URL = 'https://ko-fi.com/epsone';
-const APP_VERSION = '21.2';
+const APP_VERSION = '21.5';
 const APP_URL = 'https://steffdelaseuva-hue.github.io/eps-one/';
 const CHANGELOG = [
+  { v: '21.5', items: ['Cross : la liste des derniers passages affiche le temps de course ⏱ en gros et l\'heure d\'arrivée en petit (ou « départ pas reçu » si le TOP départ n\'est pas encore arrivé sur la tablette)'] },
+  { v: '21.4', items: ['Cross : bouton « 🏁 Terminée » sur chaque course — le chrono s\'arrête, le classement est figé, les scans suivants sont refusés (« ↩ Rouvrir » possible) ; le bouton passe au vert quand tous les coureurs sont arrivés (« 🎉 tous arrivés »)'] },
+  { v: '21.3', items: ['Cross : avec plusieurs tablettes synchronisées en direct, la liste des arrivées, les TOP et les départs s\'affichent et s\'enregistrent immédiatement (l\'écran restait figé jusqu\'au rechargement)', 'Cross : le bouton « ⏹ Stop » devient « ↺ Faux départ » (inutile en fin de course : le chrono s\'arrête pour chaque coureur à son arrivée)'] },
   { v: '21.2', items: ['Cross : nouveau mode d\'arrivée « 🏁 TOP sur la ligne » pour un classement exact — une tablette « Ligne » par couloir (gros bouton TOP au passage de chaque coureur) et une tablette « Scan » au bout du couloir ; le n-ième dossard scanné reçoit l\'heure du n-ième TOP', 'Fonctionne sans réseau pendant la course (tout se regroupe à la synchronisation) ; temps provisoire ⏳ tant que le TOP n\'est pas reçu ; écran « Contrôle TOP ↔ dossards » pour corriger un TOP oublié ou en trop'] },
   { v: '21.1', items: ['Confidentialité & RGPD : chiffrement de bout en bout avec Google Drive et Dropbox, et nouvelle rubrique « Caméra, photos et vidéos » (ce qui reste sur l\'appareil, ce qui est partagé chiffré, droit à l\'image)'] },
   { v: '21.0', items: ['Google Drive / Dropbox : chiffrement de bout en bout (comme Firebase) avec une phrase de chiffrement choisie par l\'enseignant — le cloud ne stocke plus que du contenu illisible ; la phrase est demandée une fois sur chaque appareil (Plus → Stockage & synchronisation)'] },
