@@ -125,13 +125,13 @@ function coMapHTML(m, p, opt = {}) {
 }
 function coMapShow(p) {
   const o = document.createElement('div'); o.style.cssText = 'position:fixed;inset:0;z-index:300;background:rgba(7,18,42,.9);overflow:auto;padding:12px';
-  o.innerHTML = `<div style="max-width:900px;margin:0 auto"><div style="display:flex;justify-content:space-between;align-items:center;color:#fff;margin-bottom:8px"><b>🗺 ${esc(p.nom)}</b><button class="btn btn-ghost" id="mx">✕ Fermer</button></div>${coMapHTML(p.map, p)}
+  o.innerHTML = `<div style="max-width:900px;margin:0 auto"><div style="display:flex;justify-content:space-between;align-items:center;color:#fff;margin-bottom:8px"><b>🗺 ${esc(p.nom)}</b><button class="btn btn-ghost" id="mx">✕ Fermer</button></div>${coMapView(coMapOf(p))}
     ${p.type === 'suivi' ? `<div class="card" style="margin-top:8px"><b>Ordre des balises :</b> ${p.balises.map((b, i) => `${i + 1}. <b>${b.num}</b>`).join(' → ')}</div>` : ''}</div>`;
   o.querySelector('#mx').onclick = () => o.remove(); document.body.appendChild(o);
 }
-const coImg = (file, cb) => { const url = URL.createObjectURL(file), img = new Image();
-  img.onload = () => { const k = Math.min(1, 1400 / Math.max(img.width, img.height)), c = document.createElement('canvas'); c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
-    c.getContext('2d').drawImage(img, 0, 0, c.width, c.height); URL.revokeObjectURL(url); cb(c.toDataURL('image/jpeg', .7), c.width, c.height); };
+const coImg = (file, cb, max = 1400) => { const url = URL.createObjectURL(file), img = new Image();
+  img.onload = () => { const k = Math.min(1, max / Math.max(img.width, img.height)), c = document.createElement('canvas'); c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+    c.getContext('2d').drawImage(img, 0, 0, c.width, c.height); URL.revokeObjectURL(url); cb(c.toDataURL('image/jpeg', max > 1400 ? .78 : .7), c.width, c.height); };
   img.onerror = () => toast('Image illisible'); img.src = url; };
 function coMapEdit(p, onDone) {
   const m = JSON.parse(JSON.stringify(p.map || {})); m.lines = m.lines || []; m.marks = m.marks || {};
@@ -163,6 +163,101 @@ function coMapEdit(p, onDone) {
   };
   render(); document.body.appendChild(o);
 }
+/* ---------- Lieux (établissement, bois…) : carte vierge + postes placés (numéro + symbole), comme Purple Pen ----------
+   DB.co.lieux = [{ id, nom, map:{img,w,h}, postes:[{ id, num, code, x, y }], dep:[x,y], arr:[x,y] }]
+   Un parcours lié à un lieu (p.lieu) prend ses balises parmi les postes (b.pid) ; le tracé se dessine selon le type ; p.hl = surlignage. */
+const coLieux = () => (DB.co.lieux = DB.co.lieux || []);
+const coLieu = id => id && coLieux().find(l => l.id === id);
+function coViewLieu(p, L, opt = {}) {
+  const pos = id => { const q = L.postes.find(x => x.id === id); return q && q.x != null ? q : null; };
+  const ordered = ['suivi', 'papillon', 'relais'].includes(p.type), marks = [], sel = new Set(p.balises.map(b => b.pid));
+  if (L.dep) marks.push({ kind: 'D', x: L.dep[0], y: L.dep[1] });
+  if (L.arr) marks.push({ kind: 'A', x: L.arr[0], y: L.arr[1] });
+  if (opt.all) L.postes.filter(q => q.x != null && !sel.has(q.id)).forEach(q => marks.push({ kind: 'g', x: q.x, y: q.y, lab: String(q.num), id: q.id }));
+  p.balises.forEach((b, i) => { const q = pos(b.pid); if (q) marks.push({ kind: 'c', x: q.x, y: q.y, lab: (ordered ? (i + 1) + '-' : '') + b.num, col: p.type === 'reseau' && !b.ob ? '#2F6BD8' : '#B0127A', id: q.id }); });
+  const D = L.dep, A = L.arr || L.dep, P = p.balises.map(b => pos(b.pid)).filter(Boolean).map(q => [q.x, q.y]), paths = [];
+  if (D && p.type === 'etoile') P.forEach(q => paths.push([D, q]));
+  else if (D && (p.type === 'papillon' || p.type === 'relais')) { const K = legK(p); for (let i = 0; i < P.length; i += K) paths.push([D, ...P.slice(i, i + K), D]); }
+  else if (p.type === 'suivi') paths.push([D, ...P, A].filter(Boolean));
+  return { img: L.map.img, w: L.map.w, h: L.map.h, hl: p.hl || [], paths, marks, lieu: L.nom };
+}
+// carte à afficher pour un parcours : lieu (calculée) → copie transmise aux tablettes (p.mapv) → carte propre au parcours (p.map)
+function coMapOf(p, opt) {
+  if (!p) return null; const L = coLieu(p.lieu);
+  if (L && L.map && L.map.img) return coViewLieu(p, L, opt);
+  if (p.mapv && p.mapv.img) return p.mapv;
+  const m = p.map; if (!m || !m.img) return null; const ord = p.balises.map(b => String(b.num));
+  return { img: m.img, w: m.w, h: m.h, hl: m.lines || [], paths: [], marks: Object.entries(m.marks || {}).map(([k, [x, y]]) => k === 'D' ? { kind: 'D', x, y } : { kind: 'c', x, y, col: '#B0127A', lab: (p.type === 'suivi' && ord.includes(k) ? (ord.indexOf(k) + 1) + '-' : '') + k }) };
+}
+const coSnap = p => { const L = coLieu(p.lieu); return L && L.map && L.map.img ? { ...p, mapv: coViewLieu(p, L) } : p; };
+const coLite = pp => { const q = JSON.parse(JSON.stringify(pp)); if (q.map) delete q.map.img; delete q.mapv; return q; };   // fiches enregistrées : sans l'image
+function coMapView(V, opt = {}) {
+  if (!V || !V.img) return '';
+  const H = Math.round(1000 * V.h / V.w), M = '#B0127A';
+  const segs = (V.paths || []).flatMap(P => P.slice(1).map((b, i) => [P[i], b])).map(([a, b]) => { const dx = b[0] - a[0], dy = b[1] - a[1], L = Math.hypot(dx, dy), r = 32; if (L < 2 * r + 4) return '';
+    const ux = dx / L, uy = dy / L; return `<line x1="${(a[0] + ux * r).toFixed(1)}" y1="${(a[1] + uy * r).toFixed(1)}" x2="${(b[0] - ux * r).toFixed(1)}" y2="${(b[1] - uy * r).toFixed(1)}" stroke="${M}" stroke-width="5" stroke-linecap="round"/>`; }).join('');
+  const hl = (V.hl || []).map(l => `<polyline points="${l.join(',')}" fill="none" stroke="#E0218A" stroke-opacity=".5" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>`).join('');
+  const lab = (x, y, t, c) => `<text x="${x + 27}" y="${y - 20}" font-size="32" font-weight="900" fill="${c}" stroke="#fff" stroke-width="6" paint-order="stroke" font-family="Arial,sans-serif">${esc(t)}</text>`;
+  const mk = (V.marks || []).map(m => m.kind === 'D' ? `<polygon points="${m.x},${m.y - 32} ${m.x - 28},${m.y + 17} ${m.x + 28},${m.y + 17}" fill="none" stroke="${M}" stroke-width="6"/>`
+    : m.kind === 'A' ? `<circle cx="${m.x}" cy="${m.y}" r="17" fill="none" stroke="${M}" stroke-width="5"/><circle cx="${m.x}" cy="${m.y}" r="28" fill="none" stroke="${M}" stroke-width="5"/>`
+    : m.kind === 'g' ? `<circle cx="${m.x}" cy="${m.y}" r="24" fill="rgba(255,255,255,.35)" stroke="#8A94A6" stroke-width="4" stroke-dasharray="7 5"/>${lab(m.x, m.y, m.lab, '#6B7587')}`
+    : `<circle cx="${m.x}" cy="${m.y}" r="24" fill="${opt.sel === m.id ? 'rgba(201,162,39,.35)' : 'none'}" stroke="${m.col || M}" stroke-width="6"/>${lab(m.x, m.y, m.lab, m.col || M)}`).join('');
+  return `<div class="co-map" style="position:relative;line-height:0;border-radius:${opt.print ? 0 : 12}px;overflow:hidden;background:#fff"><img src="${V.img}" style="width:100%;display:block" alt="Carte"><svg viewBox="0 0 1000 ${H}" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%;${opt.edit ? 'touch-action:none;cursor:crosshair' : 'pointer-events:none'}">${hl}${segs}${mk}</svg></div>`;
+}
+const coSvgPt = (svg, V, e) => { const R = svg.getBoundingClientRect(), H = 1000 * V.h / V.w; return [Math.round((e.clientX - R.left) / R.width * 1000), Math.round((e.clientY - R.top) / R.height * H)]; };
+// tracé au doigt (surlignage) sur une carte
+function coTrace(svg, V, lines, onEnd) {
+  let line = null, el = null;
+  svg.onpointerdown = e => { e.preventDefault(); try { svg.setPointerCapture(e.pointerId); } catch (er) {} line = coSvgPt(svg, V, e); el = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
+    [['fill', 'none'], ['stroke', '#E0218A'], ['stroke-opacity', '.5'], ['stroke-width', '14'], ['stroke-linecap', 'round'], ['stroke-linejoin', 'round']].forEach(([k, v]) => el.setAttribute(k, v)); svg.appendChild(el); el.setAttribute('points', line.join(',')); };
+  svg.onpointermove = e => { if (!line) return; const [x, y] = coSvgPt(svg, V, e), n = line.length; if (Math.hypot(x - line[n - 2], y - line[n - 1]) < 6) return; line.push(x, y); el.setAttribute('points', line.join(',')); };
+  svg.onpointerup = svg.onpointercancel = () => { if (line && line.length >= 4) { lines.push(line); onEnd && onEnd(); } line = null; };
+}
+function coHlEdit(V0, title, onDone) {
+  const lines = JSON.parse(JSON.stringify(V0.hl || [])); let mode = 'trace';
+  const o = document.createElement('div'); o.style.cssText = 'position:fixed;inset:0;z-index:300;background:var(--bg,#F3F6FB);overflow:auto;padding:12px';
+  const render = () => { o.innerHTML = `<div style="max-width:900px;margin:0 auto"><div class="card"><h3 style="margin-top:0">🖍 ${esc(title)}</h3>
+      <div class="seg">${[['trace', '🖍 Surligner'], ['vue', '✋ Faire défiler']].map(([k, l]) => `<button data-mo="${k}" class="${mode === k ? 'on' : ''}">${l}</button>`).join('')}</div>
+      <p class="muted" style="margin:8px 0 0;font-size:.8rem">${mode === 'trace' ? 'Glissez le doigt sur la carte pour surligner l\'itinéraire que les élèves devront suivre.' : 'Faites défiler la page sans dessiner.'}</p>
+      <div class="row" style="margin-top:8px"><button class="btn btn-ghost" id="hu">↶ Annuler le dernier trait</button><button class="btn btn-ghost" id="hc">🗑 Tout effacer</button></div></div>
+      <div style="margin-top:10px" id="hw">${coMapView({ ...V0, hl: lines }, { edit: mode === 'trace' })}</div>
+      <div class="row" style="margin-top:10px"><button class="btn btn-grad" id="hs">✔ Valider</button><button class="btn btn-ghost" id="hq">Annuler</button></div></div>`;
+    o.querySelectorAll('[data-mo]').forEach(b => b.onclick = () => { mode = b.dataset.mo; render(); });
+    o.querySelector('#hu').onclick = () => { if (!lines.length) return toast('Aucun trait à annuler'); lines.pop(); render(); };
+    o.querySelector('#hc').onclick = () => { if (confirm('Effacer tout le surlignage ?')) { lines.length = 0; render(); } };
+    o.querySelector('#hs').onclick = () => { o.remove(); onDone(lines); };
+    o.querySelector('#hq').onclick = () => { if (confirm('Quitter sans enregistrer le surlignage ?')) o.remove(); };
+    const svg = o.querySelector('#hw svg'); if (svg && mode === 'trace') coTrace(svg, V0, lines);
+  };
+  render(); document.body.appendChild(o);
+}
+/* Impression : une page A4 par parcours — carte + tracé + carton de contrôle vierge */
+function coPrint(ps) {
+  const page = p => { const V = coMapOf(p), ordered = ['suivi', 'papillon', 'relais'].includes(p.type), n = p.balises.length, cols = n > 12 ? 8 : 6;
+    return `<div class="page"><div class="hd"><b>${esc(p.nom)}</b><span>${CO_TYPES[p.type][0]}${V && V.lieu ? ' · ' + esc(V.lieu) : ''} · ${n} balises${p.distance ? ' · ' + (p.distance / 1000).toFixed(2).replace('.', ',') + ' km' : ''}</span></div>
+      <div class="mp" style="${V ? `width:${Math.min(194, 185 * V.w / V.h).toFixed(1)}mm` : ''}">${V ? coMapView(V, { print: true }) : '<p>Pas de carte pour ce parcours.</p>'}</div>
+      <div class="id"><span>Nom : ……………………………………</span><span>Classe : ………</span><span>Départ : ………</span><span>Arrivée : ………</span></div>
+      <div class="ct" style="grid-template-columns:repeat(${cols},1fr)">${p.balises.map((b, i) => `<div class="cs"><div class="cn">${ordered ? (i + 1) + ' · ' : ''}${b.num}</div><div class="cb"></div></div>`).join('')}</div></div>`; };
+  const html = `<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Parcours</title><style>
+*{box-sizing:border-box}body{margin:0;font-family:Arial,Helvetica,sans-serif;color:#0E1A33;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.page{width:194mm;margin:0 auto;page-break-after:always;break-after:page;padding-top:2mm}.page:last-child{page-break-after:auto;break-after:auto}
+.hd{display:flex;justify-content:space-between;align-items:baseline;gap:8px;border-bottom:2px solid #B0127A;padding-bottom:2mm;margin-bottom:2mm}.hd b{font-size:15pt}.hd span{font-size:9pt;color:#555}
+.mp{margin:0 auto;border:1px solid #999}.mp .co-map{max-width:100%}
+.id{display:flex;flex-wrap:wrap;gap:4mm 8mm;font-size:10pt;margin:3mm 0}
+.ct{display:grid;gap:2mm}.cs{border:1.5px solid #333}.cn{font-size:9pt;font-weight:700;text-align:center;border-bottom:1px solid #333;padding:1mm}.cb{height:16mm}
+@media screen{body{background:#777;padding:10px}.page{background:#fff;padding:6mm;margin-bottom:10px}}
+@page{size:A4;margin:8mm}</style></head><body>${ps.map(page).join('')}<script>function fit(){document.body.style.zoom=Math.min(1,(innerWidth-20)/760)}fit();addEventListener('resize',fit);<\/script></body></html>`;
+  const o = document.createElement('div'); o.style.cssText = 'position:fixed;inset:0;z-index:300;background:#333;display:flex;flex-direction:column';
+  o.innerHTML = `<div style="display:flex;gap:8px;padding:10px;align-items:center;background:var(--grad,#0B2A5B);color:#fff"><b style="flex:1">🖨 Cartes à imprimer (${ps.length})</b><button class="btn btn-white" data-p>🖨 Imprimer</button><button class="btn btn-ghost" style="color:#fff" data-x>✕ Fermer</button></div><iframe title="Aperçu" style="flex:1;border:0;background:#777"></iframe>`;
+  document.body.appendChild(o); o.querySelector('iframe').srcdoc = html; o.querySelector('[data-x]').onclick = () => o.remove();
+  o.querySelector('[data-p]').onclick = () => {   // impression dans la page (iPad / iPhone : l'impression d'un cadre échoue sur Safari)
+    const d = new DOMParser().parseFromString(html, 'text/html'); document.getElementById('co-print')?.remove(); document.getElementById('co-print-css')?.remove();
+    const st = document.createElement('style'); st.id = 'co-print-css'; st.media = 'print';
+    st.textContent = d.querySelector('style').textContent.replace(/@media screen\{[^}]*\{[^}]*\}[^}]*\{[^}]*\}\}/, '') + '\nbody>*:not(#co-print){display:none!important}#co-print{display:block!important}html,body{background:#fff!important;padding:0!important;margin:0!important;height:auto!important;overflow:visible!important}';
+    const box = document.createElement('div'); box.id = 'co-print'; box.style.display = 'none'; box.innerHTML = d.body.innerHTML; document.head.appendChild(st); document.body.appendChild(box);
+    const clean = () => { box.remove(); st.remove(); window.removeEventListener('afterprint', clean); }; window.addEventListener('afterprint', clean);
+    setTimeout(() => { try { window.print(); } catch (e) { toast('Impression impossible'); } }, 200); };
+}
 TOOL_IMPL.co = function (el) {
   let tab = DB.co.current || partToday('co').length || partRecoverHTML('co') ? 'seance' : 'parcours';
   const P = id => DB.co.parcours.find(p => p.id === id);
@@ -176,45 +271,126 @@ TOOL_IMPL.co = function (el) {
 
   /* ================= 1. PARCOURS ================= */
   function listParcours(box) {
-    box.innerHTML = `<div class="card" style="padding:0">${DB.co.parcours.length ? DB.co.parcours.map((p, i) => `<div class="list-item"><div style="flex:1"><b>${esc(p.nom)}</b>
-        <div class="muted">${CO_TYPES[p.type][0]} · ${p.distance ? (p.distance / 1000).toFixed(2).replace('.', ',') + ' km' : 'distance ?'}${p.deniv ? ' · D+ ' + p.deniv + ' m' : ''} · ${p.balises.length} balises${p.type === 'papillon' ? ` · boucles de ${legK(p)}` : p.type === 'relais' ? ` · ${legK(p)} bal./relayeur` : ''}${p.map && p.map.img ? ' · 🗺 carte' : ''}${p.alloue ? ' · ' + p.alloue + ' min' : ''}</div></div>
-        <button class="btn btn-ghost" data-cfg="bare" data-e="${i}">✏️</button><button class="btn btn-ghost" data-cfg="bare" data-c="${i}" title="Dupliquer">⧉</button></div>`).join('') : '<div class="empty">Aucun parcours. Créez le premier !</div>'}</div>
+    box.innerHTML = `<div class="section-title"><h2>📍 Lieux et cartes</h2></div><div class="card" style="padding:0">${coLieux().length ? coLieux().map((L, i) => `<div class="list-item"><div style="flex:1"><b>${esc(L.nom)}</b>
+        <div class="muted">${L.map ? '🗺 carte' : '⚠️ pas de carte'} · ${L.postes.length} poste${L.postes.length > 1 ? 's' : ''}${L.postes.some(q => q.x == null) ? ` (${L.postes.filter(q => q.x == null).length} à placer)` : ''} · ${DB.co.parcours.filter(p => p.lieu === L.id).length} parcours</div></div><button class="btn btn-ghost" data-cfg="bare" data-le="${i}">✏️</button></div>`).join('')
+        : '<div class="empty" style="font-size:.85rem">Importez la carte vierge d\'un lieu (établissement, bois…) et placez-y les postes : les parcours se créeront ensuite en touchant les postes.</div>'}</div>
+      <button class="btn btn-ghost btn-block" data-cfg style="margin-top:8px" id="newl">＋ Nouveau lieu (carte vierge + postes)</button>
+      <div class="section-title"><h2>🗺 Parcours</h2>${DB.co.parcours.some(p => coMapOf(p)) ? '<button class="link" id="prall">🖨 Imprimer les cartes</button>' : ''}</div><div class="card" style="padding:0">${DB.co.parcours.length ? DB.co.parcours.map((p, i) => `<div class="list-item"><div style="flex:1"><b>${esc(p.nom)}</b>
+        <div class="muted">${CO_TYPES[p.type][0]} · ${p.distance ? (p.distance / 1000).toFixed(2).replace('.', ',') + ' km' : 'distance ?'}${p.deniv ? ' · D+ ' + p.deniv + ' m' : ''} · ${p.balises.length} balises${p.type === 'papillon' ? ` · boucles de ${legK(p)}` : p.type === 'relais' ? ` · ${legK(p)} bal./relayeur` : ''}${coLieu(p.lieu) ? ' · 📍 ' + esc(coLieu(p.lieu).nom) : p.map && p.map.img ? ' · 🗺 carte' : ''}${p.alloue ? ' · ' + p.alloue + ' min' : ''}</div></div>
+        ${coMapOf(p) ? `<button class="btn btn-ghost" data-pr="${i}" title="Imprimer la carte">🖨</button>` : ''}<button class="btn btn-ghost" data-cfg="bare" data-e="${i}">✏️</button><button class="btn btn-ghost" data-cfg="bare" data-c="${i}" title="Dupliquer">⧉</button></div>`).join('') : '<div class="empty">Aucun parcours. Créez le premier !</div>'}</div>
       <button class="btn btn-grad btn-block" data-cfg style="margin-top:12px" id="new">＋ Créer un parcours</button>`;
     box.querySelector('#new').onclick = () => editParcours(box, null);
+    box.querySelector('#newl').onclick = () => editLieu(box, null);
+    box.querySelectorAll('[data-le]').forEach(b => b.onclick = () => editLieu(box, +b.dataset.le));
+    box.querySelectorAll('[data-pr]').forEach(b => b.onclick = () => coPrint([DB.co.parcours[+b.dataset.pr]]));
+    { const a = box.querySelector('#prall'); if (a) a.onclick = () => { const L = DB.co.parcours.filter(p => coMapOf(p)); coPrint(L); }; }
     box.querySelectorAll('[data-e]').forEach(b => b.onclick = () => editParcours(box, +b.dataset.e));
     box.querySelectorAll('[data-c]').forEach(b => b.onclick = () => { const c = JSON.parse(JSON.stringify(DB.co.parcours[+b.dataset.c])); c.id = coId(); c.nom += ' (copie)'; DB.co.parcours.push(c); save(); listParcours(box); });
   }
 
+  /* ---- Lieu : carte vierge + postes ---- */
+  function editLieu(box, idx) {
+    const L = idx != null ? JSON.parse(JSON.stringify(coLieux()[idx])) : { id: coId(), nom: coLieux().length ? 'Bois' : 'Établissement', postes: [] };
+    let mode = 'add', pick = null, sel = null;
+    const nextNum = () => L.postes.reduce((a, q) => Math.max(a, q.num), 30) + 1;
+    const freeCode = () => CO_PATS.find(c => !L.postes.some(q => q.code === c)) || '';
+    const V = () => ({ img: L.map.img, w: L.map.w, h: L.map.h, hl: [], paths: [], marks: [...(L.dep ? [{ kind: 'D', x: L.dep[0], y: L.dep[1] }] : []), ...(L.arr ? [{ kind: 'A', x: L.arr[0], y: L.arr[1] }] : []),
+      ...L.postes.filter(q => q.x != null).map(q => ({ kind: 'c', x: q.x, y: q.y, lab: String(q.num), id: q.id }))] });
+    const draw = () => { const un = L.postes.filter(q => q.x == null); if (pick && !un.some(q => q.id === pick)) pick = null;
+      const S = L.postes.find(q => q.id === sel);
+      box.innerHTML = `<div data-cfg="bare"><div class="card" data-cfg><h3>${idx != null ? 'Modifier le lieu' : 'Nouveau lieu'}</h3>
+          <label>Nom du lieu</label><input id="ln" value="${esc(L.nom)}" placeholder="Établissement, bois de…">
+          <label class="btn btn-ghost btn-block" style="display:block;text-align:center;cursor:pointer;margin:10px 0 0">📷 ${L.map ? 'Changer la carte vierge' : 'Importer la carte vierge (photo ou capture d\'écran)'}<input id="lf" type="file" accept="image/*" style="display:none"></label></div>
+        ${L.map ? `<div class="card" style="margin-top:12px"><h3 style="margin-top:0">📍 Postes sur la carte</h3>
+          <div class="seg">${[['add', '➕ Poste'], ['move', '✋ Déplacer'], ['D', '△ Départ'], ['A', '◎ Arrivée'], ['vue', '👆 Défiler']].map(([k, l]) => `<button data-mo="${k}" class="${mode === k ? 'on' : ''}">${l}</button>`).join('')}</div>
+          <p class="muted" style="margin:8px 0 4px;font-size:.8rem">${{ add: un.length ? 'Choisissez un poste déjà saisi puis touchez la carte pour le placer — ou touchez la carte sans en choisir pour créer un nouveau poste.' : 'Touchez la carte pour créer un poste (numéro et symbole attribués automatiquement, modifiables). Touchez un poste existant pour le modifier.', move: 'Touchez un poste, puis l\'endroit où le déplacer.', D: 'Touchez la carte à l\'endroit du départ (triangle).', A: 'Touchez la carte à l\'endroit de l\'arrivée (double cercle). Sans arrivée, elle se fait au départ.', vue: 'Faites défiler la page sans rien placer.' }[mode]}</p>
+          ${mode === 'add' && un.length ? `<div class="bal-chips">${un.map(q => `<button data-pk="${q.id}" class="${pick === q.id ? 'on' : ''}" style="border-style:dashed">${q.num}</button>`).join('')}</div>` : ''}
+          <div style="margin-top:8px" id="lw">${coMapView(V(), { edit: mode !== 'vue', sel })}</div>
+          ${S ? `<div style="margin-top:10px;padding:10px;border-radius:12px;border:2px solid var(--gold,#C9A227)"><b>Poste sélectionné</b><div class="row" style="align-items:center;margin-top:6px"><div><label style="margin:0">Numéro</label><input id="sn" type="number" value="${S.num}"></div>
+            <button id="sp" style="flex:0 0 auto;padding:0;border:none;background:none;cursor:pointer">${isPat(S.code) ? patSVG(S.code, 48) : '<span style="display:grid;place-items:center;width:48px;height:48px;border:1.5px dashed var(--line);border-radius:6px;font-size:.62rem;font-weight:800">＋ pince</span>'}</button>
+            <button class="btn btn-ghost" id="su" style="flex:0 0 auto">Retirer de la carte</button><button class="btn btn-danger" id="sd" style="flex:0 0 auto">Supprimer</button></div></div>` : ''}
+          ${L.dep || L.arr ? `<div style="margin-top:8px;font-size:.8rem">${L.dep ? '△ Départ placé ' : ''}${L.arr ? '· ◎ Arrivée placée <button class="link" id="ax">retirer l\'arrivée</button>' : ''}</div>` : ''}</div>` : ''}
+        <div class="card" style="margin-top:12px"><h3 style="margin-top:0">Postes (${L.postes.length})</h3>
+          <p class="muted" style="margin:0 0 6px;font-size:.8rem">Saisissez-les ici à l'avance (numéro + symbole de la pince) puis placez-les sur la carte, ou créez-les directement en touchant la carte.</p>
+          <div class="row" style="align-items:end"><div><label>Nombre</label><input id="gn" type="number" min="1" value="${Math.max(1, 10 - L.postes.length)}"></div><div><label>À partir du n°</label><input id="g0" type="number" value="${nextNum()}"></div><button class="btn btn-ghost" style="flex:0 0 auto" id="gg">＋ Ajouter</button></div>
+          ${L.postes.length ? `<button class="btn btn-ghost btn-block" id="ga" style="margin-top:8px">🎲 Symbole différent pour chaque poste sans symbole</button>` : ''}
+          <div style="margin-top:8px">${L.postes.slice().sort((a, b) => a.num - b.num).map(q => `<div class="bal-row"><b style="min-width:44px">${q.num}</b>
+            <button data-qp="${q.id}" style="flex:0 0 auto;padding:0;border:none;background:none;cursor:pointer">${isPat(q.code) ? patSVG(q.code, 36) : '<span style="display:grid;place-items:center;width:36px;height:36px;border:1.5px dashed var(--line);border-radius:6px;font-size:.6rem;font-weight:800;color:var(--muted)">＋ pince</span>'}</button>
+            <span class="muted" style="flex:1;font-size:.8rem">${q.x != null ? '📍 placé' : '⚠️ à placer'}</span>${L.map ? `<button class="btn btn-ghost" style="padding:6px 9px" data-qs="${q.id}">${q.x != null ? '✏️' : '📍'}</button>` : ''}<button class="btn btn-ghost" style="padding:6px 9px" data-qx="${q.id}">✕</button></div>`).join('')}</div></div>
+        <div class="row" style="margin-top:12px"><button class="btn btn-grad" id="lsv">💾 Enregistrer le lieu</button><button class="btn btn-ghost" id="lbk">Annuler</button>${idx != null ? '<button class="btn btn-danger" id="ldel">Supprimer</button>' : ''}</div></div>`;
+      const $ = s => box.querySelector(s), rd = () => { L.nom = $('#ln').value.trim() || 'Lieu'; };
+      $('#lf').onchange = e => { const f0 = e.target.files[0]; if (!f0) return; rd(); if (L.map && L.postes.some(q => q.x != null) && !confirm('Changer la carte ? Les postes gardent leur position : replacez-les si la nouvelle carte est différente.')) return; coImg(f0, (img, w, h) => { L.map = { img, w, h }; draw(); }, 1800); };
+      box.querySelectorAll('[data-mo]').forEach(b => b.onclick = () => { rd(); mode = b.dataset.mo; if (mode !== 'move' && mode !== 'add') sel = null; draw(); });
+      box.querySelectorAll('[data-pk]').forEach(b => b.onclick = () => { rd(); pick = pick === b.dataset.pk ? null : b.dataset.pk; draw(); });
+      box.querySelectorAll('[data-qp]').forEach(b => b.onclick = () => { rd(); const q = L.postes.find(x => x.id === b.dataset.qp);
+        patPicker({ title: `Symbole du poste ${q.num}`, options: CO_PATS, current: q.code, used: L.postes.map(x => x.code).filter(isPat), extra: isPat(q.code) ? [{ v: '', l: 'Retirer le symbole' }] : [], onPick: c => { q.code = c; draw(); } }); });
+      box.querySelectorAll('[data-qs]').forEach(b => b.onclick = () => { rd(); const q = L.postes.find(x => x.id === b.dataset.qs); if (q.x != null) { sel = q.id; mode = 'add'; } else { pick = q.id; mode = 'add'; } draw(); $('#lw') && $('#lw').scrollIntoView({ block: 'center' }); });
+      box.querySelectorAll('[data-qx]').forEach(b => b.onclick = () => { rd(); const q = L.postes.find(x => x.id === b.dataset.qx); if (!confirm(`Supprimer le poste ${q.num} ? (il sera retiré des parcours de ce lieu)`)) return; L.postes = L.postes.filter(x => x !== q); if (sel === q.id) sel = null; draw(); });
+      $('#gg').onclick = () => { rd(); const n = Math.min(60, Math.max(1, +$('#gn').value || 1)), n0 = +$('#g0').value || nextNum(); let k = 0;
+        for (let v = n0; k < n; v++) if (!L.postes.some(q => q.num === v)) { L.postes.push({ id: coId() + k, num: v, code: freeCode(), x: null, y: null }); k++; } draw(); };
+      if ($('#ga')) $('#ga').onclick = () => { rd(); L.postes.forEach(q => { if (!isPat(q.code)) q.code = freeCode(); }); draw(); };
+      if ($('#ax')) $('#ax').onclick = () => { rd(); delete L.arr; draw(); };
+      if ($('#sn')) $('#sn').onchange = e => { const v = +e.target.value, S2 = L.postes.find(q => q.id === sel); if (!v) return; if (L.postes.some(q => q !== S2 && q.num === v)) { toast('Ce numéro existe déjà'); return draw(); } S2.num = v; rd(); draw(); };
+      if ($('#sp')) $('#sp').onclick = () => { rd(); const S2 = L.postes.find(q => q.id === sel); patPicker({ title: `Symbole du poste ${S2.num}`, options: CO_PATS, current: S2.code, used: L.postes.map(x => x.code).filter(isPat), onPick: c => { S2.code = c; draw(); } }); };
+      if ($('#su')) $('#su').onclick = () => { rd(); const S2 = L.postes.find(q => q.id === sel); S2.x = S2.y = null; sel = null; draw(); };
+      if ($('#sd')) $('#sd').onclick = () => { rd(); const S2 = L.postes.find(q => q.id === sel); if (!confirm(`Supprimer le poste ${S2.num} ?`)) return; L.postes = L.postes.filter(q => q !== S2); sel = null; draw(); };
+      const svg = $('#lw svg');
+      if (svg && mode !== 'vue') svg.onpointerdown = e => { e.preventDefault(); rd(); const [x, y] = coSvgPt(svg, V(), e), hit = L.postes.filter(q => q.x != null).find(q => Math.hypot(q.x - x, q.y - y) < 34);
+        if (mode === 'D') { L.dep = [x, y]; mode = 'add'; return draw(); }
+        if (mode === 'A') { L.arr = [x, y]; mode = 'add'; return draw(); }
+        if (mode === 'move') { if (hit && !sel) { sel = hit.id; return draw(); } if (!sel) return toast('Touchez d\'abord un poste'); const S2 = L.postes.find(q => q.id === sel); S2.x = x; S2.y = y; sel = null; return draw(); }
+        if (hit) { sel = sel === hit.id ? null : hit.id; return draw(); }
+        if (pick) { const q = L.postes.find(z => z.id === pick); q.x = x; q.y = y; pick = (L.postes.find(z => z.x == null) || {}).id || null; beep(900, .04); return draw(); }
+        L.postes.push({ id: coId(), num: nextNum(), code: freeCode(), x, y }); sel = null; beep(900, .04); draw(); };
+      $('#lbk').onclick = () => { if (confirm('Quitter sans enregistrer ?')) listParcours(box); };
+      if ($('#ldel')) $('#ldel').onclick = () => { const n = DB.co.parcours.filter(p => p.lieu === L.id).length; if (!confirm(`Supprimer le lieu « ${L.nom} » ?${n ? ` ${n} parcours garderont leurs balises mais plus la carte.` : ''}`)) return;
+        DB.co.parcours.forEach(p => { if (p.lieu === L.id) delete p.lieu; }); coLieux().splice(idx, 1); save(); listParcours(box); };
+      $('#lsv').onclick = () => { rd(); const nums = L.postes.map(q => q.num); if (new Set(nums).size !== nums.length) return toast('Deux postes ont le même numéro');
+        // parcours de ce lieu : numéros et symboles mis à jour, postes supprimés retirés
+        DB.co.parcours.forEach(p => { if (p.lieu !== L.id) return; p.balises = p.balises.filter(b => L.postes.some(q => q.id === b.pid)).map(b => { const q = L.postes.find(z => z.id === b.pid); return { ...b, num: q.num, code: q.code }; }); });
+        if (idx != null) coLieux()[idx] = L; else coLieux().push(L); save(); toast('Lieu enregistré ✔'); listParcours(box); };
+    };
+    draw();
+  }
   function editParcours(box, idx) {
     const p = idx != null ? JSON.parse(JSON.stringify(DB.co.parcours[idx])) : {
       id: coId(), nom: 'Parcours 1', type: 'libre', distance: 1200, denivOn: false, deniv: 0, alloue: 20, ecart: 2,
       balises: Array.from({ length: 8 }, (_, i) => ({ num: 31 + i, niv: 1, ob: true })),
       pts: [1, 2, 3], penWrongP: 1, penWrongS: 30, penMissS: 60, penOverP: 1 };
-    const draw = () => {
+    if (idx == null && coLieux().length) { p.lieu = coLieux()[0].id; p.balises = []; }
+    const draw = () => { const LU = coLieu(p.lieu);
       box.innerHTML = `<div data-cfg="bare"><div class="card" data-cfg><h3>${idx != null ? 'Modifier' : 'Nouveau'} parcours</h3>
         <label>Nom</label><input id="nm" value="${esc(p.nom)}">
         <label>Type de parcours</label><select id="ty">${Object.entries(CO_TYPES).map(([k, v]) => `<option value="${k}" ${p.type === k ? 'selected' : ''}>${v[0]}</option>`).join('')}</select>
         <p class="muted" style="margin:6px 0 0">${CO_TYPES[p.type][1]}</p>
+        <label>📍 Lieu de la course</label><select id="lu"><option value="">— Sans lieu (balises saisies à la main) —</option>${coLieux().map(L => `<option value="${L.id}" ${p.lieu === L.id ? 'selected' : ''}>${esc(L.nom)}${L.map ? '' : ' (pas de carte)'}</option>`).join('')}</select>
         ${p.type === 'papillon' ? `<label>Retour au départ toutes les … balises</label><input id="bk2" type="number" min="2" value="${p.boucle || 2}">` : ''}
         ${p.type === 'relais' ? `<label>Balises par relayeur (avant de passer le relais)</label><input id="rl" type="number" min="1" value="${p.relais || 1}">` : ''}
         <div class="row"><div><label>Distance (m)</label><input id="di" type="number" value="${p.distance}"></div><div><label>Temps attribué (min)</label><input id="al" type="number" value="${p.alloue}"></div><div><label>Écart toléré (± min)</label><input id="ec" type="number" value="${p.ecart}"></div></div>
         <label style="display:flex;gap:8px;align-items:center;margin-top:12px"><input type="checkbox" id="dn" ${p.denivOn ? 'checked' : ''} style="width:auto"> Option dénivelé</label>
         ${p.denivOn ? `<label>Dénivelé positif (m)</label><input id="dv" type="number" value="${p.deniv}">` : ''}
       </div>
+      ${LU ? `<div class="card" style="margin-top:12px"><h3>🗺 ${esc(LU.nom)} : postes du parcours</h3>
+        ${LU.map ? `<p class="muted" style="margin:0 0 6px;font-size:.8rem">Touchez les postes ${['suivi', 'papillon', 'relais'].includes(p.type) ? '<b>dans l\'ordre du parcours</b>' : 'du parcours'} (gris pointillé = non retenu ; toucher à nouveau le retire). Le tracé se dessine selon le type.</p>
+          <div id="pw">${coMapView(coViewLieu(p, LU, { all: true }), { edit: true })}</div>
+          <div class="row" style="margin-top:8px"><button class="btn btn-ghost" id="pall">Tous les postes</button><button class="btn btn-ghost" id="pnone">Aucun</button><button class="btn btn-ghost" id="pzoom">🔍 Agrandir</button></div>
+          <button class="btn ${p.type === 'suivi' ? 'btn-grad' : 'btn-ghost'} btn-block" style="margin-top:8px" id="phl">🖍 ${p.hl && p.hl.length ? 'Modifier le surlignage de l\'itinéraire' : 'Surligner l\'itinéraire au doigt'}</button>`
+          : `<p class="muted" style="margin:0">Ce lieu n'a pas encore de carte. <button class="link" id="plu">Ouvrir le lieu</button></p>`}
+        ${LU.postes.length ? `<div class="bal-chips" style="margin-top:8px">${LU.postes.slice().sort((a, b) => a.num - b.num).map(q => `<button data-tq="${q.id}" class="${p.balises.some(b => b.pid === q.id) ? 'on' : ''}">${q.num}</button>`).join('')}</div>` : '<p class="muted">Aucun poste dans ce lieu.</p>'}</div>` : `
       <div class="card" style="margin-top:12px"><h3>🗺 Carte du parcours${p.type === 'suivi' ? ' et itinéraire' : ''}</h3>
         ${p.map && p.map.img ? `<button id="mpv" style="display:block;width:100%;padding:0;border:none;background:none;cursor:pointer">${coMapHTML(p.map, p)}</button>` : `<p class="muted" style="margin:0 0 8px;font-size:.85rem">${p.type === 'suivi' ? 'Importez la carte (photo ou capture) puis surlignez l\'itinéraire que les élèves devront suivre et placez les balises.' : 'Facultatif : importez la carte pour la montrer aux élèves (et placer les balises).'}</p>`}
-        <div class="row" style="margin-top:8px"><label class="btn btn-ghost" style="text-align:center;cursor:pointer;margin:0">📷 ${p.map && p.map.img ? 'Changer la carte' : 'Importer la carte'}<input id="mpf" type="file" accept="image/*" style="display:none"></label>${p.map && p.map.img ? `<button class="btn btn-grad" id="mpe">🖍 ${p.type === 'suivi' ? 'Tracer l\'itinéraire' : 'Annoter'}</button><button class="btn btn-ghost" id="mpx" style="flex:0 0 auto">🗑</button>` : ''}</div></div>
+        <div class="row" style="margin-top:8px"><label class="btn btn-ghost" style="text-align:center;cursor:pointer;margin:0">📷 ${p.map && p.map.img ? 'Changer la carte' : 'Importer la carte'}<input id="mpf" type="file" accept="image/*" style="display:none"></label>${p.map && p.map.img ? `<button class="btn btn-grad" id="mpe">🖍 ${p.type === 'suivi' ? 'Tracer l\'itinéraire' : 'Annoter'}</button><button class="btn btn-ghost" id="mpx" style="flex:0 0 auto">🗑</button>` : ''}</div></div>`}
       <div class="card" style="margin-top:12px"><h3>Balises (${p.balises.length})</h3>${p.type === 'suivi' ? '<p class="muted" style="margin:0 0 6px;font-size:.8rem">🧵 Ordre imposé : les balises se font dans l\'ordre de cette liste (↑ pour remonter une balise).</p>' : ''}
         <p class="muted" style="margin:0 0 6px;font-size:.8rem">Symbole : le motif de points de la pince de chaque balise (répertoire ou dessin), utilisé par l'onglet 🔎 Contrôle.</p>
-        <button class="btn btn-ghost btn-block" id="autop" style="margin-bottom:6px">🎲 Attribuer un symbole différent à chaque balise</button>
+        ${LU ? '<p class="muted" style="margin:0 0 6px;font-size:.8rem">📍 Numéros et symboles viennent des postes du lieu (modifiables dans le lieu).</p>' : '<button class="btn btn-ghost btn-block" id="autop" style="margin-bottom:6px">🎲 Attribuer un symbole différent à chaque balise</button>'}
         <p class="muted" style="margin:4px 0 8px;font-size:.78rem">🧑‍🎓 Comment l'élève contrôle ses balises (pendant la course ou à l'arrivée ; choisir, dessiner ou comparer) : onglet <b>🔎 Contrôle</b>.</p>
-        <div class="row" style="align-items:end"><div><label>Nombre</label><input id="nb" type="number" min="1" value="${p.balises.length}"></div><div><label>1er numéro</label><input id="n0" type="number" value="${p.balises[0]?.num ?? 31}"></div><button class="btn btn-ghost" style="flex:0 0 auto" id="genb">Générer</button></div>
+        ${LU ? '' : `<div class="row" style="align-items:end"><div><label>Nombre</label><input id="nb" type="number" min="1" value="${p.balises.length}"></div><div><label>1er numéro</label><input id="n0" type="number" value="${p.balises[0]?.num ?? 31}"></div><button class="btn btn-ghost" style="flex:0 0 auto" id="genb">Générer</button></div>`}
         <div class="row" style="margin-top:8px"><button class="btn btn-ghost" id="allob">Toutes obligatoires</button><button class="btn btn-ghost" id="allfa">Toutes facultatives</button></div>
-        <div style="margin-top:8px">${p.balises.map((b, i) => `<div class="bal-row">${p.type === 'suivi' ? `<b style="min-width:22px;text-align:center">${i + 1}.</b>` : ''}<input class="num" type="number" data-num="${i}" value="${b.num}">${p.type === 'suivi' && i ? `<button class="btn btn-ghost" style="padding:6px 8px;flex:0 0 auto" data-up="${i}">↑</button>` : ''}
-          <button data-pat="${i}" title="Symbole de la pince" style="flex:0 0 auto;padding:0;border:none;background:none;cursor:pointer">${isPat(b.code) ? patSVG(b.code, 40) : '<span style="display:grid;place-items:center;width:40px;height:40px;border:1.5px dashed var(--line);border-radius:6px;font-size:.62rem;font-weight:800;color:var(--muted)">＋ pince</span>'}</button>
+        <div style="margin-top:8px">${p.balises.map((b, i) => `<div class="bal-row">${p.type === 'suivi' ? `<b style="min-width:22px;text-align:center">${i + 1}.</b>` : ''}<input class="num" type="number" data-num="${i}" value="${b.num}" ${LU ? 'readonly' : ''}>${(p.type === 'suivi' || (LU && ['papillon', 'relais'].includes(p.type))) && i ? `<button class="btn btn-ghost" style="padding:6px 8px;flex:0 0 auto" data-up="${i}">↑</button>` : ''}
+          <button data-pat="${i}" ${LU ? 'disabled' : ''} title="Symbole de la pince" style="flex:0 0 auto;padding:0;border:none;background:none;cursor:pointer">${isPat(b.code) ? patSVG(b.code, 40) : '<span style="display:grid;place-items:center;width:40px;height:40px;border:1.5px dashed var(--line);border-radius:6px;font-size:.62rem;font-weight:800;color:var(--muted)">＋ pince</span>'}</button>
           <div class="lvl">${[1, 2, 3].map(l => `<button data-niv="${i}" data-l="${l}" class="${b.niv === l ? 'on' : ''}">Niv ${l}</button>`).join('')}</div>
           <label class="chk-ob"><input type="checkbox" data-ob="${i}" ${b.ob ? 'checked' : ''}>oblig.</label><button class="btn btn-ghost" style="padding:6px 9px" data-rm="${i}">✕</button></div>`).join('')}</div>
-        <button class="btn btn-ghost btn-block" style="margin-top:8px" id="addb">＋ Ajouter une balise</button></div>
+        ${LU ? '' : '<button class="btn btn-ghost btn-block" style="margin-top:8px" id="addb">＋ Ajouter une balise</button>'}</div>
       <div class="card" style="margin-top:12px"><h3>Points & pénalités</h3>
         <div class="row"><div><label>Points niveau 1</label><input id="p1" type="number" value="${p.pts[0]}"></div><div><label>Niveau 2</label><input id="p2" type="number" value="${p.pts[1]}"></div><div><label>Niveau 3</label><input id="p3" type="number" value="${p.pts[2]}"></div></div>
         <label>Mauvaise balise poinçonnée</label><div class="row"><div><input id="pwp" type="number" value="${p.penWrongP}"><small class="muted">point(s) en moins</small></div><div><input id="pws" type="number" value="${p.penWrongS}"><small class="muted">secondes ajoutées</small></div></div>
@@ -228,27 +404,39 @@ TOOL_IMPL.co = function (el) {
         if ($('#bk2')) p.boucle = Math.max(2, +$('#bk2').value || 2); if ($('#rl')) p.relais = Math.max(1, +$('#rl').value || 1);
         box.querySelectorAll('[data-num]').forEach(i => p.balises[+i.dataset.num].num = +i.value || 0); };
       box.querySelectorAll('[data-up]').forEach(b => b.onclick = () => { read(); const i = +b.dataset.up; [p.balises[i - 1], p.balises[i]] = [p.balises[i], p.balises[i - 1]]; draw(); });
-      $('#mpf').onchange = e => { const f0 = e.target.files[0]; if (!f0) return; read(); coImg(f0, (img, w, h) => { p.map = { img, w, h, lines: [], marks: {} }; draw(); if (p.type === 'suivi') coMapEdit(p, m => { p.map = m; draw(); }); }); };
+      if ($('#mpf')) $('#mpf').onchange = e => { const f0 = e.target.files[0]; if (!f0) return; read(); coImg(f0, (img, w, h) => { p.map = { img, w, h, lines: [], marks: {} }; draw(); if (p.type === 'suivi') coMapEdit(p, m => { p.map = m; draw(); }); }); };
       if ($('#mpe')) $('#mpe').onclick = () => { read(); coMapEdit(p, m => { p.map = m; draw(); }); };
       if ($('#mpv')) $('#mpv').onclick = () => coMapShow(p);
       if ($('#mpx')) $('#mpx').onclick = () => { if (!confirm('Retirer la carte de ce parcours ?')) return; read(); delete p.map; draw(); };
       $('#ty').onchange = () => { read(); p.type = $('#ty').value; if (p.type === 'reseau') p.balises.forEach(b => b.ob = false); if (p.type === 'suivi') p.balises.forEach(b => b.ob = true); draw(); };
       $('#dn').onchange = () => { read(); draw(); };
-      $('#genb').onclick = () => { read(); const n = Math.max(1, +$('#nb').value || 1), n0 = +$('#n0').value || 31;
+      $('#lu').onchange = e => { read(); const v = e.target.value; if (p.balises.length && !confirm(v ? 'Prendre les balises parmi les postes de ce lieu ? Les balises actuelles seront retirées.' : 'Ne plus utiliser de lieu ? Les balises sont gardées, sans la carte.')) { e.target.value = p.lieu || ''; return; }
+        if (v) { p.lieu = v; p.balises = []; delete p.hl; } else { if (p.lieu) { const L0 = coLieu(p.lieu); p.balises.forEach(b => delete b.pid); } delete p.lieu; delete p.hl; } draw(); };
+      const tog = id => { const L0 = coLieu(p.lieu), q = L0.postes.find(z => z.id === id); if (!q) return;
+        if (p.balises.some(b => b.pid === id)) p.balises = p.balises.filter(b => b.pid !== id); else p.balises.push({ num: q.num, code: q.code, pid: q.id, niv: 1, ob: p.type !== 'reseau' }); beep(900, .03); draw(); };
+      box.querySelectorAll('[data-tq]').forEach(b => b.onclick = () => { read(); tog(b.dataset.tq); });
+      { const svg = box.querySelector('#pw svg'); if (svg) svg.onpointerdown = e => { e.preventDefault(); read(); const L0 = coLieu(p.lieu), [x, y] = coSvgPt(svg, L0.map, e), hit = L0.postes.filter(q => q.x != null).sort((a, b) => Math.hypot(a.x - x, a.y - y) - Math.hypot(b.x - x, b.y - y))[0];
+        if (hit && Math.hypot(hit.x - x, hit.y - y) < 40) tog(hit.id); }; }
+      if ($('#pall')) $('#pall').onclick = () => { read(); const L0 = coLieu(p.lieu); L0.postes.slice().sort((a, b) => a.num - b.num).forEach(q => { if (!p.balises.some(b => b.pid === q.id)) p.balises.push({ num: q.num, code: q.code, pid: q.id, niv: 1, ob: p.type !== 'reseau' }); }); draw(); };
+      if ($('#pnone')) $('#pnone').onclick = () => { if (!p.balises.length || !confirm('Retirer tous les postes du parcours ?')) return; read(); p.balises = []; draw(); };
+      if ($('#pzoom')) $('#pzoom').onclick = () => { read(); coMapShow(p); };
+      if ($('#phl')) $('#phl').onclick = () => { read(); coHlEdit(coViewLieu(p, coLieu(p.lieu)), `Itinéraire · ${p.nom}`, lines => { p.hl = lines; draw(); }); };
+      if ($('#plu')) $('#plu').onclick = () => { if (confirm('Quitter ce parcours sans l\'enregistrer pour ouvrir le lieu ?')) editLieu(box, coLieux().indexOf(coLieu(p.lieu))); };
+      if ($('#genb')) $('#genb').onclick = () => { read(); const n = Math.max(1, +$('#nb').value || 1), n0 = +$('#n0').value || 31;
         p.balises = Array.from({ length: n }, (_, i) => p.balises[i] ? { ...p.balises[i], num: n0 + i } : { num: n0 + i, niv: 1, ob: p.type !== 'reseau' }); draw(); };
       $('#allob').onclick = () => { read(); p.balises.forEach(b => b.ob = true); draw(); };
       $('#allfa').onclick = () => { read(); p.balises.forEach(b => b.ob = false); draw(); };
-      $('#addb').onclick = () => { read(); const last = p.balises[p.balises.length - 1]; p.balises.push({ num: last ? last.num + 1 : 31, niv: 1, ob: p.type !== 'reseau' }); draw(); };
+      if ($('#addb')) $('#addb').onclick = () => { read(); const last = p.balises[p.balises.length - 1]; p.balises.push({ num: last ? last.num + 1 : 31, niv: 1, ob: p.type !== 'reseau' }); draw(); };
       box.querySelectorAll('[data-niv]').forEach(b => b.onclick = () => { read(); p.balises[+b.dataset.niv].niv = +b.dataset.l; draw(); });
       box.querySelectorAll('[data-ob]').forEach(c => c.onchange = () => { p.balises[+c.dataset.ob].ob = c.checked; });
       box.querySelectorAll('[data-rm]').forEach(b => b.onclick = () => { read(); p.balises.splice(+b.dataset.rm, 1); draw(); });
       box.querySelectorAll('[data-pat]').forEach(b => b.onclick = () => { read(); const i = +b.dataset.pat;
         patPicker({ title: `Symbole de la balise ${p.balises[i].num}`, options: CO_PATS, current: p.balises[i].code, used: p.balises.map(x => x.code).filter(isPat),
           extra: isPat(p.balises[i].code) ? [{ v: '', l: 'Retirer le symbole' }] : [], onPick: c => { p.balises[i].code = c; draw(); } }); });
-      $('#autop').onclick = () => { read(); const free = CO_PATS.filter(c => !p.balises.some(b => b.code === c)); p.balises.forEach(b => { if (!isPat(b.code)) b.code = free.shift() || ''; }); draw(); };
+      if ($('#autop')) $('#autop').onclick = () => { read(); const free = CO_PATS.filter(c => !p.balises.some(b => b.code === c)); p.balises.forEach(b => { if (!isPat(b.code)) b.code = free.shift() || ''; }); draw(); };
       $('#bk').onclick = () => listParcours(box);
       if ($('#del')) $('#del').onclick = () => { if (confirm('Supprimer ce parcours ?')) { DB.co.parcours.splice(idx, 1); save(); listParcours(box); } };
-      $('#sv').onclick = () => { read(); const nums = p.balises.map(b => b.num); if (new Set(nums).size !== nums.length) return toast('Deux balises ont le même numéro');
+      $('#sv').onclick = () => { read(); if (p.lieu && !p.balises.length) return toast('Touchez au moins un poste sur la carte'); const nums = p.balises.map(b => b.num); if (new Set(nums).size !== nums.length) return toast('Deux balises ont le même numéro');
         if (idx != null) DB.co.parcours[idx] = p; else DB.co.parcours.push(p); save(); toast('Parcours enregistré ✔'); listParcours(box); };
     };
     draw();
@@ -276,7 +464,7 @@ TOOL_IMPL.co = function (el) {
   const pub = (cur, create) => { if (cur.joined || cur.profOnly) return; const p = P(cur.parcours) || cur.psnap; if (!p) return;
     const indiv = cur.runs.every(r => r.members.length === 1 && r.name === r.members[0]);
     partPublish('co', cur.id, { nom: p.nom, classe: cur.classe || '', ng: cur.runs.length, indiv, ep: `${CO_TYPES[p.type][0]} · ${p.balises.length} balises`,
-      tpl: { classe: cur.classe || '', parcours: cur.parcours, psnap: p, gap: cur.gap || 60, ctl: curCtl(cur), runs: cur.runs.map(r => ({ name: r.name, members: r.members, pc: r.pc || null, libre: r.libre || 0, choix: r.choix || 0 })) } }, create); };
+      tpl: { classe: cur.classe || '', parcours: cur.parcours, psnap: coSnap(p), gap: cur.gap || 60, ctl: curCtl(cur), runs: cur.runs.map(r => ({ name: r.name, members: r.members, pc: r.pc || null, libre: r.libre || 0, choix: r.choix || 0 })) } }, create); };
   const join = (box, sp) => { const T = sp.tpl;
     DB.co.current = { id: sp.id, date: Date.now(), parcours: T.parcours, psnap: T.psnap, classe: T.classe, gap: T.gap || 60, joined: true, ctl: T.ctl || coCtl(),
       runs: T.runs.map(r => ({ name: r.name, members: [...r.members], pc: r.pc || null, libre: r.libre || 0, choix: r.choix || 0, sel: [], dep: null, arr: null, found: [], wrong: 0 })) };
@@ -305,7 +493,7 @@ TOOL_IMPL.co = function (el) {
         beep(900, .04); save(); redraw(); }); };
     // 🔁 Nouveau parcours après l'arrivée : la course terminée est enregistrée, l'équipe repart sur un autre parcours
     const again = (i, redraw) => { const r = cur.runs[i], pp = pOf(r);
-      const rec = { ...cur, id: cur.id + '-' + Math.random().toString(36).slice(2, 6), parcours: baseOf(r).id, runs: [JSON.parse(JSON.stringify(r))], parcoursSnap: JSON.parse(JSON.stringify(pp)) };
+      const rec = { ...cur, id: cur.id + '-' + Math.random().toString(36).slice(2, 6), parcours: baseOf(r).id, runs: [JSON.parse(JSON.stringify(r))], parcoursSnap: coLite(pp) };
       ['only', 'joined', 'psnap', 'profOnly'].forEach(k => delete rec[k]); DB.co.seances.push(rec); coResults(rec);
       Object.assign(r, { dep: null, arr: null, found: [], wrong: 0, sel: [], done: (r.done || 0) + 1 }); delete r.tries; delete r.auto; delete r.legs; delete r.nx; delete r.who; save(); toast(`Course enregistrée ✔ · ${r.name} : choisissez le nouveau parcours`); redraw(); };
     /* ---- Allers-retours (étoile, papillon, relais) ---- */
@@ -345,7 +533,7 @@ TOOL_IMPL.co = function (el) {
           <div style="height:10px;border-radius:99px;background:var(--line);overflow:hidden;margin:10px 0 4px"><div style="height:100%;width:${tot ? n / tot * 100 : 0}%;background:#1B9E5A"></div></div>
           <div class="muted" style="font-size:.85rem">${n} / ${tot} balises trouvées · <b style="color:var(--text)">${x.score} pts</b>${missOb ? ` · ${missOb} obligatoire${missOb > 1 ? 's' : ''} à trouver` : ''}${r.wrong ? ` · ${r.wrong} mauvaise${r.wrong > 1 ? 's' : ''} balise${r.wrong > 1 ? 's' : ''}` : ''}</div>
           ${!r.dep ? `${r.choix || DB.co.parcours.length > 1 || r.libre ? `<div style="margin-top:10px;text-align:left">${pcPick(r, i)}${r.libre ? selPick(r, i) : ''}</div>` : ''}${LG ? '' : `<button class="btn btn-grad btn-block" style="margin-top:12px;font-size:1.2rem;padding:16px" id="gv-go" ${needSel(r) ? 'disabled' : ''}>▶ Départ${r.plan ? ' à ' + clock(r.plan).slice(0, 5) : ''}</button>`}` : ''}
-          ${p.map && p.map.img ? '<button class="btn btn-ghost btn-block" style="margin-top:8px" id="gv-map">🗺 Voir la carte</button>' : ''}
+          ${coMapOf(p) ? '<button class="btn btn-ghost btn-block" style="margin-top:8px" id="gv-map">🗺 Voir la carte</button>' : ''}
           ${run && !LG ? `<button class="btn ${missOb && !LATE ? 'btn-danger' : 'btn-grad'} btn-block" style="margin-top:12px;font-size:1.15rem;padding:14px" id="gv-fin">🏁 Arrivée${!missOb && !LATE ? ' — toutes les obligatoires sont trouvées !' : ''}</button>` : ''}
           ${r.arr ? `<div style="margin-top:10px;font-weight:800">✅ Course terminée · ${x.score} pts${x.temps != null ? ` · RK ${x.rk}` : ''}${x.penS ? ` · pénalités +${hms(x.penS)}` : ''}${x.statut ? ' · ' + x.statut : ''}</div>` : ''}</div>
         ${LG ? `<div class="card" style="margin-top:10px"><b>${{ etoile: '⭐ Étoile', papillon: '🦋 Papillon', relais: '🔁 Relais' }[p.type]}</b> <span class="muted" style="font-size:.8rem">· retour au départ ${legK(p) > 1 ? `toutes les ${legK(p)} balises` : 'après chaque balise'}, contrôle du carton à chaque retour</span>${legBox(r, i, p, true)}</div>` : ''}
@@ -441,7 +629,7 @@ TOOL_IMPL.co = function (el) {
       // une fiche par parcours (les équipes peuvent courir des parcours différents)
       const by = new Map(); (tab1 ? [tab1] : cur.runs).forEach(r => { const pp = pOf(r); if (!by.has(pp.id)) by.set(pp.id, { pp, base: baseOf(r).id, runs: [] }); by.get(pp.id).runs.push(r); });
       by.forEach(({ pp, base, runs }) => { if (!runs.some(r => r.dep) && by.size > 1) return;
-        const rec = { ...cur, id: cur.id + '-' + Math.random().toString(36).slice(2, 6), parcours: base, runs, parcoursSnap: JSON.parse(JSON.stringify(pp)) }; ['only', 'joined', 'psnap', 'profOnly'].forEach(k => delete rec[k]);
+        const rec = { ...cur, id: cur.id + '-' + Math.random().toString(36).slice(2, 6), parcours: base, runs, parcoursSnap: coLite(pp) }; ['only', 'joined', 'psnap', 'profOnly'].forEach(k => delete rec[k]);
         DB.co.seances.push(rec); coResults(rec); });
       DB.co.current = null; save(); toast('Séance enregistrée ✔'); tabs(true); tab = 'bilan'; frame(); };
     const draw = () => {
@@ -449,7 +637,7 @@ TOOL_IMPL.co = function (el) {
       tabs(true);
       const rs = cur.runs.map(r => ({ r, x: result(r, pOf(r)) }));
       box.innerHTML = `<div class="card"><div style="display:flex;justify-content:space-between;gap:8px;align-items:center"><div><b>${esc(p.nom)}</b><div class="muted">${esc(cur.classe || '')} · ${CO_TYPES[p.type][0]} · ${p.balises.length} balises${p.alloue ? ` · ${p.alloue} min ± ${p.ecart}` : ''}</div></div><div class="run-t" id="now">${clock(Date.now())}</div></div>
-          <div style="margin-top:6px;font-size:.8rem;font-weight:700">${CO_ORG(p)}${p.map && p.map.img ? ' <button class="link" id="smap">🗺 Carte</button>' : ''}</div>
+          <div style="margin-top:6px;font-size:.8rem;font-weight:700">${CO_ORG(p)}${coMapOf(p) ? ' <button class="link" id="smap">🗺 Carte</button>' : ''}</div>
           <div class="row" style="margin-top:10px"><button class="btn btn-grad" id="all">🚩 Départ groupé</button><button class="btn btn-ghost btn-block" data-cfg="bare" style="margin-top:8px" id="edg">✏️ Modifier les groupes / participants (absent, blessé…)</button><div data-cfg="bare" style="display:flex;gap:6px;align-items:center;flex:1.3"><input id="gap" type="number" value="${cur.gap || 60}" style="width:70px;padding:8px"><button class="btn btn-ghost" id="stag" style="padding:9px 8px;font-size:.8rem">Départs échelonnés (s)</button></div></div>
           <p class="muted" style="margin:8px 0 0;font-size:.8rem">Balises : touchez un numéro trouvé (souligné rouge = obligatoire).</p>
           ${cur.profOnly ? '<p class="muted" style="margin:8px 0 0;font-size:.8rem">📋 Suivi enseignant uniquement : les élèves courent sans tablette ; arrêtez le temps à leur retour puis touchez « 🔎 Contrôler le carton » pour vérifier leur coupon papier.</p>' : ''}
@@ -537,7 +725,7 @@ TOOL_IMPL.co = function (el) {
     const draw = () => { const pp = P(pcSel) || DB.co.parcours[0]; pcSel = pp.id; if (pp.type === 'relais') mode = 'grp';
       box.innerHTML = `<div class="card" data-cfg style="margin-bottom:12px;padding:10px 14px"><b>🧑‍🎓 Contrôle par l'élève :</b> ${CTL_TXT(coCtl())} <button class="link" id="goctl">modifier</button></div><div class="card" data-cfg><h3>Nouvelle séance</h3>
         <label>Parcours</label><select id="pc">${DB.co.parcours.map(p => `<option value="${p.id}" ${p.id === pcSel ? 'selected' : ''}>${esc(p.nom)} — ${CO_TYPES[p.type][0]} · ${p.balises.length} balises</option>`).join('')}</select>
-        <div style="margin-top:8px;padding:8px 10px;border-radius:10px;background:var(--grad-soft);font-size:.85rem;font-weight:700">${CO_ORG(pp)}${pp.map && pp.map.img ? ' <button class="link" id="pmap">🗺 voir la carte</button>' : ''}</div>
+        <div style="margin-top:8px;padding:8px 10px;border-radius:10px;background:var(--grad-soft);font-size:.85rem;font-weight:700">${CO_ORG(pp)}${coMapOf(pp) ? ' <button class="link" id="pmap">🗺 voir la carte</button>' : ''}</div>
         <label>Organisation</label>${pp.type === 'relais' ? '<p class="muted" style="margin:0 0 6px;font-size:.8rem">Relais : formez des équipes (les élèves de chaque équipe partiront à tour de rôle).</p>' : ''}<div class="seg">${pp.type === 'relais' ? '' : `<button data-md="indiv" class="${mode === 'indiv' ? 'on' : ''}">Parcours individuels</button>`}<button data-md="grp" class="${mode === 'grp' ? 'on' : ''}">${pp.type === 'relais' ? 'Équipes de relais' : 'Groupes'}<br><small style="font-weight:600;opacity:.85">homogènes / hétérogènes</small></button></div>
         <label style="display:flex;gap:8px;align-items:flex-start;margin-top:12px"><input type="checkbox" id="pchoice" ${choice ? 'checked' : ''} style="width:auto;margin-top:3px"> <span>Chaque ${mode === 'indiv' ? 'élève' : 'groupe'} choisit son parcours (ou ses balises en choix libre) au départ</span></label>
         <label style="display:flex;gap:8px;align-items:flex-start;margin-top:8px"><input type="checkbox" id="profo" ${profOnly ? 'checked' : ''} style="width:auto;margin-top:3px"> <span>📋 Suivi enseignant uniquement (pas de tablette pour les élèves : temps à l'arrivée, balises du coupon papier)</span></label>
