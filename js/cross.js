@@ -184,7 +184,7 @@ if (!document.getElementById('cx-css')) document.head.insertAdjacentHTML('before
   function pairTops(E, byBib, cOf) {
     const lanes = [...new Set([...(E.tops || []).map(x => x.ln || 1), ...E.arr.filter(a => a.ln).map(a => a.ln)])].sort((a, b) => a - b), time = new Map(), L = [];
     lanes.forEach(ln => { const T = (E.tops || []).filter(x => (x.ln || 1) === ln).sort((a, b) => a.t - b.t);
-      const A = E.arr.filter(a => a.ln === ln && (() => { const s0 = byBib.get(+a.b), c = s0 && cOf.get(s0.k); return !c || c.mode !== 'temps'; })()).sort((a, b) => a.t - b.t);
+      const A = E.arr.filter(a => a.ln === ln).sort((a, b) => a.t - b.t);   // tous les passages scannés au poste du couloir (arrivées ET tours)
       A.forEach((a, i) => { if (T[i]) time.set(a.id, T[i].t); });
       L.push({ ln, T, A }); });
     return { time, lanes: L };
@@ -237,7 +237,7 @@ if (!document.getElementById('cx-css')) document.head.insertAdjacentHTML('before
     }
     const aid = uid(8); E.arr.push({ id: aid, b: +bib, t: now, d: DEV, src, ...(topOn(E) ? { ln: poste().ln } : {}) }); commit();
     const K2 = compute(E), r = K2.courses.find(x => x.c === c).R.find(x => x.s.k === s.k);
-    return { kind: 'ok', bib, s, c, r, ...(topOn(E) && c.mode !== 'temps' && K2.PT && !K2.PT.time.has(aid) ? { msg: '⏳ Temps provisoire : TOP de la ligne pas encore reçu (calculé à la synchronisation)' } : {}) };
+    return { kind: 'ok', bib, s, c, r, ...(topOn(E) && K2.PT && !K2.PT.time.has(aid) ? { msg: '⏳ Temps provisoire : TOP de la ligne pas encore reçu (calculé à la synchronisation)' } : {}) };
   }
   const parse = txt => { const m = /^EPSX\|([^|]+)\|(\d{1,5})$/.exec(String(txt || '').trim()); return m ? { id: m[1], bib: +m[2] } : null; };
   /* Point d'entrée commun au décodeur caméra et au pavé : renvoie le résultat et l'affiche */
@@ -561,7 +561,7 @@ tr:nth-child(-n+4) td{font-weight:700}`,
           <div class="seg" style="margin-top:6px">${[['scan', '📷 Heure du scan'], ['top', '🏁 TOP sur la ligne (classement exact)']].map(([k, l]) => `<button data-am="${k}" class="${(E.arrMode || 'scan') === k ? 'on' : ''}">${l}</button>`).join('')}</div>
           ${topOn(E) ? `<label>Poste de cette tablette</label><div class="seg">${[['ligne', '🏁 Sur la ligne : TOP'], ['scan', '📷 Couloir : scan des dossards']].map(([k, l]) => `<button data-pr="${k}" class="${P0.role === k ? 'on' : ''}">${l}</button>`).join('')}</div>
             <label>Couloir</label><div class="seg">${[1, 2, 3, 4].map(n => `<button data-ln="${n}" class="${P0.ln === n ? 'on' : ''}">${n}</button>`).join('')}</div>
-            <p class="muted" style="font-size:.78rem;margin:6px 0 0">Par couloir : <b>une tablette « Ligne »</b> (un adulte touche TOP quand chaque coureur franchit la ligne) et <b>une tablette « Scan »</b> au bout du couloir (les dossards scannés dans le même ordre, en file indienne). Le 1er dossard scanné reçoit l'heure du 1er TOP, etc. Pas besoin de réseau pendant la course : tout se regroupe à la synchronisation. Les courses « aux tours » restent à l'heure du scan.</p>` : ''}</div>
+            <p class="muted" style="font-size:.78rem;margin:6px 0 0">Par couloir : <b>une tablette « Ligne »</b> (un adulte touche TOP quand chaque coureur franchit la ligne) et <b>une tablette « Scan »</b> au bout du couloir (les dossards scannés dans le même ordre, en file indienne). Le 1er dossard scanné reçoit l'heure du 1er TOP, etc. Pas besoin de réseau pendant la course : tout se regroupe à la synchronisation. Courses aux tours : <b>chaque passage</b> sur la ligne reçoit un TOP et un scan, dans le même ordre.</p>` : ''}</div>
         <div class="cx-scan"><div>
           <div class="card" id="cx-starts"></div>
           ${LINE ? `<div class="card" style="margin-top:12px;text-align:center"><div class="muted" style="font-weight:800">Couloir ${P0.ln} · touchez au passage de chaque coureur sur la ligne</div>
@@ -646,7 +646,7 @@ tr:nth-child(-n+4) td{font-weight:700}`,
         const K = compute(E), rk = new Map(); K.courses.forEach(x => x.R.forEach(r => rk.set(r.s.k, r)));
         const A = [...E.arr].sort((a, b) => b.t - a.t);
         $('#cx-cnt').textContent = `${A.length} passage${A.length > 1 ? 's' : ''}`;
-        const row = (a, del) => { const s = K.byBib.get(+a.b), c = s && K.cOf.get(s.k), r = s && rk.get(s.k), pend = K.PT && a.ln && c && c.mode !== 'temps' && !K.PT.time.has(a.id); a = K.PT && K.PT.time.has(a.id) ? { ...a, t: K.PT.time.get(a.id) } : a;
+        const row = (a, del) => { const s = K.byBib.get(+a.b), c = s && K.cOf.get(s.k), r = s && rk.get(s.k), pend = K.PT && a.ln && !K.PT.time.has(a.id); a = K.PT && K.PT.time.has(a.id) ? { ...a, t: K.PT.time.get(a.id) } : a;
           return `<div class="cx-last"><span class="b">${a.b}</span><div class="nm"><b>${s ? esc(s.name) : 'Dossard inconnu'}</b><small>${s ? esc(s.cls) + ' · ' : ''}${c ? esc(c.name) : ''}${a.d !== DEV ? ' · 📱 autre tablette' : ''}${a.src === 'manual' ? ' · ⌨️' : ''}</small></div>
             <span class="t">${pend ? '⏳ ' : ''}${c && startOf(c, s) ? `⏱ ${tm(a.t - startOf(c, s))}<br><small class="muted" style="font-weight:600">arrivée ${hms(a.t)}</small>` : `<small class="muted" style="font-weight:700">départ pas reçu</small><br>${hms(a.t)}`}${r && c.mode !== 'temps' ? `<br><small class="muted">${r.place}e</small>` : r ? `<br><small class="muted">${r.laps} t.</small>` : ''}</span>${del ? `<button class="btn btn-ghost" style="flex:0 0 auto;padding:6px 9px" data-rm="${esc(a.id)}">✕</button>` : ''}</div>`; };
         $('#cx-last').innerHTML = A.length ? A.slice(0, 12).map(a => row(a)).join('') : '<div class="empty">Aucun passage pour l\'instant.</div>';
