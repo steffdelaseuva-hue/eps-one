@@ -4,9 +4,11 @@
    ========================================================= */
 /* Page Ko-fi : laisser vide tant qu'elle n'existe pas (le bouton est alors masqué) */
 const KOFI_URL = 'https://ko-fi.com/epsone';
-const APP_VERSION = '22.5';
+const APP_VERSION = '22.7';
 const APP_URL = 'https://steffdelaseuva-hue.github.io/eps-one/';
 const CHANGELOG = [
+  { v: '22.7', items: ['Course d\'orientation : la carte s\'affiche bien dans la fenêtre « 🖍 Surligner l\'itinéraire » (elle restait vide sur iPad) — 1 doigt surligne, 2 doigts zooment'] },
+  { v: '22.6', items: ['Course d\'orientation · lieux : un poste, le départ ou l\'arrivée se déplace en le faisant glisser du doigt ; toucher près d\'un repère existant le sélectionne au lieu de créer un nouveau poste (zone de toucher élargie, même avec de petits repères)'] },
   { v: '22.5', items: ['Course d\'orientation · lieux : réglage « ⭕ Taille des repères » (curseur, aperçu en direct) pour adapter les ronds, numéros, triangle de départ et traits du parcours à l\'échelle de la carte ; repères plus petits par défaut ; le réglage s\'applique aux parcours du lieu, aux tablettes et à l\'impression'] },
   { v: '22.4', items: ['Course d\'orientation · cartes : zoom à deux doigts (ou boutons ＋ − ⤢) et déplacement à un doigt ; seul un toucher bref place un poste — faire glisser ou zoomer ne pose plus de balise ; le zoom reste en place après chaque poste posé ; les repères gardent une taille lisible en zoomant', 'Surlignage de l\'itinéraire : 1 doigt trace, 2 doigts zooment et déplacent la carte'] },
   { v: '22.3', items: ['Course d\'orientation · 📍 Lieux et cartes (établissement, bois…) : importez la carte vierge, saisissez les postes (numéro + symbole de la pince) puis placez-les en touchant la carte — ou créez-les directement sur la carte ; départ △ et arrivée ◎', 'Création de parcours : choisissez le lieu puis touchez les postes sur la carte — le tracé se dessine selon le type (étoile, papillon, relais, suivi d\'itinéraire avec surlignage au doigt ; réseau : facultatives en bleu) ; numéros et symboles repris automatiquement du lieu', '🖨 Impression des cartes : une page A4 par parcours avec le tracé et le carton de contrôle vierge'] },
