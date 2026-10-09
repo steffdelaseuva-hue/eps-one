@@ -85,6 +85,10 @@ function patPicker({ title, options, draw = true, extra = [], current, used = []
   render(); document.body.appendChild(o);
 }
 
+/* Contrôle des balises par l'élève sur la tablette de son équipe :
+   when = 'live' (pendant la course, l'élève a la tablette / le téléphone) ou 'arrivee' (carton papier, contrôle après l'arrivée)
+   how  = 'choix' (choisir le symbole) · 'dessin' (redessiner le symbole) · 'auto' (symboles affichés, l'élève coche VALIDÉ / FAUX) */
+const coCtl = p => Object.assign({ when: 'arrivee', how: (p && p.ctrl) || 'choix' }, DB.co.ctl || {});
 TOOL_IMPL.co = function (el) {
   let tab = DB.co.current || partToday('co').length || partRecoverHTML('co') ? 'seance' : 'parcours';
   const P = id => DB.co.parcours.find(p => p.id === id);
@@ -124,9 +128,7 @@ TOOL_IMPL.co = function (el) {
       <div class="card" style="margin-top:12px"><h3>Balises (${p.balises.length})</h3>
         <p class="muted" style="margin:0 0 6px;font-size:.8rem">Symbole : le motif de points de la pince de chaque balise (répertoire ou dessin), utilisé par l'onglet 🔎 Contrôle.</p>
         <button class="btn btn-ghost btn-block" id="autop" style="margin-bottom:6px">🎲 Attribuer un symbole différent à chaque balise</button>
-        <label>Contrôle des balises par l'élève (tablette de l'équipe)</label>
-        <div class="seg" id="ctl">${[['choix', '🔣 Choisir le symbole'], ['dessin', '✏️ Dessiner le symbole'], ['auto', '👀 Auto-correction']].map(([k, l]) => `<button data-ctl="${k}" class="${(p.ctrl || 'choix') === k ? 'on' : ''}">${l}</button>`).join('')}</div>
-        <p class="muted" style="margin:4px 0 8px;font-size:.78rem">${{ choix: 'L\'élève touche la balise trouvée puis choisit le symbole de la pince parmi ceux du parcours (bouton « Le symbole n\'est pas dans la liste » si sa pince n\'y figure pas).', dessin: 'L\'élève redessine sur la grille de points le symbole de la pince ; après l\'arrivée, il compare ses dessins aux symboles attendus.', auto: 'L\'élève coche ses balises pendant la course ; à l\'arrivée, les symboles attendus s\'affichent : il compare avec son carton et coche lui-même VALIDÉ ou FAUX.' }[p.ctrl || 'choix']}</p>
+        <p class="muted" style="margin:4px 0 8px;font-size:.78rem">🧑‍🎓 Comment l'élève contrôle ses balises (pendant la course ou à l'arrivée ; choisir, dessiner ou comparer) : onglet <b>🔎 Contrôle</b>.</p>
         <div class="row" style="align-items:end"><div><label>Nombre</label><input id="nb" type="number" min="1" value="${p.balises.length}"></div><div><label>1er numéro</label><input id="n0" type="number" value="${p.balises[0]?.num ?? 31}"></div><button class="btn btn-ghost" style="flex:0 0 auto" id="genb">Générer</button></div>
         <div class="row" style="margin-top:8px"><button class="btn btn-ghost" id="allob">Toutes obligatoires</button><button class="btn btn-ghost" id="allfa">Toutes facultatives</button></div>
         <div style="margin-top:8px">${p.balises.map((b, i) => `<div class="bal-row"><input class="num" type="number" data-num="${i}" value="${b.num}">
@@ -147,7 +149,6 @@ TOOL_IMPL.co = function (el) {
         box.querySelectorAll('[data-num]').forEach(i => p.balises[+i.dataset.num].num = +i.value || 0); };
       $('#ty').onchange = () => { read(); p.type = $('#ty').value; if (p.type === 'reseau') p.balises.forEach(b => b.ob = false); draw(); };
       $('#dn').onchange = () => { read(); draw(); };
-      box.querySelectorAll('[data-ctl]').forEach(b => b.onclick = () => { read(); p.ctrl = b.dataset.ctl; draw(); });
       $('#genb').onclick = () => { read(); const n = Math.max(1, +$('#nb').value || 1), n0 = +$('#n0').value || 31;
         p.balises = Array.from({ length: n }, (_, i) => p.balises[i] ? { ...p.balises[i], num: n0 + i } : { num: n0 + i, niv: 1, ob: p.type !== 'reseau' }); draw(); };
       $('#allob').onclick = () => { read(); p.balises.forEach(b => b.ob = true); draw(); };
@@ -224,6 +225,7 @@ TOOL_IMPL.co = function (el) {
     // Vue « une seule équipe » : ce que voient les élèves sur leur tablette (cur.only reste sur l'appareil)
     const drawGroup = () => {
       const i = cur.only, r = cur.runs[i], p = pOf(r), x = result(r, p), run = r.dep && !r.arr, tot = p.balises.length, n = r.found.length;
+      const CT = coCtl(p), LATE = CT.when === 'arrivee', act = LATE ? !!r.arr : run;   // act : balises contrôlables maintenant
       const missOb = p.balises.filter(b => b.ob && !r.found.includes(b.num)).length;
       tabs(false);
       box.innerHTML = `<div class="card" style="text-align:center"><div style="font-weight:900;font-size:1.3rem">🧭 ${esc(r.name)}</div>${r.members.length > 1 || r.name !== r.members[0] ? `<div class="muted">${r.members.map(esc).join(', ')}</div>` : ''}
@@ -232,48 +234,53 @@ TOOL_IMPL.co = function (el) {
           <div style="height:10px;border-radius:99px;background:var(--line);overflow:hidden;margin:10px 0 4px"><div style="height:100%;width:${tot ? n / tot * 100 : 0}%;background:#1B9E5A"></div></div>
           <div class="muted" style="font-size:.85rem">${n} / ${tot} balises trouvées · <b style="color:var(--text)">${x.score} pts</b>${missOb ? ` · ${missOb} obligatoire${missOb > 1 ? 's' : ''} à trouver` : ''}${r.wrong ? ` · ${r.wrong} mauvaise${r.wrong > 1 ? 's' : ''} balise${r.wrong > 1 ? 's' : ''}` : ''}</div>
           ${!r.dep ? `${r.choix || DB.co.parcours.length > 1 || r.libre ? `<div style="margin-top:10px;text-align:left">${pcPick(r, i)}${r.libre ? selPick(r, i) : ''}</div>` : ''}<button class="btn btn-grad btn-block" style="margin-top:12px;font-size:1.2rem;padding:16px" id="gv-go" ${needSel(r) ? 'disabled' : ''}>▶ Départ${r.plan ? ' à ' + clock(r.plan).slice(0, 5) : ''}</button>` : ''}
-          ${run ? `<button class="btn ${missOb ? 'btn-danger' : 'btn-grad'} btn-block" style="margin-top:12px;font-size:1.15rem;padding:14px" id="gv-fin">🏁 Arrivée${!missOb ? ' — toutes les obligatoires sont trouvées !' : ''}</button>` : ''}
+          ${run ? `<button class="btn ${missOb && !LATE ? 'btn-danger' : 'btn-grad'} btn-block" style="margin-top:12px;font-size:1.15rem;padding:14px" id="gv-fin">🏁 Arrivée${!missOb && !LATE ? ' — toutes les obligatoires sont trouvées !' : ''}</button>` : ''}
           ${r.arr ? `<div style="margin-top:10px;font-weight:800">✅ Course terminée · ${x.score} pts${x.temps != null ? ` · RK ${x.rk}` : ''}${x.penS ? ` · pénalités +${hms(x.penS)}` : ''}${x.statut ? ' · ' + x.statut : ''}</div>` : ''}</div>
-        <div class="card" style="margin-top:10px"><div style="display:flex;justify-content:space-between;align-items:center"><b>Balises</b><span class="muted" style="font-size:.8rem">${run ? p.balises.some(b => isPat(b.code)) ? 'Touchez une balise trouvée puis le symbole de sa pince' : 'Touchez une balise dès qu\'elle est trouvée' : !r.dep ? 'Appuyez sur ▶ Départ pour commencer' : ''}</span></div>
+        <div class="card" style="margin-top:10px"><div style="display:flex;justify-content:space-between;align-items:center"><b>Balises</b><span class="muted" style="font-size:.8rem">${LATE ? (run ? '📝 Note le symbole de chaque balise sur ton carton · contrôle à l\'arrivée' : r.arr ? (CT.how === 'auto' ? 'Compare avec ton carton (ci-dessous)' : 'Touchez chaque balise de ton carton pour la contrôler') : !r.dep ? 'Appuyez sur ▶ Départ pour commencer' : '')
+            : run ? p.balises.some(b => isPat(b.code)) ? 'Touchez une balise trouvée puis le symbole de sa pince' : 'Touchez une balise dès qu\'elle est trouvée' : !r.dep ? 'Appuyez sur ▶ Départ pour commencer' : ''}</span></div>
           ${p.balises.map(b => { const on = r.found.includes(b.num);
-            return `<button class="gv-it ${on ? 'on' : ''}" data-bal="${b.num}" ${run ? '' : 'disabled'}><span class="bx">${on ? '✓' : ''}</span><span class="t" style="flex:1">Balise ${b.num}</span><span class="muted" style="font-size:.8rem;font-weight:700">N${b.niv} · ${p.pts[b.niv - 1] || 0} pt${(p.pts[b.niv - 1] || 0) > 1 ? 's' : ''}${b.ob ? ' · <b style="color:var(--danger)">obligatoire</b>' : ''}</span>${on && isPat(b.code) && ((p.ctrl || 'choix') !== 'auto' || (r.auto || {})[b.num] === 'ok') ? patSVG(b.code, 34) : ''}</button>`; }).join('')}</div>
+            return `<button class="gv-it ${on ? 'on' : ''}" data-bal="${b.num}" ${act && !(LATE && CT.how === 'auto' && isPat(b.code)) ? '' : 'disabled'}><span class="bx">${on ? '✓' : ''}</span><span class="t" style="flex:1">Balise ${b.num}</span><span class="muted" style="font-size:.8rem;font-weight:700">N${b.niv} · ${p.pts[b.niv - 1] || 0} pt${(p.pts[b.niv - 1] || 0) > 1 ? 's' : ''}${b.ob ? ' · <b style="color:var(--danger)">obligatoire</b>' : ''}</span>${on && isPat(b.code) && (CT.how !== 'auto' || (r.auto || {})[b.num] === 'ok') ? patSVG(b.code, 34) : ''}</button>`; }).join('')}</div>
         ${r.arr ? ctlCard(r, p) : ''}
         ${r.arr ? `<button class="btn btn-grad btn-block" style="margin-top:12px;font-size:1.1rem;padding:16px" id="save">💾 Enregistrer notre course</button><button class="btn btn-ghost btn-block" style="margin-top:8px" data-again="${i}">🔁 Enregistrer et repartir sur un nouveau parcours</button>` : ''}
         <div style="text-align:center;margin:18px 0 6px"><button class="link" id="gv-prof">🔒 Mode enseignant</button></div>`;
       const $ = s => box.querySelector(s);
       if ($('#gv-go')) $('#gv-go').onclick = () => { if (needSel(r)) return toast(`Choisissez ${r.libre} balises`); r.dep = Date.now(); beep(1300, .45); save(); drawGroup(); };
       box.querySelectorAll('[data-ac]').forEach(bt => bt.onclick = () => { const [num0, v] = bt.dataset.ac.split('|'), num = +num0; r.auto = r.auto || {}; const was = r.auto[num];
-        if (was === v) return; if (v === 'ko') { r.found = r.found.filter(y => y !== num); r.wrong++; } else if (was === 'ko') { r.found = [...r.found, num]; r.wrong = Math.max(0, r.wrong - 1); }
+        if (was === v) return;
+        if (was === 'ko') r.wrong = Math.max(0, r.wrong - 1);
+        r.found = r.found.filter(y => y !== num); if (v === 'ok') r.found = [...r.found, num]; if (v === 'ko') r.wrong++;
         r.auto[num] = v; save(); drawGroup(); });
       bindPick(box, drawGroup); box.querySelectorAll('[data-again]').forEach(b => b.onclick = () => again(+b.dataset.again, drawGroup));
-      if ($('#gv-fin')) $('#gv-fin').onclick = () => { if (missOb && !confirm(`Il reste ${missOb} balise(s) obligatoire(s) à trouver. Valider l'arrivée ?`)) return; r.arr = Date.now(); beep(1000, .3); save(); drawGroup(); };
+      if ($('#gv-fin')) $('#gv-fin').onclick = () => { if (missOb && !LATE && !confirm(`Il reste ${missOb} balise(s) obligatoire(s) à trouver. Valider l'arrivée ?`)) return; r.arr = Date.now(); beep(1000, .3); save(); drawGroup(); };
       const mark = num => { r.found = [...r.found, num]; beep(900, .06); save(); drawGroup(); };
       box.querySelectorAll('[data-bal]').forEach(bt => bt.onclick = () => { const num = +bt.dataset.bal, b = p.balises.find(y => y.num === num);
         if (r.found.includes(num)) { if (confirm(`Décocher la balise ${num} ?`)) { r.found = r.found.filter(y => y !== num); save(); drawGroup(); } return; }
-        const ctl = p.ctrl || 'choix';
-        if (!isPat(b.code) || ctl === 'auto') return mark(num);   // auto-correction : vérification à l'arrivée
+        const ctl = CT.how;
+        if (!isPat(b.code) || ctl === 'auto') return mark(num);   // comparaison : vérification avec le carton à l'arrivée
         // validation par le symbole de la pince : un mauvais symbole compte comme une mauvaise balise
         const judge = c => { r.tries = { ...(r.tries || {}), [num]: c || 'X' };
+          if (c === 'V') { save(); return drawGroup(); }   // case vide : balise pas trouvée, pas de pénalité
           if (c === b.code) return mark(num);
           r.wrong++; beep(300, .35); save(); toast(c === 'X' ? '✗ Symbole absent : cette pince n\'est pas une balise de ton parcours (mauvaise balise)' : '✗ Ce n\'est pas le symbole de cette balise (mauvaise balise)'); drawGroup(); };
-        if (ctl === 'dessin') return patPicker({ title: `Balise ${num} : dessine le symbole laissé par la pince`, options: [], only: 'draw', onPick: judge });
+        const vide = LATE ? [{ v: 'V', l: '⬜ Case vide : balise pas trouvée' }] : [];
+        if (ctl === 'dessin') return patPicker({ title: `Balise ${num} : dessine le symbole ${LATE ? 'de ton carton' : 'laissé par la pince'}`, options: [], only: 'draw', extra: vide, onPick: judge });
         const opts = [...new Set(p.balises.map(y => y.code).filter(isPat))].sort();
-        patPicker({ title: `Balise ${num} : quel symbole a laissé la pince ?`, options: opts, draw: false, extra: [{ v: 'X', l: '❓ Le symbole n\'est pas dans la liste' }], onPick: judge }); });
+        patPicker({ title: `Balise ${num} : quel symbole a laissé la pince ?`, options: opts, draw: false, extra: [{ v: 'X', l: '❓ Le symbole n\'est pas dans la liste' }, ...vide], onPick: judge }); });
       $('#gv-prof').onclick = () => { if (!confirm('Passer en mode enseignant (toutes les équipes, réglages) ?')) return; cur.only = null; save(); draw(); };
       if ($('#save')) $('#save').onclick = saveSeance;
     };
     /* Après l'arrivée : auto-correction (symboles attendus affichés, l'élève coche VALIDÉ / FAUX) ou comparaison de ses symboles */
-    const ctlCard = (r, p) => { const ctl = p.ctrl || 'choix', PB = p.balises.filter(b => isPat(b.code)); if (!PB.length) return '';
-      if (ctl === 'auto') { const L = PB.filter(b => r.found.includes(b.num) || (r.auto || {})[b.num]); if (!L.length) return '';
+    const ctlCard = (r, p) => { const ctl = coCtl(p).how, LATE = coCtl(p).when === 'arrivee', PB = p.balises.filter(b => isPat(b.code)); if (!PB.length) return '';
+      if (ctl === 'auto') { const L = LATE ? PB : PB.filter(b => r.found.includes(b.num) || (r.auto || {})[b.num]); if (!L.length) return '';
         const left = L.filter(b => !(r.auto || {})[b.num]).length;
         return `<div class="card" style="margin-top:10px;border:2px solid var(--gold,#C9A227)"><h3 style="margin-top:0">👀 Auto-correction</h3><p class="muted" style="margin:0 0 8px;font-size:.85rem">Compare chaque symbole avec la case de ton carton, puis coche <b>VALIDÉ</b> ou <b>FAUX</b>.${left ? ` Encore ${left} à vérifier.` : ' ✅ Tout est vérifié.'}</p>
-          ${L.map(b => { const v = (r.auto || {})[b.num]; return `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-top:1px solid var(--line)"><b style="min-width:84px">Balise ${b.num}</b>${patSVG(b.code, 48)}<div style="flex:1"></div>
-            <button class="btn ${v === 'ok' ? 'btn-grad' : 'btn-ghost'}" style="flex:0 0 auto;padding:9px 12px" data-ac="${b.num}|ok">✅ VALIDÉ</button><button class="btn ${v === 'ko' ? 'btn-danger' : 'btn-ghost'}" style="flex:0 0 auto;padding:9px 12px" data-ac="${b.num}|ko">❌ FAUX</button></div>`; }).join('')}</div>`; }
+          ${L.map(b => { const v = (r.auto || {})[b.num]; return `<div style="padding:8px 0;border-top:1px solid var(--line)"><div style="display:flex;align-items:center;gap:12px"><b style="flex:1;min-width:0">Balise ${b.num}</b><span style="flex:0 0 auto;display:inline-block">${patSVG(b.code, 56)}</span></div>
+            <div style="display:flex;gap:6px;margin-top:6px"><button class="btn ${v === 'ok' ? 'btn-grad' : 'btn-ghost'}" style="flex:1;padding:9px 6px" data-ac="${b.num}|ok">✅ VALIDÉ</button><button class="btn ${v === 'ko' ? 'btn-danger' : 'btn-ghost'}" style="flex:1;padding:9px 6px" data-ac="${b.num}|ko">❌ FAUX</button>${LATE ? `<button class="btn ${v === 'na' ? 'btn-grad' : 'btn-ghost'}" style="flex:1;padding:9px 6px" data-ac="${b.num}|na">⬜ Pas trouvée</button>` : ''}</div></div>`; }).join('')}</div>`; }
       const T = r.tries || {}, L = PB.filter(b => T[b.num]); if (!L.length) return '';
       return `<div class="card" style="margin-top:10px"><h3 style="margin-top:0">🔍 Mes symboles / symboles attendus</h3>
         ${L.map(b => { const ok = T[b.num] === b.code; return `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-top:1px solid var(--line)"><b style="min-width:84px">Balise ${b.num}</b>
-          <div style="text-align:center"><div class="muted" style="font-size:.7rem">${ctl === 'dessin' ? 'mon dessin' : 'mon choix'}</div>${isPat(T[b.num]) ? patSVG(T[b.num], 44) : '<span style="font-size:1.6rem">❓</span>'}</div>
-          <div style="text-align:center"><div class="muted" style="font-size:.7rem">attendu</div>${patSVG(b.code, 44)}</div><b style="margin-left:auto;font-size:1.3rem;color:${ok ? '#1B9E5A' : '#D64545'}">${ok ? '✓' : '✗'}</b></div>`; }).join('')}</div>`; };
+          <div style="text-align:center;flex:0 0 auto"><div class="muted" style="font-size:.7rem">${ctl === 'dessin' ? 'mon dessin' : 'mon choix'}</div>${isPat(T[b.num]) ? patSVG(T[b.num], 44) : '<span style="font-size:1.6rem">❓</span>'}</div>
+          <div style="text-align:center;flex:0 0 auto"><div class="muted" style="font-size:.7rem">attendu</div>${patSVG(b.code, 44)}</div><b style="margin-left:auto;font-size:1.3rem;color:${ok ? '#1B9E5A' : '#D64545'}">${ok ? '✓' : '✗'}</b></div>`; }).join('')}</div>`; };
     const saveSeance = () => { const tab1 = cur.only != null && cur.runs[cur.only];
       if (!tab1 && cur.runs.some(r => r.dep && !r.arr) && !confirm('Certains élèves ne sont pas arrivés. Enregistrer quand même ?')) return;
       // tablette d'une équipe : seule SA course est enregistrée (pas de lignes vides pour les autres)
@@ -394,7 +401,18 @@ TOOL_IMPL.co = function (el) {
 
   /* ================= CONTRÔLE DES CARTONS ================= */
   const CK = { pc: null, ans: {}, photo: null, run: '' };
-  function controle(box) {
+  function ctlSettings(box) {
+    box.innerHTML = ''; const C = coCtl(), h = document.createElement('div');
+    h.innerHTML = `<div class="card" data-cfg style="margin-bottom:12px;border:2px solid var(--gold,#C9A227)"><h3 style="margin-top:0">🧑‍🎓 Contrôle par l'élève (tablette de l'équipe)</h3>
+      <label>Quand ?</label><div class="seg">${[['arrivee', '📝 À l\'arrivée (carton papier)'], ['live', '📱 Pendant la course']].map(([k, l]) => `<button data-cw="${k}" class="${C.when === k ? 'on' : ''}">${l}</button>`).join('')}</div>
+      <label>Comment ?</label><div class="seg">${[['choix', '🔣 Choisir le symbole'], ['dessin', '✏️ Dessiner le symbole'], ['auto', '👀 Comparer avec le carton']].map(([k, l]) => `<button data-chw="${k}" class="${C.how === k ? 'on' : ''}">${l}</button>`).join('')}</div>
+      <p class="muted" style="margin:6px 0 0;font-size:.8rem">${C.when === 'arrivee' ? 'Les élèves partent sans tablette, avec leur carton et un stylo. À l\'arrivée, le chrono s\'arrête puis ils contrôlent leurs balises sur la tablette : ' : 'Les élèves gardent la tablette ou le téléphone et contrôlent chaque balise dès qu\'elle est trouvée : '}${{ choix: 'ils touchent la balise puis choisissent le symbole de la pince (« Le symbole n\'est pas dans la liste » si besoin).', dessin: 'ils redessinent le symbole sur la grille de points, puis voient « mon dessin / attendu ».', auto: C.when === 'arrivee' ? 'les symboles attendus s\'affichent à côté de chaque balise ; ils comparent avec leur carton et cochent VALIDÉ, FAUX ou Pas trouvée.' : 'ils cochent leurs balises ; à l\'arrivée, les symboles attendus s\'affichent et ils cochent VALIDÉ ou FAUX.' }[C.how]}</p></div>`;
+    box.prepend(h);
+    h.querySelectorAll('[data-cw]').forEach(b => b.onclick = () => { DB.co.ctl = { ...coCtl(), when: b.dataset.cw }; save(); window.syncFlush && window.syncFlush(); ctlSettings(box); });
+    h.querySelectorAll('[data-chw]').forEach(b => b.onclick = () => { DB.co.ctl = { ...coCtl(), how: b.dataset.chw }; save(); window.syncFlush && window.syncFlush(); ctlSettings(box); });
+  }
+  function controle(box) { box.innerHTML = ''; const top = document.createElement('div'), sub = document.createElement('div'); box.append(top, sub); ctlSettings(top); controle0(sub); }
+  function controle0(box) {
     const withCodes = DB.co.parcours.filter(p => p.balises.some(b => isPat(b.code)));
     if (!withCodes.length) { box.innerHTML = `<div class="card empty">Attribuez d'abord un <b>symbole de pince</b> aux balises d'un parcours (onglet 🗺 Parcours → ✏️).</div>`; return; }
     const cur = DB.co.current;
