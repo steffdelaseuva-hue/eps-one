@@ -4,9 +4,11 @@
    ========================================================= */
 /* Page Ko-fi : laisser vide tant qu'elle n'existe pas (le bouton est alors masqué) */
 const KOFI_URL = 'https://ko-fi.com/epsone';
-const APP_VERSION = '21.9';
+const APP_VERSION = '22.1';
 const APP_URL = 'https://steffdelaseuva-hue.github.io/eps-one/';
 const CHANGELOG = [
+  { v: '22.1', items: ['Course d\'orientation · « 📋 Suivi enseignant uniquement » (élèves sans tablette) : bouton « 🔎 Contrôler le carton » sur chaque élève / équipe — l\'enseignant vérifie le coupon papier avec la méthode réglée dans 🔎 Contrôle (🔣 choisir, ✏️ dessiner ou 👀 comparer : VALIDÉ / FAUX / Pas trouvée), avec le tableau « carton / attendu », le compteur « contrôlé x/y » et « ↶ Annuler les modifications de ce carton »', 'Course d\'orientation : « 🔁 Repartir sur un nouveau parcours » repart avec un carton vierge'] },
+  { v: '22.0', items: ['Course d\'orientation : onglets dans l\'ordre de travail — 🗺 Parcours → 🔎 Contrôle → ⏱ Séance → 📊 Bilan', 'Le réglage « Contrôle par l\'élève » est figé dans la séance au lancement et transmis aux tablettes des équipes (il ne peut plus être remplacé par un ancien réglage) ; rappel « ✅ Réglage retenu » dans Contrôle et dans la préparation de la séance'] },
   { v: '21.9', items: ['Course d\'orientation : le contrôle par l\'élève se règle dans l\'onglet 🔎 Contrôle — QUAND (📝 à l\'arrivée avec le carton papier, ou 📱 pendant la course) et COMMENT (🔣 choisir, ✏️ dessiner ou 👀 comparer avec le carton)', 'Mode « à l\'arrivée » : les élèves courent sans tablette ; après l\'arrivée (chrono arrêté) ils contrôlent chaque balise — « ⬜ Case vide / Pas trouvée » sans pénalité ; en mode comparer, les symboles attendus s\'affichent bien à côté de chaque balise'] },
   { v: '21.8', items: ['Course d\'orientation : bouton « ❓ Le symbole n\'est pas dans la liste » quand l\'élève a poinçonné une pince qui n\'appartient pas à son parcours (compte comme mauvaise balise)', 'Course d\'orientation : l\'enseignant choisit pour chaque parcours le contrôle par l\'élève — 🔣 choisir le symbole, ✏️ dessiner le symbole (comparaison « mon dessin / attendu » à l\'arrivée) ou 👀 auto-correction (à l\'arrivée, les symboles attendus s\'affichent et l\'élève coche VALIDÉ ou FAUX)'] },
   { v: '21.7', items: ['Cross · TOP sur la ligne : fonctionne aussi pour les courses aux tours — chaque passage scanné au couloir reçoit l\'heure du TOP correspondant (avant, ces courses restaient à l\'heure du scan)'] },
