@@ -13,6 +13,7 @@ const CO_TYPES = {
   suivi:    ['Suivi d\'itinéraire', 'L\'enseignant fixe l\'ordre des balises et surligne l\'itinéraire sur la carte importée.'],
   relais:   ['Relais', 'Équipes : chaque élève part à son tour chercher 1 ou plusieurs balises, puis passe le relais.'],
   libre:   ['Parcours libre', 'Balises dans l\'ordre choisi.'],
+  koh:     ['Boussole Koh-Lanta', 'Depuis une zone (photo), l\'élève mémorise une couleur (direction) et un nombre de pas pour trouver une super balise ; il peut revenir revoir l\'indice.'],
 };
 const coId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
 const hms = s => { if (s == null || isNaN(s)) return '–'; s = Math.round(s); const h = Math.floor(s / 3600), m = Math.floor(s / 60) % 60, x = s % 60; return (h ? h + ':' + String(m).padStart(2, '0') : m) + ':' + String(x).padStart(2, '0'); };
@@ -110,6 +111,7 @@ const CO_ORG = p => ({ etoile: '⭐ Étoile : l\'élève revient au départ apr�
   relais: `🔁 Relais : les élèves d'une équipe partent chacun leur tour chercher ${legK(p)} balise${legK(p) > 1 ? 's' : ''}, puis passent le relais au retour (contrôle à chaque retour).`,
   reseau: '🕸 Réseau : les balises obligatoires se font en groupe, les facultatives en individuel (attribuez chaque facultative à l\'élève qui l\'a trouvée).',
   suivi: '🧵 Suivi d\'itinéraire : balises dans l\'ordre fixé par l\'enseignant, itinéraire tracé sur la carte.',
+  koh: `🏝 Boussole Koh-Lanta : l'élève affiche l'indice d'une super balise (zone, couleur = direction, nombre de pas), le mémorise ${p.memo || 10} s, puis part la chercher ; il peut revenir revoir l'indice${p.kohPen ? ` (−${p.kohPen} pt à chaque fois)` : ''}.`,
   libre: '🧭 Parcours libre : les élèves trouvent les balises dans l\'ordre de leur choix.' })[p.type] || '';
 
 /* ---------- Carte du parcours : image importée + itinéraire surligné + balises placées ----------
@@ -127,8 +129,10 @@ function coMapShow(p) {
   const o = document.createElement('div'); o.style.cssText = 'position:fixed;inset:0;z-index:300;background:rgba(7,18,42,.9);overflow:auto;padding:12px';
   const V = coMapOf(p), hasObj = V && (V.objs || []).length; let picto = coPictoGet(); const Z = { s: 1, tx: 0, ty: 0 };
   const render = () => { o.innerHTML = `<div style="max-width:900px;margin:0 auto"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px;color:#fff;margin-bottom:8px"><b style="flex:1">🗺 ${esc(p.nom)}</b>${hasObj ? `<button class="btn ${picto ? 'btn-grad' : 'btn-ghost'}" id="mpi" style="color:#fff">🖼 Symboles illustrés${picto ? ' ✓' : ''}</button>` : ''}<button class="btn btn-ghost" id="mx">✕ Fermer</button></div>${coZoomHTML(coMapView(V, { picto }))}<p style="color:#fff;font-size:.8rem;margin:6px 0 0;opacity:.8">2 doigts pour zoomer · 1 doigt pour faire glisser${hasObj ? ' · 🖼 Symboles illustrés : dessins à la place des symboles de course d\'orientation (adaptation)' : ''}</p>${(() => { const lg = coLegend(V, picto); return lg ? `<div class="card" style="margin-top:8px">${lg}</div>` : ''; })()}
+    ${coAideList(p).length ? `<div class="card" style="margin-top:8px"><b>🔎 Aide pour trouver les balises</b>${coAideChips(p)}</div>` : ''}
     ${p.type === 'suivi' ? `<div class="card" style="margin-top:8px"><b>Ordre des balises :</b> ${p.balises.map((b, i) => `${i + 1}. <b>${b.num}</b>`).join(' → ')}</div>` : ''}</div>`;
     o.querySelector('#mx').onclick = () => o.remove();
+    coAideBind(o, p);
     if (o.querySelector('#mpi')) o.querySelector('#mpi').onclick = () => { picto = !picto; coPictoSet(picto); render(); };
     if (V) coZoom(o.querySelector('.co-zv'), V, Z, { vh: .8 }); };
   document.body.appendChild(o); render();
@@ -278,8 +282,93 @@ function coMapOf(p, opt) {
   const m = p.map; if (!m || !m.img) return null; const ord = p.balises.map(b => String(b.num));
   return { img: m.img, w: m.w, h: m.h, hl: m.lines || [], paths: [], marks: Object.entries(m.marks || {}).map(([k, [x, y]]) => k === 'D' ? { kind: 'D', x, y } : { kind: 'c', x, y, col: '#B0127A', lab: (p.type === 'suivi' && ord.includes(k) ? (ord.indexOf(k) + 1) + '-' : '') + k }) };
 }
-const coSnap = p => { const L = coLieu(p.lieu); return L && L.map && L.map.img ? { ...p, mapv: coViewLieu(p, L) } : p; };
-const coLite = pp => { const q = JSON.parse(JSON.stringify(pp)); if (q.map) delete q.map.img; delete q.mapv; return q; };   // fiches enregistrées : sans l'image
+// copie transmise aux tablettes : carte calculée + photos / définitions affichées par le parcours
+const coSnap = p => { const L = coLieu(p.lieu); let q = L && L.map && L.map.img ? { ...p, mapv: coViewLieu(p, L) } : { ...p };
+  if (p.aidePhoto || p.aideDef) q.balises = p.balises.map(b => { const a = coAide(p, b); return { ...b, ...(a.photo ? { photo: a.photo } : {}), ...(a.def ? { def: a.def } : {}) }; });
+  return q; };
+const coLite = pp => { const q = JSON.parse(JSON.stringify(pp)); if (q.map) delete q.map.img; delete q.mapv; (q.balises || []).forEach(b => { delete b.photo; if (b.koh) delete b.koh.photo; }); return q; };   // fiches enregistrées : sans les images
+/* ---------- 🏝 Koh-Lanta : depuis une zone (photo), l'élève mémorise une couleur (direction) et un nombre de pas → super balise ----------
+   b.koh = { photo, coul, pas } sur chaque super balise du parcours ; p.memo = secondes d'affichage ; p.kohPen = points perdus par indice revu */
+const CO_COUL = { rouge: ['Rouge', '#E53935'], bleu: ['Bleu', '#1E6FE0'], vert: ['Vert', '#2E9D46'], jaune: ['Jaune', '#FFD21F'], orange: ['Orange', '#FF8A1F'], violet: ['Violet', '#8E44AD'], rose: ['Rose', '#FF5FA8'], blanc: ['Blanc', '#FFFFFF'], noir: ['Noir', '#111111'] };
+const coKohOk = b => b.koh && b.koh.coul && b.koh.pas;
+function coKohShow(p, b, opt = {}) {
+  const K = b.koh || {}, C = CO_COUL[K.coul] || ['?', '#999'], memo = opt.memo || 0, i = p.balises.filter(coKohOk).indexOf(b) + 1;
+  const o = document.createElement('div'); o.style.cssText = 'position:fixed;inset:0;z-index:330;background:#07122A;overflow:auto;padding:12px;display:flex;flex-direction:column';
+  let left = memo, tm = null;
+  const body = () => `<div style="max-width:900px;width:100%;margin:0 auto;display:flex;flex-direction:column;gap:12px;flex:1;color:#fff">
+      <div style="display:flex;align-items:center;gap:8px"><b style="flex:1;font-size:1.3rem">🏝 Super balise ${i || ''}</b><button class="btn btn-ghost" id="kx" style="color:#fff">✕ Fermer</button></div>
+      ${K.photo ? `<div><div style="font-weight:800;margin-bottom:6px">📍 Place-toi dans cette zone :</div><img src="${K.photo}" style="width:100%;max-height:42vh;object-fit:contain;border-radius:14px;background:#000" alt="Zone de départ"></div>` : ''}
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div style="border-radius:18px;background:${C[1]};border:3px solid #fff;min-height:150px;display:grid;place-items:center;font-size:2rem;font-weight:900;color:${K.coul === 'blanc' || K.coul === 'jaune' ? '#111' : '#fff'}">${C[0]}<span style="font-size:.9rem;font-weight:700;opacity:.85;display:block;text-align:center">direction</span></div>
+        <div style="border-radius:18px;background:#fff;color:#07122A;min-height:150px;display:grid;place-items:center;text-align:center"><div><div style="font-size:3.4rem;font-weight:900;line-height:1">${esc(String(K.pas))}</div><div style="font-size:1.3rem;font-weight:800">👣 pas</div></div></div></div>
+      ${memo ? `<div><div style="height:12px;border-radius:99px;background:rgba(255,255,255,.2);overflow:hidden"><div id="kb" style="height:100%;width:100%;background:#FFD21F;transition:width 1s linear"></div></div><div id="kt" style="text-align:center;font-weight:800;margin-top:6px">Mémorise ! ${left} s</div></div>` : ''}</div>`;
+  const done = () => { clearInterval(tm); o.innerHTML = `<div style="max-width:600px;margin:auto;text-align:center;color:#fff"><div style="font-size:3rem">🧠</div><h2 style="color:#fff">Temps écoulé !</h2><p style="font-size:1.1rem">Tu as mémorisé la couleur et le nombre de pas ? À toi de trouver la super balise.<br><small style="opacity:.8">Tu peux revenir ici pour revoir l'indice${p.kohPen ? ` (−${p.kohPen} pt à chaque fois)` : ''}.</small></p><button class="btn btn-grad btn-block" id="kx">🏃 J'y vais !</button></div>`;
+    o.querySelector('#kx').onclick = () => o.remove(); };
+  o.innerHTML = body(); o.querySelector('#kx').onclick = () => { clearInterval(tm); o.remove(); };
+  document.body.appendChild(o);
+  if (memo) { requestAnimationFrame(() => { const kb = o.querySelector('#kb'); if (kb) kb.style.width = '0%', kb.style.transition = `width ${memo}s linear`; });
+    tm = setInterval(() => { left--; const kt = o.querySelector('#kt'); if (kt) kt.textContent = `Mémorise ! ${left} s`; if (left <= 0) done(); }, 1000); }
+}
+function coKohEdit(b, onDone) {
+  const K = { ...(b.koh || {}) };
+  const o = document.createElement('div'); o.style.cssText = 'position:fixed;inset:0;z-index:310;background:rgba(7,18,42,.72);overflow:auto;padding:12px;display:grid;place-items:center';
+  const render = () => { o.innerHTML = `<div class="card" style="max-width:560px;width:100%"><h3 style="margin-top:0">🏝 Super balise ${b.num} : l'indice</h3>
+      <label>📍 Photo de la zone de départ (où l'élève se place)</label>${K.photo ? `<img src="${K.photo}" style="width:100%;max-height:240px;object-fit:contain;border-radius:10px;background:#000">` : '<p class="muted" style="margin:0;font-size:.85rem">Facultatif.</p>'}
+      <div class="row" style="margin-top:6px"><label class="btn btn-ghost" style="text-align:center;cursor:pointer;margin:0">📷 ${K.photo ? 'Changer' : 'Prendre / choisir'}<input id="kf" type="file" accept="image/*" capture="environment" style="display:none"></label>${K.photo ? '<button class="btn btn-ghost" id="kr" style="flex:0 0 auto">🗑</button>' : ''}</div>
+      <label style="margin-top:10px">🎨 Couleur (direction : repère de couleur posé dans la zone)</label>
+      <div style="display:flex;flex-wrap:wrap;gap:8px">${Object.entries(CO_COUL).map(([k, [n, c]]) => `<button data-kc="${k}" title="${n}" style="width:54px;height:54px;border-radius:14px;background:${c};border:${K.coul === k ? '4px solid var(--gold,#C9A227)' : '2px solid var(--line)'};font-size:.62rem;font-weight:900;color:${k === 'blanc' || k === 'jaune' ? '#111' : '#fff'};cursor:pointer">${n}</button>`).join('')}</div>
+      <label style="margin-top:10px">👣 Nombre de pas</label><input id="kp" type="number" min="1" value="${K.pas || ''}" placeholder="ex. 25">
+      <div class="row" style="margin-top:12px"><button class="btn btn-grad" id="ks">✔ Valider</button><button class="btn btn-ghost" id="kq">Annuler</button>${b.koh ? '<button class="btn btn-danger" id="kd" style="flex:0 0 auto">Retirer l\'indice</button>' : ''}</div></div>`;
+    const rdP = () => { K.pas = Math.max(0, +o.querySelector('#kp').value || 0); };
+    o.querySelector('#kf').onchange = e => { const f0 = e.target.files[0]; if (!f0) return; rdP(); coImg(f0, img => { K.photo = img; render(); }, 1000); };
+    if (o.querySelector('#kr')) o.querySelector('#kr').onclick = () => { rdP(); delete K.photo; render(); };
+    o.querySelectorAll('[data-kc]').forEach(x => x.onclick = () => { rdP(); K.coul = x.dataset.kc; render(); });
+    o.querySelector('#ks').onclick = () => { rdP(); if (!K.coul || !K.pas) return toast('Choisissez une couleur et un nombre de pas'); b.koh = K; o.remove(); onDone && onDone(); };
+    o.querySelector('#kq').onclick = () => o.remove();
+    if (o.querySelector('#kd')) o.querySelector('#kd').onclick = () => { if (!confirm('Retirer l\'indice de cette balise ?')) return; delete b.koh; o.remove(); onDone && onDone(); }; };
+  render(); document.body.appendChild(o);
+}
+/* ---------- Aide pour trouver les balises : 📷 parcours photo · 📝 définitions de postes ----------
+   photo / définition rangées sur le poste du lieu (réutilisables dans tous les parcours) ou sur la balise (parcours sans lieu) ;
+   le parcours choisit de les montrer : p.aidePhoto, p.aideDef */
+const coBalSrc = (p, b) => { const L = coLieu(p.lieu), q = L && b.pid && L.postes.find(z => z.id === b.pid); return q || b; };
+const coAide = (p, b) => { const s = coBalSrc(p, b); return { photo: p.aidePhoto && s.photo ? s.photo : null, def: p.aideDef && s.def ? s.def : '' }; };
+const coAideList = p => p && (p.aidePhoto || p.aideDef) ? p.balises.filter(b => { const a = coAide(p, b); return a.photo || a.def; }) : [];
+function coAideShow(p, num, only) {
+  const L0 = coAideList(p).filter(b => !only || only.includes(b.num)); let k = Math.max(0, L0.findIndex(b => b.num === num)); if (!L0.length) return toast('Pas de photo ni de définition pour ce parcours');
+  const o = document.createElement('div'); o.style.cssText = 'position:fixed;inset:0;z-index:320;background:rgba(7,18,42,.97);overflow:auto;padding:12px;display:flex;flex-direction:column';
+  const render = () => { const b = L0[k], a = coAide(p, b), i = p.balises.indexOf(b);
+    o.innerHTML = `<div style="max-width:900px;width:100%;margin:0 auto;display:flex;flex-direction:column;gap:10px;flex:1">
+      <div style="display:flex;align-items:center;gap:8px;color:#fff"><b style="flex:1;font-size:1.3rem">Balise ${b.num}${p.type === 'suivi' ? ` <span style="opacity:.75;font-size:.9rem">(${i + 1}e)</span>` : ''}</b><button class="btn btn-ghost" id="ax" style="color:#fff">✕ Fermer</button></div>
+      ${a.def ? `<div class="card" style="font-size:1.25rem;font-weight:800;line-height:1.35">📝 ${esc(a.def)}</div>` : ''}
+      ${a.photo ? `<img src="${a.photo}" style="width:100%;max-height:70vh;object-fit:contain;border-radius:14px;background:#000" alt="Photo de l'emplacement de la balise ${b.num}">` : ''}
+      ${L0.length > 1 ? `<div class="row"><button class="btn btn-ghost" id="ap" style="color:#fff" ${k ? '' : 'disabled'}>‹ Balise précédente</button><button class="btn btn-ghost" id="an" style="color:#fff" ${k < L0.length - 1 ? '' : 'disabled'}>Balise suivante ›</button></div>` : ''}</div>`;
+    o.querySelector('#ax').onclick = () => o.remove();
+    if (o.querySelector('#ap')) o.querySelector('#ap').onclick = () => { if (k) { k--; render(); } };
+    if (o.querySelector('#an')) o.querySelector('#an').onclick = () => { if (k < L0.length - 1) { k++; render(); } }; };
+  render(); document.body.appendChild(o);
+}
+// boutons « aide » des balises d'un parcours (tablette élève, séance, carte agrandie)
+const coAideChips = (p, only, r) => { const L0 = coAideList(p).filter(b => !only || only.includes(b.num)); if (!L0.length) return '';
+  return `<div class="bal-chips">${L0.map(b => { const a = coAide(p, b); return `<button data-aide="${b.num}"${r != null ? ` data-r="${r}"` : ''} style="min-width:64px">${b.num} ${a.photo ? '📷' : ''}${a.def ? '📝' : ''}</button>`; }).join('')}</div>`; };
+const coAideBind = (root, p) => root.querySelectorAll('[data-aide]:not([data-r])').forEach(bt => bt.onclick = e => { e.stopPropagation(); coAideShow(p, +bt.dataset.aide); });
+// édition de la photo et de la définition d'un poste / d'une balise
+function coAideEdit(src, title, onDone) {
+  let photo = src.photo || null, def = src.def || '';
+  const o = document.createElement('div'); o.style.cssText = 'position:fixed;inset:0;z-index:310;background:rgba(7,18,42,.72);overflow:auto;padding:12px;display:grid;place-items:center';
+  const render = () => { o.innerHTML = `<div class="card" style="max-width:560px;width:100%"><h3 style="margin-top:0">${esc(title)}</h3>
+      <label>📝 Définition du poste</label><textarea id="ad" rows="3" placeholder="ex. : au pied de la butte, côté nord du gros chêne…" style="width:100%">${esc(def)}</textarea>
+      <label style="margin-top:10px">📷 Photo de l'emplacement</label>${photo ? `<img src="${photo}" style="width:100%;max-height:280px;object-fit:contain;border-radius:10px;background:#000">` : '<p class="muted" style="margin:0;font-size:.85rem">Aucune photo.</p>'}
+      <div class="row" style="margin-top:8px"><label class="btn btn-ghost" style="text-align:center;cursor:pointer;margin:0">📷 ${photo ? 'Changer' : 'Prendre / choisir'}<input id="af" type="file" accept="image/*" capture="environment" style="display:none"></label>${photo ? '<button class="btn btn-ghost" id="ar" style="flex:0 0 auto">🗑 Retirer la photo</button>' : ''}</div>
+      <div class="row" style="margin-top:12px"><button class="btn btn-grad" id="as">✔ Valider</button><button class="btn btn-ghost" id="aq">Annuler</button></div></div>`;
+    const rdD = () => { def = o.querySelector('#ad').value; };
+    o.querySelector('#af').onchange = e => { const f0 = e.target.files[0]; if (!f0) return; rdD(); coImg(f0, img => { photo = img; render(); }, 1000); };
+    if (o.querySelector('#ar')) o.querySelector('#ar').onclick = () => { rdD(); photo = null; render(); };
+    o.querySelector('#as').onclick = () => { rdD(); if (photo) src.photo = photo; else delete src.photo; const d = def.trim(); if (d) src.def = d; else delete src.def; o.remove(); onDone && onDone(); };
+    o.querySelector('#aq').onclick = () => o.remove(); };
+  render(); document.body.appendChild(o);
+}
+   // fiches enregistrées : sans l'image
 function coMapView(V, opt = {}) {
   if (!V || !V.img) return '';
   const H = Math.round(1000 * V.h / V.w), M = '#B0127A', MS = V.ms || 1;
@@ -379,8 +468,15 @@ function coPrint(ps) {
     return `<div class="page"><div class="hd"><b>${esc(p.nom)}</b><span>${CO_TYPES[p.type][0]}${V && V.lieu ? ' · ' + esc(V.lieu) : ''} · ${n} balises${p.distance ? ' · ' + (p.distance / 1000).toFixed(2).replace('.', ',') + ' km' : ''}</span></div>
       <div class="mp" style="${V ? `width:${Math.min(194, 185 * V.w / V.h).toFixed(1)}mm` : ''}">${V ? coMapView(V, { print: true, picto }) : '<p>Pas de carte pour ce parcours.</p>'}</div>
       ${coLegend(V, picto)}
+      ${p.aideDef && p.balises.some(b => coAide(p, b).def) ? `<div style="font-size:9pt;margin-top:2mm"><b>Définitions des postes :</b> ${p.balises.map((b, i) => { const d = coAide(p, b).def; return d ? `<span style="white-space:nowrap">${ordered ? (i + 1) + '·' : ''}<b>${b.num}</b> ${esc(d)}</span>` : ''; }).filter(Boolean).join(' &nbsp;·&nbsp; ')}</div>` : ''}
       <div class="id"><span>Nom : ……………………………………</span><span>Classe : ………</span><span>Départ : ………</span><span>Arrivée : ………</span></div>
       <div class="ct" style="grid-template-columns:repeat(${cols},1fr)">${p.balises.map((b, i) => `<div class="cs"><div class="cn">${ordered ? (i + 1) + ' · ' : ''}${b.num}</div><div class="cb"></div></div>`).join('')}</div></div>`; };
+  // Koh-Lanta : une fiche « indice » par super balise, à afficher dans la zone de départ
+  const kohPages = p => p.type !== 'koh' ? '' : p.balises.filter(coKohOk).map((b, k) => { const K = b.koh, C = CO_COUL[K.coul];
+    return `<div class="page" style="text-align:center"><div class="hd"><b>🏝 Super balise ${k + 1}</b><span>${esc(p.nom)}</span></div>
+      ${K.photo ? `<img src="${K.photo}" style="max-width:100%;max-height:95mm;object-fit:contain;margin:2mm auto;display:block">` : ''}
+      <div style="display:flex;gap:6mm;justify-content:center;margin-top:6mm"><div style="width:85mm;height:85mm;border-radius:6mm;background:${C[1]};border:1mm solid #000;display:grid;place-items:center;font-size:30pt;font-weight:900;color:${K.coul === 'blanc' || K.coul === 'jaune' ? '#111' : '#fff'}">${C[0]}</div>
+      <div style="width:85mm;height:85mm;border-radius:6mm;border:1mm solid #000;display:grid;place-items:center"><div><div style="font-size:70pt;font-weight:900;line-height:1">${esc(String(K.pas))}</div><div style="font-size:24pt;font-weight:800">pas</div></div></div></div></div>`; }).join('');
   const build = () => `<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Parcours</title><style>
 *{box-sizing:border-box}body{margin:0;font-family:Arial,Helvetica,sans-serif;color:#0E1A33;-webkit-print-color-adjust:exact;print-color-adjust:exact}
 .page{width:194mm;margin:0 auto;page-break-after:always;break-after:page;padding-top:2mm}.page:last-child{page-break-after:auto;break-after:auto}
@@ -389,7 +485,7 @@ function coPrint(ps) {
 .id{display:flex;flex-wrap:wrap;gap:4mm 8mm;font-size:10pt;margin:3mm 0}
 .ct{display:grid;gap:2mm}.cs{border:1.5px solid #333}.cn{font-size:9pt;font-weight:700;text-align:center;border-bottom:1px solid #333;padding:1mm}.cb{height:16mm}
 @media screen{body{background:#777;padding:10px}.page{background:#fff;padding:6mm;margin-bottom:10px}}
-@page{size:A4;margin:8mm}</style></head><body>${ps.map(page).join('')}<script>function fit(){document.body.style.zoom=Math.min(1,(innerWidth-20)/760)}fit();addEventListener('resize',fit);<\/script></body></html>`;
+@page{size:A4;margin:8mm}</style></head><body>${ps.map(p => page(p) + kohPages(p)).join('')}<script>function fit(){document.body.style.zoom=Math.min(1,(innerWidth-20)/760)}fit();addEventListener('resize',fit);<\/script></body></html>`;
   const o = document.createElement('div'); o.style.cssText = 'position:fixed;inset:0;z-index:300;background:#333;display:flex;flex-direction:column';
   o.innerHTML = `<div style="display:flex;gap:8px;padding:10px;align-items:center;background:var(--grad,#0B2A5B);color:#fff"><b style="flex:1">🖨 Cartes à imprimer (${ps.length})</b>${hasObj ? `<button class="btn btn-ghost" data-pi style="color:#fff;font-size:.8rem;padding:8px">🖼 Symboles illustrés${picto ? ' ✓' : ''}</button>` : ''}<button class="btn btn-white" data-p>🖨 Imprimer</button><button class="btn btn-ghost" style="color:#fff" data-x>✕ Fermer</button></div><iframe title="Aperçu" style="flex:1;border:0;background:#777"></iframe>`;
   let html = build(); document.body.appendChild(o); o.querySelector('iframe').srcdoc = html; o.querySelector('[data-x]').onclick = () => o.remove();
@@ -419,15 +515,15 @@ TOOL_IMPL.co = function (el) {
         <div class="muted">${L.map ? '🗺 carte' : '⚠️ pas de carte'} · ${L.postes.length} poste${L.postes.length > 1 ? 's' : ''}${L.postes.some(q => q.x == null) ? ` (${L.postes.filter(q => q.x == null).length} à placer)` : ''} · ${DB.co.parcours.filter(p => p.lieu === L.id).length} parcours</div></div><button class="btn btn-ghost" data-cfg="bare" data-le="${i}">✏️</button></div>`).join('')
         : '<div class="empty" style="font-size:.85rem">Importez la carte vierge d\'un lieu (établissement, bois…) et placez-y les postes : les parcours se créeront ensuite en touchant les postes.</div>'}</div>
       <button class="btn btn-ghost btn-block" data-cfg style="margin-top:8px" id="newl">＋ Nouveau lieu (carte vierge + postes)</button>
-      <div class="section-title"><h2>🗺 Parcours</h2>${DB.co.parcours.some(p => coMapOf(p)) ? '<button class="link" id="prall">🖨 Imprimer les cartes</button>' : ''}</div><div class="card" style="padding:0">${DB.co.parcours.length ? DB.co.parcours.map((p, i) => `<div class="list-item"><div style="flex:1"><b>${esc(p.nom)}</b>
+      <div class="section-title"><h2>🗺 Parcours</h2>${DB.co.parcours.some(p => coMapOf(p) || (p.type === 'koh' && p.balises.some(coKohOk))) ? '<button class="link" id="prall">🖨 Imprimer les cartes</button>' : ''}</div><div class="card" style="padding:0">${DB.co.parcours.length ? DB.co.parcours.map((p, i) => `<div class="list-item"><div style="flex:1"><b>${esc(p.nom)}</b>
         <div class="muted">${CO_TYPES[p.type][0]} · ${p.distance ? (p.distance / 1000).toFixed(2).replace('.', ',') + ' km' : 'distance ?'}${p.deniv ? ' · D+ ' + p.deniv + ' m' : ''} · ${p.balises.length} balises${p.type === 'papillon' ? ` · boucles de ${legK(p)}` : p.type === 'relais' ? ` · ${legK(p)} bal./relayeur` : ''}${coLieu(p.lieu) ? ' · 📍 ' + esc(coLieu(p.lieu).nom) : p.map && p.map.img ? ' · 🗺 carte' : ''}${p.alloue ? ' · ' + p.alloue + ' min' : ''}</div></div>
-        ${coMapOf(p) ? `<button class="btn btn-ghost" data-pr="${i}" title="Imprimer la carte">🖨</button>` : ''}<button class="btn btn-ghost" data-cfg="bare" data-e="${i}">✏️</button><button class="btn btn-ghost" data-cfg="bare" data-c="${i}" title="Dupliquer">⧉</button></div>`).join('') : '<div class="empty">Aucun parcours. Créez le premier !</div>'}</div>
+        ${coMapOf(p) || (p.type === 'koh' && p.balises.some(coKohOk)) ? `<button class="btn btn-ghost" data-pr="${i}" title="Imprimer la carte${p.type === 'koh' ? ' et les indices' : ''}">🖨</button>` : ''}<button class="btn btn-ghost" data-cfg="bare" data-e="${i}">✏️</button><button class="btn btn-ghost" data-cfg="bare" data-c="${i}" title="Dupliquer">⧉</button></div>`).join('') : '<div class="empty">Aucun parcours. Créez le premier !</div>'}</div>
       <button class="btn btn-grad btn-block" data-cfg style="margin-top:12px" id="new">＋ Créer un parcours</button>`;
     box.querySelector('#new').onclick = () => editParcours(box, null);
     box.querySelector('#newl').onclick = () => editLieu(box, null);
     box.querySelectorAll('[data-le]').forEach(b => b.onclick = () => editLieu(box, +b.dataset.le));
     box.querySelectorAll('[data-pr]').forEach(b => b.onclick = () => coPrint([DB.co.parcours[+b.dataset.pr]]));
-    { const a = box.querySelector('#prall'); if (a) a.onclick = () => { const L = DB.co.parcours.filter(p => coMapOf(p)); coPrint(L); }; }
+    { const a = box.querySelector('#prall'); if (a) a.onclick = () => { const L = DB.co.parcours.filter(p => coMapOf(p) || (p.type === 'koh' && p.balises.some(coKohOk))); coPrint(L); }; }
     box.querySelectorAll('[data-e]').forEach(b => b.onclick = () => editParcours(box, +b.dataset.e));
     box.querySelectorAll('[data-c]').forEach(b => b.onclick = () => { const c = JSON.parse(JSON.stringify(DB.co.parcours[+b.dataset.c])); c.id = coId(); c.nom += ' (copie)'; DB.co.parcours.push(c); save(); listParcours(box); });
   }
@@ -459,7 +555,7 @@ TOOL_IMPL.co = function (el) {
           <div style="margin-top:8px" id="lw">${coZoomHTML(coMapView(V(), { picto: pv, sel, osel, draft: draft.length ? `<polyline points="${draft.join(',')}${otype && CO_OBJ[otype].g === 'zn' && draft.length > 4 ? ',' + draft[0] + ',' + draft[1] : ''}" fill="none" stroke="#E07A00" stroke-width="4" stroke-dasharray="10 6"/>${draft.map((v, i) => i % 2 ? '' : `<circle cx="${v}" cy="${draft[i + 1]}" r="7" fill="#E07A00"/>`).join('')}` : '' }))}</div>
           ${S ? `<div style="margin-top:10px;padding:10px;border-radius:12px;border:2px solid var(--gold,#C9A227)"><b>Poste sélectionné</b><div class="row" style="align-items:center;margin-top:6px"><div><label style="margin:0">Numéro</label><input id="sn" type="number" value="${S.num}"></div>
             <button id="sp" style="flex:0 0 auto;padding:0;border:none;background:none;cursor:pointer">${isPat(S.code) ? patSVG(S.code, 48) : '<span style="display:grid;place-items:center;width:48px;height:48px;border:1.5px dashed var(--line);border-radius:6px;font-size:.62rem;font-weight:800">＋ pince</span>'}</button>
-            <button class="btn btn-ghost" id="su" style="flex:0 0 auto">Retirer de la carte</button><button class="btn btn-danger" id="sd" style="flex:0 0 auto">Supprimer</button></div></div>` : ''}
+            <button class="btn btn-ghost" id="sa" style="flex:0 0 auto">${S.photo ? '📷' : ''}${S.def ? '📝' : ''}${S.photo || S.def ? ' Photo / définition' : '📷 📝 Photo / définition'}</button><button class="btn btn-ghost" id="su" style="flex:0 0 auto">Retirer de la carte</button><button class="btn btn-danger" id="sd" style="flex:0 0 auto">Supprimer</button></div></div>` : ''}
           ${L.dep || L.arr ? `<div class="row" style="margin-top:8px;align-items:center;font-size:.85rem">${L.dep ? `<span style="${sel === 'D' ? 'font-weight:900' : ''}">△ Départ placé</span><button class="btn btn-ghost" style="flex:0 0 auto;padding:6px 10px" id="dx">🗑 Retirer le départ</button>` : ''}${L.arr ? `<span style="${sel === 'A' ? 'font-weight:900' : ''}">◎ Arrivée placée</span><button class="btn btn-ghost" style="flex:0 0 auto;padding:6px 10px" id="ax">🗑 Retirer l'arrivée</button>` : ''}</div>` : ''}</div>` : ''}
         <div class="card" style="margin-top:12px"><h3 style="margin-top:0">Postes (${L.postes.length})</h3>
           <p class="muted" style="margin:0 0 6px;font-size:.8rem">Saisissez-les ici à l'avance (numéro + symbole de la pince) puis placez-les sur la carte, ou créez-les directement en touchant la carte.</p>
@@ -467,7 +563,7 @@ TOOL_IMPL.co = function (el) {
           ${L.postes.length ? `<button class="btn btn-ghost btn-block" id="ga" style="margin-top:8px">🎲 Symbole différent pour chaque poste sans symbole</button>` : ''}
           <div style="margin-top:8px">${L.postes.slice().sort((a, b) => a.num - b.num).map(q => `<div class="bal-row"><b style="min-width:44px">${q.num}</b>
             <button data-qp="${q.id}" style="flex:0 0 auto;padding:0;border:none;background:none;cursor:pointer">${isPat(q.code) ? patSVG(q.code, 36) : '<span style="display:grid;place-items:center;width:36px;height:36px;border:1.5px dashed var(--line);border-radius:6px;font-size:.6rem;font-weight:800;color:var(--muted)">＋ pince</span>'}</button>
-            <span class="muted" style="flex:1;font-size:.8rem">${q.x != null ? '📍 placé' : '⚠️ à placer'}</span>${L.map ? `<button class="btn btn-ghost" style="padding:6px 9px" data-qs="${q.id}">${q.x != null ? '✏️' : '📍'}</button>` : ''}<button class="btn btn-ghost" style="padding:6px 9px" data-qx="${q.id}">✕</button></div>`).join('')}</div></div>
+            <span class="muted" style="flex:1;font-size:.8rem">${q.x != null ? '📍 placé' : '⚠️ à placer'}${q.photo ? ' · 📷' : ''}${q.def ? ' · 📝 ' + esc(q.def.slice(0, 40)) + (q.def.length > 40 ? '…' : '') : ''}</span><button class="btn btn-ghost" style="padding:6px 9px" data-qa="${q.id}" title="Photo et définition">${q.photo || q.def ? '📝' : '＋📷'}</button>${L.map ? `<button class="btn btn-ghost" style="padding:6px 9px" data-qs="${q.id}">${q.x != null ? '✏️' : '📍'}</button>` : ''}<button class="btn btn-ghost" style="padding:6px 9px" data-qx="${q.id}">✕</button></div>`).join('')}</div></div>
         <div class="row" style="margin-top:12px"><button class="btn btn-grad" id="lsv">💾 Enregistrer le lieu</button><button class="btn btn-ghost" id="lbk">Annuler</button>${idx != null ? '<button class="btn btn-danger" id="ldel">Supprimer</button>' : ''}</div></div>`;
       const $ = s => box.querySelector(s), rd = () => { L.nom = $('#ln').value.trim() || 'Lieu'; };
       $('#lf').onchange = e => { const f0 = e.target.files[0]; if (!f0) return; rd(); if (L.map && L.postes.some(q => q.x != null) && !confirm('Changer la carte ? Les postes gardent leur position : replacez-les si la nouvelle carte est différente.')) return; coImg(f0, (img, w, h) => { L.map = { img, w, h }; draw(); }, 1800); };
@@ -495,6 +591,8 @@ TOOL_IMPL.co = function (el) {
       if ($('#dx')) $('#dx').onclick = () => { rd(); if (!confirm('Retirer le départ ? Vous pourrez le replacer avec « △ Départ ».')) return; delete L.dep; sel = null; draw(); };
       if ($('#sn')) $('#sn').onchange = e => { const v = +e.target.value, S2 = L.postes.find(q => q.id === sel); if (!v) return; if (L.postes.some(q => q !== S2 && q.num === v)) { toast('Ce numéro existe déjà'); return draw(); } S2.num = v; rd(); draw(); };
       if ($('#sp')) $('#sp').onclick = () => { rd(); const S2 = L.postes.find(q => q.id === sel); patPicker({ title: `Symbole du poste ${S2.num}`, options: CO_PATS, current: S2.code, used: L.postes.map(x => x.code).filter(isPat), onPick: c => { S2.code = c; draw(); } }); };
+      if ($('#sa')) $('#sa').onclick = () => { rd(); const S2 = L.postes.find(q => q.id === sel); coAideEdit(S2, `Poste ${S2.num} : photo et définition`, draw); };
+      box.querySelectorAll('[data-qa]').forEach(b => b.onclick = () => { rd(); const q = L.postes.find(x => x.id === b.dataset.qa); coAideEdit(q, `Poste ${q.num} : photo et définition`, draw); });
       if ($('#su')) $('#su').onclick = () => { rd(); const S2 = L.postes.find(q => q.id === sel); S2.x = S2.y = null; sel = null; draw(); };
       if ($('#sd')) $('#sd').onclick = () => { rd(); const S2 = L.postes.find(q => q.id === sel); if (!confirm(`Supprimer le poste ${S2.num} ?`)) return; L.postes = L.postes.filter(q => q !== S2); sel = null; draw(); };
       const svg = $('#lw svg');
@@ -546,6 +644,7 @@ TOOL_IMPL.co = function (el) {
         <p class="muted" style="margin:6px 0 0">${CO_TYPES[p.type][1]}</p>
         <label>📍 Lieu de la course</label><select id="lu"><option value="">— Sans lieu (balises saisies à la main) —</option>${coLieux().map(L => `<option value="${L.id}" ${p.lieu === L.id ? 'selected' : ''}>${esc(L.nom)}${L.map ? '' : ' (pas de carte)'}</option>`).join('')}</select>
         ${p.type === 'papillon' ? `<label>Retour au départ toutes les … balises</label><input id="bk2" type="number" min="2" value="${p.boucle || 2}">` : ''}
+        ${p.type === 'koh' ? `<div class="row"><div><label>⏱ Temps de mémorisation (s)</label><input id="kmemo" type="number" min="3" value="${p.memo || 10}"></div><div><label>Pénalité par indice revu (pt)</label><input id="kpen" type="number" min="0" value="${p.kohPen || 0}"></div></div><p class="muted" style="margin:4px 0 0;font-size:.78rem">Posez des repères de couleur dans chaque zone (un par direction). Donnez un indice 🏝 à chaque super balise dans la liste des balises ; pensez à leur donner beaucoup de points (niveau 3).</p>` : ''}
         ${p.type === 'relais' ? `<label>Balises par relayeur (avant de passer le relais)</label><input id="rl" type="number" min="1" value="${p.relais || 1}">` : ''}
         <div class="row"><div><label>Distance (m)</label><input id="di" type="number" value="${p.distance}"></div><div><label>Temps attribué (min)</label><input id="al" type="number" value="${p.alloue}"></div><div><label>Écart toléré (± min)</label><input id="ec" type="number" value="${p.ecart}"></div></div>
         <label style="display:flex;gap:8px;align-items:center;margin-top:12px"><input type="checkbox" id="dn" ${p.denivOn ? 'checked' : ''} style="width:auto"> Option dénivelé</label>
@@ -564,13 +663,17 @@ TOOL_IMPL.co = function (el) {
       <div class="card" style="margin-top:12px"><h3>Balises (${p.balises.length})</h3>${p.type === 'suivi' ? '<p class="muted" style="margin:0 0 6px;font-size:.8rem">🧵 Ordre imposé : les balises se font dans l\'ordre de cette liste (↑ pour remonter une balise).</p>' : ''}
         <p class="muted" style="margin:0 0 6px;font-size:.8rem">Symbole : le motif de points de la pince de chaque balise (répertoire ou dessin), utilisé par l'onglet 🔎 Contrôle.</p>
         ${LU ? '<p class="muted" style="margin:0 0 6px;font-size:.8rem">📍 Numéros et symboles viennent des postes du lieu (modifiables dans le lieu).</p>' : '<button class="btn btn-ghost btn-block" id="autop" style="margin-bottom:6px">🎲 Attribuer un symbole différent à chaque balise</button>'}
+        <div style="margin:6px 0;padding:8px 10px;border-radius:10px;background:var(--grad-soft)"><b style="font-size:.88rem">🔎 Aide pour trouver les balises</b>
+          <label style="display:flex;gap:8px;align-items:flex-start;margin-top:6px;font-size:.85rem"><input type="checkbox" id="apo" ${p.aidePhoto ? 'checked' : ''} style="width:auto;margin-top:2px"> <span>📷 <b>Parcours photo</b> : l'élève touche une balise et voit la photo de son emplacement</span></label>
+          <label style="display:flex;gap:8px;align-items:flex-start;margin-top:6px;font-size:.85rem"><input type="checkbox" id="ade" ${p.aideDef ? 'checked' : ''} style="width:auto;margin-top:2px"> <span>📝 <b>Définitions de postes</b> : l'élève voit la définition (ex. « proche d'une butte »)</span></label>
+          <p class="muted" style="margin:6px 0 0;font-size:.76rem">Ajoutez photo et définition avec le bouton 📝 de chaque balise${LU ? ' (rangées dans le poste du lieu : réutilisables dans tous les parcours)' : ''}.</p></div>
         <p class="muted" style="margin:4px 0 8px;font-size:.78rem">🧑‍🎓 Comment l'élève contrôle ses balises (pendant la course ou à l'arrivée ; choisir, dessiner ou comparer) : onglet <b>🔎 Contrôle</b>.</p>
         ${LU ? '' : `<div class="row" style="align-items:end"><div><label>Nombre</label><input id="nb" type="number" min="1" value="${p.balises.length}"></div><div><label>1er numéro</label><input id="n0" type="number" value="${p.balises[0]?.num ?? 31}"></div><button class="btn btn-ghost" style="flex:0 0 auto" id="genb">Générer</button></div>`}
         <div class="row" style="margin-top:8px"><button class="btn btn-ghost" id="allob">Toutes obligatoires</button><button class="btn btn-ghost" id="allfa">Toutes facultatives</button></div>
         <div style="margin-top:8px">${p.balises.map((b, i) => `<div class="bal-row">${p.type === 'suivi' ? `<b style="min-width:22px;text-align:center">${i + 1}.</b>` : ''}<input class="num" type="number" data-num="${i}" value="${b.num}" ${LU ? 'readonly' : ''}>${(p.type === 'suivi' || (LU && ['papillon', 'relais'].includes(p.type))) && i ? `<button class="btn btn-ghost" style="padding:6px 8px;flex:0 0 auto" data-up="${i}">↑</button>` : ''}
           <button data-pat="${i}" ${LU ? 'disabled' : ''} title="Symbole de la pince" style="flex:0 0 auto;padding:0;border:none;background:none;cursor:pointer">${isPat(b.code) ? patSVG(b.code, 40) : '<span style="display:grid;place-items:center;width:40px;height:40px;border:1.5px dashed var(--line);border-radius:6px;font-size:.62rem;font-weight:800;color:var(--muted)">＋ pince</span>'}</button>
           <div class="lvl">${[1, 2, 3].map(l => `<button data-niv="${i}" data-l="${l}" class="${b.niv === l ? 'on' : ''}">Niv ${l}</button>`).join('')}</div>
-          <label class="chk-ob"><input type="checkbox" data-ob="${i}" ${b.ob ? 'checked' : ''}>oblig.</label><button class="btn btn-ghost" style="padding:6px 9px" data-rm="${i}">✕</button></div>`).join('')}</div>
+          <label class="chk-ob"><input type="checkbox" data-ob="${i}" ${b.ob ? 'checked' : ''}>oblig.</label>${(() => { const sB = coBalSrc(p, b); return `${p.type === 'koh' ? `<button class="btn ${coKohOk(b) ? 'btn-grad' : 'btn-ghost'}" style="padding:6px 7px;flex:0 0 auto" data-kh="${i}" title="Indice Boussole Koh-Lanta">🏝${coKohOk(b) ? `<span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:${CO_COUL[b.koh.coul][1]};margin-left:3px;border:1px solid #fff"></span>${b.koh.pas}` : ''}</button>` : ''}<button class="btn btn-ghost" style="padding:6px 7px;flex:0 0 auto" data-ba="${i}" title="Photo et définition">${sB.photo || sB.def ? (sB.photo ? '📷' : '') + (sB.def ? '📝' : '') : '＋📷'}</button>`; })()}<button class="btn btn-ghost" style="padding:6px 9px" data-rm="${i}">✕</button></div>`).join('')}</div>
         ${LU ? '' : '<button class="btn btn-ghost btn-block" style="margin-top:8px" id="addb">＋ Ajouter une balise</button>'}</div>
       <div class="card" style="margin-top:12px"><h3>Points & pénalités</h3>
         <div class="row"><div><label>Points niveau 1</label><input id="p1" type="number" value="${p.pts[0]}"></div><div><label>Niveau 2</label><input id="p2" type="number" value="${p.pts[1]}"></div><div><label>Niveau 3</label><input id="p3" type="number" value="${p.pts[2]}"></div></div>
@@ -582,14 +685,20 @@ TOOL_IMPL.co = function (el) {
       const read = () => { p.nom = $('#nm').value.trim() || 'Parcours'; p.distance = +$('#di').value || 0; p.alloue = +$('#al').value || 0; p.ecart = +$('#ec').value || 0;
         p.denivOn = $('#dn').checked; if ($('#dv')) p.deniv = +$('#dv').value || 0;
         p.pts = [+$('#p1').value || 0, +$('#p2').value || 0, +$('#p3').value || 0]; p.penWrongP = +$('#pwp').value || 0; p.penWrongS = +$('#pws').value || 0; p.penMissS = +$('#pms').value || 0; p.penOverP = +$('#pop').value || 0;
+        if ($('#kmemo')) p.memo = Math.max(3, +$('#kmemo').value || 10); if ($('#kpen')) p.kohPen = Math.max(0, +$('#kpen').value || 0);
         if ($('#bk2')) p.boucle = Math.max(2, +$('#bk2').value || 2); if ($('#rl')) p.relais = Math.max(1, +$('#rl').value || 1);
         box.querySelectorAll('[data-num]').forEach(i => p.balises[+i.dataset.num].num = +i.value || 0); };
+      $('#apo').onchange = e => { p.aidePhoto = e.target.checked; };
+      $('#ade').onchange = e => { p.aideDef = e.target.checked; };
+      box.querySelectorAll('[data-kh]').forEach(bt => bt.onclick = () => { read(); const b = p.balises[+bt.dataset.kh]; coKohEdit(b, () => { if (b.koh) b.niv = Math.max(b.niv, 3); draw(); }); });
+      box.querySelectorAll('[data-ba]').forEach(bt => bt.onclick = () => { read(); const b = p.balises[+bt.dataset.ba], sB = coBalSrc(p, b);
+        coAideEdit(sB, `Balise ${b.num} : photo et définition`, () => { if (sB !== b) save(); if (sB.photo && !p.aidePhoto) p.aidePhoto = true; if (sB.def && !p.aideDef) p.aideDef = true; draw(); }); });
       box.querySelectorAll('[data-up]').forEach(b => b.onclick = () => { read(); const i = +b.dataset.up; [p.balises[i - 1], p.balises[i]] = [p.balises[i], p.balises[i - 1]]; draw(); });
       if ($('#mpf')) $('#mpf').onchange = e => { const f0 = e.target.files[0]; if (!f0) return; read(); coImg(f0, (img, w, h) => { p.map = { img, w, h, lines: [], marks: {} }; draw(); if (p.type === 'suivi') coMapEdit(p, m => { p.map = m; draw(); }); }); };
       if ($('#mpe')) $('#mpe').onclick = () => { read(); coMapEdit(p, m => { p.map = m; draw(); }); };
       if ($('#mpv')) $('#mpv').onclick = () => coMapShow(p);
       if ($('#mpx')) $('#mpx').onclick = () => { if (!confirm('Retirer la carte de ce parcours ?')) return; read(); delete p.map; draw(); };
-      $('#ty').onchange = () => { read(); p.type = $('#ty').value; if (p.type === 'reseau') p.balises.forEach(b => b.ob = false); if (p.type === 'suivi') p.balises.forEach(b => b.ob = true); draw(); };
+      $('#ty').onchange = () => { read(); p.type = $('#ty').value; if (p.type === 'koh' && (p.pts || []).join() === '1,2,3') p.pts = [1, 2, 10]; if (p.type === 'reseau') p.balises.forEach(b => b.ob = false); if (p.type === 'suivi') p.balises.forEach(b => b.ob = true); draw(); };
       $('#dn').onchange = () => { read(); draw(); };
       $('#lu').onchange = e => { read(); const v = e.target.value; if (p.balises.length && !confirm(v ? 'Prendre les balises parmi les postes de ce lieu ? Les balises actuelles seront retirées.' : 'Ne plus utiliser de lieu ? Les balises sont gardées, sans la carte.')) { e.target.value = p.lieu || ''; return; }
         if (v) { p.lieu = v; p.balises = []; delete p.hl; } else { if (p.lieu) { const L0 = coLieu(p.lieu); p.balises.forEach(b => delete b.pid); } delete p.lieu; delete p.hl; } draw(); };
@@ -631,7 +740,8 @@ TOOL_IMPL.co = function (el) {
     const temps = r.dep && r.arr ? (r.legs ? legSec(r) : (r.arr - r.dep) / 1000) : null;
     const limit = (p.alloue + p.ecart) * 60;
     const overMin = temps != null && p.alloue ? Math.max(0, Math.ceil((temps - limit) / 60)) : 0;
-    const penS = r.wrong * p.penWrongS + miss * p.penMissS, penP = r.wrong * p.penWrongP + overMin * p.penOverP;
+    const revus = p.type === 'koh' ? Object.values(r.vues || {}).reduce((a, v) => a + Math.max(0, v - 1), 0) : 0;   // Koh-Lanta : indices revus
+    const penS = r.wrong * p.penWrongS + miss * p.penMissS, penP = r.wrong * p.penWrongP + overMin * p.penOverP + revus * (p.kohPen || 0);
     const km = (p.distance || 0) / 1000, kmE = km + (p.denivOn ? (p.deniv || 0) / 100 : 0);
     let statut = '';
     if (temps != null && p.alloue) { const d = temps / 60 - p.alloue; statut = Math.abs(d) <= p.ecart ? '✔ dans l\'écart' : d > 0 ? `hors délai +${Math.ceil(temps / 60 - p.alloue - p.ecart)} min` : 'plus rapide que prévu'; }
@@ -676,20 +786,21 @@ TOOL_IMPL.co = function (el) {
     const again = (i, redraw) => { const r = cur.runs[i], pp = pOf(r);
       const rec = { ...cur, id: cur.id + '-' + Math.random().toString(36).slice(2, 6), parcours: baseOf(r).id, runs: [JSON.parse(JSON.stringify(r))], parcoursSnap: coLite(pp) };
       ['only', 'joined', 'psnap', 'profOnly'].forEach(k => delete rec[k]); DB.co.seances.push(rec); coResults(rec);
-      Object.assign(r, { dep: null, arr: null, found: [], wrong: 0, sel: [], done: (r.done || 0) + 1 }); delete r.tries; delete r.auto; delete r.legs; delete r.nx; delete r.who; save(); toast(`Course enregistrée ✔ · ${r.name} : choisissez le nouveau parcours`); redraw(); };
+      Object.assign(r, { dep: null, arr: null, found: [], wrong: 0, sel: [], done: (r.done || 0) + 1 }); delete r.tries; delete r.auto; delete r.legs; delete r.nx; delete r.who; delete r.vues; save(); toast(`Course enregistrée ✔ · ${r.name} : choisissez le nouveau parcours`); redraw(); };
     /* ---- Allers-retours (étoile, papillon, relais) ---- */
     const legGo = r => { const pp = pOf(r), nx = legNext(r, pp); if (!nx.length) return false; const t = Date.now(), w = legWho(r, pp); if (!r.dep) r.dep = t;
       r.legs = [...(r.legs || []), { bal: nx, dep: t, ...(w ? { who: w } : {}) }]; delete r.nx; return true; };
     const legBox = (r, i, pp, eleve) => { const L = r.legs || [], cl = curLeg(r), left = legLeft(r, pp), nx = legNext(r, pp), w = legWho(r, pp), K = legK(pp);
       const rows = L.map((l, k) => `<div style="display:flex;gap:8px;font-size:.8rem;padding:4px 0;border-top:1px solid var(--line)"><span style="flex:1">${k + 1}. ${l.who ? esc(l.who) + ' · ' : ''}balise${l.bal.length > 1 ? 's' : ''} ${l.bal.join(', ')}</span><b>${l.ret ? hms((l.ret - l.dep) / 1000) : '…'}</b>${l.ret ? `<span>${l.bal.filter(n => r.found.includes(n)).length}/${l.bal.length} ✔</span>` : ''}</div>`).join('');
       return `<div class="co-legs" style="margin-top:8px">${r.arr ? `<div style="font-weight:800">🏁 Course terminée · ${L.length} aller${L.length > 1 ? 's' : ''}-retour${L.length > 1 ? 's' : ''}</div>`
-        : cl ? `<div style="font-weight:800">🏃 ${cl.who ? esc(cl.who) + ' : ' : ''}en route vers ${cl.bal.length > 1 ? 'les balises' : 'la balise'} ${cl.bal.join(', ')}</div><button class="btn btn-danger btn-block" style="margin-top:8px;padding:12px" data-lret="${i}">🔙 ${eleve ? 'Je suis revenu au départ' : 'Retour au départ'} · contrôler le carton</button>`
+        : cl ? `<div style="font-weight:800">🏃 ${cl.who ? esc(cl.who) + ' : ' : ''}en route vers ${cl.bal.length > 1 ? 'les balises' : 'la balise'} ${cl.bal.join(', ')}</div>${coAideChips(pp, cl.bal, i)}<button class="btn btn-danger btn-block" style="margin-top:8px;padding:12px" data-lret="${i}">🔙 ${eleve ? 'Je suis revenu au départ' : 'Retour au départ'} · contrôler le carton</button>`
         : left.length ? `<div class="muted" style="font-size:.8rem">${r.dep ? 'Prochain départ' : 'Premier départ'}${w ? ` : <b style="color:var(--text)">${esc(w)}</b>` : ''} · touchez pour choisir ${K > 1 ? `les balises (${K} prévues)` : 'la balise'}</div>
             <div class="bal-chips">${left.map(b => `<button data-lnx="${i}" data-n="${b.num}" class="${b.ob ? 'ob' : ''}" style="${nx.includes(b.num) ? 'background:var(--grad);color:#fff;border-color:transparent' : ''}">${b.num}<sup> N${b.niv}</sup></button>`).join('')}</div>
             <button class="btn btn-grad btn-block" style="margin-top:8px;padding:12px" data-lgo="${i}">▶ ${w ? esc(w) + ' part' : 'Départ'} vers ${nx.length > 1 ? 'les balises' : 'la balise'} ${nx.join(', ')}</button>${r.dep ? `<button class="btn btn-ghost btn-block" style="margin-top:6px;padding:8px" data-lend="${i}">🏁 Terminer la course ici</button>` : ''}`
         : `<button class="btn btn-ghost btn-block" data-lend="${i}">🏁 Terminer la course</button>`}
         ${rows ? `<div style="margin-top:8px">${rows}</div>` : ''}${L.length ? `<div style="text-align:right;margin-top:4px"><button class="link" data-lundo="${i}">↶ ${r.arr ? 'Rouvrir la course' : cl ? 'Annuler ce départ' : 'Annuler le dernier retour'}</button></div>` : ''}</div>`; };
     const bindLegs = (root, redraw, eleve) => {
+      root.querySelectorAll('[data-aide][data-r]').forEach(bt => bt.onclick = e => { e.stopPropagation(); const r0 = cur.runs[+bt.dataset.r], l0 = curLeg(r0); coAideShow(pOf(r0), +bt.dataset.aide, l0 ? l0.bal : null); });
       root.querySelectorAll('[data-lnx]').forEach(b => b.onclick = () => { const r = cur.runs[+b.dataset.lnx], pp = pOf(r), n = +b.dataset.n, nx = legNext(r, pp); r.nx = nx.includes(n) ? nx.filter(y => y !== n) : [...nx, n]; save(); redraw(); });
       root.querySelectorAll('[data-lgo]').forEach(b => b.onclick = () => { const r = cur.runs[+b.dataset.lgo]; if (needSel(r)) return toast(`Choisissez ${r.libre} balises`); if (!legGo(r)) return; beep(1300, .3); save(); redraw(); });
       root.querySelectorAll('[data-lret]').forEach(b => b.onclick = () => { const i = +b.dataset.lret, r = cur.runs[i], pp = pOf(r), l = curLeg(r); if (!l) return; l.ret = Date.now(); beep(1000, .3);
@@ -717,6 +828,9 @@ TOOL_IMPL.co = function (el) {
           ${coMapOf(p) ? '<button class="btn btn-ghost btn-block" style="margin-top:8px" id="gv-map">🗺 Voir la carte</button>' : ''}
           ${run && !LG ? `<button class="btn ${missOb && !LATE ? 'btn-danger' : 'btn-grad'} btn-block" style="margin-top:12px;font-size:1.15rem;padding:14px" id="gv-fin">🏁 Arrivée${!missOb && !LATE ? ' — toutes les obligatoires sont trouvées !' : ''}</button>` : ''}
           ${r.arr ? `<div style="margin-top:10px;font-weight:800">✅ Course terminée · ${x.score} pts${x.temps != null ? ` · RK ${x.rk}` : ''}${x.penS ? ` · pénalités +${hms(x.penS)}` : ''}${x.statut ? ' · ' + x.statut : ''}</div>` : ''}</div>
+        ${p.type === 'koh' && p.balises.some(coKohOk) ? `<div class="card" style="margin-top:10px;border:2px solid #FFD21F"><b>🏝 Boussole Koh-Lanta</b> <span class="muted" style="font-size:.8rem">· ${r.dep && !r.arr ? `touchez pour afficher l'indice (${p.memo || 10} s pour mémoriser)` : 'après le départ'}</span>
+          ${p.balises.filter(coKohOk).map((b, k) => { const v = (r.vues || {})[b.num] || 0, got = r.found.includes(b.num); return `<button class="btn ${got ? 'btn-ghost' : 'btn-grad'} btn-block" style="margin-top:8px;padding:12px" data-kv="${b.num}" ${r.dep && !r.arr ? '' : 'disabled'}>${got ? '✅' : '👁'} Super balise ${k + 1}${v ? ` · indice vu ${v} fois` : ''}</button>`; }).join('')}</div>` : ''}
+        ${coAideList(p).length ? `<div class="card" style="margin-top:10px"><b>🔎 Aide pour trouver les balises</b> <span class="muted" style="font-size:.8rem">· touchez une balise</span>${coAideChips(p)}</div>` : ''}
         ${LG ? `<div class="card" style="margin-top:10px"><b>${{ etoile: '⭐ Étoile', papillon: '🦋 Papillon', relais: '🔁 Relais' }[p.type]}</b> <span class="muted" style="font-size:.8rem">· retour au départ ${legK(p) > 1 ? `toutes les ${legK(p)} balises` : 'après chaque balise'}, contrôle du carton à chaque retour</span>${legBox(r, i, p, true)}</div>` : ''}
         <div class="card" style="margin-top:10px;${LG ? 'display:none' : ''}"><div style="display:flex;justify-content:space-between;align-items:center"><b>Balises</b><span class="muted" style="font-size:.8rem">${LATE ? (run ? '📝 Note le symbole de chaque balise sur ton carton · contrôle à l\'arrivée' : r.arr ? (CT.how === 'auto' ? 'Compare avec ton carton (ci-dessous)' : 'Touchez chaque balise de ton carton pour la contrôler') : !r.dep ? 'Appuyez sur ▶ Départ pour commencer' : '')
             : run ? p.balises.some(b => isPat(b.code)) ? 'Touchez une balise trouvée puis le symbole de sa pince' : 'Touchez une balise dès qu\'elle est trouvée' : !r.dep ? 'Appuyez sur ▶ Départ pour commencer' : ''}</span></div>
@@ -729,7 +843,8 @@ TOOL_IMPL.co = function (el) {
       if ($('#gv-go')) $('#gv-go').onclick = () => { if (needSel(r)) return toast(`Choisissez ${r.libre} balises`); r.dep = Date.now(); beep(1300, .45); save(); drawGroup(); };
       box.querySelectorAll('[data-ac]').forEach(bt => bt.onclick = () => { const [num0, v] = bt.dataset.ac.split('|'); if (setAuto(r, +num0, v)) { save(); drawGroup(); } });
       bindPick(box, drawGroup); bindLegs(box, drawGroup, true); box.querySelectorAll('[data-again]').forEach(b => b.onclick = () => again(+b.dataset.again, drawGroup));
-      if ($('#gv-map')) $('#gv-map').onclick = () => coMapShow(p);
+      if ($('#gv-map')) $('#gv-map').onclick = () => coMapShow(p); coAideBind(box, p);
+      box.querySelectorAll('[data-kv]').forEach(bt => bt.onclick = () => { const b = p.balises.find(y => y.num === +bt.dataset.kv); r.vues = { ...(r.vues || {}), [b.num]: ((r.vues || {})[b.num] || 0) + 1 }; save(); coKohShow(p, b, { memo: p.memo || 10 }); drawGroup(); });
       if ($('#gv-fin')) $('#gv-fin').onclick = () => { if (missOb && !LATE && !confirm(`Il reste ${missOb} balise(s) obligatoire(s) à trouver. Valider l'arrivée ?`)) return; r.arr = Date.now(); beep(1000, .3); save(); drawGroup(); };
       const mark = num => { r.found = [...r.found, num]; beep(900, .06); save(); drawGroup(); };
       box.querySelectorAll('[data-bal]').forEach(bt => bt.onclick = () => { const num = +bt.dataset.bal, b = p.balises.find(y => y.num === num);
@@ -818,7 +933,7 @@ TOOL_IMPL.co = function (el) {
       tabs(true);
       const rs = cur.runs.map(r => ({ r, x: result(r, pOf(r)) }));
       box.innerHTML = `<div class="card"><div style="display:flex;justify-content:space-between;gap:8px;align-items:center"><div><b>${esc(p.nom)}</b><div class="muted">${esc(cur.classe || '')} · ${CO_TYPES[p.type][0]} · ${p.balises.length} balises${p.alloue ? ` · ${p.alloue} min ± ${p.ecart}` : ''}</div></div><div class="run-t" id="now">${clock(Date.now())}</div></div>
-          <div style="margin-top:6px;font-size:.8rem;font-weight:700">${CO_ORG(p)}${coMapOf(p) ? ' <button class="link" id="smap">🗺 Carte</button>' : ''}</div>
+          <div style="margin-top:6px;font-size:.8rem;font-weight:700">${CO_ORG(p)}${coMapOf(p) ? ' <button class="link" id="smap">🗺 Carte</button>' : ''}${coAideList(p).length ? ' <button class="link" id="said">🔎 Photos / définitions</button>' : ''}${p.type === 'koh' && p.balises.some(coKohOk) ? `<div class="bal-chips" style="margin-top:6px">${p.balises.filter(coKohOk).map((b, k) => `<button data-kt="${b.num}">🏝 Indice ${k + 1} · balise ${b.num}</button>`).join('')}</div>` : ''}</div>
           <div class="row" style="margin-top:10px"><button class="btn btn-grad" id="all">🚩 Départ groupé</button><button class="btn btn-ghost btn-block" data-cfg="bare" style="margin-top:8px" id="edg">✏️ Modifier les groupes / participants (absent, blessé…)</button><div data-cfg="bare" style="display:flex;gap:6px;align-items:center;flex:1.3"><input id="gap" type="number" value="${cur.gap || 60}" style="width:70px;padding:8px"><button class="btn btn-ghost" id="stag" style="padding:9px 8px;font-size:.8rem">Départs échelonnés (s)</button></div></div>
           <p class="muted" style="margin:8px 0 0;font-size:.8rem">Balises : touchez un numéro trouvé (souligné rouge = obligatoire).</p>
           ${cur.profOnly ? '<p class="muted" style="margin:8px 0 0;font-size:.8rem">📋 Suivi enseignant uniquement : les élèves courent sans tablette ; arrêtez le temps à leur retour puis touchez « 🔎 Contrôler le carton » pour vérifier leur coupon papier.</p>' : ''}
@@ -834,6 +949,7 @@ TOOL_IMPL.co = function (el) {
               return `<button class="btn ${r.arr && PB.length && k < PB.length ? 'btn-grad' : 'btn-ghost'} btn-block" style="margin-top:8px;padding:10px;display:block" data-pctl="${i}">🔎 Contrôler le carton${PB.length ? ` · ${k}/${PB.length}${k === PB.length ? ' ✔' : ''}` : ''}<span style="display:block;font-size:.72rem;font-weight:600;opacity:.85">${{ choix: '🔣 choisir le symbole', dessin: '✏️ dessiner le symbole', auto: '👀 comparer avec le carton' }[CT.how]}</span></button>`; })() : ''}
             ${r.arr ? `<button class="btn btn-ghost btn-block" style="margin-top:8px;padding:9px" data-again="${i}">🔁 Enregistrer et repartir sur un nouveau parcours</button>` : ''}${r.done ? `<div class="muted" style="font-size:.75rem;margin-top:4px">${r.done} parcours déjà terminé${r.done > 1 ? 's' : ''} dans cette séance</div>` : ''}
             <div style="display:flex;align-items:center;gap:8px;margin-top:8px;font-size:.85rem"><span>Mauvaises balises :</span><button class="btn btn-ghost" style="padding:5px 12px" data-wm="${i}">−</button><b>${r.wrong}</b><button class="btn btn-ghost" style="padding:5px 12px" data-wp="${i}">+</button></div>
+            ${pOf(r).type === 'koh' && Object.keys(r.vues || {}).length ? `<div class="muted" style="margin-top:6px;font-size:.78rem">🏝 Indices vus : ${Object.entries(r.vues).map(([n, v]) => `balise ${n} × ${v}`).join(' · ')}</div>` : ''}
             <div class="muted" style="margin-top:6px;font-size:.8rem">${r.found.length}/${pOf(r).balises.length} balises · <b style="color:var(--text)">${x.score} pts</b>${x.penP ? ` (−${x.penP})` : ''}${x.miss ? ` · ${x.miss} oblig. manquante(s)` : ''}${x.temps != null ? ` · RK ${x.rk}${x.penS ? ` · pénalités +${hms(x.penS)}` : ''}${x.statut ? ' · ' + x.statut : ''}` : ''}</div></div>`).join('')}
         <div class="section-title"><h2>Classement</h2></div>${ranking(rs, p)}
         <div class="row" style="margin-top:12px"><button class="btn btn-grad" data-cfg="bare" id="save">💾 Terminer et enregistrer la séance</button><button class="btn btn-ghost" data-cfg="bare" id="cancel">Abandonner</button></div>`;
@@ -848,7 +964,8 @@ TOOL_IMPL.co = function (el) {
       box.querySelectorAll('[data-go]').forEach(b => b.onclick = () => { const r = cur.runs[+b.dataset.go]; if (needSel(r)) return toast(`${r.name} : choisissez ${r.libre} balises`); r.dep = Date.now(); beep(1300, .3); keep(); draw(); });
       bindPick(box, draw); box.querySelectorAll('[data-again]').forEach(b => b.onclick = () => again(+b.dataset.again, draw));
       box.querySelectorAll('[data-pctl]').forEach(b => b.onclick = () => profCtl(+b.dataset.pctl, draw));
-      bindLegs(box, draw, false); if ($('#smap')) $('#smap').onclick = () => coMapShow(p);
+      bindLegs(box, draw, false); if ($('#smap')) $('#smap').onclick = () => coMapShow(p); if ($('#said')) $('#said').onclick = () => coAideShow(p, coAideList(p)[0].num);
+      box.querySelectorAll('[data-kt]').forEach(bt => bt.onclick = () => coKohShow(p, p.balises.find(y => y.num === +bt.dataset.kt)));
       box.querySelectorAll('[data-who]').forEach(sl => sl.onchange = () => { const r = cur.runs[+sl.dataset.who]; r.who = { ...(r.who || {}) }; if (sl.value) r.who[sl.dataset.n] = sl.value; else delete r.who[sl.dataset.n]; keep(); });
       box.querySelectorAll('[data-fin]').forEach(b => b.onclick = () => { cur.runs[+b.dataset.fin].arr = Date.now(); beep(1000, .3); keep(); draw(); });
       const setT = (i, k, v) => { const [h, m, s] = v.split(':').map(Number); const d = new Date(cur.runs[i][k]); d.setHours(h || 0, m || 0, s || 0, 0); cur.runs[i][k] = d.getTime(); keep(); draw(); };
