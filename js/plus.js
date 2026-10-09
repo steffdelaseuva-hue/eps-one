@@ -4,9 +4,10 @@
    ========================================================= */
 /* Page Ko-fi : laisser vide tant qu'elle n'existe pas (le bouton est alors masqué) */
 const KOFI_URL = 'https://ko-fi.com/epsone';
-const APP_VERSION = '21.1';
+const APP_VERSION = '21.2';
 const APP_URL = 'https://steffdelaseuva-hue.github.io/eps-one/';
 const CHANGELOG = [
+  { v: '21.2', items: ['Cross : nouveau mode d\'arrivée « 🏁 TOP sur la ligne » pour un classement exact — une tablette « Ligne » par couloir (gros bouton TOP au passage de chaque coureur) et une tablette « Scan » au bout du couloir ; le n-ième dossard scanné reçoit l\'heure du n-ième TOP', 'Fonctionne sans réseau pendant la course (tout se regroupe à la synchronisation) ; temps provisoire ⏳ tant que le TOP n\'est pas reçu ; écran « Contrôle TOP ↔ dossards » pour corriger un TOP oublié ou en trop'] },
   { v: '21.1', items: ['Confidentialité & RGPD : chiffrement de bout en bout avec Google Drive et Dropbox, et nouvelle rubrique « Caméra, photos et vidéos » (ce qui reste sur l\'appareil, ce qui est partagé chiffré, droit à l\'image)'] },
   { v: '21.0', items: ['Google Drive / Dropbox : chiffrement de bout en bout (comme Firebase) avec une phrase de chiffrement choisie par l\'enseignant — le cloud ne stocke plus que du contenu illisible ; la phrase est demandée une fois sur chaque appareil (Plus → Stockage & synchronisation)'] },
   { v: '20.9', items: ['Synchronisation : les grosses rubriques (historique des matchs…) sont découpées en plusieurs morceaux — elles ne sont plus bloquées par la limite de taille (« trop volumineuse »), qui empêchait les matchs de partir vers les autres tablettes', 'Une rubrique en erreur ne bloque plus l\'envoi des autres, et une erreur de synchronisation est maintenant signalée à l\'écran'] },

@@ -93,6 +93,13 @@ if (!document.getElementById('cx-css')) document.head.insertAdjacentHTML('before
   const uid = n => { let s = ''; while (s.length < n) s += Math.random().toString(36).slice(2); return s.slice(0, n); };
   let DEV = ''; try { DEV = localStorage.getItem('epsone_dev') || ''; } catch (e) {}
   if (!DEV) { DEV = uid(8); try { localStorage.setItem('epsone_dev', DEV); } catch (e) {} }
+  /* Mode « 🏁 TOP sur la ligne » : un adulte touche TOP au passage de chaque coureur (heure exacte + ordre),
+     la tablette du couloir scanne ensuite les dossards dans le même ordre. Le n-ième dossard scanné d'un couloir
+     reçoit l'heure du n-ième TOP de ce couloir (fusion après synchronisation : pas besoin de réseau pendant la course). */
+  const POSTE_K = 'epsone_cross_poste';
+  const poste = () => { try { return Object.assign({ role: 'scan', ln: 1 }, JSON.parse(localStorage.getItem(POSTE_K)) || {}); } catch (e) { return { role: 'scan', ln: 1 }; } };
+  const setPoste = o => { try { localStorage.setItem(POSTE_K, JSON.stringify(Object.assign(poste(), o))); } catch (e) {} };
+  const topOn = E => E.arrMode === 'top';
   const getCur = () => { try { return localStorage.getItem('epsone_cross_cur') || ''; } catch (e) { return ''; } };
   const setCur = id => { try { localStorage.setItem('epsone_cross_cur', id); } catch (e) {} };
   const commit = () => { save(); window.syncFlush && window.syncFlush(); };
@@ -123,7 +130,7 @@ if (!document.getElementById('cx-css')) document.head.insertAdjacentHTML('before
   ].map(c => ({ id: uid(5), mode: 'distance', dist: 2000, dur: 12, lap: 500, main: true, start: null, ...c }));
   const newEvent = name => ({ id: uid(4), name: name || 'Cross ' + new Date().getFullYear(), date: new Date().toISOString().slice(0, 10), created: Date.now(),
     courses: defCourses(), classes: [], lv: {}, el: {}, arr: [], bibMode: 'classe', topN: 10 });
-  const norm = E => { E.courses = E.courses || []; E.classes = E.classes || []; E.lv = E.lv || {}; E.el = E.el || {}; E.arr = E.arr || []; E.topN = E.topN || 10; E.bibMode = E.bibMode || 'classe'; return E; };
+  const norm = E => { E.tops = Array.isArray(E.tops) ? E.tops : []; E.courses = E.courses || []; E.classes = E.classes || []; E.lv = E.lv || {}; E.el = E.el || {}; E.arr = E.arr || []; E.topN = E.topN || 10; E.bibMode = E.bibMode || 'classe'; return E; };
 
   /* ---------- Élèves, niveaux, courses ---------- */
   const lvOf = (E, c) => { const v = E.lv[c]; if (v === '-') return ''; if (LV.includes(v)) return v; const d = (/\d/.exec(c) || [])[0]; return LV.includes(d) ? d : ''; };
@@ -140,8 +147,9 @@ if (!document.getElementById('cx-css')) document.head.insertAdjacentHTML('before
   function compute(E) {
     const S = stu(E), byBib = new Map(), arrBy = new Map();
     S.forEach(s => { if (s.b) byBib.set(+s.b, s); });
-    [...E.arr].sort((a, b) => a.t - b.t).forEach(a => { if (!arrBy.has(+a.b)) arrBy.set(+a.b, []); arrBy.get(+a.b).push(a.t); });
     const cOf = new Map(S.map(s => [s.k, courseOf(E, s)]));
+    const PT = topOn(E) ? pairTops(E, byBib, cOf) : null, effT = a => PT && PT.time.has(a.id) ? PT.time.get(a.id) : a.t;
+    [...E.arr].map(a => [a, effT(a)]).sort((x, y) => x[1] - y[1]).forEach(([a, t]) => { if (!arrBy.has(+a.b)) arrBy.set(+a.b, []); arrBy.get(+a.b).push(t); });
     const courses = E.courses.map(c => {
       const P = S.filter(s => cOf.get(s.k) === c), temps = c.mode === 'temps';
       const rows = P.map(s => {
@@ -154,7 +162,16 @@ if (!document.getElementById('cx-css')) document.head.insertAdjacentHTML('before
         r.gap = i === 0 ? '' : temps ? (R[0].laps - r.laps ? `−${R[0].laps - r.laps} tour${R[0].laps - r.laps > 1 ? 's' : ''}` : '+' + tm(r.last - R[0].last)) : '+' + tm(r.time - R[0].time); });
       return { c, R, W: rows.filter(r => !r.ok), n: P.length };
     });
-    return { S, courses, byBib, arrBy, cOf };
+    return { S, courses, byBib, arrBy, cOf, PT };
+  }
+  // couloir par couloir : TOPs triés ↔ dossards scannés (courses à distance) triés
+  function pairTops(E, byBib, cOf) {
+    const lanes = [...new Set([...(E.tops || []).map(x => x.ln || 1), ...E.arr.filter(a => a.ln).map(a => a.ln)])].sort((a, b) => a - b), time = new Map(), L = [];
+    lanes.forEach(ln => { const T = (E.tops || []).filter(x => (x.ln || 1) === ln).sort((a, b) => a.t - b.t);
+      const A = E.arr.filter(a => a.ln === ln && (() => { const s0 = byBib.get(+a.b), c = s0 && cOf.get(s0.k); return !c || c.mode !== 'temps'; })()).sort((a, b) => a.t - b.t);
+      A.forEach((a, i) => { if (T[i]) time.set(a.id, T[i].t); });
+      L.push({ ln, T, A }); });
+    return { time, lanes: L };
   }
   const perf = r => r.c.mode === 'temps' ? `${r.laps} tour${r.laps > 1 ? 's' : ''} · ${r.dist} m` : tm(r.time);
   function levelRank(E, K, L, sx) {
@@ -176,7 +193,7 @@ if (!document.getElementById('cx-css')) document.head.insertAdjacentHTML('before
   /* Remise à zéro d'une course : départ annulé + passages de ses coureurs effacés */
   function resetCourse(E, c) {
     const K = compute(E), bibs = new Set(K.S.filter(s => K.cOf.get(s.k) === c && s.b).map(s => +s.b));
-    E.arr = E.arr.filter(a => !(bibs.has(+a.b) && a.t >= c.start)); c.start = null; (c.waves || []).forEach(w => { w.start = null; });
+    E.arr = E.arr.filter(a => !(bibs.has(+a.b) && a.t >= c.start)); if (!E.courses.some(x => x !== c && x.start)) E.tops = (E.tops || []).filter(x => x.t < c.start); c.start = null; (c.waves || []).forEach(w => { w.start = null; });
   }
   /* ---------- Enregistrement d'un passage (caméra ou pavé) ---------- */
   const seen = new Map();   // dossard -> dernier scan caméra (anti-doublon 20 s, propre à la tablette)
@@ -188,7 +205,7 @@ if (!document.getElementById('cx-css')) document.head.insertAdjacentHTML('before
     const S0 = startOf(c, s), wv = waveOf(c, s);
     if (!S0) {   // départ donné sur une autre tablette, pas encore reçu (hors connexion) : le passage est gardé et compté à la synchronisation
       const mine0 = K.arrBy.get(+bib) || []; if (mine0.length && now - mine0[mine0.length - 1] < 30000) return { kind: 'warn', bib, s, c, msg: 'Déjà scanné' };
-      E.arr.push({ id: uid(8), b: +bib, t: now, d: DEV, src }); commit();
+      E.arr.push({ id: uid(8), b: +bib, t: now, d: DEV, src, ...(topOn(E) ? { ln: poste().ln } : {}) }); commit();
       return { kind: 'ok', bib, s, c, msg: wv && c.start ? `Passage enregistré ✔ · départ de « ${wv.n} » pas encore donné ici : compté après le TOP / la synchronisation` : 'Passage enregistré ✔ · départ pas reçu sur cette tablette : rang calculé après synchronisation' }; }
     if (now < S0) return { kind: 'warn', bib, s, c, msg: 'Avant le départ' };
     const mine = K.arrBy.get(+bib) || [], after = mine.filter(t => t >= S0);
@@ -201,9 +218,9 @@ if (!document.getElementById('cx-css')) document.head.insertAdjacentHTML('before
       const last = after[after.length - 1];
       if (last && now - last < 30000) return { kind: 'warn', bib, s, c, msg: 'Tour trop rapide (< 30 s)' };
     }
-    E.arr.push({ id: uid(8), b: +bib, t: now, d: DEV, src }); commit();
+    const aid = uid(8); E.arr.push({ id: aid, b: +bib, t: now, d: DEV, src, ...(topOn(E) ? { ln: poste().ln } : {}) }); commit();
     const K2 = compute(E), r = K2.courses.find(x => x.c === c).R.find(x => x.s.k === s.k);
-    return { kind: 'ok', bib, s, c, r };
+    return { kind: 'ok', bib, s, c, r, ...(topOn(E) && c.mode !== 'temps' && K2.PT && !K2.PT.time.has(aid) ? { msg: '⏳ Temps provisoire : TOP de la ligne pas encore reçu (calculé à la synchronisation)' } : {}) };
   }
   const parse = txt => { const m = /^EPSX\|([^|]+)\|(\d{1,5})$/.exec(String(txt || '').trim()); return m ? { id: m[1], bib: +m[2] } : null; };
   /* Point d'entrée commun au décodeur caméra et au pavé : renvoie le résultat et l'affiche */
@@ -519,17 +536,58 @@ tr:nth-child(-n+4) td{font-weight:700}`,
 
     /* ---------- 📷 Arrivée ---------- */
     function scan(box, E) {
-      box.innerHTML = `<div class="cx-scan"><div>
+      const P0 = poste(), LINE = topOn(E) && P0.role === 'ligne';
+      box.innerHTML = `<div class="card" data-cfg style="margin-bottom:12px"><b>🏁 Arrivées</b>
+          <div class="seg" style="margin-top:6px">${[['scan', '📷 Heure du scan'], ['top', '🏁 TOP sur la ligne (classement exact)']].map(([k, l]) => `<button data-am="${k}" class="${(E.arrMode || 'scan') === k ? 'on' : ''}">${l}</button>`).join('')}</div>
+          ${topOn(E) ? `<label>Poste de cette tablette</label><div class="seg">${[['ligne', '🏁 Sur la ligne : TOP'], ['scan', '📷 Couloir : scan des dossards']].map(([k, l]) => `<button data-pr="${k}" class="${P0.role === k ? 'on' : ''}">${l}</button>`).join('')}</div>
+            <label>Couloir</label><div class="seg">${[1, 2, 3, 4].map(n => `<button data-ln="${n}" class="${P0.ln === n ? 'on' : ''}">${n}</button>`).join('')}</div>
+            <p class="muted" style="font-size:.78rem;margin:6px 0 0">Par couloir : <b>une tablette « Ligne »</b> (un adulte touche TOP quand chaque coureur franchit la ligne) et <b>une tablette « Scan »</b> au bout du couloir (les dossards scannés dans le même ordre, en file indienne). Le 1er dossard scanné reçoit l'heure du 1er TOP, etc. Pas besoin de réseau pendant la course : tout se regroupe à la synchronisation. Les courses « aux tours » restent à l'heure du scan.</p>` : ''}</div>
+        <div class="cx-scan"><div>
           <div class="card" id="cx-starts"></div>
-          <div class="cx-cam" style="margin-top:12px"><video playsinline muted autoplay></video><div class="cx-guide"></div><div class="cx-cmsg" id="cx-cmsg">📷 Touchez « Activer la caméra »</div></div>
+          ${LINE ? `<div class="card" style="margin-top:12px;text-align:center"><div class="muted" style="font-weight:800">Couloir ${P0.ln} · touchez au passage de chaque coureur sur la ligne</div>
+            <button id="cx-top" style="width:100%;height:42vh;min-height:220px;margin-top:8px;font-size:3.2rem;font-weight:900;border-radius:26px;background:#D64545;color:#fff;border:0;box-shadow:0 10px 24px rgba(214,69,69,.35);touch-action:manipulation;-webkit-user-select:none;user-select:none">🏁 TOP</button>
+            <div id="cx-topn" style="font-size:1.5rem;font-weight:900;margin-top:10px"></div>
+            <button class="btn btn-ghost btn-block" style="margin-top:8px" id="cx-topu">↶ Annuler le dernier TOP</button></div>` : ''}
+          <div class="cx-cam" style="margin-top:12px;${LINE ? 'display:none' : ''}"><video playsinline muted autoplay></video><div class="cx-guide"></div><div class="cx-cmsg" id="cx-cmsg">📷 Touchez « Activer la caméra »</div></div>
           <div class="row" style="margin-top:10px"><button class="btn btn-grad" id="cx-cam">📷 Activer la caméra</button></div>
           <p class="muted" style="margin:8px 2px 0;font-size:.78rem">Présentez le QR code du dossard dans le cadre. Un même dossard est ignoré pendant 20 s.</p></div>
-        <div><div class="card"><b>Saisie du n° de dossard</b><div class="cx-disp" id="cx-disp">—</div>
+        <div style="${LINE ? 'display:none' : ''}"><div class="card"><b>Saisie du n° de dossard</b><div class="cx-disp" id="cx-disp">—</div>
             <div class="cx-keys">${[1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => `<button data-k="${n}">${n}</button>`).join('')}<button data-k="b" aria-label="Effacer">⌫</button><button data-k="0">0</button><button data-k="ok" class="ok">✓</button></div>
             <button class="btn btn-ghost btn-block" style="margin-top:10px" id="cx-undo">↶ Annuler mon dernier passage</button></div>
           <div class="section-title"><h2>Derniers passages</h2><span class="muted" id="cx-cnt"></span></div><div class="card" style="padding:4px 12px" id="cx-last"></div></div></div>
+        ${topOn(E) ? '<details class="card cx-prof" data-cfg="bare" id="cx-ctl-d"><summary data-prof>🏁 Contrôle TOP ↔ dossards</summary><div id="cx-ctl"></div></details>' : ''}
         <details class="card cx-prof" data-cfg="bare"><summary data-prof>🔒 Enseignant</summary><p class="muted" style="font-size:.82rem">Supprimer un passage enregistré (toutes tablettes). Les heures de départ se corrigent dans l'onglet 🏁 Courses.</p><div id="cx-all"></div></details>`;
       const $ = s => box.querySelector(s), video = box.querySelector('video'), cmsg = $('#cx-cmsg');
+      const reScan = () => { stopCam(); clearInterval(clockIv); clockIv = null; scan(box, E); };
+      box.querySelectorAll('[data-am]').forEach(b => b.onclick = () => { E.arrMode = b.dataset.am; commit(); reScan(); });
+      box.querySelectorAll('[data-pr]').forEach(b => b.onclick = () => { setPoste({ role: b.dataset.pr }); reScan(); });
+      box.querySelectorAll('[data-ln]').forEach(b => b.onclick = () => { setPoste({ ln: +b.dataset.ln }); reScan(); });
+      const myTops = () => (E.tops || []).filter(x => (x.ln || 1) === poste().ln);
+      const drawTopN = () => { const e = $('#cx-topn'); if (!e) return; const T = myTops(); e.innerHTML = `${T.length} TOP${T.length > 1 ? 's' : ''}${T.length ? ` <span class="muted" style="font-size:.9rem">· dernier ${hms(T[T.length - 1].t)}</span>` : ''}`; };
+      if ($('#cx-top')) { let lastTop = 0;
+        $('#cx-top').addEventListener('pointerdown', ev => { ev.preventDefault(); const t = Date.now(); if (t - lastTop < 150) return; lastTop = t;
+          E.tops = E.tops || []; E.tops.push({ id: uid(8), t, d: DEV, ln: poste().ln }); commit(); beep(1800, .06, .5); try { navigator.vibrate && navigator.vibrate(30); } catch (e) {}
+          const b = $('#cx-top'); b.style.transform = 'scale(.97)'; setTimeout(() => { b.style.transform = ''; }, 90); drawTopN(); });
+        $('#cx-topu').onclick = () => { const T = myTops().filter(x => x.d === DEV), last = T[T.length - 1]; if (!last) return toast('Aucun TOP sur cette tablette');
+          if (!confirm(`Annuler le TOP de ${hms(last.t)} ?`)) return; E.tops = E.tops.filter(x => x !== last); commit(); drawTopN(); }; }
+      const drawCtl = () => { const h = $('#cx-ctl'); if (!h) return; const K = compute(E), PL = (K.PT || { lanes: [] }).lanes;
+        h.innerHTML = PL.length ? PL.map(({ ln, T, A }) => { const n = Math.max(T.length, A.length);
+          return `<div style="margin-top:10px"><b>Couloir ${ln}</b> · ${T.length} TOP · ${A.length} dossard${A.length > 1 ? 's' : ''}${T.length !== A.length ? ` <span style="color:var(--danger,#D64545);font-weight:800">⚠️ écart de ${Math.abs(T.length - A.length)}</span>` : ' ✅'}
+            <div class="sheet-table" style="margin-top:6px"><table><tr><th>#</th><th>TOP (ligne)</th><th>Dossard scanné</th></tr>
+            ${Array.from({ length: n }, (_, i) => { const t = T[i], a = A[i], st = a && K.byBib.get(+a.b);
+              return `<tr><td>${i + 1}</td><td>${t ? `${hms(t.t)} <button class="link" data-xt="${t.id}" title="Supprimer ce TOP">✕</button>` : '<span class="muted">—</span>'} <button class="link" data-it="${ln}|${i}" title="Insérer un TOP avant">＋</button></td>
+                <td>${a ? `<b>${a.b}</b> ${st ? esc(st.name) : '?'} <button class="link" data-xa="${a.id}" title="Supprimer ce scan">✕</button>` : '<span class="muted">—</span>'} <button class="link" data-ia="${ln}|${i}" title="Insérer un dossard avant">＋</button></td></tr>`; }).join('')}
+            <tr><td></td><td><button class="link" data-it="${ln}|${n}">＋ TOP à la fin</button></td><td><button class="link" data-ia="${ln}|${n}">＋ dossard à la fin</button></td></tr></table></div></div>`; }).join('')
+          : '<p class="muted">Aucun TOP ni dossard pour l\'instant.</p>';
+        h.insertAdjacentHTML('afterbegin', '<p class="muted" style="font-size:.8rem;margin:0">Si un TOP a été oublié ou donné en trop (ou un dossard scanné dans le désordre), corrigez ici : chaque ligne associe un TOP au dossard scanné dans le même ordre.</p>');
+        const lanePair = ln => PL.find(x => x.ln === ln) || { T: [], A: [] };
+        h.querySelectorAll('[data-xt]').forEach(b => b.onclick = () => { if (!confirm('Supprimer ce TOP ?')) return; E.tops = E.tops.filter(x => x.id !== b.dataset.xt); commit(); drawCtl(); drawLast(); });
+        h.querySelectorAll('[data-xa]').forEach(b => b.onclick = () => { if (!confirm('Supprimer ce scan ?')) return; E.arr = E.arr.filter(x => x.id !== b.dataset.xa); commit(); drawCtl(); drawLast(); });
+        h.querySelectorAll('[data-it]').forEach(b => b.onclick = () => { const [ln, i] = b.dataset.it.split('|').map(Number), T = lanePair(ln).T, pv = T[i - 1], nx = T[i];
+          const t = pv && nx ? Math.round((pv.t + nx.t) / 2) : nx ? nx.t - 500 : pv ? pv.t + 500 : Date.now(); E.tops.push({ id: uid(8), t, d: DEV, ln, man: 1 }); commit(); drawCtl(); drawLast(); });
+        h.querySelectorAll('[data-ia]').forEach(b => b.onclick = () => { const [ln, i] = b.dataset.ia.split('|').map(Number), v = +(prompt('N° du dossard à insérer :') || ''); if (!v) return;
+          if (!K.byBib.get(v)) return toast('Dossard inconnu'); const A = lanePair(ln).A, pv = A[i - 1], nx = A[i];
+          const t = pv && nx ? Math.round((pv.t + nx.t) / 2) : nx ? nx.t - 500 : pv ? pv.t + 500 : Date.now(); E.arr.push({ id: uid(8), b: v, t, d: DEV, src: 'manual', ln }); commit(); drawCtl(); drawLast(); }); };
       const drawStarts = () => {
         const K = compute(E), ns = E.courses.filter(c => !c.start);
         [...gstart].forEach(id => { if (!ns.some(c => c.id === id)) gstart.delete(id); });
@@ -558,12 +616,13 @@ tr:nth-child(-n+4) td{font-weight:700}`,
         const K = compute(E), rk = new Map(); K.courses.forEach(x => x.R.forEach(r => rk.set(r.s.k, r)));
         const A = [...E.arr].sort((a, b) => b.t - a.t);
         $('#cx-cnt').textContent = `${A.length} passage${A.length > 1 ? 's' : ''}`;
-        const row = (a, del) => { const s = K.byBib.get(+a.b), c = s && K.cOf.get(s.k), r = s && rk.get(s.k);
+        const row = (a, del) => { const s = K.byBib.get(+a.b), c = s && K.cOf.get(s.k), r = s && rk.get(s.k), pend = K.PT && a.ln && c && c.mode !== 'temps' && !K.PT.time.has(a.id); a = K.PT && K.PT.time.has(a.id) ? { ...a, t: K.PT.time.get(a.id) } : a;
           return `<div class="cx-last"><span class="b">${a.b}</span><div class="nm"><b>${s ? esc(s.name) : 'Dossard inconnu'}</b><small>${s ? esc(s.cls) + ' · ' : ''}${c ? esc(c.name) : ''}${a.d !== DEV ? ' · 📱 autre tablette' : ''}${a.src === 'manual' ? ' · ⌨️' : ''}</small></div>
-            <span class="t">${c && startOf(c, s) ? tm(a.t - startOf(c, s)) : hms(a.t)}${r && c.mode !== 'temps' ? `<br><small class="muted">${r.place}e</small>` : r ? `<br><small class="muted">${r.laps} t.</small>` : ''}</span>${del ? `<button class="btn btn-ghost" style="flex:0 0 auto;padding:6px 9px" data-rm="${esc(a.id)}">✕</button>` : ''}</div>`; };
+            <span class="t">${pend ? '⏳ ' : ''}${c && startOf(c, s) ? tm(a.t - startOf(c, s)) : hms(a.t)}${r && c.mode !== 'temps' ? `<br><small class="muted">${r.place}e</small>` : r ? `<br><small class="muted">${r.laps} t.</small>` : ''}</span>${del ? `<button class="btn btn-ghost" style="flex:0 0 auto;padding:6px 9px" data-rm="${esc(a.id)}">✕</button>` : ''}</div>`; };
         $('#cx-last').innerHTML = A.length ? A.slice(0, 12).map(a => row(a)).join('') : '<div class="empty">Aucun passage pour l\'instant.</div>';
         $('#cx-all').innerHTML = A.map(a => row(a, true)).join('') || '<div class="muted">Aucun passage.</div>';
         box.querySelectorAll('[data-rm]').forEach(b => b.onclick = () => { if (!confirm('Supprimer ce passage ?')) return; E.arr = E.arr.filter(a => a.id !== b.dataset.rm); commit(); drawLast(); drawStarts(); });
+        drawCtl();
       };
       const flash = res => {
         if (!res || res.kind === 'skip') return;
@@ -615,10 +674,10 @@ tr:nth-child(-n+4) td{font-weight:700}`,
       };
       $('#cx-cam').onclick = () => { if (stream) { camOff(); cmsg.style.display = ''; cmsg.textContent = '📷 Caméra arrêtée'; $('#cx-cam').textContent = '📷 Activer la caméra'; } else camOn(); };
       stopCam = () => { camOff(); if (window.__cxUI === flash) window.__cxUI = null; };
-      drawStarts(); drawLast(); disp();
+      drawStarts(); drawLast(); disp(); drawTopN(); drawCtl();
       clockIv = setInterval(() => { tick(); tickW(); }, 250);
-      camOn();
-      scanRefresh = () => { drawStarts(); drawLast(); };
+      if (!LINE) camOn();
+      scanRefresh = () => { drawStarts(); drawLast(); drawTopN(); drawCtl(); };
     }
     let scanRefresh = null;
 
