@@ -4,9 +4,11 @@
    ========================================================= */
 /* Page Ko-fi : laisser vide tant qu'elle n'existe pas (le bouton est alors masqué) */
 const KOFI_URL = 'https://ko-fi.com/epsone';
-const APP_VERSION = '22.7';
+const APP_VERSION = '22.9';
 const APP_URL = 'https://steffdelaseuva-hue.github.io/eps-one/';
 const CHANGELOG = [
+  { v: '22.9', items: ['Course d\'orientation · 🖼 Symboles illustrés (adaptation pour les élèves à besoins particuliers) : sur la carte affichée (tablette) et à l\'impression, un bouton remplace les symboles de course d\'orientation par des dessins parlants (arbre, robinet, maison, goutte d\'eau, sens interdit…) ; légende adaptée ; réglage mémorisé sur l\'appareil', 'Course d\'orientation · objets de carte : symboles de course d\'orientation (inspirés de la norme ISOM et des symboles de traçage magenta) — arbre rond vert, rocher point noir, objet particulier croix noire, bâtiment noir, eau bleue bordée de noir, terrain dégagé jaune, point d\'eau gobelet magenta, poste de secours croix magenta, zones interdite / dangereuse hachurées magenta ; les boutons montrent le vrai symbole'] },
+  { v: '22.8', items: ['Course d\'orientation · lieux : 🧱 objets de carte comme dans Purple Pen — points (arbre remarquable, banc, point d\'eau, poste de secours, rocher, objet particulier), lignes (clôture, clôture infranchissable, mur, chemin, haie, limite de la zone de course) et zones (zone interdite hachurée, zone dangereuse, bâtiment, eau, végétation dense, terrain dégagé) ; sélection, suppression, ↶ annulation, points déplaçables au doigt', 'Les objets apparaissent sur tous les parcours du lieu, sur les tablettes et à l\'impression, avec une légende'] },
   { v: '22.7', items: ['Course d\'orientation : la carte s\'affiche bien dans la fenêtre « 🖍 Surligner l\'itinéraire » (elle restait vide sur iPad) — 1 doigt surligne, 2 doigts zooment'] },
   { v: '22.6', items: ['Course d\'orientation · lieux : un poste, le départ ou l\'arrivée se déplace en le faisant glisser du doigt ; toucher près d\'un repère existant le sélectionne au lieu de créer un nouveau poste (zone de toucher élargie, même avec de petits repères)'] },
   { v: '22.5', items: ['Course d\'orientation · lieux : réglage « ⭕ Taille des repères » (curseur, aperçu en direct) pour adapter les ronds, numéros, triangle de départ et traits du parcours à l\'échelle de la carte ; repères plus petits par défaut ; le réglage s\'applique aux parcours du lieu, aux tablettes et à l\'impression'] },
