@@ -7,10 +7,11 @@ DB.co = DB.co || { parcours: [], seances: [], current: null };
 ICONS.co = '<circle cx="12" cy="12" r="9"/><path d="M15.5 8.5l-2 5-5 2 2-5z"/><circle cx="12" cy="12" r=".8" fill="url(#icoGrad)"/>';
 
 const CO_TYPES = {
-  etoile:  ['Étoile / papillon', 'Retour au départ entre chaque balise.'],
-  reseau:  ['Réseau de postes', 'L\'élève choisit ses balises (facultatives) pour marquer un maximum de points.'],
-  suivi:   ['Suivi d\'itinéraire', 'Itinéraire imposé, balises dans l\'ordre.'],
-  relais:  ['Relais', 'Les membres du groupe partent l\'un après l\'autre.'],
+  etoile:   ['Étoile', 'Retour au départ après chaque balise : le carton est contrôlé à chaque retour.'],
+  papillon: ['Papillon', 'Retour au départ toutes les 2, 3… balises (boucles) : contrôle à chaque retour.'],
+  reseau:   ['Réseau de postes', 'Balises obligatoires en groupe, balises facultatives en individuel pour marquer un maximum de points.'],
+  suivi:    ['Suivi d\'itinéraire', 'L\'enseignant fixe l\'ordre des balises et surligne l\'itinéraire sur la carte importée.'],
+  relais:   ['Relais', 'Équipes : chaque élève part à son tour chercher 1 ou plusieurs balises, puis passe le relais.'],
   libre:   ['Parcours libre', 'Balises dans l\'ordre choisi.'],
 };
 const coId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
@@ -92,6 +93,76 @@ const coCtl = () => Object.assign({ when: 'arrivee', how: 'choix' }, DB.co.ctl |
 // réglage figé dans la séance au lancement (et transmis aux tablettes qui la rejoignent)
 const curCtl = cur => Object.assign(coCtl(), (cur && cur.ctl) || {});
 const CTL_TXT = c => `${c.when === 'arrivee' ? '📝 à l\'arrivée (carton papier)' : '📱 pendant la course'} · ${{ choix: '🔣 choisir le symbole', dessin: '✏️ dessiner le symbole', auto: '👀 comparer avec le carton' }[c.how]}`;
+/* ---------- Organisation selon le type de parcours ----------
+   Étoile (1 balise), Papillon (boucles de N balises), Relais (N balises par relayeur) : la course est une suite d'allers-retours
+   au point de départ (r.legs = [{ bal:[n…], dep, ret, who }]) ; le carton est contrôlé à chaque retour ; le temps = somme des allers-retours. */
+const CO_LEG = { etoile: 1, papillon: 1, relais: 1 };
+const legK = p => p.type === 'etoile' ? 1 : Math.max(1, +(p.type === 'papillon' ? p.boucle : p.relais) || (p.type === 'papillon' ? 2 : 1));
+const isLegRun = (r, p) => !!CO_LEG[p.type] && !(r.dep && !r.legs);          // séance commencée avant la v22.2 : ancien fonctionnement
+const curLeg = r => { const L = r.legs || [], l = L[L.length - 1]; return l && !l.ret ? l : null; };
+const legLeft = (r, p) => { const used = new Set((r.legs || []).flatMap(l => l.bal)); return p.balises.filter(b => !used.has(b.num)); };
+const legNext = (r, p) => { const left = legLeft(r, p).map(b => b.num), nx = (r.nx || []).filter(n => left.includes(n)); return nx.length ? nx : left.slice(0, legK(p)); };
+const legWho = (r, p) => p.type === 'relais' && r.members.length ? r.members[(r.legs || []).length % r.members.length] : null;
+const legSec = r => (r.legs || []).reduce((a, l) => a + ((l.ret || (r.arr ? l.dep : Date.now())) - l.dep), 0) / 1000;
+const elapsed = r => !r.dep ? 0 : r.legs ? legSec(r) : ((r.arr || Date.now()) - r.dep) / 1000;
+const CO_ORG = p => ({ etoile: '⭐ Étoile : l\'élève revient au départ après chaque balise ; son carton est contrôlé à chaque retour avant de repartir.',
+  papillon: `🦋 Papillon : retour au départ toutes les ${legK(p)} balises ; contrôle du carton à chaque retour.`,
+  relais: `🔁 Relais : les élèves d'une équipe partent chacun leur tour chercher ${legK(p)} balise${legK(p) > 1 ? 's' : ''}, puis passent le relais au retour (contrôle à chaque retour).`,
+  reseau: '🕸 Réseau : les balises obligatoires se font en groupe, les facultatives en individuel (attribuez chaque facultative à l\'élève qui l\'a trouvée).',
+  suivi: '🧵 Suivi d\'itinéraire : balises dans l\'ordre fixé par l\'enseignant, itinéraire tracé sur la carte.',
+  libre: '🧭 Parcours libre : les élèves trouvent les balises dans l\'ordre de leur choix.' })[p.type] || '';
+
+/* ---------- Carte du parcours : image importée + itinéraire surligné + balises placées ----------
+   p.map = { img: dataURL, w, h, lines: [[x,y,x,y…]], marks: { D:[x,y], 31:[x,y]… } } — coordonnées sur une largeur de 1000 */
+function coMapHTML(m, p, opt = {}) {
+  if (!m || !m.img) return '';
+  const H = Math.round(1000 * m.h / m.w), ord = p.balises.map(b => String(b.num));
+  const lines = (m.lines || []).map(l => `<polyline points="${l.join(',')}" fill="none" stroke="#E0218A" stroke-opacity=".55" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>`).join('');
+  const mk = Object.entries(m.marks || {}).map(([k, [x, y]]) => k === 'D'
+    ? `<polygon points="${x},${y - 30} ${x - 26},${y + 16} ${x + 26},${y + 16}" fill="none" stroke="#B0127A" stroke-width="6"/>`
+    : `<circle cx="${x}" cy="${y}" r="24" fill="none" stroke="#B0127A" stroke-width="6"/><text x="${x + 28}" y="${y - 20}" font-size="34" font-weight="900" fill="#B0127A" stroke="#fff" stroke-width="6" paint-order="stroke">${p.type === 'suivi' && ord.includes(k) ? (ord.indexOf(k) + 1) + '·' : ''}${k}</text>`).join('');
+  return `<div class="co-map" style="position:relative;line-height:0;border-radius:12px;overflow:hidden;background:#fff"><img src="${m.img}" style="width:100%;display:block" alt="Carte"><svg viewBox="0 0 1000 ${H}" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%;${opt.edit ? 'touch-action:none' : 'pointer-events:none'}">${lines}${mk}</svg></div>`;
+}
+function coMapShow(p) {
+  const o = document.createElement('div'); o.style.cssText = 'position:fixed;inset:0;z-index:300;background:rgba(7,18,42,.9);overflow:auto;padding:12px';
+  o.innerHTML = `<div style="max-width:900px;margin:0 auto"><div style="display:flex;justify-content:space-between;align-items:center;color:#fff;margin-bottom:8px"><b>🗺 ${esc(p.nom)}</b><button class="btn btn-ghost" id="mx">✕ Fermer</button></div>${coMapHTML(p.map, p)}
+    ${p.type === 'suivi' ? `<div class="card" style="margin-top:8px"><b>Ordre des balises :</b> ${p.balises.map((b, i) => `${i + 1}. <b>${b.num}</b>`).join(' → ')}</div>` : ''}</div>`;
+  o.querySelector('#mx').onclick = () => o.remove(); document.body.appendChild(o);
+}
+const coImg = (file, cb) => { const url = URL.createObjectURL(file), img = new Image();
+  img.onload = () => { const k = Math.min(1, 1400 / Math.max(img.width, img.height)), c = document.createElement('canvas'); c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+    c.getContext('2d').drawImage(img, 0, 0, c.width, c.height); URL.revokeObjectURL(url); cb(c.toDataURL('image/jpeg', .7), c.width, c.height); };
+  img.onerror = () => toast('Image illisible'); img.src = url; };
+function coMapEdit(p, onDone) {
+  const m = JSON.parse(JSON.stringify(p.map || {})); m.lines = m.lines || []; m.marks = m.marks || {};
+  let mode = 'trace', pick = null;
+  const o = document.createElement('div'); o.style.cssText = 'position:fixed;inset:0;z-index:300;background:var(--bg,#F3F6FB);overflow:auto;padding:12px';
+  const next = () => ['D', ...p.balises.map(b => String(b.num))].find(k => !m.marks[k]) || null;
+  const render = () => { if (pick == null) pick = next();
+    o.innerHTML = `<div style="max-width:900px;margin:0 auto"><div class="card"><h3 style="margin-top:0">🗺 Carte · ${esc(p.nom)}</h3>
+      <div class="seg">${[['trace', '🖍 Tracer l\'itinéraire'], ['bal', '📍 Placer départ / balises'], ['vue', '✋ Faire défiler']].map(([k, l]) => `<button data-mo="${k}" class="${mode === k ? 'on' : ''}">${l}</button>`).join('')}</div>
+      ${mode === 'bal' ? `<p class="muted" style="margin:8px 0 4px;font-size:.8rem">Choisissez ce que vous placez puis touchez la carte (toucher à nouveau déplace le repère).</p><div class="bal-chips">${['D', ...p.balises.map(b => String(b.num))].map(k => `<button data-pk="${k}" class="${pick === k ? 'on' : ''}" style="${m.marks[k] ? '' : 'border-style:dashed'}">${k === 'D' ? '△ Départ' : k}</button>`).join('')}</div>`
+        : mode === 'trace' ? '<p class="muted" style="margin:8px 0 0;font-size:.8rem">Glissez le doigt sur la carte pour surligner l\'itinéraire que les élèves devront suivre.</p>' : '<p class="muted" style="margin:8px 0 0;font-size:.8rem">Mode lecture : faites défiler la page sans dessiner.</p>'}
+      <div class="row" style="margin-top:8px"><button class="btn btn-ghost" id="mu">↶ Annuler le dernier trait</button><button class="btn btn-ghost" id="mc">🗑 Effacer traits et repères</button></div></div>
+      <div style="margin-top:10px" id="mw">${coMapHTML(m, p, { edit: mode !== 'vue' })}</div>
+      <div class="row" style="margin-top:10px"><button class="btn btn-grad" id="ms">✔ Valider la carte</button><button class="btn btn-ghost" id="mq">Annuler</button></div></div>`;
+    o.querySelectorAll('[data-mo]').forEach(b => b.onclick = () => { mode = b.dataset.mo; render(); });
+    o.querySelectorAll('[data-pk]').forEach(b => b.onclick = () => { pick = b.dataset.pk; render(); });
+    o.querySelector('#mu').onclick = () => { if (!m.lines.length) return toast('Aucun trait à annuler'); m.lines.pop(); render(); };
+    o.querySelector('#mc').onclick = () => { if (!confirm('Effacer l\'itinéraire et tous les repères ?')) return; m.lines = []; m.marks = {}; pick = null; render(); };
+    o.querySelector('#ms').onclick = () => { o.remove(); onDone(m); };
+    o.querySelector('#mq').onclick = () => { if (confirm('Quitter sans enregistrer les modifications de la carte ?')) o.remove(); };
+    const svg = o.querySelector('#mw svg'); if (!svg || mode === 'vue') return;
+    const pt = e => { const R = svg.getBoundingClientRect(), H = 1000 * m.h / m.w; return [Math.round((e.clientX - R.left) / R.width * 1000), Math.round((e.clientY - R.top) / R.height * H)]; };
+    if (mode === 'bal') svg.onpointerdown = e => { e.preventDefault(); if (!pick) return toast('Tous les repères sont placés : choisissez-en un pour le déplacer'); m.marks[pick] = pt(e); pick = next(); render(); };
+    else { let line = null, el = null;
+      svg.onpointerdown = e => { e.preventDefault(); svg.setPointerCapture(e.pointerId); line = pt(e); el = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
+        el.setAttribute('fill', 'none'); el.setAttribute('stroke', '#E0218A'); el.setAttribute('stroke-opacity', '.55'); el.setAttribute('stroke-width', '14'); el.setAttribute('stroke-linecap', 'round'); el.setAttribute('stroke-linejoin', 'round'); svg.appendChild(el); el.setAttribute('points', line.join(',')); };
+      svg.onpointermove = e => { if (!line) return; const [x, y] = pt(e), n = line.length; if (Math.hypot(x - line[n - 2], y - line[n - 1]) < 6) return; line.push(x, y); el.setAttribute('points', line.join(',')); };
+      svg.onpointerup = svg.onpointercancel = () => { if (line && line.length >= 4) m.lines.push(line); line = null; }; }
+  };
+  render(); document.body.appendChild(o);
+}
 TOOL_IMPL.co = function (el) {
   let tab = DB.co.current || partToday('co').length || partRecoverHTML('co') ? 'seance' : 'parcours';
   const P = id => DB.co.parcours.find(p => p.id === id);
@@ -106,7 +177,7 @@ TOOL_IMPL.co = function (el) {
   /* ================= 1. PARCOURS ================= */
   function listParcours(box) {
     box.innerHTML = `<div class="card" style="padding:0">${DB.co.parcours.length ? DB.co.parcours.map((p, i) => `<div class="list-item"><div style="flex:1"><b>${esc(p.nom)}</b>
-        <div class="muted">${CO_TYPES[p.type][0]} · ${p.distance ? (p.distance / 1000).toFixed(2).replace('.', ',') + ' km' : 'distance ?'}${p.deniv ? ' · D+ ' + p.deniv + ' m' : ''} · ${p.balises.length} balises${p.alloue ? ' · ' + p.alloue + ' min' : ''}</div></div>
+        <div class="muted">${CO_TYPES[p.type][0]} · ${p.distance ? (p.distance / 1000).toFixed(2).replace('.', ',') + ' km' : 'distance ?'}${p.deniv ? ' · D+ ' + p.deniv + ' m' : ''} · ${p.balises.length} balises${p.type === 'papillon' ? ` · boucles de ${legK(p)}` : p.type === 'relais' ? ` · ${legK(p)} bal./relayeur` : ''}${p.map && p.map.img ? ' · 🗺 carte' : ''}${p.alloue ? ' · ' + p.alloue + ' min' : ''}</div></div>
         <button class="btn btn-ghost" data-cfg="bare" data-e="${i}">✏️</button><button class="btn btn-ghost" data-cfg="bare" data-c="${i}" title="Dupliquer">⧉</button></div>`).join('') : '<div class="empty">Aucun parcours. Créez le premier !</div>'}</div>
       <button class="btn btn-grad btn-block" data-cfg style="margin-top:12px" id="new">＋ Créer un parcours</button>`;
     box.querySelector('#new').onclick = () => editParcours(box, null);
@@ -124,17 +195,22 @@ TOOL_IMPL.co = function (el) {
         <label>Nom</label><input id="nm" value="${esc(p.nom)}">
         <label>Type de parcours</label><select id="ty">${Object.entries(CO_TYPES).map(([k, v]) => `<option value="${k}" ${p.type === k ? 'selected' : ''}>${v[0]}</option>`).join('')}</select>
         <p class="muted" style="margin:6px 0 0">${CO_TYPES[p.type][1]}</p>
+        ${p.type === 'papillon' ? `<label>Retour au départ toutes les … balises</label><input id="bk2" type="number" min="2" value="${p.boucle || 2}">` : ''}
+        ${p.type === 'relais' ? `<label>Balises par relayeur (avant de passer le relais)</label><input id="rl" type="number" min="1" value="${p.relais || 1}">` : ''}
         <div class="row"><div><label>Distance (m)</label><input id="di" type="number" value="${p.distance}"></div><div><label>Temps attribué (min)</label><input id="al" type="number" value="${p.alloue}"></div><div><label>Écart toléré (± min)</label><input id="ec" type="number" value="${p.ecart}"></div></div>
         <label style="display:flex;gap:8px;align-items:center;margin-top:12px"><input type="checkbox" id="dn" ${p.denivOn ? 'checked' : ''} style="width:auto"> Option dénivelé</label>
         ${p.denivOn ? `<label>Dénivelé positif (m)</label><input id="dv" type="number" value="${p.deniv}">` : ''}
       </div>
-      <div class="card" style="margin-top:12px"><h3>Balises (${p.balises.length})</h3>
+      <div class="card" style="margin-top:12px"><h3>🗺 Carte du parcours${p.type === 'suivi' ? ' et itinéraire' : ''}</h3>
+        ${p.map && p.map.img ? `<button id="mpv" style="display:block;width:100%;padding:0;border:none;background:none;cursor:pointer">${coMapHTML(p.map, p)}</button>` : `<p class="muted" style="margin:0 0 8px;font-size:.85rem">${p.type === 'suivi' ? 'Importez la carte (photo ou capture) puis surlignez l\'itinéraire que les élèves devront suivre et placez les balises.' : 'Facultatif : importez la carte pour la montrer aux élèves (et placer les balises).'}</p>`}
+        <div class="row" style="margin-top:8px"><label class="btn btn-ghost" style="text-align:center;cursor:pointer;margin:0">📷 ${p.map && p.map.img ? 'Changer la carte' : 'Importer la carte'}<input id="mpf" type="file" accept="image/*" style="display:none"></label>${p.map && p.map.img ? `<button class="btn btn-grad" id="mpe">🖍 ${p.type === 'suivi' ? 'Tracer l\'itinéraire' : 'Annoter'}</button><button class="btn btn-ghost" id="mpx" style="flex:0 0 auto">🗑</button>` : ''}</div></div>
+      <div class="card" style="margin-top:12px"><h3>Balises (${p.balises.length})</h3>${p.type === 'suivi' ? '<p class="muted" style="margin:0 0 6px;font-size:.8rem">🧵 Ordre imposé : les balises se font dans l\'ordre de cette liste (↑ pour remonter une balise).</p>' : ''}
         <p class="muted" style="margin:0 0 6px;font-size:.8rem">Symbole : le motif de points de la pince de chaque balise (répertoire ou dessin), utilisé par l'onglet 🔎 Contrôle.</p>
         <button class="btn btn-ghost btn-block" id="autop" style="margin-bottom:6px">🎲 Attribuer un symbole différent à chaque balise</button>
         <p class="muted" style="margin:4px 0 8px;font-size:.78rem">🧑‍🎓 Comment l'élève contrôle ses balises (pendant la course ou à l'arrivée ; choisir, dessiner ou comparer) : onglet <b>🔎 Contrôle</b>.</p>
         <div class="row" style="align-items:end"><div><label>Nombre</label><input id="nb" type="number" min="1" value="${p.balises.length}"></div><div><label>1er numéro</label><input id="n0" type="number" value="${p.balises[0]?.num ?? 31}"></div><button class="btn btn-ghost" style="flex:0 0 auto" id="genb">Générer</button></div>
         <div class="row" style="margin-top:8px"><button class="btn btn-ghost" id="allob">Toutes obligatoires</button><button class="btn btn-ghost" id="allfa">Toutes facultatives</button></div>
-        <div style="margin-top:8px">${p.balises.map((b, i) => `<div class="bal-row"><input class="num" type="number" data-num="${i}" value="${b.num}">
+        <div style="margin-top:8px">${p.balises.map((b, i) => `<div class="bal-row">${p.type === 'suivi' ? `<b style="min-width:22px;text-align:center">${i + 1}.</b>` : ''}<input class="num" type="number" data-num="${i}" value="${b.num}">${p.type === 'suivi' && i ? `<button class="btn btn-ghost" style="padding:6px 8px;flex:0 0 auto" data-up="${i}">↑</button>` : ''}
           <button data-pat="${i}" title="Symbole de la pince" style="flex:0 0 auto;padding:0;border:none;background:none;cursor:pointer">${isPat(b.code) ? patSVG(b.code, 40) : '<span style="display:grid;place-items:center;width:40px;height:40px;border:1.5px dashed var(--line);border-radius:6px;font-size:.62rem;font-weight:800;color:var(--muted)">＋ pince</span>'}</button>
           <div class="lvl">${[1, 2, 3].map(l => `<button data-niv="${i}" data-l="${l}" class="${b.niv === l ? 'on' : ''}">Niv ${l}</button>`).join('')}</div>
           <label class="chk-ob"><input type="checkbox" data-ob="${i}" ${b.ob ? 'checked' : ''}>oblig.</label><button class="btn btn-ghost" style="padding:6px 9px" data-rm="${i}">✕</button></div>`).join('')}</div>
@@ -149,8 +225,14 @@ TOOL_IMPL.co = function (el) {
       const read = () => { p.nom = $('#nm').value.trim() || 'Parcours'; p.distance = +$('#di').value || 0; p.alloue = +$('#al').value || 0; p.ecart = +$('#ec').value || 0;
         p.denivOn = $('#dn').checked; if ($('#dv')) p.deniv = +$('#dv').value || 0;
         p.pts = [+$('#p1').value || 0, +$('#p2').value || 0, +$('#p3').value || 0]; p.penWrongP = +$('#pwp').value || 0; p.penWrongS = +$('#pws').value || 0; p.penMissS = +$('#pms').value || 0; p.penOverP = +$('#pop').value || 0;
+        if ($('#bk2')) p.boucle = Math.max(2, +$('#bk2').value || 2); if ($('#rl')) p.relais = Math.max(1, +$('#rl').value || 1);
         box.querySelectorAll('[data-num]').forEach(i => p.balises[+i.dataset.num].num = +i.value || 0); };
-      $('#ty').onchange = () => { read(); p.type = $('#ty').value; if (p.type === 'reseau') p.balises.forEach(b => b.ob = false); draw(); };
+      box.querySelectorAll('[data-up]').forEach(b => b.onclick = () => { read(); const i = +b.dataset.up; [p.balises[i - 1], p.balises[i]] = [p.balises[i], p.balises[i - 1]]; draw(); });
+      $('#mpf').onchange = e => { const f0 = e.target.files[0]; if (!f0) return; read(); coImg(f0, (img, w, h) => { p.map = { img, w, h, lines: [], marks: {} }; draw(); if (p.type === 'suivi') coMapEdit(p, m => { p.map = m; draw(); }); }); };
+      if ($('#mpe')) $('#mpe').onclick = () => { read(); coMapEdit(p, m => { p.map = m; draw(); }); };
+      if ($('#mpv')) $('#mpv').onclick = () => coMapShow(p);
+      if ($('#mpx')) $('#mpx').onclick = () => { if (!confirm('Retirer la carte de ce parcours ?')) return; read(); delete p.map; draw(); };
+      $('#ty').onchange = () => { read(); p.type = $('#ty').value; if (p.type === 'reseau') p.balises.forEach(b => b.ob = false); if (p.type === 'suivi') p.balises.forEach(b => b.ob = true); draw(); };
       $('#dn').onchange = () => { read(); draw(); };
       $('#genb').onclick = () => { read(); const n = Math.max(1, +$('#nb').value || 1), n0 = +$('#n0').value || 31;
         p.balises = Array.from({ length: n }, (_, i) => p.balises[i] ? { ...p.balises[i], num: n0 + i } : { num: n0 + i, niv: 1, ob: p.type !== 'reseau' }); draw(); };
@@ -177,7 +259,7 @@ TOOL_IMPL.co = function (el) {
     const found = new Set(r.found);
     const pts = p.balises.filter(b => found.has(b.num)).reduce((a, b) => a + (p.pts[b.niv - 1] || 0), 0);
     const miss = p.balises.filter(b => b.ob && !found.has(b.num)).length;
-    const temps = r.dep && r.arr ? (r.arr - r.dep) / 1000 : null;
+    const temps = r.dep && r.arr ? (r.legs ? legSec(r) : (r.arr - r.dep) / 1000) : null;
     const limit = (p.alloue + p.ecart) * 60;
     const overMin = temps != null && p.alloue ? Math.max(0, Math.ceil((temps - limit) / 60)) : 0;
     const penS = r.wrong * p.penWrongS + miss * p.penMissS, penP = r.wrong * p.penWrongP + overMin * p.penOverP;
@@ -188,6 +270,8 @@ TOOL_IMPL.co = function (el) {
       rk: temps ? mpk(temps, km) : '–', rkE: temps && p.denivOn ? mpk(temps, kmE) : null, vit: temps && km ? (km / (temps / 3600)).toFixed(1).replace('.', ',') + ' km/h' : '–' };
   }
 
+  // réseau en groupe : chaque élève garde les obligatoires du groupe + les facultatives qui lui sont attribuées (ou au groupe)
+  const resultFor = (r, p, m) => { const W = r.who || {}; return Object.keys(W).length ? result({ ...r, found: r.found.filter(n => !W[n] || W[n] === m) }, p) : result(r, p); };
   /* ---- Séance partagée avec les autres tablettes (modèle sans résultats) ---- */
   const pub = (cur, create) => { if (cur.joined || cur.profOnly) return; const p = P(cur.parcours) || cur.psnap; if (!p) return;
     const indiv = cur.runs.every(r => r.members.length === 1 && r.name === r.members[0]);
@@ -223,33 +307,60 @@ TOOL_IMPL.co = function (el) {
     const again = (i, redraw) => { const r = cur.runs[i], pp = pOf(r);
       const rec = { ...cur, id: cur.id + '-' + Math.random().toString(36).slice(2, 6), parcours: baseOf(r).id, runs: [JSON.parse(JSON.stringify(r))], parcoursSnap: JSON.parse(JSON.stringify(pp)) };
       ['only', 'joined', 'psnap', 'profOnly'].forEach(k => delete rec[k]); DB.co.seances.push(rec); coResults(rec);
-      Object.assign(r, { dep: null, arr: null, found: [], wrong: 0, sel: [], done: (r.done || 0) + 1 }); delete r.tries; delete r.auto; save(); toast(`Course enregistrée ✔ · ${r.name} : choisissez le nouveau parcours`); redraw(); };
+      Object.assign(r, { dep: null, arr: null, found: [], wrong: 0, sel: [], done: (r.done || 0) + 1 }); delete r.tries; delete r.auto; delete r.legs; delete r.nx; delete r.who; save(); toast(`Course enregistrée ✔ · ${r.name} : choisissez le nouveau parcours`); redraw(); };
+    /* ---- Allers-retours (étoile, papillon, relais) ---- */
+    const legGo = r => { const pp = pOf(r), nx = legNext(r, pp); if (!nx.length) return false; const t = Date.now(), w = legWho(r, pp); if (!r.dep) r.dep = t;
+      r.legs = [...(r.legs || []), { bal: nx, dep: t, ...(w ? { who: w } : {}) }]; delete r.nx; return true; };
+    const legBox = (r, i, pp, eleve) => { const L = r.legs || [], cl = curLeg(r), left = legLeft(r, pp), nx = legNext(r, pp), w = legWho(r, pp), K = legK(pp);
+      const rows = L.map((l, k) => `<div style="display:flex;gap:8px;font-size:.8rem;padding:4px 0;border-top:1px solid var(--line)"><span style="flex:1">${k + 1}. ${l.who ? esc(l.who) + ' · ' : ''}balise${l.bal.length > 1 ? 's' : ''} ${l.bal.join(', ')}</span><b>${l.ret ? hms((l.ret - l.dep) / 1000) : '…'}</b>${l.ret ? `<span>${l.bal.filter(n => r.found.includes(n)).length}/${l.bal.length} ✔</span>` : ''}</div>`).join('');
+      return `<div class="co-legs" style="margin-top:8px">${r.arr ? `<div style="font-weight:800">🏁 Course terminée · ${L.length} aller${L.length > 1 ? 's' : ''}-retour${L.length > 1 ? 's' : ''}</div>`
+        : cl ? `<div style="font-weight:800">🏃 ${cl.who ? esc(cl.who) + ' : ' : ''}en route vers ${cl.bal.length > 1 ? 'les balises' : 'la balise'} ${cl.bal.join(', ')}</div><button class="btn btn-danger btn-block" style="margin-top:8px;padding:12px" data-lret="${i}">🔙 ${eleve ? 'Je suis revenu au départ' : 'Retour au départ'} · contrôler le carton</button>`
+        : left.length ? `<div class="muted" style="font-size:.8rem">${r.dep ? 'Prochain départ' : 'Premier départ'}${w ? ` : <b style="color:var(--text)">${esc(w)}</b>` : ''} · touchez pour choisir ${K > 1 ? `les balises (${K} prévues)` : 'la balise'}</div>
+            <div class="bal-chips">${left.map(b => `<button data-lnx="${i}" data-n="${b.num}" class="${b.ob ? 'ob' : ''}" style="${nx.includes(b.num) ? 'background:var(--grad);color:#fff;border-color:transparent' : ''}">${b.num}<sup> N${b.niv}</sup></button>`).join('')}</div>
+            <button class="btn btn-grad btn-block" style="margin-top:8px;padding:12px" data-lgo="${i}">▶ ${w ? esc(w) + ' part' : 'Départ'} vers ${nx.length > 1 ? 'les balises' : 'la balise'} ${nx.join(', ')}</button>${r.dep ? `<button class="btn btn-ghost btn-block" style="margin-top:6px;padding:8px" data-lend="${i}">🏁 Terminer la course ici</button>` : ''}`
+        : `<button class="btn btn-ghost btn-block" data-lend="${i}">🏁 Terminer la course</button>`}
+        ${rows ? `<div style="margin-top:8px">${rows}</div>` : ''}${L.length ? `<div style="text-align:right;margin-top:4px"><button class="link" data-lundo="${i}">↶ ${r.arr ? 'Rouvrir la course' : cl ? 'Annuler ce départ' : 'Annuler le dernier retour'}</button></div>` : ''}</div>`; };
+    const bindLegs = (root, redraw, eleve) => {
+      root.querySelectorAll('[data-lnx]').forEach(b => b.onclick = () => { const r = cur.runs[+b.dataset.lnx], pp = pOf(r), n = +b.dataset.n, nx = legNext(r, pp); r.nx = nx.includes(n) ? nx.filter(y => y !== n) : [...nx, n]; save(); redraw(); });
+      root.querySelectorAll('[data-lgo]').forEach(b => b.onclick = () => { const r = cur.runs[+b.dataset.lgo]; if (needSel(r)) return toast(`Choisissez ${r.libre} balises`); if (!legGo(r)) return; beep(1300, .3); save(); redraw(); });
+      root.querySelectorAll('[data-lret]').forEach(b => b.onclick = () => { const i = +b.dataset.lret, r = cur.runs[i], pp = pOf(r), l = curLeg(r); if (!l) return; l.ret = Date.now(); beep(1000, .3);
+        if (!legLeft(r, pp).length) r.arr = l.ret; save(); redraw(); profCtl(i, redraw, { nums: l.bal, eleve }); });
+      root.querySelectorAll('[data-lend]').forEach(b => b.onclick = () => { const r = cur.runs[+b.dataset.lend], n = legLeft(r, pOf(r)).length; if (curLeg(r)) return toast('Attendez le retour au départ');
+        if (!confirm(`Terminer la course de ${r.name} ?${n ? ` (${n} balise${n > 1 ? 's' : ''} non faite${n > 1 ? 's' : ''})` : ''}`)) return; const L = r.legs || []; r.arr = (L[L.length - 1] || {}).ret || Date.now(); save(); redraw(); });
+      root.querySelectorAll('[data-lundo]').forEach(b => b.onclick = () => { const r = cur.runs[+b.dataset.lundo], L = r.legs || [], cl = curLeg(r);
+        if (r.arr) { if (!confirm('Rouvrir la course ?')) return; r.arr = null; }
+        else if (cl) { if (!confirm('Annuler ce départ ?')) return; L.pop(); if (!L.length) r.dep = null; }
+        else { if (!confirm('Annuler le dernier retour ? (le chrono de cet aller reprend)')) return; L[L.length - 1].ret = null; }
+        save(); redraw(); }); };
     const tabs = on => { const t = el.querySelector('.co-tabs'); if (t) t.style.display = on ? '' : 'none'; };
     // Vue « une seule équipe » : ce que voient les élèves sur leur tablette (cur.only reste sur l'appareil)
     const drawGroup = () => {
       const i = cur.only, r = cur.runs[i], p = pOf(r), x = result(r, p), run = r.dep && !r.arr, tot = p.balises.length, n = r.found.length;
-      const CT = curCtl(cur), LATE = CT.when === 'arrivee', act = LATE ? !!r.arr : run;   // act : balises contrôlables maintenant
+      const CT = curCtl(cur), LATE = CT.when === 'arrivee', act = LATE ? !!r.arr : run, LG = isLegRun(r, p);   // act : balises contrôlables maintenant ; LG : allers-retours
       const missOb = p.balises.filter(b => b.ob && !r.found.includes(b.num)).length;
       tabs(false);
       box.innerHTML = `<div class="card" style="text-align:center"><div style="font-weight:900;font-size:1.3rem">🧭 ${esc(r.name)}</div>${r.members.length > 1 || r.name !== r.members[0] ? `<div class="muted">${r.members.map(esc).join(', ')}</div>` : ''}
-          <div class="gv-clock" data-live="${i}" style="color:${r.arr ? '#1B9E5A' : 'inherit'}">${r.dep ? hms(((r.arr || Date.now()) - r.dep) / 1000) : '0:00'}</div>
+          <div class="gv-clock" data-live="${i}" style="color:${r.arr ? '#1B9E5A' : 'inherit'}">${r.dep ? hms(elapsed(r)) : '0:00'}</div>
           <div class="muted">${esc(p.nom)} · ${CO_TYPES[p.type][0]}${p.alloue ? ` · temps attribué ${p.alloue} min ± ${p.ecart}` : ''}</div>
           <div style="height:10px;border-radius:99px;background:var(--line);overflow:hidden;margin:10px 0 4px"><div style="height:100%;width:${tot ? n / tot * 100 : 0}%;background:#1B9E5A"></div></div>
           <div class="muted" style="font-size:.85rem">${n} / ${tot} balises trouvées · <b style="color:var(--text)">${x.score} pts</b>${missOb ? ` · ${missOb} obligatoire${missOb > 1 ? 's' : ''} à trouver` : ''}${r.wrong ? ` · ${r.wrong} mauvaise${r.wrong > 1 ? 's' : ''} balise${r.wrong > 1 ? 's' : ''}` : ''}</div>
-          ${!r.dep ? `${r.choix || DB.co.parcours.length > 1 || r.libre ? `<div style="margin-top:10px;text-align:left">${pcPick(r, i)}${r.libre ? selPick(r, i) : ''}</div>` : ''}<button class="btn btn-grad btn-block" style="margin-top:12px;font-size:1.2rem;padding:16px" id="gv-go" ${needSel(r) ? 'disabled' : ''}>▶ Départ${r.plan ? ' à ' + clock(r.plan).slice(0, 5) : ''}</button>` : ''}
-          ${run ? `<button class="btn ${missOb && !LATE ? 'btn-danger' : 'btn-grad'} btn-block" style="margin-top:12px;font-size:1.15rem;padding:14px" id="gv-fin">🏁 Arrivée${!missOb && !LATE ? ' — toutes les obligatoires sont trouvées !' : ''}</button>` : ''}
+          ${!r.dep ? `${r.choix || DB.co.parcours.length > 1 || r.libre ? `<div style="margin-top:10px;text-align:left">${pcPick(r, i)}${r.libre ? selPick(r, i) : ''}</div>` : ''}${LG ? '' : `<button class="btn btn-grad btn-block" style="margin-top:12px;font-size:1.2rem;padding:16px" id="gv-go" ${needSel(r) ? 'disabled' : ''}>▶ Départ${r.plan ? ' à ' + clock(r.plan).slice(0, 5) : ''}</button>`}` : ''}
+          ${p.map && p.map.img ? '<button class="btn btn-ghost btn-block" style="margin-top:8px" id="gv-map">🗺 Voir la carte</button>' : ''}
+          ${run && !LG ? `<button class="btn ${missOb && !LATE ? 'btn-danger' : 'btn-grad'} btn-block" style="margin-top:12px;font-size:1.15rem;padding:14px" id="gv-fin">🏁 Arrivée${!missOb && !LATE ? ' — toutes les obligatoires sont trouvées !' : ''}</button>` : ''}
           ${r.arr ? `<div style="margin-top:10px;font-weight:800">✅ Course terminée · ${x.score} pts${x.temps != null ? ` · RK ${x.rk}` : ''}${x.penS ? ` · pénalités +${hms(x.penS)}` : ''}${x.statut ? ' · ' + x.statut : ''}</div>` : ''}</div>
-        <div class="card" style="margin-top:10px"><div style="display:flex;justify-content:space-between;align-items:center"><b>Balises</b><span class="muted" style="font-size:.8rem">${LATE ? (run ? '📝 Note le symbole de chaque balise sur ton carton · contrôle à l\'arrivée' : r.arr ? (CT.how === 'auto' ? 'Compare avec ton carton (ci-dessous)' : 'Touchez chaque balise de ton carton pour la contrôler') : !r.dep ? 'Appuyez sur ▶ Départ pour commencer' : '')
+        ${LG ? `<div class="card" style="margin-top:10px"><b>${{ etoile: '⭐ Étoile', papillon: '🦋 Papillon', relais: '🔁 Relais' }[p.type]}</b> <span class="muted" style="font-size:.8rem">· retour au départ ${legK(p) > 1 ? `toutes les ${legK(p)} balises` : 'après chaque balise'}, contrôle du carton à chaque retour</span>${legBox(r, i, p, true)}</div>` : ''}
+        <div class="card" style="margin-top:10px;${LG ? 'display:none' : ''}"><div style="display:flex;justify-content:space-between;align-items:center"><b>Balises</b><span class="muted" style="font-size:.8rem">${LATE ? (run ? '📝 Note le symbole de chaque balise sur ton carton · contrôle à l\'arrivée' : r.arr ? (CT.how === 'auto' ? 'Compare avec ton carton (ci-dessous)' : 'Touchez chaque balise de ton carton pour la contrôler') : !r.dep ? 'Appuyez sur ▶ Départ pour commencer' : '')
             : run ? p.balises.some(b => isPat(b.code)) ? 'Touchez une balise trouvée puis le symbole de sa pince' : 'Touchez une balise dès qu\'elle est trouvée' : !r.dep ? 'Appuyez sur ▶ Départ pour commencer' : ''}</span></div>
-          ${p.balises.map(b => { const on = r.found.includes(b.num);
-            return `<button class="gv-it ${on ? 'on' : ''}" data-bal="${b.num}" ${act && !(LATE && CT.how === 'auto' && isPat(b.code)) ? '' : 'disabled'}><span class="bx">${on ? '✓' : ''}</span><span class="t" style="flex:1">Balise ${b.num}</span><span class="muted" style="font-size:.8rem;font-weight:700">N${b.niv} · ${p.pts[b.niv - 1] || 0} pt${(p.pts[b.niv - 1] || 0) > 1 ? 's' : ''}${b.ob ? ' · <b style="color:var(--danger)">obligatoire</b>' : ''}</span>${on && isPat(b.code) && (CT.how !== 'auto' || (r.auto || {})[b.num] === 'ok') ? patSVG(b.code, 34) : ''}</button>`; }).join('')}</div>
+          ${p.balises.map((b, bi) => { const on = r.found.includes(b.num);
+            return `<button class="gv-it ${on ? 'on' : ''}" data-bal="${b.num}" ${act && !LG && !(LATE && CT.how === 'auto' && isPat(b.code)) ? '' : 'disabled'}><span class="bx">${on ? '✓' : ''}</span><span class="t" style="flex:1">${p.type === 'suivi' ? (bi + 1) + '. ' : ''}Balise ${b.num}</span><span class="muted" style="font-size:.8rem;font-weight:700">N${b.niv} · ${p.pts[b.niv - 1] || 0} pt${(p.pts[b.niv - 1] || 0) > 1 ? 's' : ''}${b.ob ? ' · <b style="color:var(--danger)">obligatoire</b>' : ''}</span>${on && isPat(b.code) && (CT.how !== 'auto' || (r.auto || {})[b.num] === 'ok') ? patSVG(b.code, 34) : ''}</button>`; }).join('')}</div>
         ${r.arr ? ctlCard(r, p) : ''}
         ${r.arr ? `<button class="btn btn-grad btn-block" style="margin-top:12px;font-size:1.1rem;padding:16px" id="save">💾 Enregistrer notre course</button><button class="btn btn-ghost btn-block" style="margin-top:8px" data-again="${i}">🔁 Enregistrer et repartir sur un nouveau parcours</button>` : ''}
         <div style="text-align:center;margin:18px 0 6px"><button class="link" id="gv-prof">🔒 Mode enseignant</button></div>`;
       const $ = s => box.querySelector(s);
       if ($('#gv-go')) $('#gv-go').onclick = () => { if (needSel(r)) return toast(`Choisissez ${r.libre} balises`); r.dep = Date.now(); beep(1300, .45); save(); drawGroup(); };
       box.querySelectorAll('[data-ac]').forEach(bt => bt.onclick = () => { const [num0, v] = bt.dataset.ac.split('|'); if (setAuto(r, +num0, v)) { save(); drawGroup(); } });
-      bindPick(box, drawGroup); box.querySelectorAll('[data-again]').forEach(b => b.onclick = () => again(+b.dataset.again, drawGroup));
+      bindPick(box, drawGroup); bindLegs(box, drawGroup, true); box.querySelectorAll('[data-again]').forEach(b => b.onclick = () => again(+b.dataset.again, drawGroup));
+      if ($('#gv-map')) $('#gv-map').onclick = () => coMapShow(p);
       if ($('#gv-fin')) $('#gv-fin').onclick = () => { if (missOb && !LATE && !confirm(`Il reste ${missOb} balise(s) obligatoire(s) à trouver. Valider l'arrivée ?`)) return; r.arr = Date.now(); beep(1000, .3); save(); drawGroup(); };
       const mark = num => { r.found = [...r.found, num]; beep(900, .06); save(); drawGroup(); };
       box.querySelectorAll('[data-bal]').forEach(bt => bt.onclick = () => { const num = +bt.dataset.bal, b = p.balises.find(y => y.num === num);
@@ -279,30 +390,34 @@ TOOL_IMPL.co = function (el) {
       r.found = r.found.filter(y => y !== b.num); r.tries = { ...T, [b.num]: c || 'X' };
       if (c === b.code) r.found = [...r.found, b.num]; else if (c !== 'V') r.wrong++; };
     /* 📋 Contrôle du carton papier par l'enseignant (élèves sans tablette), avec la méthode réglée dans 🔎 Contrôle */
-    const profCtl = (i, redraw) => { const r = cur.runs[i], p = pOf(r), CT = curCtl(cur), PB = p.balises.filter(b => isPat(b.code));
+    const profCtl = (i, redraw, opt = {}) => { const r = cur.runs[i], p0 = pOf(r), CT = curCtl(cur), p = opt.nums ? { ...p0, balises: p0.balises.filter(b => opt.nums.includes(b.num)) } : p0, PB = p.balises.filter(b => isPat(b.code));
+      let photo = null;
       const snap = JSON.stringify({ found: r.found, wrong: r.wrong, tries: r.tries, auto: r.auto });
       const o = document.createElement('div'); o.className = 'co-pctl';
       o.style.cssText = 'position:fixed;inset:0;z-index:290;background:rgba(7,18,42,.72);overflow:auto;padding:12px';
-      const close = () => { o.remove(); save(); redraw(); };
-      const render = () => { const x = result(r, p), T = r.tries || {}, A = r.auto || {};
+      const close = () => { o.remove(); if (photo) URL.revokeObjectURL(photo); save(); redraw(); };
+      const render = () => { const T = r.tries || {}, A = r.auto || {};
         const left = CT.how === 'auto' ? PB.filter(b => !A[b.num]).length : PB.filter(b => !T[b.num]).length;
         const plain = p.balises.filter(b => !isPat(b.code));
-        o.innerHTML = `<div class="card" style="max-width:560px;margin:0 auto"><h3 style="margin-top:0">🔎 Carton de ${esc(r.name)}</h3>
+        o.innerHTML = `<div class="card" style="max-width:560px;margin:0 auto"><h3 style="margin-top:0">🔎 ${opt.eleve ? 'Contrôle de ton carton' : 'Carton de ' + esc(r.name)}${opt.nums ? ` · balise${opt.nums.length > 1 ? 's' : ''} ${opt.nums.join(', ')}` : ''}</h3>
           <div class="muted" style="font-size:.85rem">Méthode : ${{ choix: '🔣 choisir le symbole noté sur le carton', dessin: '✏️ dessiner le symbole noté sur le carton', auto: '👀 comparer le carton avec les symboles attendus' }[CT.how]}</div>
-          <div style="margin:8px 0;font-weight:800">${r.found.length}/${p.balises.length} balises · ${x.score} pts${r.wrong ? ` · <span style="color:var(--danger)">${r.wrong} mauvaise${r.wrong > 1 ? 's' : ''}</span>` : ''}${PB.length ? ` · ${left ? `encore ${left} à contrôler` : '✅ tout est contrôlé'}` : ''}</div>
+          ${photo ? `<img src="${photo}" style="width:100%;max-height:300px;object-fit:contain;border-radius:10px;background:#000;margin-top:8px">` : ''}
+          <label class="btn btn-ghost btn-block" style="display:block;text-align:center;cursor:pointer;margin:8px 0 0;padding:8px;font-size:.85rem">📷 ${photo ? 'Changer la photo du carton' : 'Photo du carton (facultatif, pour comparer)'}<input id="pt-ph" type="file" accept="image/*" capture="environment" style="display:none"></label>
+          <div style="margin:8px 0;font-weight:800">${r.found.length}/${p0.balises.length} balises · ${result(r, p0).score} pts${r.wrong ? ` · <span style="color:var(--danger)">${r.wrong} mauvaise${r.wrong > 1 ? 's' : ''}</span>` : ''}${PB.length ? ` · ${left ? `encore ${left} à contrôler` : '✅ tout est contrôlé'}` : ''}</div>
           ${plain.length ? `<div class="muted" style="font-size:.8rem">Balises sans symbole : touchez celles trouvées</div><div class="bal-chips">${plain.map(b => `<button data-pb="${b.num}" class="${r.found.includes(b.num) ? 'on' : ''} ${b.ob ? 'ob' : ''}">${b.num}</button>`).join('')}</div>` : ''}
           ${CT.how === 'auto' ? ctlCard(r, p, true).replace('<h3 style="margin-top:0">👀 Auto-correction</h3>', '<h3 style="margin-top:0">👀 Comparaison avec le carton</h3>').replace('ton carton', 'son carton')
             : PB.map(b => { const t = T[b.num], ok = t && t === b.code;
               return `<button class="gv-it" data-pt="${b.num}" style="border-color:${!t ? 'var(--line)' : ok ? '#1B9E5A' : t === 'V' ? '#9AA6B8' : '#D64545'}"><span style="flex:0 0 auto;width:28px;font-size:1.3rem;font-weight:900;color:${ok ? '#1B9E5A' : t === 'V' ? '#9AA6B8' : '#D64545'}">${!t ? '○' : ok ? '✓' : t === 'V' ? '⬜' : '✗'}</span><span class="t" style="flex:1;text-align:left">Balise ${b.num}${b.ob ? ' <b style="color:var(--danger);font-size:.75rem">oblig.</b>' : ''}<br><span class="muted" style="font-size:.75rem;font-weight:600">${!t ? 'à contrôler : touchez' : ok ? 'bon symbole' : t === 'V' ? 'case vide (pas trouvée)' : t === 'X' ? 'symbole absent de la liste : mauvaise balise' : 'mauvais symbole : mauvaise balise'}</span></span>${isPat(t) ? `<span style="flex:0 0 auto">${patSVG(t, 34)}</span>` : ''}</button>`; }).join('') + ctlCard(r, p, true).replace('Mes symboles', 'Symboles du carton').replace(/mon dessin|mon choix/g, 'carton')}
           <button class="btn btn-grad btn-block" style="margin-top:12px" id="pt-ok">✔ Terminé</button>
           <button class="btn btn-ghost btn-block" style="margin-top:8px" id="pt-undo">↶ Annuler les modifications de ce carton</button></div>`;
+        o.querySelector('#pt-ph').onchange = e => { const f0 = e.target.files[0]; if (!f0) return; if (photo) URL.revokeObjectURL(photo); photo = URL.createObjectURL(f0); render(); };
         o.querySelectorAll('[data-pb]').forEach(bt => bt.onclick = () => { const n = +bt.dataset.pb; r.found = r.found.includes(n) ? r.found.filter(y => y !== n) : [...r.found, n]; render(); });
         o.querySelectorAll('[data-ac]').forEach(bt => bt.onclick = () => { const [n, v] = bt.dataset.ac.split('|'); if (setAuto(r, +n, v)) render(); });
         o.querySelectorAll('[data-pt]').forEach(bt => bt.onclick = () => { const b = p.balises.find(y => y.num === +bt.dataset.pt);
           const pick = c => { setTry(r, b, c); beep(c === b.code ? 900 : c === 'V' ? 600 : 300, .08); render(); };
           const vide = [{ v: 'V', l: '⬜ Case vide : balise pas trouvée' }];
           if (CT.how === 'dessin') return patPicker({ title: `Balise ${b.num} : dessinez le symbole noté sur le carton`, options: [], only: 'draw', extra: vide, current: T[b.num], onPick: pick });
-          patPicker({ title: `Balise ${b.num} : quel symbole est noté sur le carton ?`, options: [...new Set(p.balises.map(y => y.code).filter(isPat))].sort(), draw: false, current: T[b.num], extra: [{ v: 'X', l: '❓ Le symbole n\'est pas dans la liste' }, ...vide], onPick: pick }); });
+          patPicker({ title: `Balise ${b.num} : quel symbole est noté sur le carton ?`, options: [...new Set(p0.balises.map(y => y.code).filter(isPat))].sort(), draw: false, current: T[b.num], extra: [{ v: 'X', l: '❓ Le symbole n\'est pas dans la liste' }, ...vide], onPick: pick }); });
         o.querySelector('#pt-ok').onclick = close;
         o.querySelector('#pt-undo').onclick = () => { if (!confirm('Annuler les modifications faites sur ce carton ?')) return; const S = JSON.parse(snap); r.found = S.found || []; r.wrong = S.wrong || 0; if (S.tries) r.tries = S.tries; else delete r.tries; if (S.auto) r.auto = S.auto; else delete r.auto; close(); };
       };
@@ -334,24 +449,27 @@ TOOL_IMPL.co = function (el) {
       tabs(true);
       const rs = cur.runs.map(r => ({ r, x: result(r, pOf(r)) }));
       box.innerHTML = `<div class="card"><div style="display:flex;justify-content:space-between;gap:8px;align-items:center"><div><b>${esc(p.nom)}</b><div class="muted">${esc(cur.classe || '')} · ${CO_TYPES[p.type][0]} · ${p.balises.length} balises${p.alloue ? ` · ${p.alloue} min ± ${p.ecart}` : ''}</div></div><div class="run-t" id="now">${clock(Date.now())}</div></div>
+          <div style="margin-top:6px;font-size:.8rem;font-weight:700">${CO_ORG(p)}${p.map && p.map.img ? ' <button class="link" id="smap">🗺 Carte</button>' : ''}</div>
           <div class="row" style="margin-top:10px"><button class="btn btn-grad" id="all">🚩 Départ groupé</button><button class="btn btn-ghost btn-block" data-cfg="bare" style="margin-top:8px" id="edg">✏️ Modifier les groupes / participants (absent, blessé…)</button><div data-cfg="bare" style="display:flex;gap:6px;align-items:center;flex:1.3"><input id="gap" type="number" value="${cur.gap || 60}" style="width:70px;padding:8px"><button class="btn btn-ghost" id="stag" style="padding:9px 8px;font-size:.8rem">Départs échelonnés (s)</button></div></div>
           <p class="muted" style="margin:8px 0 0;font-size:.8rem">Balises : touchez un numéro trouvé (souligné rouge = obligatoire).</p>
           ${cur.profOnly ? '<p class="muted" style="margin:8px 0 0;font-size:.8rem">📋 Suivi enseignant uniquement : les élèves courent sans tablette ; arrêtez le temps à leur retour puis touchez « 🔎 Contrôler le carton » pour vérifier leur coupon papier.</p>' : ''}
           ${cur.runs.length > 1 && !cur.profOnly ? `<div data-cfg="bare"><label>📱 Tablette d'une équipe (les élèves ne verront que leur équipe)</label><select id="only"><option value="">Toutes</option>${cur.runs.map((r, i) => `<option value="${i}">${esc(r.name)}</option>`).join('')}</select></div>` : ''}</div>
-        ${rs.map(({ r, x }, i) => `<div class="run ${r.arr ? 'fin' : r.dep ? 'go' : ''}"><div class="run-h"><b>${esc(r.name)}</b><span class="run-t" data-live="${i}">${r.dep ? hms(((r.arr || Date.now()) - r.dep) / 1000) : '0:00'}</span></div>
+        ${rs.map(({ r, x }, i) => `<div class="run ${r.arr ? 'fin' : r.dep ? 'go' : ''}"><div class="run-h"><b>${esc(r.name)}</b><span class="run-t" data-live="${i}">${r.dep ? hms(elapsed(r)) : '0:00'}</span></div>
             ${r.members.length > 1 || r.name !== r.members[0] ? `<div class="muted" style="font-size:.8rem">${r.members.map(esc).join(', ')}</div>` : ''}
-            <div class="co-times"><div><label style="margin:0 0 3px">Départ</label>${r.dep ? `<input type="time" step="1" data-cfg="bare" data-dep="${i}" value="${new Date(r.dep).toTimeString().slice(0, 8)}">` : `<button class="btn btn-grad btn-block" data-go="${i}">▶ Départ${r.plan ? ' ' + clock(r.plan).slice(0, 5) : ''}</button>`}</div>
+            ${isLegRun(r, pOf(r)) ? (!r.dep && (r.choix || r.libre || (DB.co.parcours.length > 1 && cur.runs.length <= 12)) ? pcPick(r, i) + (r.libre ? selPick(r, i) : '') : '') + legBox(r, i, pOf(r), false) : `<div class="co-times"><div><label style="margin:0 0 3px">Départ</label>${r.dep ? `<input type="time" step="1" data-cfg="bare" data-dep="${i}" value="${new Date(r.dep).toTimeString().slice(0, 8)}">` : `<button class="btn btn-grad btn-block" data-go="${i}">▶ Départ${r.plan ? ' ' + clock(r.plan).slice(0, 5) : ''}</button>`}</div>
               <div><label style="margin:0 0 3px">Arrivée</label>${r.arr ? `<input type="time" step="1" data-cfg="bare" data-arr="${i}" value="${new Date(r.arr).toTimeString().slice(0, 8)}">` : `<button class="btn ${r.dep ? 'btn-danger' : 'btn-ghost'} btn-block" data-fin="${i}" ${r.dep ? '' : 'disabled'}>🏁 Arrivée</button>`}</div></div>
-            ${!r.dep && (r.choix || r.libre || (DB.co.parcours.length > 1 && cur.runs.length <= 12)) ? pcPick(r, i) + (r.libre ? selPick(r, i) : '') : `${baseOf(r) !== p || r.libre ? `<div class="muted" style="font-size:.78rem;margin-top:4px">🗺 ${esc(pOf(r).nom)}</div>` : ''}<div class="bal-chips">${pOf(r).balises.map(b => `<button data-b="${i}" data-n="${b.num}" class="${r.found.includes(b.num) ? 'on' : ''} ${b.ob ? 'ob' : ''}">${b.num}<sup> N${b.niv}</sup></button>`).join('')}</div>`}
+            ${!r.dep && (r.choix || r.libre || (DB.co.parcours.length > 1 && cur.runs.length <= 12)) ? pcPick(r, i) + (r.libre ? selPick(r, i) : '') : `${baseOf(r) !== p || r.libre ? `<div class="muted" style="font-size:.78rem;margin-top:4px">🗺 ${esc(pOf(r).nom)}</div>` : ''}<div class="bal-chips">${pOf(r).balises.map(b => `<button data-b="${i}" data-n="${b.num}" class="${r.found.includes(b.num) ? 'on' : ''} ${b.ob ? 'ob' : ''}">${b.num}<sup> N${b.niv}</sup></button>`).join('')}</div>`}`}
+            ${(() => { const pp = pOf(r), fac = pp.type === 'reseau' && r.members.length > 1 ? pp.balises.filter(b => !b.ob && r.found.includes(b.num)) : [];
+              return fac.length ? `<div style="margin-top:8px;font-size:.82rem"><b>🕸 Facultatives : qui l'a trouvée ?</b>${fac.map(b => `<div style="display:flex;align-items:center;gap:6px;margin-top:4px"><span style="min-width:72px">Balise ${b.num}</span><select data-who="${i}" data-n="${b.num}" style="padding:6px">${['', ...r.members].map(m => `<option value="${esc(m)}" ${((r.who || {})[b.num] || '') === m ? 'selected' : ''}>${m ? esc(m) : 'Tout le groupe'}</option>`).join('')}</select></div>`).join('')}</div>` : ''; })()}
             ${r.dep ? (() => { const PB = pOf(r).balises.filter(b => isPat(b.code)), CT = curCtl(cur), k = CT.how === 'auto' ? PB.filter(b => (r.auto || {})[b.num]).length : PB.filter(b => (r.tries || {})[b.num]).length;
-              return `<button class="btn ${r.arr && PB.length && k < PB.length ? 'btn-grad' : 'btn-ghost'} btn-block" style="margin-top:8px;padding:10px" data-pctl="${i}">🔎 Contrôler le carton${PB.length ? ` · ${k}/${PB.length}${k === PB.length ? ' ✔' : ''}` : ''}<span style="display:block;font-size:.72rem;font-weight:600;opacity:.85">${{ choix: '🔣 choisir le symbole', dessin: '✏️ dessiner le symbole', auto: '👀 comparer avec le carton' }[CT.how]}</span></button>`; })() : ''}
+              return `<button class="btn ${r.arr && PB.length && k < PB.length ? 'btn-grad' : 'btn-ghost'} btn-block" style="margin-top:8px;padding:10px;display:block" data-pctl="${i}">🔎 Contrôler le carton${PB.length ? ` · ${k}/${PB.length}${k === PB.length ? ' ✔' : ''}` : ''}<span style="display:block;font-size:.72rem;font-weight:600;opacity:.85">${{ choix: '🔣 choisir le symbole', dessin: '✏️ dessiner le symbole', auto: '👀 comparer avec le carton' }[CT.how]}</span></button>`; })() : ''}
             ${r.arr ? `<button class="btn btn-ghost btn-block" style="margin-top:8px;padding:9px" data-again="${i}">🔁 Enregistrer et repartir sur un nouveau parcours</button>` : ''}${r.done ? `<div class="muted" style="font-size:.75rem;margin-top:4px">${r.done} parcours déjà terminé${r.done > 1 ? 's' : ''} dans cette séance</div>` : ''}
             <div style="display:flex;align-items:center;gap:8px;margin-top:8px;font-size:.85rem"><span>Mauvaises balises :</span><button class="btn btn-ghost" style="padding:5px 12px" data-wm="${i}">−</button><b>${r.wrong}</b><button class="btn btn-ghost" style="padding:5px 12px" data-wp="${i}">+</button></div>
             <div class="muted" style="margin-top:6px;font-size:.8rem">${r.found.length}/${pOf(r).balises.length} balises · <b style="color:var(--text)">${x.score} pts</b>${x.penP ? ` (−${x.penP})` : ''}${x.miss ? ` · ${x.miss} oblig. manquante(s)` : ''}${x.temps != null ? ` · RK ${x.rk}${x.penS ? ` · pénalités +${hms(x.penS)}` : ''}${x.statut ? ' · ' + x.statut : ''}` : ''}</div></div>`).join('')}
         <div class="section-title"><h2>Classement</h2></div>${ranking(rs, p)}
         <div class="row" style="margin-top:12px"><button class="btn btn-grad" data-cfg="bare" id="save">💾 Terminer et enregistrer la séance</button><button class="btn btn-ghost" data-cfg="bare" id="cancel">Abandonner</button></div>`;
       const $ = s => box.querySelector(s), keep = () => save();
-      $('#all').onclick = () => { const t = Date.now(), w = cur.runs.filter(r => !r.dep && needSel(r)); cur.runs.forEach(r => { if (!r.dep && !needSel(r)) r.dep = t; }); if (w.length) toast(`${w.length} équipe(s) doivent d'abord choisir leurs balises`); beep(1300, .4); keep(); draw(); };
+      $('#all').onclick = () => { const t = Date.now(), w = cur.runs.filter(r => !r.dep && needSel(r)); cur.runs.forEach(r => { if (!r.dep && !needSel(r)) { if (isLegRun(r, pOf(r))) legGo(r); else r.dep = t; } }); if (w.length) toast(`${w.length} équipe(s) doivent d'abord choisir leurs balises`); beep(1300, .4); keep(); draw(); };
       $('#edg').onclick = () => { const indiv = cur.runs.every(r => r.members.length === 1 && r.name === r.members[0]);
         editGroupsPanel(indiv ? 'Participants' : 'Groupes de la séance', { cls: cur.classe, indiv, list: () => cur.runs, names: r => r.members,
           take: (r, n) => { r.members.splice(r.members.indexOf(n), 1); return indiv ? { dep: r.dep, arr: r.arr, found: r.found, wrong: r.wrong, plan: r.plan } : null; },
@@ -361,6 +479,8 @@ TOOL_IMPL.co = function (el) {
       box.querySelectorAll('[data-go]').forEach(b => b.onclick = () => { const r = cur.runs[+b.dataset.go]; if (needSel(r)) return toast(`${r.name} : choisissez ${r.libre} balises`); r.dep = Date.now(); beep(1300, .3); keep(); draw(); });
       bindPick(box, draw); box.querySelectorAll('[data-again]').forEach(b => b.onclick = () => again(+b.dataset.again, draw));
       box.querySelectorAll('[data-pctl]').forEach(b => b.onclick = () => profCtl(+b.dataset.pctl, draw));
+      bindLegs(box, draw, false); if ($('#smap')) $('#smap').onclick = () => coMapShow(p);
+      box.querySelectorAll('[data-who]').forEach(sl => sl.onchange = () => { const r = cur.runs[+sl.dataset.who]; r.who = { ...(r.who || {}) }; if (sl.value) r.who[sl.dataset.n] = sl.value; else delete r.who[sl.dataset.n]; keep(); });
       box.querySelectorAll('[data-fin]').forEach(b => b.onclick = () => { cur.runs[+b.dataset.fin].arr = Date.now(); beep(1000, .3); keep(); draw(); });
       const setT = (i, k, v) => { const [h, m, s] = v.split(':').map(Number); const d = new Date(cur.runs[i][k]); d.setHours(h || 0, m || 0, s || 0, 0); cur.runs[i][k] = d.getTime(); keep(); draw(); };
       box.querySelectorAll('[data-dep]').forEach(inp => inp.onchange = () => setT(+inp.dataset.dep, 'dep', inp.value));
@@ -374,7 +494,7 @@ TOOL_IMPL.co = function (el) {
     };
     const draw2 = () => { cancelAnimationFrame(raf); prepare(box); };
     const tick = () => { if (!box.isConnected || !DB.co.current) return; const n = box.querySelector('#now'); if (n) n.textContent = clock(Date.now());
-      cur.runs.forEach((r, i) => { const e = box.querySelector(`[data-live="${i}"]`); if (e && r.dep && !r.arr) e.textContent = hms((Date.now() - r.dep) / 1000); });
+      cur.runs.forEach((r, i) => { const e = box.querySelector(`[data-live="${i}"]`); if (e && r.dep && !r.arr) e.textContent = hms(elapsed(r)); });
       raf = requestAnimationFrame(tick); };
     draw(); tick();
   }
@@ -391,10 +511,11 @@ TOOL_IMPL.co = function (el) {
   function coResults(s) {
     const p = s.parcoursSnap, cls = s.classe || '', st = cls ? studentsOf(cls) : [];
     if (!st.length || typeof saveResult !== 'function') return;
-    s.runs.filter(r => r.dep).forEach(r => { const x = result(r, p), grp = r.members.length > 1 || r.name !== r.members[0];
+    s.runs.filter(r => r.dep).forEach(r => { const grp = r.members.length > 1 || r.name !== r.members[0];
+      r.members.filter(m => st.includes(m)).forEach(m => { const x = resultFor(r, p, m), fd = r.found.filter(n => !(r.who || {})[n] || r.who[n] === m);
       const valeur = `${x.score} pts${x.total != null ? ' · ' + hms(x.total) : ''}`;
-      const detail = [p.nom + (grp ? ` (${r.name})` : ''), `${r.found.length}/${p.balises.length} balises`, x.penS || x.penP ? `pén. ${[x.penS ? '+' + hms(x.penS) : '', x.penP ? '−' + x.penP + ' pt' : ''].filter(Boolean).join(' ')}` : '', r.arr ? x.statut : 'non arrivé'].filter(Boolean).join(' · ');
-      r.members.filter(m => st.includes(m)).forEach(m => saveResult({ tool: 'co', label: 'Course d\'orientation', classe: cls, eleve: m, valeur, detail })); });
+      const detail = [p.nom + (grp ? ` (${r.name})` : ''), `${fd.length}/${p.balises.length} balises`, x.penS || x.penP ? `pén. ${[x.penS ? '+' + hms(x.penS) : '', x.penP ? '−' + x.penP + ' pt' : ''].filter(Boolean).join(' ')}` : '', r.arr ? x.statut : 'non arrivé'].filter(Boolean).join(' · ');
+      saveResult({ tool: 'co', label: 'Course d\'orientation', classe: cls, eleve: m, valeur, detail }); }); });
   }
 
   /* Fusion d'affichage : séances enregistrées sur plusieurs tablettes (même jour + classe + parcours) = une seule séance.
@@ -412,16 +533,19 @@ TOOL_IMPL.co = function (el) {
 
   function prepare(box) {
     if (!DB.co.parcours.length) { box.innerHTML = '<div class="card empty">Créez d\'abord un parcours dans l\'onglet 🗺 Parcours.</div>'; partMount(box, 'co', sp => join(box, sp)); return; }
-    let mode = 'indiv', choice = false, profOnly = false;
-    const draw = () => {
+    let mode = 'indiv', choice = false, profOnly = false, pcSel = DB.co.parcours[0].id;
+    const draw = () => { const pp = P(pcSel) || DB.co.parcours[0]; pcSel = pp.id; if (pp.type === 'relais') mode = 'grp';
       box.innerHTML = `<div class="card" data-cfg style="margin-bottom:12px;padding:10px 14px"><b>🧑‍🎓 Contrôle par l'élève :</b> ${CTL_TXT(coCtl())} <button class="link" id="goctl">modifier</button></div><div class="card" data-cfg><h3>Nouvelle séance</h3>
-        <label>Parcours</label><select id="pc">${DB.co.parcours.map(p => `<option value="${p.id}">${esc(p.nom)} — ${p.balises.length} balises</option>`).join('')}</select>
-        <label>Organisation</label><div class="seg"><button data-md="indiv" class="${mode === 'indiv' ? 'on' : ''}">Parcours individuels</button><button data-md="grp" class="${mode === 'grp' ? 'on' : ''}">Groupes<br><small style="font-weight:600;opacity:.85">homogènes / hétérogènes</small></button></div>
+        <label>Parcours</label><select id="pc">${DB.co.parcours.map(p => `<option value="${p.id}" ${p.id === pcSel ? 'selected' : ''}>${esc(p.nom)} — ${CO_TYPES[p.type][0]} · ${p.balises.length} balises</option>`).join('')}</select>
+        <div style="margin-top:8px;padding:8px 10px;border-radius:10px;background:var(--grad-soft);font-size:.85rem;font-weight:700">${CO_ORG(pp)}${pp.map && pp.map.img ? ' <button class="link" id="pmap">🗺 voir la carte</button>' : ''}</div>
+        <label>Organisation</label>${pp.type === 'relais' ? '<p class="muted" style="margin:0 0 6px;font-size:.8rem">Relais : formez des équipes (les élèves de chaque équipe partiront à tour de rôle).</p>' : ''}<div class="seg">${pp.type === 'relais' ? '' : `<button data-md="indiv" class="${mode === 'indiv' ? 'on' : ''}">Parcours individuels</button>`}<button data-md="grp" class="${mode === 'grp' ? 'on' : ''}">${pp.type === 'relais' ? 'Équipes de relais' : 'Groupes'}<br><small style="font-weight:600;opacity:.85">homogènes / hétérogènes</small></button></div>
         <label style="display:flex;gap:8px;align-items:flex-start;margin-top:12px"><input type="checkbox" id="pchoice" ${choice ? 'checked' : ''} style="width:auto;margin-top:3px"> <span>Chaque ${mode === 'indiv' ? 'élève' : 'groupe'} choisit son parcours (ou ses balises en choix libre) au départ</span></label>
         <label style="display:flex;gap:8px;align-items:flex-start;margin-top:8px"><input type="checkbox" id="profo" ${profOnly ? 'checked' : ''} style="width:auto;margin-top:3px"> <span>📋 Suivi enseignant uniquement (pas de tablette pour les élèves : temps à l'arrivée, balises du coupon papier)</span></label>
         <div id="who" style="margin-top:10px"></div></div>`;
       box.querySelector('#pchoice').onchange = e => { choice = e.target.checked; };
       box.querySelector('#profo').onchange = e => { profOnly = e.target.checked; };
+      box.querySelector('#pc').onchange = e => { pcSel = e.target.value; draw(); };
+      { const m = box.querySelector('#pmap'); if (m) m.onclick = () => coMapShow(pp); }
       box.querySelectorAll('[data-md]').forEach(b => b.onclick = () => { mode = b.dataset.md; draw(); });
       const who = box.querySelector('#who');
       { const g = box.querySelector('#goctl'); if (g) g.onclick = () => { tab = 'controle'; frame(); }; }
@@ -445,11 +569,12 @@ TOOL_IMPL.co = function (el) {
   const CK = { pc: null, ans: {}, photo: null, run: '' };
   function ctlSettings(box) {
     box.innerHTML = ''; const C = coCtl(), h = document.createElement('div');
-    h.innerHTML = `<div class="card" data-cfg style="margin-bottom:12px;border:2px solid var(--gold,#C9A227)"><h3 style="margin-top:0">🧑‍🎓 Contrôle par l'élève (tablette de l'équipe)</h3>
+    h.innerHTML = `<div class="card" data-cfg style="margin-bottom:12px;border:2px solid var(--gold,#C9A227)"><h3 style="margin-top:0">🔎 Méthode de contrôle des cartons</h3><p class="muted" style="margin:0 0 4px;font-size:.8rem">Réglée avant la séance ; elle s'applique à l'élève (tablette de l'équipe) comme à l'enseignant (bouton « 🔎 Contrôler le carton » de chaque élève dans ⏱ Séance).</p>
       <label>Quand ?</label><div class="seg">${[['arrivee', '📝 À l\'arrivée (carton papier)'], ['live', '📱 Pendant la course']].map(([k, l]) => `<button data-cw="${k}" class="${C.when === k ? 'on' : ''}">${l}</button>`).join('')}</div>
       <label>Comment ?</label><div class="seg">${[['choix', '🔣 Choisir le symbole'], ['dessin', '✏️ Dessiner le symbole'], ['auto', '👀 Comparer avec le carton']].map(([k, l]) => `<button data-chw="${k}" class="${C.how === k ? 'on' : ''}">${l}</button>`).join('')}</div>
       <div style="margin-top:10px;padding:8px 10px;border-radius:10px;background:var(--grad-soft);font-weight:800;font-size:.88rem">✅ Réglage retenu : ${CTL_TXT(C)}${DB.co.current ? ' · appliqué à la séance en cours' : ''}</div>
-      <p class="muted" style="margin:6px 0 0;font-size:.8rem">${C.when === 'arrivee' ? 'Les élèves partent sans tablette, avec leur carton et un stylo. À l\'arrivée, le chrono s\'arrête puis ils contrôlent leurs balises sur la tablette : ' : 'Les élèves gardent la tablette ou le téléphone et contrôlent chaque balise dès qu\'elle est trouvée : '}${{ choix: 'ils touchent la balise puis choisissent le symbole de la pince (« Le symbole n\'est pas dans la liste » si besoin).', dessin: 'ils redessinent le symbole sur la grille de points, puis voient « mon dessin / attendu ».', auto: C.when === 'arrivee' ? 'les symboles attendus s\'affichent à côté de chaque balise ; ils comparent avec leur carton et cochent VALIDÉ, FAUX ou Pas trouvée.' : 'ils cochent leurs balises ; à l\'arrivée, les symboles attendus s\'affichent et ils cochent VALIDÉ ou FAUX.' }[C.how]}</p></div>`;
+      <p class="muted" style="margin:6px 0 0;font-size:.8rem">${C.when === 'arrivee' ? 'Les élèves partent sans tablette, avec leur carton et un stylo. À l\'arrivée, le chrono s\'arrête puis ils contrôlent leurs balises sur la tablette : ' : 'Les élèves gardent la tablette ou le téléphone et contrôlent chaque balise dès qu\'elle est trouvée : '}${{ choix: 'ils touchent la balise puis choisissent le symbole de la pince (« Le symbole n\'est pas dans la liste » si besoin).', dessin: 'ils redessinent le symbole sur la grille de points, puis voient « mon dessin / attendu ».', auto: C.when === 'arrivee' ? 'les symboles attendus s\'affichent à côté de chaque balise ; ils comparent avec leur carton et cochent VALIDÉ, FAUX ou Pas trouvée.' : 'ils cochent leurs balises ; à l\'arrivée, les symboles attendus s\'affichent et ils cochent VALIDÉ ou FAUX.' }[C.how]}</p>
+      <p class="muted" style="margin:6px 0 0;font-size:.8rem">⭐ Étoile, 🦋 papillon et 🔁 relais : le carton est contrôlé à chaque retour au départ, avec la méthode choisie.</p></div>`;
     box.prepend(h);
     const apply = patch => { DB.co.ctl = { ...coCtl(), ...patch }; const c0 = DB.co.current; if (c0) { c0.ctl = coCtl(); try { if (!c0.joined) pub(c0); } catch (e) {} } save(); window.syncFlush && window.syncFlush(); ctlSettings(box); };
     h.querySelectorAll('[data-cw]').forEach(b => b.onclick = () => apply({ when: b.dataset.cw }));
@@ -461,14 +586,15 @@ TOOL_IMPL.co = function (el) {
     if (!withCodes.length) { box.innerHTML = `<div class="card empty">Attribuez d'abord un <b>symbole de pince</b> aux balises d'un parcours (onglet 🗺 Parcours → ✏️).</div>`; return; }
     const cur = DB.co.current;
     if (!withCodes.some(p => p.id === CK.pc)) CK.pc = cur && withCodes.some(p => p.id === cur.parcours) ? cur.parcours : withCodes[0].id;
-    const p = P(CK.pc), live = cur && cur.parcours === p.id ? cur : null;
+    const p = P(CK.pc), live = null;   // les cartons d'une séance se contrôlent sur chaque élève dans ⏱ Séance
     const status = b => { const a = CK.ans[b.num]; if (!a || !isPat(b.code)) return 0; return a === b.code ? 1 : -1; };
     const cell = b => { const a = CK.ans[b.num]; return !a ? '<span style="display:grid;place-items:center;width:44px;height:44px;border:1.5px dashed var(--line);border-radius:6px;font-size:.62rem;font-weight:800;color:var(--muted)">choisir</span>'
       : a === 'X' ? '<span style="display:grid;place-items:center;width:44px;height:44px;border:1.5px solid var(--danger);border-radius:6px;font-weight:900;color:var(--danger)">?</span>' : patSVG(a, 44); };
     const res = b => { const s2 = status(b); return s2 === 1 ? '<b style="color:#1B9E5A">✔ bon</b>' : s2 === -1 ? '<b style="color:var(--danger)">✗ faux</b>' : '<span class="muted">non poinçonnée</span>'; };
     const draw = () => {
       const st = p.balises.map(status), ok = st.filter(x => x === 1).length, ko = st.filter(x => x === -1).length;
-      box.innerHTML = `<div class="card"><label>Parcours</label><select id="kp">${withCodes.map(x => `<option value="${x.id}" ${x.id === p.id ? 'selected' : ''}>${esc(x.nom)}</option>`).join('')}</select>
+      box.innerHTML = `${cur ? `<div class="card" style="margin-bottom:12px"><b>⏱ Séance en cours</b><p class="muted" style="margin:4px 0 8px;font-size:.85rem">Les cartons des élèves se contrôlent directement sur chacun d'eux (bouton « 🔎 Contrôler le carton ») : la séance est lancée pour toute la classe.</p><button class="btn btn-grad btn-block" id="kgo">Aller à la séance</button></div>` : ''}
+        <div class="section-title"><h2>Vérifier un carton hors séance</h2></div><div class="card"><label>Parcours</label><select id="kp">${withCodes.map(x => `<option value="${x.id}" ${x.id === p.id ? 'selected' : ''}>${esc(x.nom)}</option>`).join('')}</select>
           ${live ? `<label>Participant (séance en cours)</label><select id="kr"><option value="">— Contrôle seul —</option>${live.runs.map((r, i) => `<option value="${i}" ${String(i) === CK.run ? 'selected' : ''}>${esc(r.name)}</option>`).join('')}</select>` : ''}</div>
         <div class="card" style="margin-top:12px"><h3>📷 Photo du carton de l'élève</h3>
           ${CK.photo ? `<img src="${CK.photo}" id="kimg" style="width:100%;max-height:360px;object-fit:contain;border-radius:12px;background:#000;cursor:zoom-in">` : '<p class="muted" style="margin:0 0 8px">Facultatif : la photo reste affichée ici pendant que vous comparez les symboles.</p>'}
@@ -482,6 +608,7 @@ TOOL_IMPL.co = function (el) {
           ${live ? `<button class="btn btn-grad btn-block" style="margin-top:12px" id="kap">✔ Reporter dans la séance</button>` : ''}
           <button class="btn btn-ghost btn-block" style="margin-top:8px" id="kz">↺ Carton suivant</button></div>`;
       const $ = s => box.querySelector(s);
+      if ($('#kgo')) $('#kgo').onclick = () => { tab = 'seance'; frame(); };
       $('#kp').onchange = e => { CK.pc = e.target.value; CK.ans = {}; CK.run = ''; controle(box); };
       if ($('#kr')) $('#kr').onchange = e => { CK.run = e.target.value; };
       if ($('#kimg')) $('#kimg').onclick = () => { const o = document.createElement('div'); o.style.cssText = 'position:fixed;inset:0;z-index:300;background:rgba(0,0,0,.92);display:grid;place-items:center;padding:12px'; o.innerHTML = `<img src="${CK.photo}" style="max-width:100%;max-height:100%;object-fit:contain">`; o.onclick = () => o.remove(); document.body.appendChild(o); };
@@ -509,9 +636,9 @@ TOOL_IMPL.co = function (el) {
     const draw = () => {
       const ss = S.filter(s => (s.classe || '—') === cls), gs = coGroups(ss);
       const agg = {};
-      gs.forEach(g => g.runs.forEach(({ r, p: q }) => { const x = result(r, q);
-        r.members.forEach(m => { const a = agg[m] = agg[m] || { n: 0, km: 0, t: 0, pts: 0, bal: 0 };
-          if (!r.dep) return; a.n++; a.pts += x.score; a.bal += r.found.length; if (x.temps != null) { a.km += x.km; a.t += x.temps; } }); }));
+      gs.forEach(g => g.runs.forEach(({ r, p: q }) => {
+        r.members.forEach(m => { const x = resultFor(r, q, m), a = agg[m] = agg[m] || { n: 0, km: 0, t: 0, pts: 0, bal: 0 };
+          if (!r.dep) return; a.n++; a.pts += x.score; a.bal += r.found.filter(n => !(r.who || {})[n] || r.who[n] === m).length; if (x.temps != null) { a.km += x.km; a.t += x.temps; } }); }));
       const rows = Object.entries(agg).sort((a, b) => a[0].localeCompare(b[0]));
       box.innerHTML = `<div class="card"><label>Classe</label><select id="bc">${classes.map(c => `<option ${c === cls ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select></div>
         <div class="section-title"><h2>Cumul des séances (${gs.length})</h2><button class="link" id="exp">Exporter CSV</button></div>
