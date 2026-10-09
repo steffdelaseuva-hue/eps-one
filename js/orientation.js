@@ -125,9 +125,9 @@ function coMapHTML(m, p, opt = {}) {
 }
 function coMapShow(p) {
   const o = document.createElement('div'); o.style.cssText = 'position:fixed;inset:0;z-index:300;background:rgba(7,18,42,.9);overflow:auto;padding:12px';
-  o.innerHTML = `<div style="max-width:900px;margin:0 auto"><div style="display:flex;justify-content:space-between;align-items:center;color:#fff;margin-bottom:8px"><b>🗺 ${esc(p.nom)}</b><button class="btn btn-ghost" id="mx">✕ Fermer</button></div>${coMapView(coMapOf(p))}
+  o.innerHTML = `<div style="max-width:900px;margin:0 auto"><div style="display:flex;justify-content:space-between;align-items:center;color:#fff;margin-bottom:8px"><b>🗺 ${esc(p.nom)}</b><button class="btn btn-ghost" id="mx">✕ Fermer</button></div>${coZoomHTML(coMapView(coMapOf(p)))}<p style="color:#fff;font-size:.8rem;margin:6px 0 0;opacity:.8">2 doigts pour zoomer · 1 doigt pour faire glisser</p>
     ${p.type === 'suivi' ? `<div class="card" style="margin-top:8px"><b>Ordre des balises :</b> ${p.balises.map((b, i) => `${i + 1}. <b>${b.num}</b>`).join(' → ')}</div>` : ''}</div>`;
-  o.querySelector('#mx').onclick = () => o.remove(); document.body.appendChild(o);
+  o.querySelector('#mx').onclick = () => o.remove(); document.body.appendChild(o); { const V = coMapOf(p); if (V) coZoom(o.querySelector('.co-zv'), V, { s: 1, tx: 0, ty: 0 }, { vh: .8 }); }
 }
 const coImg = (file, cb, max = 1400) => { const url = URL.createObjectURL(file), img = new Image();
   img.onload = () => { const k = Math.min(1, max / Math.max(img.width, img.height)), c = document.createElement('canvas'); c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
@@ -135,16 +135,16 @@ const coImg = (file, cb, max = 1400) => { const url = URL.createObjectURL(file),
   img.onerror = () => toast('Image illisible'); img.src = url; };
 function coMapEdit(p, onDone) {
   const m = JSON.parse(JSON.stringify(p.map || {})); m.lines = m.lines || []; m.marks = m.marks || {};
-  let mode = 'trace', pick = null;
+  let mode = 'trace', pick = null; const Z = { s: 1, tx: 0, ty: 0 };
   const o = document.createElement('div'); o.style.cssText = 'position:fixed;inset:0;z-index:300;background:var(--bg,#F3F6FB);overflow:auto;padding:12px';
   const next = () => ['D', ...p.balises.map(b => String(b.num))].find(k => !m.marks[k]) || null;
   const render = () => { if (pick == null) pick = next();
     o.innerHTML = `<div style="max-width:900px;margin:0 auto"><div class="card"><h3 style="margin-top:0">🗺 Carte · ${esc(p.nom)}</h3>
-      <div class="seg">${[['trace', '🖍 Tracer l\'itinéraire'], ['bal', '📍 Placer départ / balises'], ['vue', '✋ Faire défiler']].map(([k, l]) => `<button data-mo="${k}" class="${mode === k ? 'on' : ''}">${l}</button>`).join('')}</div>
+      <div class="seg">${[['trace', '🖍 Tracer l\'itinéraire'], ['bal', '📍 Placer départ / balises'], ['vue', '✋ Déplacer la carte']].map(([k, l]) => `<button data-mo="${k}" class="${mode === k ? 'on' : ''}">${l}</button>`).join('')}</div>
       ${mode === 'bal' ? `<p class="muted" style="margin:8px 0 4px;font-size:.8rem">Choisissez ce que vous placez puis touchez la carte (toucher à nouveau déplace le repère).</p><div class="bal-chips">${['D', ...p.balises.map(b => String(b.num))].map(k => `<button data-pk="${k}" class="${pick === k ? 'on' : ''}" style="${m.marks[k] ? '' : 'border-style:dashed'}">${k === 'D' ? '△ Départ' : k}</button>`).join('')}</div>`
-        : mode === 'trace' ? '<p class="muted" style="margin:8px 0 0;font-size:.8rem">Glissez le doigt sur la carte pour surligner l\'itinéraire que les élèves devront suivre.</p>' : '<p class="muted" style="margin:8px 0 0;font-size:.8rem">Mode lecture : faites défiler la page sans dessiner.</p>'}
+        : mode === 'trace' ? '<p class="muted" style="margin:8px 0 0;font-size:.8rem">1 doigt : surligner l\'itinéraire · 2 doigts : zoomer et déplacer la carte.</p>' : '<p class="muted" style="margin:8px 0 0;font-size:.8rem">1 doigt : faire glisser · 2 doigts : zoomer.</p>'}
       <div class="row" style="margin-top:8px"><button class="btn btn-ghost" id="mu">↶ Annuler le dernier trait</button><button class="btn btn-ghost" id="mc">🗑 Effacer traits et repères</button></div></div>
-      <div style="margin-top:10px" id="mw">${coMapHTML(m, p, { edit: mode !== 'vue' })}</div>
+      <div style="margin-top:10px" id="mw">${coZoomHTML(coMapHTML(m, p))}</div>
       <div class="row" style="margin-top:10px"><button class="btn btn-grad" id="ms">✔ Valider la carte</button><button class="btn btn-ghost" id="mq">Annuler</button></div></div>`;
     o.querySelectorAll('[data-mo]').forEach(b => b.onclick = () => { mode = b.dataset.mo; render(); });
     o.querySelectorAll('[data-pk]').forEach(b => b.onclick = () => { pick = b.dataset.pk; render(); });
@@ -152,14 +152,10 @@ function coMapEdit(p, onDone) {
     o.querySelector('#mc').onclick = () => { if (!confirm('Effacer l\'itinéraire et tous les repères ?')) return; m.lines = []; m.marks = {}; pick = null; render(); };
     o.querySelector('#ms').onclick = () => { o.remove(); onDone(m); };
     o.querySelector('#mq').onclick = () => { if (confirm('Quitter sans enregistrer les modifications de la carte ?')) o.remove(); };
-    const svg = o.querySelector('#mw svg'); if (!svg || mode === 'vue') return;
-    const pt = e => { const R = svg.getBoundingClientRect(), H = 1000 * m.h / m.w; return [Math.round((e.clientX - R.left) / R.width * 1000), Math.round((e.clientY - R.top) / R.height * H)]; };
-    if (mode === 'bal') svg.onpointerdown = e => { e.preventDefault(); if (!pick) return toast('Tous les repères sont placés : choisissez-en un pour le déplacer'); m.marks[pick] = pt(e); pick = next(); render(); };
-    else { let line = null, el = null;
-      svg.onpointerdown = e => { e.preventDefault(); svg.setPointerCapture(e.pointerId); line = pt(e); el = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
-        el.setAttribute('fill', 'none'); el.setAttribute('stroke', '#E0218A'); el.setAttribute('stroke-opacity', '.55'); el.setAttribute('stroke-width', '14'); el.setAttribute('stroke-linecap', 'round'); el.setAttribute('stroke-linejoin', 'round'); svg.appendChild(el); el.setAttribute('points', line.join(',')); };
-      svg.onpointermove = e => { if (!line) return; const [x, y] = pt(e), n = line.length; if (Math.hypot(x - line[n - 2], y - line[n - 1]) < 6) return; line.push(x, y); el.setAttribute('points', line.join(',')); };
-      svg.onpointerup = svg.onpointercancel = () => { if (line && line.length >= 4) m.lines.push(line); line = null; }; }
+    const svg = o.querySelector('#mw svg'), zv = o.querySelector('#mw .co-zv');
+    if (mode === 'vue') return coZoom(zv, m, Z);
+    if (mode === 'bal') return coZoom(zv, m, Z, { onTap: e => { if (!pick) return toast('Tous les repères sont placés : choisissez-en un pour le déplacer'); m.marks[pick] = coSvgPt(svg, m, e); pick = next(); render(); } });
+    coZoom(zv, m, Z, { trace: coTrace(svg, m, m.lines) });
   };
   render(); document.body.appendChild(o);
 }
@@ -197,37 +193,74 @@ function coMapView(V, opt = {}) {
   const segs = (V.paths || []).flatMap(P => P.slice(1).map((b, i) => [P[i], b])).map(([a, b]) => { const dx = b[0] - a[0], dy = b[1] - a[1], L = Math.hypot(dx, dy), r = 32; if (L < 2 * r + 4) return '';
     const ux = dx / L, uy = dy / L; return `<line x1="${(a[0] + ux * r).toFixed(1)}" y1="${(a[1] + uy * r).toFixed(1)}" x2="${(b[0] - ux * r).toFixed(1)}" y2="${(b[1] - uy * r).toFixed(1)}" stroke="${M}" stroke-width="5" stroke-linecap="round"/>`; }).join('');
   const hl = (V.hl || []).map(l => `<polyline points="${l.join(',')}" fill="none" stroke="#E0218A" stroke-opacity=".5" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>`).join('');
-  const lab = (x, y, t, c) => `<text x="${x + 27}" y="${y - 20}" font-size="32" font-weight="900" fill="${c}" stroke="#fff" stroke-width="6" paint-order="stroke" font-family="Arial,sans-serif">${esc(t)}</text>`;
-  const mk = (V.marks || []).map(m => m.kind === 'D' ? `<polygon points="${m.x},${m.y - 32} ${m.x - 28},${m.y + 17} ${m.x + 28},${m.y + 17}" fill="none" stroke="${M}" stroke-width="6"/>`
-    : m.kind === 'A' ? `<circle cx="${m.x}" cy="${m.y}" r="17" fill="none" stroke="${M}" stroke-width="5"/><circle cx="${m.x}" cy="${m.y}" r="28" fill="none" stroke="${M}" stroke-width="5"/>`
-    : m.kind === 'g' ? `<circle cx="${m.x}" cy="${m.y}" r="24" fill="rgba(255,255,255,.35)" stroke="#8A94A6" stroke-width="4" stroke-dasharray="7 5"/>${lab(m.x, m.y, m.lab, '#6B7587')}`
-    : `<circle cx="${m.x}" cy="${m.y}" r="24" fill="${opt.sel === m.id ? 'rgba(201,162,39,.35)' : 'none'}" stroke="${m.col || M}" stroke-width="6"/>${lab(m.x, m.y, m.lab, m.col || M)}`).join('');
-  return `<div class="co-map" style="position:relative;line-height:0;border-radius:${opt.print ? 0 : 12}px;overflow:hidden;background:#fff"><img src="${V.img}" style="width:100%;display:block" alt="Carte"><svg viewBox="0 0 1000 ${H}" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%;${opt.edit ? 'touch-action:none;cursor:crosshair' : 'pointer-events:none'}">${hl}${segs}${mk}</svg></div>`;
+  const lab = (t, c) => `<text x="27" y="-20" font-size="32" font-weight="900" fill="${c}" stroke="#fff" stroke-width="6" paint-order="stroke" font-family="Arial,sans-serif">${esc(t)}</text>`;
+  // chaque repère est un groupe centré : il garde une taille lisible quand on zoome (coZoom ajuste l'échelle)
+  const mk = (V.marks || []).map(m => `<g class="mk" data-x="${m.x}" data-y="${m.y}" transform="translate(${m.x},${m.y})">${m.kind === 'D' ? `<polygon points="0,-32 -28,17 28,17" fill="none" stroke="${M}" stroke-width="6"/>`
+    : m.kind === 'A' ? `<circle r="17" fill="none" stroke="${M}" stroke-width="5"/><circle r="28" fill="none" stroke="${M}" stroke-width="5"/>`
+    : m.kind === 'g' ? `<circle r="24" fill="rgba(255,255,255,.35)" stroke="#8A94A6" stroke-width="4" stroke-dasharray="7 5"/>${lab(m.lab, '#6B7587')}`
+    : `<circle r="24" fill="${opt.sel === m.id ? 'rgba(201,162,39,.35)' : 'none'}" stroke="${m.col || M}" stroke-width="6"/>${lab(m.lab, m.col || M)}`}</g>`).join('');
+  return `<div class="co-map" style="position:relative;line-height:0;border-radius:${opt.print ? 0 : 12}px;overflow:hidden;background:#fff"><img src="${V.img}" draggable="false" style="width:100%;display:block;-webkit-user-drag:none;pointer-events:none" alt="Carte"><svg viewBox="0 0 1000 ${H}" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%;${opt.edit ? 'touch-action:none;cursor:crosshair' : 'pointer-events:none'}">${hl}${segs}${mk}</svg></div>`;
 }
 const coSvgPt = (svg, V, e) => { const R = svg.getBoundingClientRect(), H = 1000 * V.h / V.w; return [Math.round((e.clientX - R.left) / R.width * 1000), Math.round((e.clientY - R.top) / R.height * H)]; };
-// tracé au doigt (surlignage) sur une carte
+/* ---------- Carte zoomable : 1 doigt = faire glisser (ou tracer), 2 doigts = zoomer / déplacer, toucher bref = placer ----------
+   Z = { s, tx, ty } gardé par l'éditeur (le zoom reste en place après chaque poste posé) */
+const coZoomHTML = inner => `<div class="co-zv" style="position:relative;overflow:hidden;touch-action:none;border-radius:12px;background:#E9EDF3;-webkit-user-select:none;user-select:none"><div class="co-zi" style="transform-origin:0 0;will-change:transform">${inner}</div>
+  <div style="position:absolute;right:8px;top:8px;display:flex;flex-direction:column;gap:6px;z-index:2">${[['+', '＋'], ['-', '−'], ['0', '⤢']].map(([k, l]) => `<button data-z="${k}" style="width:42px;height:42px;border-radius:12px;border:1.5px solid var(--line);background:rgba(255,255,255,.92);font-size:1.3rem;font-weight:900;color:#0B2A5B;cursor:pointer">${l}</button>`).join('')}</div></div>`;
+function coZoom(zv, V, Z, h = {}) {
+  if (!zv) return; const inner = zv.querySelector('.co-zi'); delete Z.k;
+  const W = () => zv.clientWidth, CH = () => W() * V.h / V.w;
+  zv.style.height = Math.round(Math.min(CH(), innerHeight * (h.vh || .68))) + 'px';
+  const apply = () => { Z.s = Math.min(8, Math.max(1, Z.s)); const w = W(), hc = zv.clientHeight;
+    Z.tx = Math.min(0, Math.max(w - w * Z.s, Z.tx)); Z.ty = Math.min(0, Math.max(Math.min(0, hc - CH() * Z.s), Z.ty)); inner.style.transform = `translate(${Z.tx}px,${Z.ty}px) scale(${Z.s})`;
+    const k = (1 / Math.sqrt(Z.s)).toFixed(3); if (k !== Z.k) { Z.k = k; inner.querySelectorAll('g.mk').forEach(m => m.setAttribute('transform', `translate(${m.dataset.x},${m.dataset.y}) scale(${k})`)); } };
+  const zoomAt = (k, cx, cy) => { const ns = Math.min(8, Math.max(1, Z.s * k)); k = ns / Z.s; Z.tx = cx - (cx - Z.tx) * k; Z.ty = cy - (cy - Z.ty) * k; Z.s = ns; apply(); };
+  apply();
+  const P = new Map(); let g = null;
+  const loc = e => { const R = zv.getBoundingClientRect(); return [e.clientX - R.left, e.clientY - R.top]; };
+  const two = () => { const [a, b] = [...P.values()]; return { d: Math.hypot(a[0] - b[0], a[1] - b[1]) || 1, m: [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2] }; };
+  zv.onpointerdown = e => { if (e.target.closest('[data-z]')) return; e.preventDefault(); try { zv.setPointerCapture(e.pointerId); } catch (er) {} P.set(e.pointerId, loc(e));
+    if (P.size === 1) { g = { t0: Date.now(), x0: loc(e), last: loc(e), moved: false, multi: false }; if (h.trace) h.trace.start(e); }
+    else if (g) { g.multi = true; if (h.trace) h.trace.cancel(); Object.assign(g, two()); } };
+  zv.onpointermove = e => { if (!P.has(e.pointerId) || !g) return; P.set(e.pointerId, loc(e));
+    if (P.size >= 2) { const t = two(); zoomAt(t.d / g.d, t.m[0], t.m[1]); Z.tx += t.m[0] - g.m[0]; Z.ty += t.m[1] - g.m[1]; apply(); g.d = t.d; g.m = t.m; return; }
+    if (g.multi) return; const p = loc(e);
+    if (!g.moved && Math.hypot(p[0] - g.x0[0], p[1] - g.x0[1]) > 8) g.moved = true;
+    if (h.trace) return h.trace.move(e);
+    if (g.moved) { Z.tx += p[0] - g.last[0]; Z.ty += p[1] - g.last[1]; apply(); } g.last = p; };
+  const up = e => { if (!P.has(e.pointerId)) return; P.delete(e.pointerId); if (P.size || !g) return;
+    if (h.trace) { if (!g.multi) h.trace.end(); }
+    else if (!g.moved && !g.multi && Date.now() - g.t0 < 700 && h.onTap) h.onTap(e);
+    g = null; };
+  zv.onpointerup = up;
+  zv.onpointercancel = e => { if (h.trace) h.trace.cancel(); P.delete(e.pointerId); if (!P.size) g = null; };
+  zv.onwheel = e => { e.preventDefault(); const p = loc(e); zoomAt(e.deltaY < 0 ? 1.2 : 1 / 1.2, p[0], p[1]); };
+  zv.querySelectorAll('[data-z]').forEach(b => b.onclick = () => { if (b.dataset.z === '0') { Z.s = 1; Z.tx = Z.ty = 0; apply(); } else zoomAt(b.dataset.z === '+' ? 1.6 : 1 / 1.6, W() / 2, zv.clientHeight / 2); });
+}
+// tracé au doigt (surlignage) : objet utilisé par coZoom
 function coTrace(svg, V, lines, onEnd) {
   let line = null, el = null;
-  svg.onpointerdown = e => { e.preventDefault(); try { svg.setPointerCapture(e.pointerId); } catch (er) {} line = coSvgPt(svg, V, e); el = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
-    [['fill', 'none'], ['stroke', '#E0218A'], ['stroke-opacity', '.5'], ['stroke-width', '14'], ['stroke-linecap', 'round'], ['stroke-linejoin', 'round']].forEach(([k, v]) => el.setAttribute(k, v)); svg.appendChild(el); el.setAttribute('points', line.join(',')); };
-  svg.onpointermove = e => { if (!line) return; const [x, y] = coSvgPt(svg, V, e), n = line.length; if (Math.hypot(x - line[n - 2], y - line[n - 1]) < 6) return; line.push(x, y); el.setAttribute('points', line.join(',')); };
-  svg.onpointerup = svg.onpointercancel = () => { if (line && line.length >= 4) { lines.push(line); onEnd && onEnd(); } line = null; };
+  return {
+    start: e => { line = coSvgPt(svg, V, e); el = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
+      [['fill', 'none'], ['stroke', '#E0218A'], ['stroke-opacity', '.5'], ['stroke-width', '14'], ['stroke-linecap', 'round'], ['stroke-linejoin', 'round']].forEach(([k, v]) => el.setAttribute(k, v)); svg.appendChild(el); el.setAttribute('points', line.join(',')); },
+    move: e => { if (!line) return; const [x, y] = coSvgPt(svg, V, e), n = line.length; if (Math.hypot(x - line[n - 2], y - line[n - 1]) < 4) return; line.push(x, y); el.setAttribute('points', line.join(',')); },
+    end: () => { if (line && line.length >= 4) { lines.push(line); onEnd && onEnd(); } else if (el) el.remove(); line = null; },
+    cancel: () => { if (el) el.remove(); line = null; el = null; } };
 }
 function coHlEdit(V0, title, onDone) {
-  const lines = JSON.parse(JSON.stringify(V0.hl || [])); let mode = 'trace';
+  const lines = JSON.parse(JSON.stringify(V0.hl || [])); let mode = 'trace'; const Z = { s: 1, tx: 0, ty: 0 };
   const o = document.createElement('div'); o.style.cssText = 'position:fixed;inset:0;z-index:300;background:var(--bg,#F3F6FB);overflow:auto;padding:12px';
   const render = () => { o.innerHTML = `<div style="max-width:900px;margin:0 auto"><div class="card"><h3 style="margin-top:0">🖍 ${esc(title)}</h3>
-      <div class="seg">${[['trace', '🖍 Surligner'], ['vue', '✋ Faire défiler']].map(([k, l]) => `<button data-mo="${k}" class="${mode === k ? 'on' : ''}">${l}</button>`).join('')}</div>
-      <p class="muted" style="margin:8px 0 0;font-size:.8rem">${mode === 'trace' ? 'Glissez le doigt sur la carte pour surligner l\'itinéraire que les élèves devront suivre.' : 'Faites défiler la page sans dessiner.'}</p>
+      <div class="seg">${[['trace', '🖍 Surligner'], ['pan', '✋ Déplacer la carte']].map(([k, l]) => `<button data-mo="${k}" class="${mode === k ? 'on' : ''}">${l}</button>`).join('')}</div>
+      <p class="muted" style="margin:8px 0 0;font-size:.8rem">${mode === 'trace' ? '1 doigt : surligner l\'itinéraire · 2 doigts : zoomer et déplacer la carte (ou boutons ＋ −).' : '1 doigt : faire glisser · 2 doigts : zoomer.'}</p>
       <div class="row" style="margin-top:8px"><button class="btn btn-ghost" id="hu">↶ Annuler le dernier trait</button><button class="btn btn-ghost" id="hc">🗑 Tout effacer</button></div></div>
-      <div style="margin-top:10px" id="hw">${coMapView({ ...V0, hl: lines }, { edit: mode === 'trace' })}</div>
+      <div style="margin-top:10px" id="hw">${coZoomHTML(coMapView({ ...V0, hl: lines }))}</div>
       <div class="row" style="margin-top:10px"><button class="btn btn-grad" id="hs">✔ Valider</button><button class="btn btn-ghost" id="hq">Annuler</button></div></div>`;
     o.querySelectorAll('[data-mo]').forEach(b => b.onclick = () => { mode = b.dataset.mo; render(); });
     o.querySelector('#hu').onclick = () => { if (!lines.length) return toast('Aucun trait à annuler'); lines.pop(); render(); };
     o.querySelector('#hc').onclick = () => { if (confirm('Effacer tout le surlignage ?')) { lines.length = 0; render(); } };
     o.querySelector('#hs').onclick = () => { o.remove(); onDone(lines); };
     o.querySelector('#hq').onclick = () => { if (confirm('Quitter sans enregistrer le surlignage ?')) o.remove(); };
-    const svg = o.querySelector('#hw svg'); if (svg && mode === 'trace') coTrace(svg, V0, lines);
+    const svg = o.querySelector('#hw svg'); coZoom(o.querySelector('#hw .co-zv'), V0, Z, mode === 'trace' ? { trace: coTrace(svg, V0, lines) } : {});
   };
   render(); document.body.appendChild(o);
 }
@@ -291,7 +324,7 @@ TOOL_IMPL.co = function (el) {
   /* ---- Lieu : carte vierge + postes ---- */
   function editLieu(box, idx) {
     const L = idx != null ? JSON.parse(JSON.stringify(coLieux()[idx])) : { id: coId(), nom: coLieux().length ? 'Bois' : 'Établissement', postes: [] };
-    let mode = 'add', pick = null, sel = null;
+    let mode = 'add', pick = null, sel = null; const Z = { s: 1, tx: 0, ty: 0 };
     const nextNum = () => L.postes.reduce((a, q) => Math.max(a, q.num), 30) + 1;
     const freeCode = () => CO_PATS.find(c => !L.postes.some(q => q.code === c)) || '';
     const V = () => ({ img: L.map.img, w: L.map.w, h: L.map.h, hl: [], paths: [], marks: [...(L.dep ? [{ kind: 'D', x: L.dep[0], y: L.dep[1] }] : []), ...(L.arr ? [{ kind: 'A', x: L.arr[0], y: L.arr[1] }] : []),
@@ -302,10 +335,10 @@ TOOL_IMPL.co = function (el) {
           <label>Nom du lieu</label><input id="ln" value="${esc(L.nom)}" placeholder="Établissement, bois de…">
           <label class="btn btn-ghost btn-block" style="display:block;text-align:center;cursor:pointer;margin:10px 0 0">📷 ${L.map ? 'Changer la carte vierge' : 'Importer la carte vierge (photo ou capture d\'écran)'}<input id="lf" type="file" accept="image/*" style="display:none"></label></div>
         ${L.map ? `<div class="card" style="margin-top:12px"><h3 style="margin-top:0">📍 Postes sur la carte</h3>
-          <div class="seg">${[['add', '➕ Poste'], ['move', '✋ Déplacer'], ['D', '△ Départ'], ['A', '◎ Arrivée'], ['vue', '👆 Défiler']].map(([k, l]) => `<button data-mo="${k}" class="${mode === k ? 'on' : ''}">${l}</button>`).join('')}</div>
-          <p class="muted" style="margin:8px 0 4px;font-size:.8rem">${{ add: un.length ? 'Choisissez un poste déjà saisi puis touchez la carte pour le placer — ou touchez la carte sans en choisir pour créer un nouveau poste.' : 'Touchez la carte pour créer un poste (numéro et symbole attribués automatiquement, modifiables). Touchez un poste existant pour le modifier.', move: 'Touchez un poste, puis l\'endroit où le déplacer.', D: 'Touchez la carte à l\'endroit du départ (triangle).', A: 'Touchez la carte à l\'endroit de l\'arrivée (double cercle). Sans arrivée, elle se fait au départ.', vue: 'Faites défiler la page sans rien placer.' }[mode]}</p>
+          <div class="seg">${[['add', '➕ Poste'], ['move', '✋ Déplacer'], ['D', '△ Départ'], ['A', '◎ Arrivée']].map(([k, l]) => `<button data-mo="${k}" class="${mode === k ? 'on' : ''}">${l}</button>`).join('')}</div>
+          <p class="muted" style="margin:8px 0 4px;font-size:.8rem">🔍 2 doigts pour zoomer, 1 doigt pour faire glisser la carte : seul un <b>toucher bref</b> place un repère.<br>${{ add: un.length ? 'Choisissez un poste déjà saisi puis touchez la carte pour le placer — ou touchez la carte sans en choisir pour créer un nouveau poste.' : 'Touchez la carte pour créer un poste (numéro et symbole attribués automatiquement, modifiables). Touchez un poste existant pour le modifier.', move: 'Touchez un poste, puis l\'endroit où le déplacer.', D: 'Touchez la carte à l\'endroit du départ (triangle).', A: 'Touchez la carte à l\'endroit de l\'arrivée (double cercle). Sans arrivée, elle se fait au départ.',}[mode]}</p>
           ${mode === 'add' && un.length ? `<div class="bal-chips">${un.map(q => `<button data-pk="${q.id}" class="${pick === q.id ? 'on' : ''}" style="border-style:dashed">${q.num}</button>`).join('')}</div>` : ''}
-          <div style="margin-top:8px" id="lw">${coMapView(V(), { edit: mode !== 'vue', sel })}</div>
+          <div style="margin-top:8px" id="lw">${coZoomHTML(coMapView(V(), { sel }))}</div>
           ${S ? `<div style="margin-top:10px;padding:10px;border-radius:12px;border:2px solid var(--gold,#C9A227)"><b>Poste sélectionné</b><div class="row" style="align-items:center;margin-top:6px"><div><label style="margin:0">Numéro</label><input id="sn" type="number" value="${S.num}"></div>
             <button id="sp" style="flex:0 0 auto;padding:0;border:none;background:none;cursor:pointer">${isPat(S.code) ? patSVG(S.code, 48) : '<span style="display:grid;place-items:center;width:48px;height:48px;border:1.5px dashed var(--line);border-radius:6px;font-size:.62rem;font-weight:800">＋ pince</span>'}</button>
             <button class="btn btn-ghost" id="su" style="flex:0 0 auto">Retirer de la carte</button><button class="btn btn-danger" id="sd" style="flex:0 0 auto">Supprimer</button></div></div>` : ''}
@@ -321,6 +354,7 @@ TOOL_IMPL.co = function (el) {
       const $ = s => box.querySelector(s), rd = () => { L.nom = $('#ln').value.trim() || 'Lieu'; };
       $('#lf').onchange = e => { const f0 = e.target.files[0]; if (!f0) return; rd(); if (L.map && L.postes.some(q => q.x != null) && !confirm('Changer la carte ? Les postes gardent leur position : replacez-les si la nouvelle carte est différente.')) return; coImg(f0, (img, w, h) => { L.map = { img, w, h }; draw(); }, 1800); };
       box.querySelectorAll('[data-mo]').forEach(b => b.onclick = () => { rd(); mode = b.dataset.mo; if (mode !== 'move' && mode !== 'add') sel = null; draw(); });
+      if ($('#lf')) $('#lf').addEventListener('change', () => { Z.s = 1; Z.tx = Z.ty = 0; });
       box.querySelectorAll('[data-pk]').forEach(b => b.onclick = () => { rd(); pick = pick === b.dataset.pk ? null : b.dataset.pk; draw(); });
       box.querySelectorAll('[data-qp]').forEach(b => b.onclick = () => { rd(); const q = L.postes.find(x => x.id === b.dataset.qp);
         patPicker({ title: `Symbole du poste ${q.num}`, options: CO_PATS, current: q.code, used: L.postes.map(x => x.code).filter(isPat), extra: isPat(q.code) ? [{ v: '', l: 'Retirer le symbole' }] : [], onPick: c => { q.code = c; draw(); } }); });
@@ -335,13 +369,13 @@ TOOL_IMPL.co = function (el) {
       if ($('#su')) $('#su').onclick = () => { rd(); const S2 = L.postes.find(q => q.id === sel); S2.x = S2.y = null; sel = null; draw(); };
       if ($('#sd')) $('#sd').onclick = () => { rd(); const S2 = L.postes.find(q => q.id === sel); if (!confirm(`Supprimer le poste ${S2.num} ?`)) return; L.postes = L.postes.filter(q => q !== S2); sel = null; draw(); };
       const svg = $('#lw svg');
-      if (svg && mode !== 'vue') svg.onpointerdown = e => { e.preventDefault(); rd(); const [x, y] = coSvgPt(svg, V(), e), hit = L.postes.filter(q => q.x != null).find(q => Math.hypot(q.x - x, q.y - y) < 34);
+      if (svg) coZoom($('#lw .co-zv'), L.map, Z, { onTap: e => { rd(); const [x, y] = coSvgPt(svg, V(), e), hit = L.postes.filter(q => q.x != null).find(q => Math.hypot(q.x - x, q.y - y) < 34);
         if (mode === 'D') { L.dep = [x, y]; mode = 'add'; return draw(); }
         if (mode === 'A') { L.arr = [x, y]; mode = 'add'; return draw(); }
         if (mode === 'move') { if (hit && !sel) { sel = hit.id; return draw(); } if (!sel) return toast('Touchez d\'abord un poste'); const S2 = L.postes.find(q => q.id === sel); S2.x = x; S2.y = y; sel = null; return draw(); }
         if (hit) { sel = sel === hit.id ? null : hit.id; return draw(); }
         if (pick) { const q = L.postes.find(z => z.id === pick); q.x = x; q.y = y; pick = (L.postes.find(z => z.x == null) || {}).id || null; beep(900, .04); return draw(); }
-        L.postes.push({ id: coId(), num: nextNum(), code: freeCode(), x, y }); sel = null; beep(900, .04); draw(); };
+        L.postes.push({ id: coId(), num: nextNum(), code: freeCode(), x, y }); sel = null; beep(900, .04); draw(); } });
       $('#lbk').onclick = () => { if (confirm('Quitter sans enregistrer ?')) listParcours(box); };
       if ($('#ldel')) $('#ldel').onclick = () => { const n = DB.co.parcours.filter(p => p.lieu === L.id).length; if (!confirm(`Supprimer le lieu « ${L.nom} » ?${n ? ` ${n} parcours garderont leurs balises mais plus la carte.` : ''}`)) return;
         DB.co.parcours.forEach(p => { if (p.lieu === L.id) delete p.lieu; }); coLieux().splice(idx, 1); save(); listParcours(box); };
@@ -358,6 +392,7 @@ TOOL_IMPL.co = function (el) {
       balises: Array.from({ length: 8 }, (_, i) => ({ num: 31 + i, niv: 1, ob: true })),
       pts: [1, 2, 3], penWrongP: 1, penWrongS: 30, penMissS: 60, penOverP: 1 };
     if (idx == null && coLieux().length) { p.lieu = coLieux()[0].id; p.balises = []; }
+    const ZP = { s: 1, tx: 0, ty: 0 };
     const draw = () => { const LU = coLieu(p.lieu);
       box.innerHTML = `<div data-cfg="bare"><div class="card" data-cfg><h3>${idx != null ? 'Modifier' : 'Nouveau'} parcours</h3>
         <label>Nom</label><input id="nm" value="${esc(p.nom)}">
@@ -371,8 +406,8 @@ TOOL_IMPL.co = function (el) {
         ${p.denivOn ? `<label>Dénivelé positif (m)</label><input id="dv" type="number" value="${p.deniv}">` : ''}
       </div>
       ${LU ? `<div class="card" style="margin-top:12px"><h3>🗺 ${esc(LU.nom)} : postes du parcours</h3>
-        ${LU.map ? `<p class="muted" style="margin:0 0 6px;font-size:.8rem">Touchez les postes ${['suivi', 'papillon', 'relais'].includes(p.type) ? '<b>dans l\'ordre du parcours</b>' : 'du parcours'} (gris pointillé = non retenu ; toucher à nouveau le retire). Le tracé se dessine selon le type.</p>
-          <div id="pw">${coMapView(coViewLieu(p, LU, { all: true }), { edit: true })}</div>
+        ${LU.map ? `<p class="muted" style="margin:0 0 6px;font-size:.8rem">Touchez les postes ${['suivi', 'papillon', 'relais'].includes(p.type) ? '<b>dans l\'ordre du parcours</b>' : 'du parcours'} (gris pointillé = non retenu ; toucher à nouveau le retire). Le tracé se dessine selon le type. 🔍 2 doigts pour zoomer, 1 doigt pour faire glisser.</p>
+          <div id="pw">${coZoomHTML(coMapView(coViewLieu(p, LU, { all: true })))}</div>
           <div class="row" style="margin-top:8px"><button class="btn btn-ghost" id="pall">Tous les postes</button><button class="btn btn-ghost" id="pnone">Aucun</button><button class="btn btn-ghost" id="pzoom">🔍 Agrandir</button></div>
           <button class="btn ${p.type === 'suivi' ? 'btn-grad' : 'btn-ghost'} btn-block" style="margin-top:8px" id="phl">🖍 ${p.hl && p.hl.length ? 'Modifier le surlignage de l\'itinéraire' : 'Surligner l\'itinéraire au doigt'}</button>`
           : `<p class="muted" style="margin:0">Ce lieu n'a pas encore de carte. <button class="link" id="plu">Ouvrir le lieu</button></p>`}
@@ -415,8 +450,8 @@ TOOL_IMPL.co = function (el) {
       const tog = id => { const L0 = coLieu(p.lieu), q = L0.postes.find(z => z.id === id); if (!q) return;
         if (p.balises.some(b => b.pid === id)) p.balises = p.balises.filter(b => b.pid !== id); else p.balises.push({ num: q.num, code: q.code, pid: q.id, niv: 1, ob: p.type !== 'reseau' }); beep(900, .03); draw(); };
       box.querySelectorAll('[data-tq]').forEach(b => b.onclick = () => { read(); tog(b.dataset.tq); });
-      { const svg = box.querySelector('#pw svg'); if (svg) svg.onpointerdown = e => { e.preventDefault(); read(); const L0 = coLieu(p.lieu), [x, y] = coSvgPt(svg, L0.map, e), hit = L0.postes.filter(q => q.x != null).sort((a, b) => Math.hypot(a.x - x, a.y - y) - Math.hypot(b.x - x, b.y - y))[0];
-        if (hit && Math.hypot(hit.x - x, hit.y - y) < 40) tog(hit.id); }; }
+      { const svg = box.querySelector('#pw svg'); if (svg) coZoom(box.querySelector('#pw .co-zv'), LU.map, ZP, { onTap: e => { read(); const L0 = coLieu(p.lieu), [x, y] = coSvgPt(svg, L0.map, e), hit = L0.postes.filter(q => q.x != null).sort((a, b) => Math.hypot(a.x - x, a.y - y) - Math.hypot(b.x - x, b.y - y))[0];
+        if (hit && Math.hypot(hit.x - x, hit.y - y) < 40) tog(hit.id); } }); }
       if ($('#pall')) $('#pall').onclick = () => { read(); const L0 = coLieu(p.lieu); L0.postes.slice().sort((a, b) => a.num - b.num).forEach(q => { if (!p.balises.some(b => b.pid === q.id)) p.balises.push({ num: q.num, code: q.code, pid: q.id, niv: 1, ob: p.type !== 'reseau' }); }); draw(); };
       if ($('#pnone')) $('#pnone').onclick = () => { if (!p.balises.length || !confirm('Retirer tous les postes du parcours ?')) return; read(); p.balises = []; draw(); };
       if ($('#pzoom')) $('#pzoom').onclick = () => { read(); coMapShow(p); };
