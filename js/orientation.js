@@ -176,6 +176,12 @@ const CO_OBJ = {   // symboles inspirés de la norme ISOM (cartes de course d'or
   banc:     { g: 'pt', l: 'Banc / petit objet construit' },   // petit objet construit : noir
   eau:      { g: 'pt', l: 'Point d\'eau / ravitaillement' },  // symbole de traçage : gobelet magenta
   secours:  { g: 'pt', l: 'Poste de secours' },           // symbole de traçage : croix magenta
+  fontaine: { g: 'pt', l: 'Fontaine / robinet / puits' }, // ISOM 311 : rond bleu
+  trou:     { g: 'pt', l: 'Trou d\'eau / petite mare' },  // petit point bleu plein
+  buisson:  { g: 'pt', l: 'Buisson' },                    // ISOM 418 : petit rond vert
+  butte:    { g: 'pt', l: 'Petite butte' },               // ISOM 112 : point marron
+  fosse:    { g: 'pt', l: 'Trou / fosse' },               // ISOM 115 : V marron
+  construit:{ g: 'pt', l: 'Élément construit remarquable' },  // ISOM 540 : rond noir (poteau, lampadaire, panier…)
   rocher:   { g: 'pt', l: 'Rocher' },                     // ISOM 206 : point noir
   objet:    { g: 'pt', l: 'Objet particulier' },          // ISOM 540 : croix noire
   cloture:  { g: 'ln', l: 'Clôture' },                    // ISOM 516
@@ -183,6 +189,7 @@ const CO_OBJ = {   // symboles inspirés de la norme ISOM (cartes de course d'or
   mur:      { g: 'ln', l: 'Mur' },                        // ISOM 513
   chemin:   { g: 'ln', l: 'Chemin / sentier' },           // ISOM 505-506 : tirets noirs
   haie:     { g: 'ln', l: 'Haie / végétation infranchissable' },  // ISOM 411 : vert foncé
+  ruisseau: { g: 'ln', l: 'Ruisseau / fossé' },           // ISOM 305 : ligne bleue
   limite:   { g: 'ln', l: 'Limite de la zone de course' },  // traçage : ligne magenta
   interdit: { g: 'zn', l: 'Zone interdite' },             // traçage / ISOM 709 : hachures magenta
   danger:   { g: 'zn', l: 'Zone dangereuse' },            // traçage : quadrillage magenta
@@ -190,6 +197,7 @@ const CO_OBJ = {   // symboles inspirés de la norme ISOM (cartes de course d'or
   etang:    { g: 'zn', l: 'Eau / étang' },                // ISOM 301 : bleu, bord noir
   veg:      { g: 'zn', l: 'Végétation dense' },           // ISOM 408-410 : vert
   degage:   { g: 'zn', l: 'Terrain dégagé' },             // ISOM 401 : jaune
+  bitume:   { g: 'zn', l: 'Cour / zone goudronnée' },     // ISOM 529 : beige bordé de noir
 };
 const CO_OBJ_G = { pt: 'Points (touchez la carte)', ln: 'Lignes (touchez chaque point, puis ✔ Terminer)', zn: 'Zones (touchez le contour, puis ✔ Terminer)' };
 const coTicks = (pts, step, len, both) => { let out = '', acc = step / 2;
@@ -204,9 +212,15 @@ const coObjPt = t => ({
   eau: '<path d="M-11,-12 L11,-12 L7,12 L-7,12 Z" fill="none" stroke="#B0127A" stroke-width="4" stroke-linejoin="round"/>',
   secours: '<path d="M-4,-14 h8 v10 h10 v8 h-10 v10 h-8 v-10 h-10 v-8 h10 Z" fill="none" stroke="#B0127A" stroke-width="3.5" stroke-linejoin="round"/>',
   rocher: '<circle r="7" fill="#000"/>',
+  fontaine: '<circle r="9" fill="none" stroke="#00A0E0" stroke-width="4.5"/>',
+  trou: '<circle r="7" fill="#00A0E0"/>',
+  buisson: '<circle r="6.5" fill="#3FAE49"/>',
+  butte: '<circle r="7" fill="#B3591B"/>',
+  fosse: '<path d="M-9,-8 L0,9 L9,-8" fill="none" stroke="#B3591B" stroke-width="4.5" stroke-linejoin="round" stroke-linecap="round"/>',
+  construit: '<circle r="9" fill="none" stroke="#000" stroke-width="4.5"/>',
   objet: '<path d="M-9,-9 L9,9 M9,-9 L-9,9" stroke="#000" stroke-width="4.5" stroke-linecap="round"/>' })[t] || '';
 /* Symboles illustrés (adaptation pour élèves à besoins particuliers) : dessin parlant à la place du symbole ISOM */
-const CO_PICTO = { arbre: '🌳', banc: '🪑', eau: '🚰', secours: '⛑️', rocher: '🪨', objet: '❌', cloture: '🚧', clotureX: '🚫', mur: '🧱', chemin: '👣', haie: '🌿', limite: '🛑', interdit: '⛔', danger: '⚠️', bat: '🏠', etang: '💧', veg: '🌲', degage: '🌼' };
+const CO_PICTO = { fontaine: '🚰', trou: '💧', buisson: '🌱', butte: '⛰️', fosse: '🕳️', construit: '🏛️', ruisseau: '🏞️', bitume: '🛣️', arbre: '🌳', banc: '🪑', eau: '🥤', secours: '⛑️', rocher: '🪨', objet: '❌', cloture: '🚧', clotureX: '🚫', mur: '🧱', chemin: '👣', haie: '🌿', limite: '🛑', interdit: '⛔', danger: '⚠️', bat: '🏠', etang: '🌊', veg: '🌲', degage: '🌼' };
 const coPictoGet = () => { try { return localStorage.getItem('epsone_co_picto') === '1'; } catch (e) { return false; } };
 const coPictoSet = v => { try { localStorage.setItem('epsone_co_picto', v ? '1' : '0'); } catch (e) {} };
 const coEmo = (e, x, y, MS, id, sz = 40) => `<g class="mk" data-id="${id}" data-x="${x.toFixed(1)}" data-y="${y.toFixed(1)}" data-k="${MS}" transform="translate(${x.toFixed(1)},${y.toFixed(1)}) scale(${MS})"><text font-size="${sz}" text-anchor="middle" dominant-baseline="central" y="2">${e}</text></g>`;
@@ -224,9 +238,10 @@ function coObjSVG(o, MS, uid, picto) {
       mur: `${d}stroke="#000" stroke-width="${w(6)}"/>`,
       chemin: `${d}stroke="#000" stroke-width="${w(5)}" stroke-dasharray="${w(18)} ${w(10)}"/>`,
       haie: `${d}stroke="#1F8A3A" stroke-width="${w(11)}"/>`,
+      ruisseau: `${d}stroke="#00A0E0" stroke-width="${w(6)}"/>`,
       limite: `${d}stroke="#B0127A" stroke-width="${w(7)}"/>` }[o.t] || ''; }
-  const fill = { interdit: `url(#hz${uid})`, danger: `url(#hx${uid})`, bat: 'rgba(0,0,0,.85)', etang: 'rgba(0,160,224,.75)', veg: 'rgba(60,170,70,.6)', degage: 'rgba(255,186,53,.6)' }[o.t];
-  const stroke = { interdit: '#B0127A', danger: '#B0127A', bat: '#000', etang: '#000', veg: 'none', degage: 'none' }[o.t];
+  const fill = { interdit: `url(#hz${uid})`, danger: `url(#hx${uid})`, bat: 'rgba(0,0,0,.85)', etang: 'rgba(0,160,224,.75)', veg: 'rgba(60,170,70,.6)', degage: 'rgba(255,186,53,.6)', bitume: 'rgba(222,200,160,.7)' }[o.t];
+  const stroke = { interdit: '#B0127A', danger: '#B0127A', bat: '#000', etang: '#000', veg: 'none', degage: 'none', bitume: '#000' }[o.t];
   return `<polygon points="${P}" fill="${fill}" stroke="${stroke}" stroke-width="${w(o.t === 'interdit' || o.t === 'danger' ? 5 : 3)}" stroke-linejoin="round"/>`;
 }
 const coObjDefs = (MS, uid) => `<defs><pattern id="hz${uid}" patternUnits="userSpaceOnUse" width="${(14 * MS).toFixed(1)}" height="20"><rect width="${(5 * MS).toFixed(1)}" height="20" fill="#B0127A" fill-opacity=".8"/></pattern>
@@ -420,7 +435,7 @@ TOOL_IMPL.co = function (el) {
   /* ---- Lieu : carte vierge + postes ---- */
   function editLieu(box, idx) {
     const L = idx != null ? JSON.parse(JSON.stringify(coLieux()[idx])) : { id: coId(), nom: coLieux().length ? 'Bois' : 'Établissement', postes: [] };
-    let mode = 'add', pick = null, sel = null, otype = null, draft = [], osel = null; const Z = { s: 1, tx: 0, ty: 0 }; L.objs = L.objs || [];
+    let mode = 'add', pick = null, sel = null, otype = null, draft = [], osel = null, pv = false; const Z = { s: 1, tx: 0, ty: 0 }; L.objs = L.objs || [];
     const nextNum = () => L.postes.reduce((a, q) => Math.max(a, q.num), 30) + 1;
     const freeCode = () => CO_PATS.find(c => !L.postes.some(q => q.code === c)) || '';
     const V = () => ({ img: L.map.img, w: L.map.w, h: L.map.h, hl: [], paths: [], ms: coMS(L), objs: L.objs, marks: [...(L.dep ? [{ kind: 'D', x: L.dep[0], y: L.dep[1] }] : []), ...(L.arr ? [{ kind: 'A', x: L.arr[0], y: L.arr[1] }] : []),
@@ -440,11 +455,12 @@ TOOL_IMPL.co = function (el) {
             ${L.objs.length && !draft.length ? `<button class="btn btn-ghost btn-block" style="margin-top:6px;padding:8px" id="olast">↶ Annuler le dernier objet (${L.objs.length} sur la carte)</button>` : ''}</div>` : ''}
           ${mode === 'add' && un.length ? `<div class="bal-chips">${un.map(q => `<button data-pk="${q.id}" class="${pick === q.id ? 'on' : ''}" style="border-style:dashed">${q.num}</button>`).join('')}</div>` : ''}
           <div style="display:flex;align-items:center;gap:10px;margin-top:8px"><span style="font-size:.8rem;font-weight:800;white-space:nowrap">⭕ Taille des repères</span><input id="lt" type="range" min="0.15" max="1.5" step="0.05" value="${coMS(L)}" style="flex:1"><b id="ltv" style="font-size:.8rem;min-width:38px;text-align:right">${Math.round(coMS(L) * 100)} %</b></div>
-          <div style="margin-top:8px" id="lw">${coZoomHTML(coMapView(V(), { sel, osel, draft: draft.length ? `<polyline points="${draft.join(',')}${otype && CO_OBJ[otype].g === 'zn' && draft.length > 4 ? ',' + draft[0] + ',' + draft[1] : ''}" fill="none" stroke="#E07A00" stroke-width="4" stroke-dasharray="10 6"/>${draft.map((v, i) => i % 2 ? '' : `<circle cx="${v}" cy="${draft[i + 1]}" r="7" fill="#E07A00"/>`).join('')}` : '' }))}</div>
+          ${L.objs.length ? `<label style="display:flex;gap:8px;align-items:center;margin-top:8px;font-size:.82rem;font-weight:700"><input type="checkbox" id="lpv" ${pv ? 'checked' : ''} style="width:auto"> 🖼 Aperçu en symboles illustrés (version adaptée de la carte)</label>` : ''}
+          <div style="margin-top:8px" id="lw">${coZoomHTML(coMapView(V(), { picto: pv, sel, osel, draft: draft.length ? `<polyline points="${draft.join(',')}${otype && CO_OBJ[otype].g === 'zn' && draft.length > 4 ? ',' + draft[0] + ',' + draft[1] : ''}" fill="none" stroke="#E07A00" stroke-width="4" stroke-dasharray="10 6"/>${draft.map((v, i) => i % 2 ? '' : `<circle cx="${v}" cy="${draft[i + 1]}" r="7" fill="#E07A00"/>`).join('')}` : '' }))}</div>
           ${S ? `<div style="margin-top:10px;padding:10px;border-radius:12px;border:2px solid var(--gold,#C9A227)"><b>Poste sélectionné</b><div class="row" style="align-items:center;margin-top:6px"><div><label style="margin:0">Numéro</label><input id="sn" type="number" value="${S.num}"></div>
             <button id="sp" style="flex:0 0 auto;padding:0;border:none;background:none;cursor:pointer">${isPat(S.code) ? patSVG(S.code, 48) : '<span style="display:grid;place-items:center;width:48px;height:48px;border:1.5px dashed var(--line);border-radius:6px;font-size:.62rem;font-weight:800">＋ pince</span>'}</button>
             <button class="btn btn-ghost" id="su" style="flex:0 0 auto">Retirer de la carte</button><button class="btn btn-danger" id="sd" style="flex:0 0 auto">Supprimer</button></div></div>` : ''}
-          ${L.dep || L.arr ? `<div style="margin-top:8px;font-size:.8rem">${L.dep ? '△ Départ placé ' : ''}${L.arr ? '· ◎ Arrivée placée <button class="link" id="ax">retirer l\'arrivée</button>' : ''}</div>` : ''}</div>` : ''}
+          ${L.dep || L.arr ? `<div class="row" style="margin-top:8px;align-items:center;font-size:.85rem">${L.dep ? `<span style="${sel === 'D' ? 'font-weight:900' : ''}">△ Départ placé</span><button class="btn btn-ghost" style="flex:0 0 auto;padding:6px 10px" id="dx">🗑 Retirer le départ</button>` : ''}${L.arr ? `<span style="${sel === 'A' ? 'font-weight:900' : ''}">◎ Arrivée placée</span><button class="btn btn-ghost" style="flex:0 0 auto;padding:6px 10px" id="ax">🗑 Retirer l'arrivée</button>` : ''}</div>` : ''}</div>` : ''}
         <div class="card" style="margin-top:12px"><h3 style="margin-top:0">Postes (${L.postes.length})</h3>
           <p class="muted" style="margin:0 0 6px;font-size:.8rem">Saisissez-les ici à l'avance (numéro + symbole de la pince) puis placez-les sur la carte, ou créez-les directement en touchant la carte.</p>
           <div class="row" style="align-items:end"><div><label>Nombre</label><input id="gn" type="number" min="1" value="${Math.max(1, 10 - L.postes.length)}"></div><div><label>À partir du n°</label><input id="g0" type="number" value="${nextNum()}"></div><button class="btn btn-ghost" style="flex:0 0 auto" id="gg">＋ Ajouter</button></div>
@@ -460,6 +476,7 @@ TOOL_IMPL.co = function (el) {
       if ($('#lt')) { $('#lt').oninput = e => { L.taille = +e.target.value; $('#ltv').textContent = Math.round(L.taille * 100) + ' %'; $('#lw').querySelectorAll('g.mk').forEach(m => m.dataset.k = L.taille); coMkScale($('#lw'), 1 / Math.sqrt(Z.s)); };
         $('#lt').onchange = () => { rd(); draw(); }; }
       box.querySelectorAll('[data-ot]').forEach(b => b.onclick = () => { rd(); if (draft.length && !confirm('Abandonner l\'objet en cours ?')) return; draft = []; osel = null; otype = otype === b.dataset.ot ? null : b.dataset.ot; draw(); });
+      if ($('#lpv')) $('#lpv').onchange = e => { rd(); pv = e.target.checked; draw(); };
       if ($('#onone')) $('#onone').onclick = () => { rd(); draft = []; otype = null; draw(); };
       if ($('#od')) $('#od').onclick = () => { rd(); const G = CO_OBJ[otype].g; if (draft.length < (G === 'zn' ? 6 : 4)) return toast(G === 'zn' ? 'Une zone demande au moins 3 points' : 'Une ligne demande au moins 2 points'); L.objs.push({ id: coId(), t: otype, pts: draft }); draft = []; beep(900, .04); draw(); };
       if ($('#ou')) $('#ou').onclick = () => { rd(); draft = draft.slice(0, -2); draw(); };
@@ -474,7 +491,8 @@ TOOL_IMPL.co = function (el) {
       $('#gg').onclick = () => { rd(); const n = Math.min(60, Math.max(1, +$('#gn').value || 1)), n0 = +$('#g0').value || nextNum(); let k = 0;
         for (let v = n0; k < n; v++) if (!L.postes.some(q => q.num === v)) { L.postes.push({ id: coId() + k, num: v, code: freeCode(), x: null, y: null }); k++; } draw(); };
       if ($('#ga')) $('#ga').onclick = () => { rd(); L.postes.forEach(q => { if (!isPat(q.code)) q.code = freeCode(); }); draw(); };
-      if ($('#ax')) $('#ax').onclick = () => { rd(); delete L.arr; draw(); };
+      if ($('#ax')) $('#ax').onclick = () => { rd(); if (!confirm('Retirer l\'arrivée ? (sans arrivée, elle se fait au départ)')) return; delete L.arr; sel = null; draw(); };
+      if ($('#dx')) $('#dx').onclick = () => { rd(); if (!confirm('Retirer le départ ? Vous pourrez le replacer avec « △ Départ ».')) return; delete L.dep; sel = null; draw(); };
       if ($('#sn')) $('#sn').onchange = e => { const v = +e.target.value, S2 = L.postes.find(q => q.id === sel); if (!v) return; if (L.postes.some(q => q !== S2 && q.num === v)) { toast('Ce numéro existe déjà'); return draw(); } S2.num = v; rd(); draw(); };
       if ($('#sp')) $('#sp').onclick = () => { rd(); const S2 = L.postes.find(q => q.id === sel); patPicker({ title: `Symbole du poste ${S2.num}`, options: CO_PATS, current: S2.code, used: L.postes.map(x => x.code).filter(isPat), onPick: c => { S2.code = c; draw(); } }); };
       if ($('#su')) $('#su').onclick = () => { rd(); const S2 = L.postes.find(q => q.id === sel); S2.x = S2.y = null; sel = null; draw(); };
@@ -497,7 +515,7 @@ TOOL_IMPL.co = function (el) {
           if (CO_OBJ[otype].g === 'pt') { L.objs.push({ id: coId(), t: otype, x, y }); beep(900, .04); return draw(); }
           draft = [...draft, x, y]; beep(1100, .02); return draw(); }
         const nh = near(e), hit = nh && nh.id !== 'D' && nh.id !== 'A' ? L.postes.find(q => q.id === nh.id) : null;
-        if (nh && (nh.id === 'D' || nh.id === 'A') && mode !== 'D' && mode !== 'A') return toast('Faites glisser le repère pour le déplacer');
+        if (nh && (nh.id === 'D' || nh.id === 'A') && mode !== 'D' && mode !== 'A') { sel = nh.id; toast(`${nh.id === 'D' ? 'Départ' : 'Arrivée'} : faites-le glisser pour le déplacer, ou « 🗑 Retirer » sous la carte`); return draw(); }
         if (mode === 'D') { L.dep = [x, y]; mode = 'add'; return draw(); }
         if (mode === 'A') { L.arr = [x, y]; mode = 'add'; return draw(); }
         if (mode === 'move') { if (hit && !sel) { sel = hit.id; return draw(); } if (!sel) return toast('Touchez d\'abord un poste'); const S2 = L.postes.find(q => q.id === sel); S2.x = x; S2.y = y; sel = null; return draw(); }
