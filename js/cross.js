@@ -100,6 +100,22 @@ if (!document.getElementById('cx-css')) document.head.insertAdjacentHTML('before
   const poste = () => { try { return Object.assign({ role: 'scan', ln: 1 }, JSON.parse(localStorage.getItem(POSTE_K)) || {}); } catch (e) { return { role: 'scan', ln: 1 }; } };
   const setPoste = o => { try { localStorage.setItem(POSTE_K, JSON.stringify(Object.assign(poste(), o))); } catch (e) {} };
   const topOn = E => E.arrMode === 'top';
+  /* 🕒 Horloge commune : chaque tablette se cale sur l'heure du serveur (en-tête « Date » de la page),
+     pour que départs, TOP et arrivées de tablettes différentes soient comparables même si une tablette est mal réglée. */
+  const OFF_K = 'epsone_clock_off';
+  let clockOff = 0, clockOk = false; try { const o = JSON.parse(localStorage.getItem(OFF_K)); if (o && Math.abs(o.off) < 432e5) { clockOff = o.off; clockOk = Date.now() - o.at < 6 * 3600e3; } } catch (e) {}
+  const NOW = () => Date.now() + clockOff;
+  async function calibrate() {
+    if (!navigator.onLine) return; const best = [];
+    for (let i = 0; i < 3; i++) { try { const t0 = Date.now(), r = await fetch('./version.json?clk=' + t0, { method: 'HEAD', cache: 'no-store' }), t1 = Date.now(), d = r.headers.get('Date');
+      if (!d) continue; const srv = Date.parse(d) + 500; best.push({ off: srv - (t0 + t1) / 2, rtt: t1 - t0 }); } catch (e) {} }
+    if (!best.length) return; best.sort((a, b) => a.rtt - b.rtt); const off = Math.round(best[0].off);
+    if (Math.abs(off) > 432e5) return; clockOff = Math.abs(off) < 1500 ? 0 : off; clockOk = true;   // < 1,5 s : précision de l'en-tête, on garde l'horloge de l'appareil
+    try { localStorage.setItem(OFF_K, JSON.stringify({ off: clockOff, raw: off, at: Date.now() })); } catch (e) {}
+  }
+  calibrate(); window.addEventListener('online', calibrate);
+  const clockTxt = () => { let raw = 0; try { raw = (JSON.parse(localStorage.getItem(OFF_K)) || {}).raw || 0; } catch (e) {}
+    return !clockOk ? '🕒 Horloge non vérifiée (hors connexion) : vérifiez que l\'appareil est à l\'heure automatique' : Math.abs(raw) >= 1500 ? `🕒 Horloge de cet appareil décalée de ${Math.round(raw / 1000)} s : corrigé automatiquement` : '🕒 Horloge à l\'heure ✔'; };
   const getCur = () => { try { return localStorage.getItem('epsone_cross_cur') || ''; } catch (e) { return ''; } };
   const setCur = id => { try { localStorage.setItem('epsone_cross_cur', id); } catch (e) {} };
   const commit = () => { save(); window.syncFlush && window.syncFlush(); };
@@ -197,7 +213,7 @@ if (!document.getElementById('cx-css')) document.head.insertAdjacentHTML('before
   }
   /* ---------- Enregistrement d'un passage (caméra ou pavé) ---------- */
   const seen = new Map();   // dossard -> dernier scan caméra (anti-doublon 20 s, propre à la tablette)
-  function record(E, bib, src, now = Date.now()) {
+  function record(E, bib, src, now = NOW()) {
     const K = compute(E), s = K.byBib.get(+bib);
     if (!s) return { kind: 'bad', bib, msg: 'Dossard inconnu' };
     const c = K.cOf.get(s.k);
@@ -541,7 +557,7 @@ tr:nth-child(-n+4) td{font-weight:700}`,
          la version à jour (sinon les TOP, départs et passages faits ici partiraient dans une copie périmée). */
       const E = liveDB(() => { const x = cur(); return x && x.id === E0.id ? x : E0; });
       const P0 = poste(), LINE = topOn(E) && P0.role === 'ligne';
-      box.innerHTML = `<div class="card" data-cfg style="margin-bottom:12px"><b>🏁 Arrivées</b>
+      box.innerHTML = `<div class="card" data-cfg style="margin-bottom:12px"><b>🏁 Arrivées</b> <span class="muted" style="font-size:.78rem;font-weight:700" id="cx-clk">${clockTxt()}</span>
           <div class="seg" style="margin-top:6px">${[['scan', '📷 Heure du scan'], ['top', '🏁 TOP sur la ligne (classement exact)']].map(([k, l]) => `<button data-am="${k}" class="${(E.arrMode || 'scan') === k ? 'on' : ''}">${l}</button>`).join('')}</div>
           ${topOn(E) ? `<label>Poste de cette tablette</label><div class="seg">${[['ligne', '🏁 Sur la ligne : TOP'], ['scan', '📷 Couloir : scan des dossards']].map(([k, l]) => `<button data-pr="${k}" class="${P0.role === k ? 'on' : ''}">${l}</button>`).join('')}</div>
             <label>Couloir</label><div class="seg">${[1, 2, 3, 4].map(n => `<button data-ln="${n}" class="${P0.ln === n ? 'on' : ''}">${n}</button>`).join('')}</div>
@@ -560,16 +576,20 @@ tr:nth-child(-n+4) td{font-weight:700}`,
             <button class="btn btn-ghost btn-block" style="margin-top:10px" id="cx-undo">↶ Annuler mon dernier passage</button></div>
           <div class="section-title"><h2>Derniers passages</h2><span class="muted" id="cx-cnt"></span></div><div class="card" style="padding:4px 12px" id="cx-last"></div></div></div>
         ${topOn(E) ? '<details class="card cx-prof" data-cfg="bare" id="cx-ctl-d"><summary data-prof>🏁 Contrôle TOP ↔ dossards</summary><div id="cx-ctl"></div></details>' : ''}
-        <details class="card cx-prof" data-cfg="bare"><summary data-prof>🔒 Enseignant</summary><p class="muted" style="font-size:.82rem">Supprimer un passage enregistré (toutes tablettes). Les heures de départ se corrigent dans l'onglet 🏁 Courses.</p><div id="cx-all"></div></details>`;
+        <details class="card cx-prof" data-cfg="bare"><summary data-prof>🔒 Enseignant</summary><p class="muted" style="font-size:.82rem">Supprimer un passage enregistré (toutes tablettes). Les heures de départ se corrigent dans l'onglet 🏁 Courses.</p><div id="cx-all"></div>
+          <button class="btn btn-ghost btn-block" style="margin-top:10px" id="cx-wipe">🗑 Effacer tous les départs, TOP et passages de ce cross (après un test)</button></details>`;
       const $ = s => box.querySelector(s), video = box.querySelector('video'), cmsg = $('#cx-cmsg');
       const reScan = () => { stopCam(); clearInterval(clockIv); clockIv = null; scan(box, E0); };
       box.querySelectorAll('[data-am]').forEach(b => b.onclick = () => { E.arrMode = b.dataset.am; commit(); reScan(); });
       box.querySelectorAll('[data-pr]').forEach(b => b.onclick = () => { setPoste({ role: b.dataset.pr }); reScan(); });
       box.querySelectorAll('[data-ln]').forEach(b => b.onclick = () => { setPoste({ ln: +b.dataset.ln }); reScan(); });
+      if ($('#cx-wipe')) $('#cx-wipe').onclick = () => { if (!confirm(`Effacer TOUS les départs, TOP et passages de « ${E.name} » ?\n(inscriptions, courses et dossards sont conservés : le cross est prêt pour le jour J)`)) return;
+        E.arr = []; E.tops = []; E.courses.forEach(c => { c.start = null; delete c.end; (c.waves || []).forEach(w => { w.start = null; }); }); seen.clear(); commit(); toast('Cross remis à zéro ✔'); reScan(); };
+      calibrate().then(() => { const e = $('#cx-clk'); if (e) e.textContent = clockTxt(); });
       const myTops = () => (E.tops || []).filter(x => (x.ln || 1) === poste().ln);
       const drawTopN = () => { const e = $('#cx-topn'); if (!e) return; const T = myTops(); e.innerHTML = `${T.length} TOP${T.length > 1 ? 's' : ''}${T.length ? ` <span class="muted" style="font-size:.9rem">· dernier ${hms(T[T.length - 1].t)}</span>` : ''}`; };
       if ($('#cx-top')) { let lastTop = 0;
-        $('#cx-top').addEventListener('pointerdown', ev => { ev.preventDefault(); const t = Date.now(); if (t - lastTop < 150) return; lastTop = t;
+        $('#cx-top').addEventListener('pointerdown', ev => { ev.preventDefault(); const t = NOW(); if (t - lastTop < 150) return; lastTop = t;
           E.tops = E.tops || []; E.tops.push({ id: uid(8), t, d: DEV, ln: poste().ln }); commit(); beep(1800, .06, .5); try { navigator.vibrate && navigator.vibrate(30); } catch (e) {}
           const b = $('#cx-top'); b.style.transform = 'scale(.97)'; setTimeout(() => { b.style.transform = ''; }, 90); drawTopN(); });
         $('#cx-topu').onclick = () => { const T = myTops().filter(x => x.d === DEV), last = T[T.length - 1]; if (!last) return toast('Aucun TOP sur cette tablette');
@@ -588,28 +608,28 @@ tr:nth-child(-n+4) td{font-weight:700}`,
         h.querySelectorAll('[data-xt]').forEach(b => b.onclick = () => { if (!confirm('Supprimer ce TOP ?')) return; E.tops = E.tops.filter(x => x.id !== b.dataset.xt); commit(); drawCtl(); drawLast(); });
         h.querySelectorAll('[data-xa]').forEach(b => b.onclick = () => { if (!confirm('Supprimer ce scan ?')) return; E.arr = E.arr.filter(x => x.id !== b.dataset.xa); commit(); drawCtl(); drawLast(); });
         h.querySelectorAll('[data-it]').forEach(b => b.onclick = () => { const [ln, i] = b.dataset.it.split('|').map(Number), T = lanePair(ln).T, pv = T[i - 1], nx = T[i];
-          const t = pv && nx ? Math.round((pv.t + nx.t) / 2) : nx ? nx.t - 500 : pv ? pv.t + 500 : Date.now(); E.tops.push({ id: uid(8), t, d: DEV, ln, man: 1 }); commit(); drawCtl(); drawLast(); });
+          const t = pv && nx ? Math.round((pv.t + nx.t) / 2) : nx ? nx.t - 500 : pv ? pv.t + 500 : NOW(); E.tops.push({ id: uid(8), t, d: DEV, ln, man: 1 }); commit(); drawCtl(); drawLast(); });
         h.querySelectorAll('[data-ia]').forEach(b => b.onclick = () => { const [ln, i] = b.dataset.ia.split('|').map(Number), v = +(prompt('N° du dossard à insérer :') || ''); if (!v) return;
           if (!K.byBib.get(v)) return toast('Dossard inconnu'); const A = lanePair(ln).A, pv = A[i - 1], nx = A[i];
-          const t = pv && nx ? Math.round((pv.t + nx.t) / 2) : nx ? nx.t - 500 : pv ? pv.t + 500 : Date.now(); E.arr.push({ id: uid(8), b: v, t, d: DEV, src: 'manual', ln }); commit(); drawCtl(); drawLast(); }); };
+          const t = pv && nx ? Math.round((pv.t + nx.t) / 2) : nx ? nx.t - 500 : pv ? pv.t + 500 : NOW(); E.arr.push({ id: uid(8), b: v, t, d: DEV, src: 'manual', ln }); commit(); drawCtl(); drawLast(); }); };
       const drawStarts = () => {
         const K = compute(E), ns = E.courses.filter(c => !c.start);
         [...gstart].forEach(id => { if (!ns.some(c => c.id === id)) gstart.delete(id); });
         $('#cx-starts').innerHTML = `${E.courses.map((c, i) => { const x = K.courses[i]; return `<div class="cx-start" style="--cc:${col(E, c)}"><span class="cx-dot"></span><div class="nm">${esc(c.name)}<small>${x.n} coureur${x.n > 1 ? 's' : ''} · ${c.mode === 'temps' ? 'aux tours · ' + c.dur + ' min' : c.dist + ' m'}${c.start ? ` · ${x.R.length}/${x.n} arrivé${x.R.length > 1 ? 's' : ''}` : ''}${c.end ? ` · ✅ terminée à ${hms(c.end)}` : c.start && x.n && x.R.length >= x.n && c.mode !== 'temps' ? ' · 🎉 tous arrivés' : ''}</small></div>
-            ${c.end ? `<span class="clk" style="opacity:.6">🏁 ${tm(c.end - c.start)}</span><button class="cx-stop" data-prof data-reo="${i}" aria-label="Rouvrir la course">↩ Rouvrir</button>`
+            ${c.end ? `<span class="clk" style="opacity:.6">🏁 ${tm(c.end - c.start)}</span><button class="cx-stop" data-prof data-reo="${i}" aria-label="Rouvrir la course">↩ Rouvrir</button><button class="cx-stop" data-prof data-stop="${i}" aria-label="Remettre la course à zéro">↺</button>`
               : c.start ? `<span class="clk" data-clk="${i}"></span><button class="cx-stop" data-prof data-end="${i}" aria-label="Course terminée" style="${x.n && x.R.length >= x.n ? 'background:#1E9E5A;color:#fff;border-color:transparent' : ''}">🏁 Terminée</button><button class="cx-stop" data-prof data-stop="${i}" aria-label="Faux départ : remettre la course à zéro">↺</button>`
               : `<button class="cx-go" data-go="${i}">🔫 TOP DÉPART !</button>`}</div>
             ${(c.waves || []).map((w, j) => { const n = stu(E).filter(s2 => K.cOf.get(s2.k) === c && waveOf(c, s2) === w).length, plan = offS(w) > 0 && c.start ? c.start + offS(w) * 1000 : null;
               return `<div class="cx-start" style="--cc:${col(E, c)};margin-left:22px;opacity:.95"><span class="cx-dot" style="opacity:.5"></span><div class="nm">⏱ ${esc(w.n)}<small>${n} coureur${n > 1 ? 's' : ''}${offS(w) > 0 ? ` · prévu +${offTxt(w)}` : ''}${w.start ? ' · TOP ' + hms(w.start) : plan ? ' · départ auto ' + hms(plan) : ''}</small></div>
-                ${w.start || (plan && Date.now() >= plan) ? `<span class="clk" data-wclk="${i}|${j}"></span>${w.start ? `<button class="cx-stop" data-prof data-wclr="${i}|${j}" aria-label="Annuler le TOP">↺</button>` : ''}` : `<button class="cx-go" data-wgo="${i}|${j}">🔫 TOP ${esc(w.n)}</button>`}</div>`; }).join('')}`; }).join('')}
+                ${w.start || (plan && NOW() >= plan) ? `<span class="clk" data-wclk="${i}|${j}"></span>${w.start ? `<button class="cx-stop" data-prof data-wclr="${i}|${j}" aria-label="Annuler le TOP">↺</button>` : ''}` : `<button class="cx-go" data-wgo="${i}|${j}">🔫 TOP ${esc(w.n)}</button>`}</div>`; }).join('')}`; }).join('')}
           ${ns.length > 1 ? `<div style="margin-top:10px"><b>Départ groupé</b> <span class="muted" style="font-size:.78rem">· touchez les courses à lancer ensemble</span><div class="cx-gsel">${ns.map(c => `<button data-gs="${c.id}" class="${gstart.has(c.id) ? 'on' : ''}">${esc(c.name)}</button>`).join('')}</div><button class="btn btn-danger btn-block" id="cx-gg">🔫 TOP DÉPART groupé ! (${[...gstart].length})</button></div>` : ''}`;
-        const go = L => { const t = Date.now(); L.forEach(c => { c.start = t; }); commit(); beep(1500, .5, .5); toast('🔫 TOP DÉPART ! ' + L.map(c => c.name).join(', ')); gstart.clear(); drawStarts(); };
+        const go = L => { const t = NOW(); L.forEach(c => { c.start = t; }); commit(); beep(1500, .5, .5); toast('🔫 TOP DÉPART ! ' + L.map(c => c.name).join(', ')); gstart.clear(); drawStarts(); };
         box.querySelectorAll('[data-go]').forEach(b => b.onclick = () => go([E.courses[+b.dataset.go]]));
-        box.querySelectorAll('[data-wgo]').forEach(b => b.onclick = () => { const [i, j] = b.dataset.wgo.split('|').map(Number), w = E.courses[i].waves[j]; w.start = Date.now(); commit(); beep(1500, .5, .5); toast('🔫 TOP ' + w.n + ' !'); drawStarts(); drawLast(); });
+        box.querySelectorAll('[data-wgo]').forEach(b => b.onclick = () => { const [i, j] = b.dataset.wgo.split('|').map(Number), w = E.courses[i].waves[j]; w.start = NOW(); commit(); beep(1500, .5, .5); toast('🔫 TOP ' + w.n + ' !'); drawStarts(); drawLast(); });
         box.querySelectorAll('[data-wclr]').forEach(b => b.onclick = () => { const [i, j] = b.dataset.wclr.split('|').map(Number), w = E.courses[i].waves[j]; if (!confirm(`Annuler le TOP de « ${w.n} » ?`)) return; w.start = null; commit(); drawStarts(); drawLast(); });
         box.querySelectorAll('[data-end]').forEach(b => b.onclick = () => { const c = E.courses[+b.dataset.end], x = compute(E).courses[+b.dataset.end]; if (!c || !c.start) return;
           if (!confirm(`Terminer « ${c.name} » ?${x.n - x.R.length > 0 ? `\n⚠️ ${x.n - x.R.length} coureur(s) pas encore arrivé(s) : ils seront classés « non arrivés ».` : ''}\nLe classement est figé ; les scans suivants sont refusés (« Rouvrir » est possible).`)) return;
-          c.end = Date.now(); commit(); toast(`🏁 « ${c.name} » terminée`); drawStarts(); drawLast(); });
+          c.end = NOW(); commit(); toast(`🏁 « ${c.name} » terminée`); drawStarts(); drawLast(); });
         box.querySelectorAll('[data-reo]').forEach(b => b.onclick = () => { const c = E.courses[+b.dataset.reo]; if (!c) return; delete c.end; commit(); toast(`↩ « ${c.name} » rouverte`); drawStarts(); });
         box.querySelectorAll('[data-stop]').forEach(b => b.onclick = () => { const c = E.courses[+b.dataset.stop]; if (!c || !c.start) return;
           if (!confirm(`FAUX DÉPART : remettre « ${c.name} » à zéro ?\n(inutile en fin de course : le chrono s'arrête tout seul pour chaque coureur à son arrivée)\nLe départ est annulé et les passages de cette course sont effacés.`)) return;
@@ -618,9 +638,9 @@ tr:nth-child(-n+4) td{font-weight:700}`,
         if ($('#cx-gg')) $('#cx-gg').onclick = () => { const L = E.courses.filter(c => gstart.has(c.id) && !c.start); if (!L.length) return toast('Choisissez les courses à lancer'); go(L); };
         tick();
       };
-      const tick = () => { const now = Date.now(); box.querySelectorAll('[data-clk]').forEach(s => { const c = E.courses[+s.dataset.clk]; if (!c || !c.start || c.end) return;
+      const tick = () => { const now = NOW(); box.querySelectorAll('[data-clk]').forEach(s => { const c = E.courses[+s.dataset.clk]; if (!c || !c.start || c.end) return;
         if (c.mode === 'temps') { const left = c.start + c.dur * 60000 - now; s.textContent = left > 0 ? '⏳ ' + tm(left) : '🏁 ' + tm(c.dur * 60000); } else s.textContent = tm(now - c.start); }); };
-      const tickW = () => { const now = Date.now(); box.querySelectorAll('[data-wclk]').forEach(sp => { const [i, j] = sp.dataset.wclk.split('|').map(Number), c = E.courses[i], w = c && (c.waves || [])[j]; if (!w) return;
+      const tickW = () => { const now = NOW(); box.querySelectorAll('[data-wclk]').forEach(sp => { const [i, j] = sp.dataset.wclk.split('|').map(Number), c = E.courses[i], w = c && (c.waves || [])[j]; if (!w) return;
         const st0 = w.start || (c.start && offS(w) > 0 ? c.start + offS(w) * 1000 : null); if (!st0) return; if (c.mode === 'temps') { const left = st0 + c.dur * 60000 - now; sp.textContent = left > 0 ? '⏳ ' + tm(left) : '🏁 ' + tm(c.dur * 60000); } else sp.textContent = tm(Math.max(0, now - st0)); }); };
       const drawLast = () => {
         const K = compute(E), rk = new Map(); K.courses.forEach(x => x.R.forEach(r => rk.set(r.s.k, r)));
