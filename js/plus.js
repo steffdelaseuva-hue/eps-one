@@ -4,9 +4,10 @@
    ========================================================= */
 /* Page Ko-fi : laisser vide tant qu'elle n'existe pas (le bouton est alors masqué) */
 const KOFI_URL = 'https://ko-fi.com/epsone';
-const APP_VERSION = '23.6';
+const APP_VERSION = '23.7';
 const APP_URL = 'https://steffdelaseuva-hue.github.io/eps-one/';
 const CHANGELOG = [
+  { v: '23.7', items: ['Course d\'orientation : symboles de pinces en grille 6 × 6 pour le dessin et le répertoire ; les postes créés n\'ont plus de symbole automatique (boutons « 🎲 Symbole automatique » et « 🧹 Retirer tous les symboles », au choix) ; les anciens symboles 4 × 4 et 5 × 5 restent valides.'] },
   { v: '23.6', items: ['Course d\'orientation : symboles de pinces en grille 5 × 5 (au lieu de 4 × 4) pour le dessin et le répertoire ; les symboles 4 × 4 déjà enregistrés restent valides.'] },
   { v: '23.5', items: ['Course d\'orientation : 📏 échelle de la carte dans « Lieux et cartes » (lecture automatique des traits bleus de la carte, mesure de deux points ou largeur saisie) ; la distance des parcours est calculée d\'après les postes, d\'où une vitesse, un RK et un RK effort exacts dans les résultats.'] },
   { v: '23.4', items: ['Course d\'orientation : 📷 Parcours photo et 📝 Parcours définitions deviennent deux types de parcours à part entière (dans la liste « Type de parcours ») — chaque balise reçoit sa photo ou sa définition avec son bouton, compteur « balises prêtes » ; sur la tablette, l\'élève touche la balise et voit la photo en grand ou lit la définition', 'Boussole Koh-Lanta : l\'enseignant règle les correspondances couleurs → directions (Nord, Nord-Est… Nord-Ouest) du parcours ; l\'élève ne voit que la couleur sur l\'indice ; le bouton « 🧭 Correspondances » de sa tablette les affiche avec le code enseignant ; page « correspondances » à l\'impression'] },

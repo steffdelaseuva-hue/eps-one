@@ -48,35 +48,35 @@ document.head.insertAdjacentHTML('beforeend', `<style>
 .co-times input{padding:8px}
 </style>`);
 
-/* ---------- Symboles de pinces : grille 5 × 5 de points (code = 25 caractères 0/1) ----------
-   Les symboles enregistrés avant la v23.6 (grille 4 × 4, code de 16 caractères) restent valides et s'affichent en 4 × 4. */
-const PAT_N = 25;
-const isPat = c => typeof c === 'string' && (/^[01]{25}$/.test(c) || /^[01]{16}$/.test(c)) && c.includes('1');
-const CO_PATS = (() => {                       // répertoire de 90 symboles 5 × 5 distincts
-  let seed = 20261010; const rnd = () => (seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648;
+/* ---------- Symboles de pinces : grille 6 × 6 de points (code = 36 caractères 0/1) ----------
+   Les symboles enregistrés avant (grilles 4 × 4 = 16 caractères, ou 5 × 5 = 25 caractères) restent valides et s'affichent dans leur grille. */
+const PAT_N = 36;
+const isPat = c => typeof c === 'string' && /^([01]{64}|[01]{36}|[01]{25}|[01]{16})$/.test(c) && c.includes('1');
+const CO_PATS = (() => {                       // répertoire de 90 symboles 6 × 6 distincts
+  let seed = 20261012; const rnd = () => (seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648;
   const out = [], dist = (a, b) => [...a].filter((x, i) => x !== b[i]).length;
-  while (out.length < 90) { const k = 5 + Math.floor(rnd() * 5), cells = new Set(); while (cells.size < k) cells.add(Math.floor(rnd() * PAT_N));
+  while (out.length < 90) { const k = 7 + Math.floor(rnd() * 7), cells = new Set(); while (cells.size < k) cells.add(Math.floor(rnd() * PAT_N));
     const c = Array.from({ length: PAT_N }, (_, i) => cells.has(i) ? '1' : '0').join('');
-    if (out.every(o => dist(o, c) >= 7)) out.push(c); }
+    if (out.every(o => dist(o, c) >= 10)) out.push(c); }
   return out;
 })();
 function patSVG(code, px = 44, col = '#0B2A5B') {
-  const on = isPat(code) ? code : '0'.repeat(PAT_N), n = Math.round(Math.sqrt(on.length)), st = 28 / (n - 1), rOn = n === 4 ? 3.4 : 2.6, rOff = n === 4 ? 1.1 : .9;   // 5 × 5 (ou 4 × 4 pour les anciens symboles)
-  return `<svg viewBox="0 0 44 44" width="${px}" height="${px}" style="display:block"><rect x="1" y="1" width="42" height="42" rx="5" fill="#fff" stroke="#9AA6B8" stroke-width="1.5"/>${[...on].map((v, i) => { const x = 8 + (i % n) * st, y = 8 + Math.floor(i / n) * st;
+  const on = isPat(code) ? code : '0'.repeat(PAT_N), n = Math.round(Math.sqrt(on.length)), m0 = n > 5 ? 5.5 : 8, st = (44 - 2 * m0) / (n - 1), rOn = { 4: 3.4, 5: 2.6, 6: 2.4, 8: 2.1 }[n] || 2.4, rOff = n > 5 ? .6 : n === 4 ? 1.1 : .9;   // 6 × 6 (ou 5 × 5 / 4 × 4 pour les anciens symboles)
+  return `<svg viewBox="0 0 44 44" width="${px}" height="${px}" style="display:block"><rect x="1" y="1" width="42" height="42" rx="5" fill="#fff" stroke="#9AA6B8" stroke-width="1.5"/>${[...on].map((v, i) => { const x = m0 + (i % n) * st, y = m0 + Math.floor(i / n) * st;
     return v === '1' ? `<circle cx="${x}" cy="${y}" r="${rOn}" fill="${col}"/>` : `<circle cx="${x}" cy="${y}" r="${rOff}" fill="#D5DBE5"/>`; }).join('')}</svg>`;
 }
 /* Sélecteur de symbole : répertoire, dessin libre, options supplémentaires */
 function patPicker({ title, options, draw = true, extra = [], current, used = [], onPick, only }) {
   const o = document.createElement('div');
   o.style.cssText = 'position:fixed;inset:0;z-index:300;background:rgba(7,18,42,.72);display:grid;place-items:center;padding:12px';
-  let tab = only === 'draw' ? 'draw' : 'rep', cells = [...(isPat(current) && current.length === PAT_N ? current : '0'.repeat(PAT_N))];   // dessin en 5 × 5 (un ancien symbole 4 × 4 se redessine)
+  let tab = only === 'draw' ? 'draw' : 'rep', cells = [...(isPat(current) && current.length === PAT_N ? current : '0'.repeat(PAT_N))];   // dessin en 6 × 6 (un ancien symbole 4 × 4 ou 5 × 5 se redessine)
   const render = () => {
     o.innerHTML = `<div class="card" style="max-width:520px;width:100%;max-height:92vh;overflow:auto"><h3>${esc(title)}</h3>
       ${draw && only !== 'draw' ? `<div class="co-tabs" style="margin-top:8px"><button data-t="rep" class="${tab === 'rep' ? 'on' : ''}">📚 Répertoire</button><button data-t="draw" class="${tab === 'draw' ? 'on' : ''}">✏️ Dessiner</button></div>` : ''}
       ${tab === 'rep' ? `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(54px,1fr));gap:6px">${options.map(c => `<button data-c="${c}" style="padding:4px;border-radius:10px;border:2px solid ${c === current ? 'var(--gold)' : 'transparent'};background:${used.includes(c) && c !== current ? 'var(--line)' : 'transparent'};cursor:pointer;opacity:${used.includes(c) && c !== current ? .45 : 1}">${patSVG(c, 46)}</button>`).join('')}</div>
           ${extra.map(x => `<button class="btn ${x.cls || 'btn-ghost'} btn-block" style="margin-top:8px" data-x="${x.v}">${x.l}</button>`).join('')}`
         : `<p class="muted" style="margin:0 0 8px">Touchez les points pour reproduire le symbole de la pince.</p>
-          <div style="display:grid;grid-template-columns:repeat(5,52px);gap:8px;justify-content:center">${cells.map((v, i) => `<button data-i="${i}" style="width:52px;height:52px;border-radius:50%;border:2px solid var(--line);background:${v === '1' ? '#0B2A5B' : 'var(--card)'};cursor:pointer"></button>`).join('')}</div>
+          <div style="display:grid;grid-template-columns:repeat(6,min(46px,12.5vw));gap:6px;justify-content:center">${cells.map((v, i) => `<button data-i="${i}" style="width:min(46px,12.5vw);height:min(46px,12.5vw);padding:0;border-radius:50%;border:2px solid var(--line);background:${v === '1' ? '#0B2A5B' : 'var(--card)'};cursor:pointer"></button>`).join('')}</div>
           <button class="btn btn-grad btn-block" style="margin-top:12px" id="pv">✔ ${only === 'draw' ? 'Valider mon dessin' : 'Utiliser ce symbole'}</button>${only === 'draw' ? extra.map(x => `<button class="btn ${x.cls || 'btn-ghost'} btn-block" style="margin-top:8px" data-x="${x.v}">${x.l}</button>`).join('') : ''}`}
       <button class="btn btn-ghost btn-block" style="margin-top:8px" id="pc">Annuler</button></div>`;
     o.querySelectorAll('[data-t]').forEach(b => b.onclick = () => { tab = b.dataset.t; render(); });
@@ -660,7 +660,7 @@ TOOL_IMPL.co = function (el) {
         <div class="card" style="margin-top:12px"><h3 style="margin-top:0">Postes (${L.postes.length})</h3>
           <p class="muted" style="margin:0 0 6px;font-size:.8rem">Saisissez-les ici à l'avance (numéro + symbole de la pince) puis placez-les sur la carte, ou créez-les directement en touchant la carte.</p>
           <div class="row" style="align-items:end"><div><label>Nombre</label><input id="gn" type="number" min="1" value="${Math.max(1, 10 - L.postes.length)}"></div><div><label>À partir du n°</label><input id="g0" type="number" value="${nextNum()}"></div><button class="btn btn-ghost" style="flex:0 0 auto" id="gg">＋ Ajouter</button></div>
-          ${L.postes.length ? `<button class="btn btn-ghost btn-block" id="ga" style="margin-top:8px">🎲 Symbole différent pour chaque poste sans symbole</button>` : ''}
+          ${L.postes.length ? `<div class="row" style="margin-top:8px"><button class="btn btn-ghost" id="ga">🎲 Symbole automatique pour les postes sans symbole</button>${L.postes.some(q => isPat(q.code)) ? '<button class="btn btn-ghost" id="gx">🧹 Retirer tous les symboles</button>' : ''}</div><p class="muted" style="margin:4px 0 0;font-size:.76rem">Les nouveaux postes n\'ont pas de symbole : touchez la pince d\'un poste pour le choisir dans le répertoire ou le dessiner.</p>` : ''}
           <div style="margin-top:8px">${L.postes.slice().sort((a, b) => a.num - b.num).map(q => `<div class="bal-row"><b style="min-width:44px">${q.num}</b>
             <button data-qp="${q.id}" style="flex:0 0 auto;padding:0;border:none;background:none;cursor:pointer">${isPat(q.code) ? patSVG(q.code, 36) : '<span style="display:grid;place-items:center;width:36px;height:36px;border:1.5px dashed var(--line);border-radius:6px;font-size:.6rem;font-weight:800;color:var(--muted)">＋ pince</span>'}</button>
             <span class="muted" style="flex:1;font-size:.8rem">${q.x != null ? '📍 placé' : '⚠️ à placer'}${q.photo ? ' · 📷' : ''}${q.def ? ' · 📝 ' + esc(q.def.slice(0, 40)) + (q.def.length > 40 ? '…' : '') : ''}</span><button class="btn btn-ghost" style="padding:6px 9px" data-qa="${q.id}" title="Photo et définition">${q.photo || q.def ? '📝' : '＋📷'}</button>${L.map ? `<button class="btn btn-ghost" style="padding:6px 9px" data-qs="${q.id}">${q.x != null ? '✏️' : '📍'}</button>` : ''}<button class="btn btn-ghost" style="padding:6px 9px" data-qx="${q.id}">✕</button></div>`).join('')}</div></div>
@@ -696,7 +696,8 @@ TOOL_IMPL.co = function (el) {
       box.querySelectorAll('[data-qs]').forEach(b => b.onclick = () => { rd(); const q = L.postes.find(x => x.id === b.dataset.qs); if (q.x != null) { sel = q.id; mode = 'add'; } else { pick = q.id; mode = 'add'; } draw(); $('#lw') && $('#lw').scrollIntoView({ block: 'center' }); });
       box.querySelectorAll('[data-qx]').forEach(b => b.onclick = () => { rd(); const q = L.postes.find(x => x.id === b.dataset.qx); if (!confirm(`Supprimer le poste ${q.num} ? (il sera retiré des parcours de ce lieu)`)) return; L.postes = L.postes.filter(x => x !== q); if (sel === q.id) sel = null; draw(); });
       $('#gg').onclick = () => { rd(); const n = Math.min(60, Math.max(1, +$('#gn').value || 1)), n0 = +$('#g0').value || nextNum(); let k = 0;
-        for (let v = n0; k < n; v++) if (!L.postes.some(q => q.num === v)) { L.postes.push({ id: coId() + k, num: v, code: freeCode(), x: null, y: null }); k++; } draw(); };
+        for (let v = n0; k < n; v++) if (!L.postes.some(q => q.num === v)) { L.postes.push({ id: coId() + k, num: v, code: '', x: null, y: null }); k++; } draw(); };
+      if ($('#gx')) $('#gx').onclick = () => { rd(); const n = L.postes.filter(q => isPat(q.code)).length; if (!confirm(`Retirer le symbole des ${n} poste${n > 1 ? 's' : ''} ? Vous pourrez ensuite les choisir ou les dessiner un par un.`)) return; L.postes.forEach(q => q.code = ''); draw(); };
       if ($('#ga')) $('#ga').onclick = () => { rd(); L.postes.forEach(q => { if (!isPat(q.code)) q.code = freeCode(); }); draw(); };
       if ($('#ax')) $('#ax').onclick = () => { rd(); if (!confirm('Retirer l\'arrivée ? (sans arrivée, elle se fait au départ)')) return; delete L.arr; sel = null; draw(); };
       if ($('#dx')) $('#dx').onclick = () => { rd(); if (!confirm('Retirer le départ ? Vous pourrez le replacer avec « △ Départ ».')) return; delete L.dep; sel = null; draw(); };
@@ -731,7 +732,7 @@ TOOL_IMPL.co = function (el) {
         if (mode === 'move') { if (hit && !sel) { sel = hit.id; return draw(); } if (!sel) return toast('Touchez d\'abord un poste'); const S2 = L.postes.find(q => q.id === sel); S2.x = x; S2.y = y; sel = null; return draw(); }
         if (hit) { sel = sel === hit.id ? null : hit.id; return draw(); }
         if (pick) { const q = L.postes.find(z => z.id === pick); q.x = x; q.y = y; pick = (L.postes.find(z => z.x == null) || {}).id || null; beep(900, .04); return draw(); }
-        L.postes.push({ id: coId(), num: nextNum(), code: freeCode(), x, y }); sel = null; beep(900, .04); draw(); } });
+        L.postes.push({ id: coId(), num: nextNum(), code: '', x, y }); sel = null; beep(900, .04); draw(); } });
       $('#lbk').onclick = () => { if (confirm('Quitter sans enregistrer ?')) listParcours(box); };
       if ($('#ldel')) $('#ldel').onclick = () => { const n = DB.co.parcours.filter(p => p.lieu === L.id).length; if (!confirm(`Supprimer le lieu « ${L.nom} » ?${n ? ` ${n} parcours garderont leurs balises mais plus la carte.` : ''}`)) return;
         DB.co.parcours.forEach(p => { if (p.lieu === L.id) delete p.lieu; }); coLieux().splice(idx, 1); save(); listParcours(box); };
@@ -788,7 +789,7 @@ TOOL_IMPL.co = function (el) {
         <div class="row" style="margin-top:8px"><label class="btn btn-ghost" style="text-align:center;cursor:pointer;margin:0">📷 ${p.map && p.map.img ? 'Changer la carte' : 'Importer la carte'}<input id="mpf" type="file" accept="image/*" style="display:none"></label>${p.map && p.map.img ? `<button class="btn btn-grad" id="mpe">🖍 ${p.type === 'suivi' ? 'Tracer l\'itinéraire' : 'Annoter'}</button><button class="btn btn-ghost" id="mpx" style="flex:0 0 auto">🗑</button>` : ''}</div></div>`}
       <div class="card" style="margin-top:12px"><h3>Balises (${p.balises.length})</h3>${p.type === 'suivi' ? '<p class="muted" style="margin:0 0 6px;font-size:.8rem">🧵 Ordre imposé : les balises se font dans l\'ordre de cette liste (↑ pour remonter une balise).</p>' : ''}
         <p class="muted" style="margin:0 0 6px;font-size:.8rem">Symbole : le motif de points de la pince de chaque balise (répertoire ou dessin), utilisé par l'onglet 🔎 Contrôle.</p>
-        ${LU ? '<p class="muted" style="margin:0 0 6px;font-size:.8rem">📍 Numéros et symboles viennent des postes du lieu (modifiables dans le lieu).</p>' : '<button class="btn btn-ghost btn-block" id="autop" style="margin-bottom:6px">🎲 Attribuer un symbole différent à chaque balise</button>'}
+        ${LU ? '<p class="muted" style="margin:0 0 6px;font-size:.8rem">📍 Numéros et symboles viennent des postes du lieu (modifiables dans le lieu).</p>' : '<div class="row" style="margin-bottom:6px"><button class="btn btn-ghost" id="autop">🎲 Symbole automatique</button>' + (p.balises.some(b => isPat(b.code)) ? '<button class="btn btn-ghost" id="rmp">🧹 Retirer tous les symboles</button>' : '') + '</div>'}
         ${p.type === 'photo' || p.type === 'defs' ? `<div style="margin:6px 0;padding:8px 10px;border-radius:10px;background:var(--grad-soft);font-size:.85rem">${p.type === 'photo' ? '📷 <b>Parcours photo</b> : ajoutez la photo de l\'emplacement de chaque balise avec son bouton 📷' : '📝 <b>Parcours définitions</b> : écrivez la définition de chaque balise avec son bouton 📝 (ex. « proche d\'une butte »)'}${LU ? ' — rangée dans le poste du lieu, réutilisable dans d\'autres parcours' : ''}. ${(() => { const n = p.balises.filter(b => { const sB = coBalSrc(p, b); return p.type === 'photo' ? sB.photo : sB.def; }).length; return `<b>${n}/${p.balises.length}</b> balise${p.balises.length > 1 ? 's' : ''} prête${n > 1 ? 's' : ''}.`; })()}</div>` : ''}
         <p class="muted" style="margin:4px 0 8px;font-size:.78rem">🧑‍🎓 Comment l'élève contrôle ses balises (pendant la course ou à l'arrivée ; choisir, dessiner ou comparer) : onglet <b>🔎 Contrôle</b>.</p>
         ${LU ? '' : `<div class="row" style="align-items:end"><div><label>Nombre</label><input id="nb" type="number" min="1" value="${p.balises.length}"></div><div><label>1er numéro</label><input id="n0" type="number" value="${p.balises[0]?.num ?? 31}"></div><button class="btn btn-ghost" style="flex:0 0 auto" id="genb">Générer</button></div>`}
@@ -847,6 +848,7 @@ TOOL_IMPL.co = function (el) {
       box.querySelectorAll('[data-pat]').forEach(b => b.onclick = () => { read(); const i = +b.dataset.pat;
         patPicker({ title: `Symbole de la balise ${p.balises[i].num}`, options: CO_PATS, current: p.balises[i].code, used: p.balises.map(x => x.code).filter(isPat),
           extra: isPat(p.balises[i].code) ? [{ v: '', l: 'Retirer le symbole' }] : [], onPick: c => { p.balises[i].code = c; draw(); } }); });
+      if ($('#rmp')) $('#rmp').onclick = () => { if (!confirm('Retirer le symbole de toutes les balises ? Vous pourrez ensuite les choisir ou les dessiner une par une.')) return; read(); p.balises.forEach(b => { b.code = ''; }); draw(); };
       if ($('#autop')) $('#autop').onclick = () => { read(); const free = CO_PATS.filter(c => !p.balises.some(b => b.code === c)); p.balises.forEach(b => { if (!isPat(b.code)) b.code = free.shift() || ''; }); draw(); };
       $('#bk').onclick = () => listParcours(box);
       if ($('#del')) $('#del').onclick = () => { if (confirm('Supprimer ce parcours ?')) { DB.co.parcours.splice(idx, 1); save(); listParcours(box); } };
