@@ -755,7 +755,7 @@ TOOL_IMPL.co = function (el) {
       balises: Array.from({ length: 8 }, (_, i) => ({ num: 31 + i, niv: 1, ob: true })),
       pts: [1, 2, 3], penWrongP: 1, penWrongS: 30, penMissS: 60, penOverP: 1 };
     if (idx == null && coLieux().length) { p.lieu = coLieux()[0].id; p.balises = []; p.distAuto = !!coMPU(coLieux()[0]); }
-    const ZP = { s: 1, tx: 0, ty: 0 };
+    const ZP = { s: 1, tx: 0, ty: 0 }; let dtHelp = false;
     const draw = () => { const LU = coLieu(p.lieu);
       const eche = !!(LU && coMPU(LU)), auto = eche && !!p.distAuto, DC = eche ? coDistCalc(p, LU) : null;   // distance d'après l'échelle de la carte
       if (auto && DC && DC.m) p.distance = DC.m;
@@ -771,8 +771,9 @@ TOOL_IMPL.co = function (el) {
         ${p.type === 'relais' ? `<label>Balises par relayeur (avant de passer le relais)</label><input id="rl" type="number" min="1" value="${p.relais || 1}">` : ''}
         <div class="row"><div><label>Distance (m)${auto ? ' 📏' : ''}</label><input id="di" type="number" value="${p.distance}" ${auto ? 'readonly style="background:var(--grad-soft)"' : ''}></div><div><label>Temps attribué (min)</label><input id="al" type="number" value="${p.alloue}"></div><div><label>Écart toléré (± min)</label><input id="ec" type="number" value="${p.ecart}"></div></div>
         ${LU ? (eche ? `<label style="display:flex;gap:8px;align-items:center;margin-top:10px"><input type="checkbox" id="da" ${auto ? 'checked' : ''} style="width:auto"> 📏 Calculer la distance d'après l'échelle de la carte</label>
-          ${auto ? `<p class="muted" style="margin:4px 0 0;font-size:.8rem">${DC && DC.m ? `<b>${coFmtM(DC.m)}</b> — ${DC.how}.` : esc((DC && DC.why) || '')} Elle sert au calcul de la vitesse, du RK${p.denivOn ? ' et du RK effort' : ''} dans les résultats.</p>
-          <div class="row" style="align-items:end"><div><label>Coefficient de détour (1 = ligne droite)</label><input id="dt" type="number" min="1" max="3" step="0.05" value="${p.detour || 1}"></div></div>` : ''}`
+          ${auto ? `<p class="muted" style="margin:4px 0 0;font-size:.8rem">${DC && DC.m ? `<b>${coFmtM(DC.m)}</b> — ${DC.how}.` : esc((DC && DC.why) || '')} Elle sert au calcul de la vitesse, de la RK${p.denivOn ? ' et de la RK effort' : ''} dans les résultats.</p>
+          <div class="row" style="align-items:end"><div><label>Coefficient de détour <button type="button" id="dth" aria-label="Aide : coefficient de détour" style="width:26px;height:26px;border-radius:50%;border:1.5px solid var(--line);background:${dtHelp ? 'var(--grad)' : 'var(--card)'};color:${dtHelp ? '#fff' : 'inherit'};font-weight:900;cursor:pointer;vertical-align:middle">?</button></label><input id="dt" type="number" min="1" max="3" step="0.05" value="${p.detour || 1}"></div></div>
+          ${dtHelp ? `<div style="margin-top:8px;padding:10px 12px;border-radius:12px;background:var(--grad-soft);font-size:.84rem;line-height:1.45"><b>À quoi sert le coefficient de détour ?</b><br>L'échelle de la carte permet de mesurer la distance <b>en ligne droite</b> entre les postes. Or personne ne court en ligne droite : il faut contourner les bâtiments, suivre les chemins, passer par les portes. La distance réellement courue est donc plus longue, et le coefficient <b>multiplie</b> la distance calculée pour s'en rapprocher.<br><br><b>Quelle valeur choisir ?</b><br>• <b>1</b> : ligne droite (distance minimale, valeur par défaut)<br>• <b>1,2</b> : terrain assez ouvert, quelques détours<br>• <b>1,3 à 1,5</b> : beaucoup d'obstacles (cour entre des bâtiments, clôtures, bois)<br><br>${DC && DC.m ? `<b>Exemple ici :</b> ${coFmtM(DC.m / (Math.max(1, +p.detour || 1)))} en ligne droite × ${String(Math.max(1, +p.detour || 1)).replace('.', ',')} = <b>${coFmtM(DC.m)}</b>.${Math.abs((+p.detour || 1) - 1.2) > 1e-9 ? ` Avec 1,2 : ${coFmtM(DC.m / (Math.max(1, +p.detour || 1)) * 1.2)}.` : ''}<br><br>` : ''}<b>Bon à savoir :</b> le coefficient est le même pour tous les élèves du parcours : il ne change pas le classement, il rend la vitesse et la RK plus réalistes. Vous pouvez l'ajuster en chronométrant votre propre course sur le parcours, puis en comparant à la distance affichée. En cas de doute, laissez 1.</div>` : ''}` : ''}`
           : `<p class="muted" style="margin:8px 0 0;font-size:.8rem">📏 Réglez l'échelle du lieu (bouton « 📏 Échelle » dans le lieu) pour calculer la distance automatiquement d'après les postes.</p>`) : ''}
         <label style="display:flex;gap:8px;align-items:center;margin-top:12px"><input type="checkbox" id="dn" ${p.denivOn ? 'checked' : ''} style="width:auto"> Option dénivelé</label>
         ${p.denivOn ? `<label>Dénivelé positif (m)</label><input id="dv" type="number" value="${p.deniv}">` : ''}
@@ -825,6 +826,7 @@ TOOL_IMPL.co = function (el) {
       $('#dn').onchange = () => { read(); draw(); };
       if ($('#da')) $('#da').onchange = () => { read(); draw(); };
       if ($('#dt')) $('#dt').onchange = () => { read(); draw(); };
+      if ($('#dth')) $('#dth').onclick = () => { read(); dtHelp = !dtHelp; draw(); };
       $('#lu').onchange = e => { read(); const v = e.target.value; if (p.balises.length && !confirm(v ? 'Prendre les balises parmi les postes de ce lieu ? Les balises actuelles seront retirées.' : 'Ne plus utiliser de lieu ? Les balises sont gardées, sans la carte.')) { e.target.value = p.lieu || ''; return; }
         if (v) { p.lieu = v; p.balises = []; delete p.hl; p.distAuto = !!coMPU(coLieu(v)); } else { if (p.lieu) { const L0 = coLieu(p.lieu); p.balises.forEach(b => delete b.pid); } delete p.lieu; delete p.hl; p.distAuto = false; } draw(); };
       const tog = id => { const L0 = coLieu(p.lieu), q = L0.postes.find(z => z.id === id); if (!q) return;
@@ -1121,7 +1123,7 @@ TOOL_IMPL.co = function (el) {
     if (!done.length) return '<div class="card empty">Le classement apparaît dès les premières arrivées.</div>';
     return `<div class="card sheet-table"><table><tr><th>#</th><th>Nom</th><th>Pts</th><th>Temps</th><th>+ Pén.</th><th>Total</th><th>RK</th>${p.denivOn ? '<th>RK effort</th>' : ''}<th>Vitesse</th></tr>
       ${done.map(({ r, x }, i) => `<tr><td>${i + 1}</td><td><b>${esc(r.name)}</b></td><td><b>${x.score}</b></td><td>${hms(x.temps)}</td><td>${x.penS ? '+' + hms(x.penS) : '–'}</td><td><b>${hms(x.total)}</b></td><td>${x.rk}</td>${p.denivOn ? `<td>${x.rkE}</td>` : ''}<td>${x.vit}</td></tr>`).join('')}</table>
-      <p class="muted" style="font-size:.75rem;margin:6px 0 0">Classement : points (balises − pénalités), puis temps total (temps réalisé + pénalités). RK = rythme au kilomètre${p.denivOn ? ' ; RK effort = avec 100 m de D+ comptés comme 1 km' : ''}.${p.distance ? ` Distance du parcours : ${coFmtM(p.distance)}${p.distAuto && coMPU(coLieu(p.lieu)) ? ' (calculée d\'après l\'échelle de la carte)' : ''}.` : ''}</p></div>`;
+      <p class="muted" style="font-size:.75rem;margin:6px 0 0">Classement : points (balises − pénalités), puis temps total (temps réalisé + pénalités). La RK (réduction kilométrique) est le temps ramené au kilomètre${p.denivOn ? ' ; la RK effort compte 100 m de D+ comme 1 km' : ''}.${p.distance ? ` Distance du parcours : ${coFmtM(p.distance)}${p.distAuto && coMPU(coLieu(p.lieu)) ? ' (calculée d\'après l\'échelle de la carte)' : ''}.` : ''}</p></div>`;
   }
 
   /* Synthèse « Résultats des élèves » : une ligne par élève (de la classe) de chaque course enregistrée */
