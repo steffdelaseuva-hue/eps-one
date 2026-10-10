@@ -177,6 +177,64 @@ function coMapEdit(p, onDone) {
 const coLieux = () => (DB.co.lieux = DB.co.lieux || []);
 const coLieu = id => id && coLieux().find(l => l.id === id);
 const coMS = L => Math.min(2, Math.max(.15, +(L && L.taille) || .6));   // taille des repères du lieu (1 = grande)
+/* ---------- Échelle de la carte ----------
+   L.echelle = { mpu, src, ref } : mpu = mètres réels pour 1 unité de carte (la carte fait 1000 unités de large) ; src = 'auto' | 'mesure' | 'largeur' ; ref = distance saisie (m).
+   Elle sert à calculer la distance des parcours du lieu (p.distAuto) → vitesse, RK et RK effort dans les résultats. */
+const coMPU = L => (L && L.echelle && +L.echelle.mpu > 0) ? +L.echelle.mpu : 0;
+const coFmtM = m => m >= 1000 ? (m / 1000).toFixed(2).replace('.', ',') + ' km' : Math.round(m) + ' m';
+/* Lecture automatique : repère les traits fins bleus (échelle graphique tracée sur la carte, ex. un trait tous les 60 m) et mesure leur écartement.
+   Un pixel « trait » est bleu (b − r élevé) et nettement plus bleu que ses voisins à 4 px de part et d'autre (écarte les surfaces d'eau) ;
+   une colonne est retenue si ce trait occupe au moins 25 % de la hauteur (les bâtiments peuvent le masquer par endroits). */
+function coDetectScale(map, cb) {
+  const img = new Image();
+  img.onerror = () => cb(null);
+  img.onload = () => {
+    const w = img.naturalWidth, h = img.naturalHeight; if (!w || !h) return cb(null);
+    const c = document.createElement('canvas'); c.width = w; c.height = h; const cx = c.getContext('2d', { willReadFrequently: true }); cx.drawImage(img, 0, 0);
+    let d; try { d = cx.getImageData(0, 0, w, h).data; } catch (e) { return cb(null); }
+    const E = new Int16Array(w * h); for (let i = 0, n = w * h; i < n; i++) E[i] = d[i * 4 + 2] - d[i * 4];
+    const best = { n: 0 };
+    [['v', w, h], ['h', h, w]].forEach(([o, A, B]) => {
+      const at = (a, b) => o === 'v' ? E[b * w + a] : E[a * w + b], cnt = new Int32Array(A);
+      for (let a = 4; a < A - 4; a++) for (let b = 0; b < B; b++) { const v = at(a, b); if (v > 45 && v - Math.max(at(a - 4, b), at(a + 4, b)) > 35) cnt[a]++; }
+      const grp = []; for (let a = 0; a < A; a++) if (cnt[a] > B * .25) { const g = grp[grp.length - 1]; if (g && a - g[g.length - 1] <= 3) g.push(a); else grp.push([a]); }
+      const pos = grp.map(g => g.reduce((s, v) => s + v, 0) / g.length * 1000 / w);        // en unités de carte
+      if (pos.length >= 2 && pos.length > best.n) {
+        const gaps = pos.slice(1).map((v, i) => v - pos[i]), med = gaps.slice().sort((a, b) => a - b)[Math.floor(gaps.length / 2)];
+        const regular = gaps.every(g => Math.abs(g - med) <= med * .04);
+        Object.assign(best, { n: pos.length, o, pos, gap: regular ? (pos[pos.length - 1] - pos[0]) / (pos.length - 1) : med, regular });
+      } });
+    cb(best.n ? best : null);
+  };
+  img.src = map.img;
+}
+/* Distance d'un parcours d'après l'échelle du lieu (en mètres) : { m, how } ou { m: null, why }
+   étoile = allers-retours au départ · papillon / relais = boucles · suivi = départ → balises dans l'ordre → arrivée ·
+   autres types (ordre libre) = plus court trajet estimé (départ → toutes les balises → arrivée). Coefficient de détour p.detour (≥ 1). */
+function coDistCalc(p, L) {
+  const mpu = coMPU(L); if (!mpu || !L || !L.postes) return null;
+  const pos = id => { const q = L.postes.find(x => x.id === id); return q && q.x != null ? [q.x, q.y] : null; };
+  let bal = p.balises; if (p.type === 'reseau' && bal.some(b => b.ob)) bal = bal.filter(b => b.ob);
+  const P = bal.map(b => pos(b.pid)).filter(Boolean); if (!P.length) return { m: null, why: 'Touchez des postes sur la carte pour calculer la distance.' };
+  const D = L.dep || null, A = L.arr || L.dep || null, d = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]), len = pts => pts.reduce((s, q, i) => i ? s + d(pts[i - 1], q) : 0, 0);
+  let U, how;
+  if (p.type === 'etoile' || p.type === 'papillon' || p.type === 'relais') {
+    if (!D) return { m: null, why: 'Placez le départ △ sur la carte du lieu pour calculer la distance.' };
+    if (p.type === 'etoile') { U = P.reduce((s, q) => s + 2 * d(D, q), 0); how = 'aller-retour au départ pour chaque balise'; }
+    else { const K = legK(p); U = 0; for (let i = 0; i < P.length; i += K) U += len([D, ...P.slice(i, i + K), D]); how = `boucles de ${K} balise${K > 1 ? 's' : ''} au départ`; }
+  } else if (p.type === 'suivi') { U = len([D, ...P, A].filter(Boolean)); how = 'départ → balises dans l\'ordre → arrivée'; }
+  else {   // ordre libre : plus proche voisin puis amélioration 2-opt, extrémités fixes
+    const rest = P.slice(), route = []; let cur = D; if (!cur) { cur = rest.shift(); route.push(cur); }
+    while (rest.length) { let bi = 0; rest.forEach((q, i) => { if (d(cur, q) < d(cur, rest[bi])) bi = i; }); cur = rest.splice(bi, 1)[0]; route.push(cur); }
+    const f = [...(D ? [D] : []), ...route, ...(A && P.length ? [A] : [])], lo = D ? 1 : 0, hi = f.length - (A ? 1 : 0);
+    for (let it = 0, imp = true; imp && it < 50; it++) { imp = false;
+      for (let i = lo; i < hi - 1; i++) for (let j = i + 1; j < hi; j++) {
+        const dl = (i > 0 ? d(f[i - 1], f[j]) - d(f[i - 1], f[i]) : 0) + (j < f.length - 1 ? d(f[i], f[j + 1]) - d(f[j], f[j + 1]) : 0);
+        if (dl < -1e-6) { const seg = f.slice(i, j + 1).reverse(); f.splice(i, j - i + 1, ...seg); imp = true; } } }
+    U = len(f); how = 'plus court trajet estimé (ordre libre)'; }
+  const k = Math.max(1, +p.detour || 1);
+  return { m: Math.max(1, Math.round(U * mpu * k)), how: `${how} : ${coFmtM(U * mpu)} en ligne droite${k > 1 ? ' × ' + String(k).replace('.', ',') : ''}` };
+}
 /* ---------- Objets de carte (comme Purple Pen / ISOM simplifié) ----------
    L.objs = [{ id, t, x, y } (point) | { id, t, pts:[x,y,…] } (ligne / zone)] */
 const CO_OBJ = {   // symboles inspirés de la norme ISOM (cartes de course d'orientation) et des symboles de traçage (magenta)
@@ -530,7 +588,7 @@ TOOL_IMPL.co = function (el) {
   /* ================= 1. PARCOURS ================= */
   function listParcours(box) {
     box.innerHTML = `<div class="section-title"><h2>📍 Lieux et cartes</h2></div><div class="card" style="padding:0">${coLieux().length ? coLieux().map((L, i) => `<div class="list-item"><div style="flex:1"><b>${esc(L.nom)}</b>
-        <div class="muted">${L.map ? '🗺 carte' : '⚠️ pas de carte'} · ${L.postes.length} poste${L.postes.length > 1 ? 's' : ''}${L.postes.some(q => q.x == null) ? ` (${L.postes.filter(q => q.x == null).length} à placer)` : ''} · ${DB.co.parcours.filter(p => p.lieu === L.id).length} parcours</div></div><button class="btn btn-ghost" data-cfg="bare" data-le="${i}">✏️</button></div>`).join('')
+        <div class="muted">${L.map ? '🗺 carte' : '⚠️ pas de carte'}${L.map ? (coMPU(L) ? ' · 📏 échelle ✔' : ' · 📏 sans échelle') : ''} · ${L.postes.length} poste${L.postes.length > 1 ? 's' : ''}${L.postes.some(q => q.x == null) ? ` (${L.postes.filter(q => q.x == null).length} à placer)` : ''} · ${DB.co.parcours.filter(p => p.lieu === L.id).length} parcours</div></div><button class="btn btn-ghost" data-cfg="bare" data-le="${i}">✏️</button></div>`).join('')
         : '<div class="empty" style="font-size:.85rem">Importez la carte vierge d\'un lieu (établissement, bois…) et placez-y les postes : les parcours se créeront ensuite en touchant les postes.</div>'}</div>
       <button class="btn btn-ghost btn-block" data-cfg style="margin-top:8px" id="newl">＋ Nouveau lieu (carte vierge + postes)</button>
       <div class="section-title"><h2>🗺 Parcours</h2>${DB.co.parcours.some(p => coMapOf(p) || (p.type === 'koh' && p.balises.some(coKohOk))) ? '<button class="link" id="prall">🖨 Imprimer les cartes</button>' : ''}</div><div class="card" style="padding:0">${DB.co.parcours.length ? DB.co.parcours.map((p, i) => `<div class="list-item"><div style="flex:1"><b>${esc(p.nom)}</b>
@@ -550,6 +608,13 @@ TOOL_IMPL.co = function (el) {
   function editLieu(box, idx) {
     const L = idx != null ? JSON.parse(JSON.stringify(coLieux()[idx])) : { id: coId(), nom: coLieux().length ? 'Bois' : 'Établissement', postes: [] };
     let mode = 'add', pick = null, sel = null, otype = null, draft = [], osel = null, pv = false; const Z = { s: 1, tx: 0, ty: 0 }; L.objs = L.objs || [];
+    const ES = { det: null, state: '', cp: [], dist: (L.echelle && L.echelle.ref) || 60, mdist: '', wdist: '' };   // échelle : détection, mesure manuelle
+    const echH = () => Math.round(1000 * L.map.h / L.map.w);
+    const echOverlay = () => { if (mode !== 'ech' || !L.map) return ''; const H = echH(); let o = '';
+      if (ES.det) { const D0 = ES.det, ln = D0.pos.map(v => D0.o === 'v' ? `<line x1="${v}" y1="0" x2="${v}" y2="${H}" stroke="#FF7A00" stroke-width="4" stroke-dasharray="16 8"/>` : `<line x1="0" y1="${v}" x2="1000" y2="${v}" stroke="#FF7A00" stroke-width="4" stroke-dasharray="16 8"/>`).join('');
+        const a = D0.pos[0], b = D0.pos[1], t = D0.o === 'v' ? `<text x="${(a + b) / 2}" y="46" text-anchor="middle" font-size="36" font-weight="900" fill="#FF7A00" stroke="#fff" stroke-width="7" paint-order="stroke" font-family="Arial,sans-serif">${esc(String(ES.dist))} m</text>` : `<text x="500" y="${(a + b) / 2}" text-anchor="middle" font-size="36" font-weight="900" fill="#FF7A00" stroke="#fff" stroke-width="7" paint-order="stroke" font-family="Arial,sans-serif">${esc(String(ES.dist))} m</text>`; o += ln + t; }
+      if (ES.cp.length >= 2) { o += ES.cp.length === 4 ? `<line x1="${ES.cp[0]}" y1="${ES.cp[1]}" x2="${ES.cp[2]}" y2="${ES.cp[3]}" stroke="#E00070" stroke-width="5"/>` : ''; for (let i = 0; i < ES.cp.length; i += 2) o += `<circle cx="${ES.cp[i]}" cy="${ES.cp[i + 1]}" r="9" fill="#E00070" stroke="#fff" stroke-width="3"/>`; }
+      return o; };
     const nextNum = () => L.postes.reduce((a, q) => Math.max(a, q.num), 30) + 1;
     const freeCode = () => CO_PATS.find(c => !L.postes.some(q => q.code === c)) || '';
     const V = () => ({ img: L.map.img, w: L.map.w, h: L.map.h, hl: [], paths: [], ms: coMS(L), objs: L.objs, marks: [...(L.dep ? [{ kind: 'D', x: L.dep[0], y: L.dep[1] }] : []), ...(L.arr ? [{ kind: 'A', x: L.arr[0], y: L.arr[1] }] : []),
@@ -560,8 +625,24 @@ TOOL_IMPL.co = function (el) {
           <label>Nom du lieu</label><input id="ln" value="${esc(L.nom)}" placeholder="Établissement, bois de…">
           <label class="btn btn-ghost btn-block" style="display:block;text-align:center;cursor:pointer;margin:10px 0 0">📷 ${L.map ? 'Changer la carte vierge' : 'Importer la carte vierge (photo ou capture d\'écran)'}<input id="lf" type="file" accept="image/*" style="display:none"></label></div>
         ${L.map ? `<div class="card" style="margin-top:12px"><h3 style="margin-top:0">📍 Postes sur la carte</h3>
-          <div class="seg">${[['add', '➕ Poste'], ['move', '✋ Déplacer'], ['D', '△ Départ'], ['A', '◎ Arrivée'], ['obj', '🧱 Objets']].map(([k, l]) => `<button data-mo="${k}" class="${mode === k ? 'on' : ''}">${l}</button>`).join('')}</div>
-          <p class="muted" style="margin:8px 0 4px;font-size:.8rem">🔍 2 doigts pour zoomer, 1 doigt pour faire glisser la carte : seul un <b>toucher bref</b> place un repère ; un repère existant se <b>déplace en le faisant glisser</b>.<br>${{ add: un.length ? 'Choisissez un poste déjà saisi puis touchez la carte pour le placer — ou touchez la carte sans en choisir pour créer un nouveau poste.' : 'Touchez la carte pour créer un poste (numéro et symbole attribués automatiquement, modifiables). Touchez un poste pour le modifier ; <b>maintenez-le et faites-le glisser</b> pour le déplacer (départ et arrivée aussi).', move: 'Touchez un poste, puis l\'endroit où le déplacer.', D: 'Touchez la carte à l\'endroit du départ (triangle).', A: 'Touchez la carte à l\'endroit de l\'arrivée (double cercle). Sans arrivée, elle se fait au départ.',obj: '' }[mode]}</p>
+          <div class="seg" style="flex-wrap:wrap">${[['add', '➕ Poste'], ['move', '✋ Déplacer'], ['D', '△ Départ'], ['A', '◎ Arrivée'], ['obj', '🧱 Objets'], ['ech', '📏 Échelle']].map(([k, l]) => `<button data-mo="${k}" class="${mode === k ? 'on' : ''}" style="flex:1 1 30%">${l}${k === 'ech' && coMPU(L) ? ' ✔' : ''}</button>`).join('')}</div>
+          <p class="muted" style="margin:8px 0 4px;font-size:.8rem">🔍 2 doigts pour zoomer, 1 doigt pour faire glisser la carte : seul un <b>toucher bref</b> place un repère ; un repère existant se <b>déplace en le faisant glisser</b>.<br>${{ add: un.length ? 'Choisissez un poste déjà saisi puis touchez la carte pour le placer — ou touchez la carte sans en choisir pour créer un nouveau poste.' : 'Touchez la carte pour créer un poste (numéro et symbole attribués automatiquement, modifiables). Touchez un poste pour le modifier ; <b>maintenez-le et faites-le glisser</b> pour le déplacer (départ et arrivée aussi).', move: 'Touchez un poste, puis l\'endroit où le déplacer.', D: 'Touchez la carte à l\'endroit du départ (triangle).', A: 'Touchez la carte à l\'endroit de l\'arrivée (double cercle). Sans arrivée, elle se fait au départ.',obj: '', ech: '' }[mode]}</p>
+          ${mode === 'ech' ? (() => { const mpu = coMPU(L), H = echH(), dt = ES.det, cl = ES.cp.length === 4 ? Math.hypot(ES.cp[2] - ES.cp[0], ES.cp[3] - ES.cp[1]) : 0;
+            return `<div style="margin-top:4px;padding:10px;border-radius:12px;background:var(--grad-soft)">
+            <b>📏 Échelle de la carte</b>
+            <p class="muted" style="margin:4px 0 8px;font-size:.8rem">${mpu ? `✔ Échelle réglée : la carte mesure <b>≈ ${coFmtM(mpu * 1000)}</b> de large et <b>≈ ${coFmtM(mpu * H)}</b> de haut (${L.echelle.src === 'auto' ? 'lue sur les traits de la carte' : L.echelle.src === 'mesure' ? 'mesurée sur la carte' : 'saisie à la main'}). <button class="link" id="ecl">Retirer l'échelle</button>` : 'Pas encore d\'échelle : sans elle, la distance des parcours se saisit à la main. Avec elle, la distance est calculée d\'après les postes (vitesse, RK et RK effort dans les résultats).'}</p>
+            <div style="font-weight:800;font-size:.85rem">1️⃣ Lire l'échelle sur la carte</div>
+            <p class="muted" style="margin:2px 0 6px;font-size:.78rem">Si la carte porte une échelle graphique en traits fins bleus (ex. un trait tous les 60 m, avec la flèche « 60 m »), l'outil mesure leur écartement.</p>
+            <button class="btn btn-grad btn-block" id="edet" ${ES.state === 'busy' ? 'disabled' : ''}>${ES.state === 'busy' ? '⏳ Lecture en cours…' : '🔎 Détecter les traits d\'échelle'}</button>
+            ${ES.state === 'none' ? '<p style="margin:6px 0 0;font-size:.82rem;color:var(--danger)">Aucun trait d\'échelle trouvé sur cette carte : utilisez 2️⃣ ou 3️⃣.</p>' : ''}
+            ${dt ? `<p style="margin:6px 0 4px;font-size:.82rem">✔ <b>${dt.n} traits ${dt.o === 'v' ? 'verticaux' : 'horizontaux'}</b> détectés (en orange sur la carte)${dt.regular ? '' : ' — écartements irréguliers, vérifiez'}.</p>
+              <div class="row" style="align-items:end"><div><label style="margin:0">Distance réelle entre deux traits (m)</label><input id="edist" type="number" min="1" step="any" value="${esc(String(ES.dist))}"></div><button class="btn btn-grad" style="flex:0 0 auto" id="eapply">✔ Appliquer</button></div>
+              <p class="muted" style="margin:4px 0 0;font-size:.76rem">60 m est proposé par défaut : corrigez-le si l'écartement indiqué sur votre carte est différent.</p>` : ''}
+            <div style="font-weight:800;font-size:.85rem;margin-top:12px">2️⃣ Mesurer une distance connue</div>
+            <p class="muted" style="margin:2px 0 6px;font-size:.78rem">Touchez <b>deux points</b> de la carte dont vous connaissez la distance (extrémités de la flèche « 60 m », deux traits bleus, deux coins d'un terrain…) puis saisissez-la.</p>
+            ${cl ? `<div class="row" style="align-items:end"><div><label style="margin:0">Distance réelle (m)</label><input id="mdist" type="number" min="1" step="any" value="${esc(String(ES.mdist))}" placeholder="ex. 60"></div><button class="btn btn-grad" style="flex:0 0 auto" id="mapply">✔ Appliquer</button><button class="btn btn-ghost" style="flex:0 0 auto" id="mreset">↺</button></div>` : ''}
+            <div style="font-weight:800;font-size:.85rem;margin-top:12px">3️⃣ Saisir la largeur réelle de la carte</div>
+            <div class="row" style="align-items:end;margin-top:2px"><div><label style="margin:0">Largeur de la carte (m)</label><input id="wdist" type="number" min="1" step="any" value="${esc(String(ES.wdist))}" placeholder="ex. 400"></div><button class="btn btn-grad" style="flex:0 0 auto" id="wapply">✔ Appliquer</button></div></div>`; })() : ''}
           ${mode === 'obj' ? `<div style="margin-top:4px">${['pt', 'ln', 'zn'].map(G => `<div class="muted" style="font-size:.75rem;font-weight:800;margin-top:6px">${CO_OBJ_G[G]}</div><div class="bal-chips" style="margin-top:4px">${Object.entries(CO_OBJ).filter(([, T]) => T.g === G).map(([k, T]) => `<button data-ot="${k}" class="${otype === k ? 'on' : ''}" style="font-size:.76rem;display:inline-flex;align-items:center;gap:6px;text-align:left">${coObjIcon(k, 30, 21)}${T.l}</button>`).join('')}</div>`).join('')}
             <p class="muted" style="margin:6px 0 0;font-size:.78rem">${otype ? `Objet choisi : <b>${CO_OBJ[otype].l}</b> — ${CO_OBJ[otype].g === 'pt' ? 'touchez la carte pour le poser (glissez-le pour le déplacer).' : 'touchez la carte point par point, puis ✔ Terminer.'} <button class="link" id="onone">Sélectionner / supprimer un objet</button>` : 'Choisissez un objet à dessiner, ou touchez un objet de la carte pour le sélectionner (et le supprimer).'}</p>
             ${draft.length ? `<div class="row" style="margin-top:6px"><button class="btn btn-grad" id="od">✔ Terminer (${draft.length / 2} pts)</button><button class="btn btn-ghost" id="ou">↶ Point</button><button class="btn btn-ghost" id="ox">✕ Abandonner</button></div>` : ''}
@@ -570,7 +651,7 @@ TOOL_IMPL.co = function (el) {
           ${mode === 'add' && un.length ? `<div class="bal-chips">${un.map(q => `<button data-pk="${q.id}" class="${pick === q.id ? 'on' : ''}" style="border-style:dashed">${q.num}</button>`).join('')}</div>` : ''}
           <div style="display:flex;align-items:center;gap:10px;margin-top:8px"><span style="font-size:.8rem;font-weight:800;white-space:nowrap">⭕ Taille des repères</span><input id="lt" type="range" min="0.15" max="1.5" step="0.05" value="${coMS(L)}" style="flex:1"><b id="ltv" style="font-size:.8rem;min-width:38px;text-align:right">${Math.round(coMS(L) * 100)} %</b></div>
           ${L.objs.length ? `<label style="display:flex;gap:8px;align-items:center;margin-top:8px;font-size:.82rem;font-weight:700"><input type="checkbox" id="lpv" ${pv ? 'checked' : ''} style="width:auto"> 🖼 Aperçu en symboles illustrés (version adaptée de la carte)</label>` : ''}
-          <div style="margin-top:8px" id="lw">${coZoomHTML(coMapView(V(), { picto: pv, sel, osel, draft: draft.length ? `<polyline points="${draft.join(',')}${otype && CO_OBJ[otype].g === 'zn' && draft.length > 4 ? ',' + draft[0] + ',' + draft[1] : ''}" fill="none" stroke="#E07A00" stroke-width="4" stroke-dasharray="10 6"/>${draft.map((v, i) => i % 2 ? '' : `<circle cx="${v}" cy="${draft[i + 1]}" r="7" fill="#E07A00"/>`).join('')}` : '' }))}</div>
+          <div style="margin-top:8px" id="lw">${coZoomHTML(coMapView(V(), { picto: pv, sel, osel, draft: (draft.length ? `<polyline points="${draft.join(',')}${otype && CO_OBJ[otype].g === 'zn' && draft.length > 4 ? ',' + draft[0] + ',' + draft[1] : ''}" fill="none" stroke="#E07A00" stroke-width="4" stroke-dasharray="10 6"/>${draft.map((v, i) => i % 2 ? '' : `<circle cx="${v}" cy="${draft[i + 1]}" r="7" fill="#E07A00"/>`).join('')}` : '') + echOverlay() }))}</div>
           ${S ? `<div style="margin-top:10px;padding:10px;border-radius:12px;border:2px solid var(--gold,#C9A227)"><b>Poste sélectionné</b><div class="row" style="align-items:center;margin-top:6px"><div><label style="margin:0">Numéro</label><input id="sn" type="number" value="${S.num}"></div>
             <button id="sp" style="flex:0 0 auto;padding:0;border:none;background:none;cursor:pointer">${isPat(S.code) ? patSVG(S.code, 48) : '<span style="display:grid;place-items:center;width:48px;height:48px;border:1.5px dashed var(--line);border-radius:6px;font-size:.62rem;font-weight:800">＋ pince</span>'}</button>
             <button class="btn btn-ghost" id="sa" style="flex:0 0 auto">${S.photo ? '📷' : ''}${S.def ? '📝' : ''}${S.photo || S.def ? ' Photo / définition' : '📷 📝 Photo / définition'}</button><button class="btn btn-ghost" id="su" style="flex:0 0 auto">Retirer de la carte</button><button class="btn btn-danger" id="sd" style="flex:0 0 auto">Supprimer</button></div></div>` : ''}
@@ -586,7 +667,18 @@ TOOL_IMPL.co = function (el) {
       const $ = s => box.querySelector(s), rd = () => { L.nom = $('#ln').value.trim() || 'Lieu'; };
       $('#lf').onchange = e => { const f0 = e.target.files[0]; if (!f0) return; rd(); if (L.map && L.postes.some(q => q.x != null) && !confirm('Changer la carte ? Les postes gardent leur position : replacez-les si la nouvelle carte est différente.')) return; coImg(f0, (img, w, h) => { L.map = { img, w, h }; draw(); }, 1800); };
       box.querySelectorAll('[data-mo]').forEach(b => b.onclick = () => { rd(); if (draft.length && !confirm('Abandonner l\'objet en cours ?')) return; mode = b.dataset.mo; draft = []; osel = null; if (mode !== 'move' && mode !== 'add') sel = null; draw(); });
-      if ($('#lf')) $('#lf').addEventListener('change', () => { Z.s = 1; Z.tx = Z.ty = 0; });
+      if ($('#lf')) $('#lf').addEventListener('change', () => { Z.s = 1; Z.tx = Z.ty = 0; ES.det = null; ES.cp = []; ES.state = ''; });
+      // ----- échelle de la carte -----
+      const setEch = (mpu, src, ref) => { if (!(mpu > 0) || !isFinite(mpu)) return toast('Valeur incorrecte'); L.echelle = { mpu, src, ref }; ES.det = null; ES.cp = []; ES.state = ''; beep(900, .04); toast('Échelle enregistrée ✔ (n\'oubliez pas « Enregistrer le lieu »)'); draw(); };
+      if ($('#edet')) $('#edet').onclick = () => { rd(); ES.state = 'busy'; ES.det = null; draw(); coDetectScale(L.map, r => { if (!box.querySelector('#edet')) return; ES.state = r ? 'ok' : 'none'; ES.det = r; draw(); }); };
+      if ($('#edist')) $('#edist').oninput = e => { ES.dist = e.target.value; };
+      if ($('#eapply')) $('#eapply').onclick = () => { const m = +$('#edist').value; if (!(m > 0)) return toast('Saisissez la distance réelle entre deux traits'); setEch(m / ES.det.gap, 'auto', m); };
+      if ($('#mdist')) $('#mdist').oninput = e => { ES.mdist = e.target.value; };
+      if ($('#mapply')) $('#mapply').onclick = () => { const m = +$('#mdist').value, u = Math.hypot(ES.cp[2] - ES.cp[0], ES.cp[3] - ES.cp[1]); if (!(m > 0)) return toast('Saisissez la distance réelle'); if (u < 5) return toast('Les deux points sont trop proches'); setEch(m / u, 'mesure', m); };
+      if ($('#mreset')) $('#mreset').onclick = () => { ES.cp = []; draw(); };
+      if ($('#wdist')) $('#wdist').oninput = e => { ES.wdist = e.target.value; };
+      if ($('#wapply')) $('#wapply').onclick = () => { const m = +$('#wdist').value; if (!(m > 0)) return toast('Saisissez la largeur réelle de la carte (m)'); setEch(m / 1000, 'largeur', m); };
+      if ($('#ecl')) $('#ecl').onclick = () => { if (!confirm('Retirer l\'échelle de ce lieu ? Les distances calculées ne seront plus mises à jour.')) return; delete L.echelle; draw(); };
       if ($('#lt')) { $('#lt').oninput = e => { L.taille = +e.target.value; $('#ltv').textContent = Math.round(L.taille * 100) + ' %'; $('#lw').querySelectorAll('g.mk').forEach(m => m.dataset.k = L.taille); coMkScale($('#lw'), 1 / Math.sqrt(Z.s)); };
         $('#lt').onchange = () => { rd(); draw(); }; }
       box.querySelectorAll('[data-ot]').forEach(b => b.onclick = () => { rd(); if (draft.length && !confirm('Abandonner l\'objet en cours ?')) return; draft = []; osel = null; otype = otype === b.dataset.ot ? null : b.dataset.ot; draw(); });
@@ -620,12 +712,13 @@ TOOL_IMPL.co = function (el) {
           .map(o => ({ ...o, d: Math.hypot(o.x - x, o.y - y) })).filter(o => o.d < lim).sort((a, b) => a.d - b.d)[0]; return it || null; };
       const setPos = (id, x, y) => { if (id.startsWith('o:')) { const o = L.objs.find(z => 'o:' + z.id === id); if (o) { o.x = x; o.y = y; } } else if (id === 'D') L.dep = [x, y]; else if (id === 'A') L.arr = [x, y]; else { const q = L.postes.find(z => z.id === id); q.x = x; q.y = y; } };
       if (svg) coZoom($('#lw .co-zv'), L.map, Z, {
-        grab: e => draft.length ? null : near(e, true),
+        grab: e => draft.length || mode === 'ech' ? null : near(e, true),
         dragMove: (it, e) => { const [x, y] = coSvgPt(svg, V(), e), gm = [...svg.querySelectorAll('g.mk')].find(m => m.dataset.id === it.id); it.nx = x; it.ny = y;
           if (gm) { gm.dataset.x = x; gm.dataset.y = y; coMkScale(gm.parentNode, 1 / Math.sqrt(Z.s)); } },
         dragEnd: it => { if (it.nx == null) return; rd(); setPos(it.id, it.nx, it.ny); if (it.id !== 'D' && it.id !== 'A' && !it.id.startsWith('o:')) sel = it.id; beep(900, .03); draw(); },
         dragCancel: () => draw(),
         onTap: e => { rd(); const [x, y] = coSvgPt(svg, V(), e);
+        if (mode === 'ech') { ES.cp = ES.cp.length >= 4 ? [x, y] : [...ES.cp, x, y]; beep(900, .03); return draw(); }
         if (mode === 'obj') { const u = svg.getBoundingClientRect().width / 1000, lim = Math.max(22, 20 * coMS(L)) / u;
           if (!otype) { const o = coObjHit(L.objs, x, y, lim); osel = o ? (osel === o.id ? null : o.id) : null; if (!o) toast('Choisissez d\'abord un objet à dessiner'); return draw(); }
           if (CO_OBJ[otype].g === 'pt') { L.objs.push({ id: coId(), t: otype, x, y }); beep(900, .04); return draw(); }
@@ -644,7 +737,13 @@ TOOL_IMPL.co = function (el) {
       $('#lsv').onclick = () => { rd(); const nums = L.postes.map(q => q.num); if (new Set(nums).size !== nums.length) return toast('Deux postes ont le même numéro');
         // parcours de ce lieu : numéros et symboles mis à jour, postes supprimés retirés
         DB.co.parcours.forEach(p => { if (p.lieu !== L.id) return; p.balises = p.balises.filter(b => L.postes.some(q => q.id === b.pid)).map(b => { const q = L.postes.find(z => z.id === b.pid); return { ...b, num: q.num, code: q.code }; }); });
-        if (idx != null) coLieux()[idx] = L; else coLieux().push(L); save(); toast('Lieu enregistré ✔'); listParcours(box); };
+        // échelle : distances des parcours du lieu recalculées d'après les postes
+        const mpu = coMPU(L), ps = DB.co.parcours.filter(p => p.lieu === L.id); let nd = 0;
+        if (mpu) { const before = idx != null ? coMPU(coLieux()[idx]) : 0, man = ps.filter(p => !p.distAuto);
+          if (man.length && Math.abs(mpu - before) > 1e-9 && confirm(`Échelle réglée : calculer la distance de ${man.length === 1 ? 'ce parcours' : 'ces ' + man.length + ' parcours'} d'après la carte ? (${man.map(p => p.nom).join(', ')}) La distance saisie sera remplacée ; vous pourrez revenir à une distance manuelle dans chaque parcours.`)) man.forEach(p => p.distAuto = true);
+          ps.filter(p => p.distAuto).forEach(p => { const r = coDistCalc(p, L); if (r && r.m) { p.distance = r.m; nd++; } }); }
+        else ps.forEach(p => { if (p.distAuto) p.distAuto = false; });
+        if (idx != null) coLieux()[idx] = L; else coLieux().push(L); save(); toast(nd ? `Lieu enregistré ✔ · distance recalculée pour ${nd} parcours` : 'Lieu enregistré ✔'); listParcours(box); };
     };
     draw();
   }
@@ -653,9 +752,11 @@ TOOL_IMPL.co = function (el) {
       id: coId(), nom: 'Parcours 1', type: 'libre', distance: 1200, denivOn: false, deniv: 0, alloue: 20, ecart: 2,
       balises: Array.from({ length: 8 }, (_, i) => ({ num: 31 + i, niv: 1, ob: true })),
       pts: [1, 2, 3], penWrongP: 1, penWrongS: 30, penMissS: 60, penOverP: 1 };
-    if (idx == null && coLieux().length) { p.lieu = coLieux()[0].id; p.balises = []; }
+    if (idx == null && coLieux().length) { p.lieu = coLieux()[0].id; p.balises = []; p.distAuto = !!coMPU(coLieux()[0]); }
     const ZP = { s: 1, tx: 0, ty: 0 };
     const draw = () => { const LU = coLieu(p.lieu);
+      const eche = !!(LU && coMPU(LU)), auto = eche && !!p.distAuto, DC = eche ? coDistCalc(p, LU) : null;   // distance d'après l'échelle de la carte
+      if (auto && DC && DC.m) p.distance = DC.m;
       box.innerHTML = `<div data-cfg="bare"><div class="card" data-cfg><h3>${idx != null ? 'Modifier' : 'Nouveau'} parcours</h3>
         <label>Nom</label><input id="nm" value="${esc(p.nom)}">
         <label>Type de parcours</label><select id="ty">${Object.entries(CO_TYPES).map(([k, v]) => `<option value="${k}" ${p.type === k ? 'selected' : ''}>${v[0]}</option>`).join('')}</select>
@@ -666,7 +767,11 @@ TOOL_IMPL.co = function (el) {
           <div style="margin-top:10px;padding:8px 10px;border-radius:10px;background:var(--grad-soft)"><b style="font-size:.88rem">🧭 Correspondances couleurs → directions</b><p class="muted" style="margin:2px 0 6px;font-size:.76rem">Les élèves ne voient que la couleur ; la correspondance s'affiche sur leur tablette avec le code enseignant (bouton « 🧭 Correspondances »). Elle s'imprime aussi sur une page à part.</p>
           ${Object.entries(CO_COUL).map(([c, [n, col]]) => `<div style="display:flex;align-items:center;gap:8px;margin-top:4px"><span style="width:26px;height:26px;border-radius:7px;background:${col};border:1.5px solid var(--line);flex:0 0 auto"></span><b style="min-width:64px;font-size:.85rem">${n}</b><select data-kdir="${c}" style="padding:6px;flex:1"><option value="">—</option>${Object.entries(CO_DIR).map(([d, [dn]]) => `<option value="${d}" ${(p.kohDir || {})[c] === d ? 'selected' : ''}>${dn}</option>`).join('')}</select></div>`).join('')}</div>` : ''}
         ${p.type === 'relais' ? `<label>Balises par relayeur (avant de passer le relais)</label><input id="rl" type="number" min="1" value="${p.relais || 1}">` : ''}
-        <div class="row"><div><label>Distance (m)</label><input id="di" type="number" value="${p.distance}"></div><div><label>Temps attribué (min)</label><input id="al" type="number" value="${p.alloue}"></div><div><label>Écart toléré (± min)</label><input id="ec" type="number" value="${p.ecart}"></div></div>
+        <div class="row"><div><label>Distance (m)${auto ? ' 📏' : ''}</label><input id="di" type="number" value="${p.distance}" ${auto ? 'readonly style="background:var(--grad-soft)"' : ''}></div><div><label>Temps attribué (min)</label><input id="al" type="number" value="${p.alloue}"></div><div><label>Écart toléré (± min)</label><input id="ec" type="number" value="${p.ecart}"></div></div>
+        ${LU ? (eche ? `<label style="display:flex;gap:8px;align-items:center;margin-top:10px"><input type="checkbox" id="da" ${auto ? 'checked' : ''} style="width:auto"> 📏 Calculer la distance d'après l'échelle de la carte</label>
+          ${auto ? `<p class="muted" style="margin:4px 0 0;font-size:.8rem">${DC && DC.m ? `<b>${coFmtM(DC.m)}</b> — ${DC.how}.` : esc((DC && DC.why) || '')} Elle sert au calcul de la vitesse, du RK${p.denivOn ? ' et du RK effort' : ''} dans les résultats.</p>
+          <div class="row" style="align-items:end"><div><label>Coefficient de détour (1 = ligne droite)</label><input id="dt" type="number" min="1" max="3" step="0.05" value="${p.detour || 1}"></div></div>` : ''}`
+          : `<p class="muted" style="margin:8px 0 0;font-size:.8rem">📏 Réglez l'échelle du lieu (bouton « 📏 Échelle » dans le lieu) pour calculer la distance automatiquement d'après les postes.</p>`) : ''}
         <label style="display:flex;gap:8px;align-items:center;margin-top:12px"><input type="checkbox" id="dn" ${p.denivOn ? 'checked' : ''} style="width:auto"> Option dénivelé</label>
         ${p.denivOn ? `<label>Dénivelé positif (m)</label><input id="dv" type="number" value="${p.deniv}">` : ''}
       </div>
@@ -699,7 +804,7 @@ TOOL_IMPL.co = function (el) {
         <label>Dépassement du temps attribué + écart</label><input id="pop" type="number" value="${p.penOverP}"><small class="muted">point(s) en moins par minute de retard</small></div>
       <div class="row" style="margin-top:12px"><button class="btn btn-grad" id="sv">💾 Enregistrer</button><button class="btn btn-ghost" id="bk">Annuler</button>${idx != null ? '<button class="btn btn-danger" id="del">Supprimer</button>' : ''}</div></div>`;
       const $ = s => box.querySelector(s);
-      const read = () => { p.nom = $('#nm').value.trim() || 'Parcours'; p.distance = +$('#di').value || 0; p.alloue = +$('#al').value || 0; p.ecart = +$('#ec').value || 0;
+      const read = () => { p.nom = $('#nm').value.trim() || 'Parcours'; p.distance = +$('#di').value || 0; if ($('#da')) p.distAuto = $('#da').checked; if ($('#dt')) p.detour = Math.min(3, Math.max(1, +$('#dt').value || 1)); p.alloue = +$('#al').value || 0; p.ecart = +$('#ec').value || 0;
         p.denivOn = $('#dn').checked; if ($('#dv')) p.deniv = +$('#dv').value || 0;
         p.pts = [+$('#p1').value || 0, +$('#p2').value || 0, +$('#p3').value || 0]; p.penWrongP = +$('#pwp').value || 0; p.penWrongS = +$('#pws').value || 0; p.penMissS = +$('#pms').value || 0; p.penOverP = +$('#pop').value || 0;
         if ($('#kmemo')) p.memo = Math.max(3, +$('#kmemo').value || 10); if ($('#kpen')) p.kohPen = Math.max(0, +$('#kpen').value || 0);
@@ -716,8 +821,10 @@ TOOL_IMPL.co = function (el) {
       if ($('#mpx')) $('#mpx').onclick = () => { if (!confirm('Retirer la carte de ce parcours ?')) return; read(); delete p.map; draw(); };
       $('#ty').onchange = () => { read(); p.type = $('#ty').value; if (p.type === 'koh' && (p.pts || []).join() === '1,2,3') p.pts = [1, 2, 10]; if (p.type === 'reseau') p.balises.forEach(b => b.ob = false); if (p.type === 'suivi') p.balises.forEach(b => b.ob = true); draw(); };
       $('#dn').onchange = () => { read(); draw(); };
+      if ($('#da')) $('#da').onchange = () => { read(); draw(); };
+      if ($('#dt')) $('#dt').onchange = () => { read(); draw(); };
       $('#lu').onchange = e => { read(); const v = e.target.value; if (p.balises.length && !confirm(v ? 'Prendre les balises parmi les postes de ce lieu ? Les balises actuelles seront retirées.' : 'Ne plus utiliser de lieu ? Les balises sont gardées, sans la carte.')) { e.target.value = p.lieu || ''; return; }
-        if (v) { p.lieu = v; p.balises = []; delete p.hl; } else { if (p.lieu) { const L0 = coLieu(p.lieu); p.balises.forEach(b => delete b.pid); } delete p.lieu; delete p.hl; } draw(); };
+        if (v) { p.lieu = v; p.balises = []; delete p.hl; p.distAuto = !!coMPU(coLieu(v)); } else { if (p.lieu) { const L0 = coLieu(p.lieu); p.balises.forEach(b => delete b.pid); } delete p.lieu; delete p.hl; p.distAuto = false; } draw(); };
       const tog = id => { const L0 = coLieu(p.lieu), q = L0.postes.find(z => z.id === id); if (!q) return;
         if (p.balises.some(b => b.pid === id)) p.balises = p.balises.filter(b => b.pid !== id); else p.balises.push({ num: q.num, code: q.code, pid: q.id, niv: 1, ob: p.type !== 'reseau' }); beep(900, .03); draw(); };
       box.querySelectorAll('[data-tq]').forEach(b => b.onclick = () => { read(); tog(b.dataset.tq); });
@@ -786,7 +893,9 @@ TOOL_IMPL.co = function (el) {
     /* Parcours de chaque équipe : celui de la séance, un autre parcours choisi (r.pc), ou « choix libre » de N balises (r.libre, r.sel) */
     const baseOf = r => (r.pc && P(r.pc)) || p;
     const pOf = r => { const b = baseOf(r); if (!r.libre) return b; const sel = r.sel || [];
-      return { ...b, id: b.id + '~libre' + r.libre, nom: `${b.nom} · choix libre (${r.libre} balises)`, balises: b.balises.filter(x => sel.includes(x.num)) }; };
+      const q = { ...b, id: b.id + '~libre' + r.libre, nom: `${b.nom} · choix libre (${r.libre} balises)`, balises: b.balises.filter(x => sel.includes(x.num)) }, L0 = coLieu(b.lieu);
+      if (b.distAuto && L0 && coMPU(L0)) { const dc = coDistCalc(q, L0); if (dc && dc.m) q.distance = dc.m; }   // distance d'après l'échelle, sur les seules balises choisies
+      return q; };
     const needSel = r => r.libre && (r.sel || []).length < r.libre;
     const pcPick = (r, i) => `<div class="co-pick"><select data-pcs="${i}" style="padding:8px">${DB.co.parcours.map(x => `<option value="${x.id}" ${baseOf(r).id === x.id ? 'selected' : ''}>${esc(x.nom)} · ${x.balises.length} bal.</option>`).join('')}</select>
       <select data-lib="${i}" style="padding:8px"><option value="0">Toutes les balises du parcours</option>${Array.from({ length: Math.max(0, baseOf(r).balises.length - 1) }, (_, k) => k + 2).map(n => `<option value="${n}" ${r.libre === n ? 'selected' : ''}>🎯 Choix libre : ${n} balises</option>`).join('')}</select></div>`;
@@ -1009,7 +1118,7 @@ TOOL_IMPL.co = function (el) {
     if (!done.length) return '<div class="card empty">Le classement apparaît dès les premières arrivées.</div>';
     return `<div class="card sheet-table"><table><tr><th>#</th><th>Nom</th><th>Pts</th><th>Temps</th><th>+ Pén.</th><th>Total</th><th>RK</th>${p.denivOn ? '<th>RK effort</th>' : ''}<th>Vitesse</th></tr>
       ${done.map(({ r, x }, i) => `<tr><td>${i + 1}</td><td><b>${esc(r.name)}</b></td><td><b>${x.score}</b></td><td>${hms(x.temps)}</td><td>${x.penS ? '+' + hms(x.penS) : '–'}</td><td><b>${hms(x.total)}</b></td><td>${x.rk}</td>${p.denivOn ? `<td>${x.rkE}</td>` : ''}<td>${x.vit}</td></tr>`).join('')}</table>
-      <p class="muted" style="font-size:.75rem;margin:6px 0 0">Classement : points (balises − pénalités), puis temps total (temps réalisé + pénalités). RK = rythme au kilomètre${p.denivOn ? ' ; RK effort = avec 100 m de D+ comptés comme 1 km' : ''}.</p></div>`;
+      <p class="muted" style="font-size:.75rem;margin:6px 0 0">Classement : points (balises − pénalités), puis temps total (temps réalisé + pénalités). RK = rythme au kilomètre${p.denivOn ? ' ; RK effort = avec 100 m de D+ comptés comme 1 km' : ''}.${p.distance ? ` Distance du parcours : ${coFmtM(p.distance)}${p.distAuto && coMPU(coLieu(p.lieu)) ? ' (calculée d\'après l\'échelle de la carte)' : ''}.` : ''}</p></div>`;
   }
 
   /* Synthèse « Résultats des élèves » : une ligne par élève (de la classe) de chaque course enregistrée */
