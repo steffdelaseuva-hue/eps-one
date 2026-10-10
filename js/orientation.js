@@ -48,34 +48,35 @@ document.head.insertAdjacentHTML('beforeend', `<style>
 .co-times input{padding:8px}
 </style>`);
 
-/* ---------- Symboles de pinces : grille 4 × 4 de points (code = 16 caractères 0/1) ---------- */
-const PAT_N = 16;
-const isPat = c => typeof c === 'string' && /^[01]{16}$/.test(c) && c.includes('1');
-const CO_PATS = (() => {                       // répertoire de 90 symboles distincts (les 50 premiers inchangés)
-  let seed = 20260926; const rnd = () => (seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648;
+/* ---------- Symboles de pinces : grille 5 × 5 de points (code = 25 caractères 0/1) ----------
+   Les symboles enregistrés avant la v23.6 (grille 4 × 4, code de 16 caractères) restent valides et s'affichent en 4 × 4. */
+const PAT_N = 25;
+const isPat = c => typeof c === 'string' && (/^[01]{25}$/.test(c) || /^[01]{16}$/.test(c)) && c.includes('1');
+const CO_PATS = (() => {                       // répertoire de 90 symboles 5 × 5 distincts
+  let seed = 20261010; const rnd = () => (seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648;
   const out = [], dist = (a, b) => [...a].filter((x, i) => x !== b[i]).length;
-  while (out.length < 90) { const k = 4 + Math.floor(rnd() * 4), cells = new Set(); while (cells.size < k) cells.add(Math.floor(rnd() * PAT_N));
+  while (out.length < 90) { const k = 5 + Math.floor(rnd() * 5), cells = new Set(); while (cells.size < k) cells.add(Math.floor(rnd() * PAT_N));
     const c = Array.from({ length: PAT_N }, (_, i) => cells.has(i) ? '1' : '0').join('');
-    if (out.every(o => dist(o, c) >= 4)) out.push(c); }
+    if (out.every(o => dist(o, c) >= 7)) out.push(c); }
   return out;
 })();
 function patSVG(code, px = 44, col = '#0B2A5B') {
-  const on = isPat(code) ? code : '0'.repeat(PAT_N);
-  return `<svg viewBox="0 0 44 44" width="${px}" height="${px}" style="display:block"><rect x="1" y="1" width="42" height="42" rx="5" fill="#fff" stroke="#9AA6B8" stroke-width="1.5"/>${[...on].map((v, i) => { const x = 8 + (i % 4) * 9.3, y = 8 + Math.floor(i / 4) * 9.3;
-    return v === '1' ? `<circle cx="${x}" cy="${y}" r="3.4" fill="${col}"/>` : `<circle cx="${x}" cy="${y}" r="1.1" fill="#D5DBE5"/>`; }).join('')}</svg>`;
+  const on = isPat(code) ? code : '0'.repeat(PAT_N), n = Math.round(Math.sqrt(on.length)), st = 28 / (n - 1), rOn = n === 4 ? 3.4 : 2.6, rOff = n === 4 ? 1.1 : .9;   // 5 × 5 (ou 4 × 4 pour les anciens symboles)
+  return `<svg viewBox="0 0 44 44" width="${px}" height="${px}" style="display:block"><rect x="1" y="1" width="42" height="42" rx="5" fill="#fff" stroke="#9AA6B8" stroke-width="1.5"/>${[...on].map((v, i) => { const x = 8 + (i % n) * st, y = 8 + Math.floor(i / n) * st;
+    return v === '1' ? `<circle cx="${x}" cy="${y}" r="${rOn}" fill="${col}"/>` : `<circle cx="${x}" cy="${y}" r="${rOff}" fill="#D5DBE5"/>`; }).join('')}</svg>`;
 }
 /* Sélecteur de symbole : répertoire, dessin libre, options supplémentaires */
 function patPicker({ title, options, draw = true, extra = [], current, used = [], onPick, only }) {
   const o = document.createElement('div');
   o.style.cssText = 'position:fixed;inset:0;z-index:300;background:rgba(7,18,42,.72);display:grid;place-items:center;padding:12px';
-  let tab = only === 'draw' ? 'draw' : 'rep', cells = [...(isPat(current) ? current : '0'.repeat(PAT_N))];
+  let tab = only === 'draw' ? 'draw' : 'rep', cells = [...(isPat(current) && current.length === PAT_N ? current : '0'.repeat(PAT_N))];   // dessin en 5 × 5 (un ancien symbole 4 × 4 se redessine)
   const render = () => {
     o.innerHTML = `<div class="card" style="max-width:520px;width:100%;max-height:92vh;overflow:auto"><h3>${esc(title)}</h3>
       ${draw && only !== 'draw' ? `<div class="co-tabs" style="margin-top:8px"><button data-t="rep" class="${tab === 'rep' ? 'on' : ''}">📚 Répertoire</button><button data-t="draw" class="${tab === 'draw' ? 'on' : ''}">✏️ Dessiner</button></div>` : ''}
       ${tab === 'rep' ? `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(54px,1fr));gap:6px">${options.map(c => `<button data-c="${c}" style="padding:4px;border-radius:10px;border:2px solid ${c === current ? 'var(--gold)' : 'transparent'};background:${used.includes(c) && c !== current ? 'var(--line)' : 'transparent'};cursor:pointer;opacity:${used.includes(c) && c !== current ? .45 : 1}">${patSVG(c, 46)}</button>`).join('')}</div>
           ${extra.map(x => `<button class="btn ${x.cls || 'btn-ghost'} btn-block" style="margin-top:8px" data-x="${x.v}">${x.l}</button>`).join('')}`
         : `<p class="muted" style="margin:0 0 8px">Touchez les points pour reproduire le symbole de la pince.</p>
-          <div style="display:grid;grid-template-columns:repeat(4,56px);gap:8px;justify-content:center">${cells.map((v, i) => `<button data-i="${i}" style="width:56px;height:56px;border-radius:50%;border:2px solid var(--line);background:${v === '1' ? '#0B2A5B' : 'var(--card)'};cursor:pointer"></button>`).join('')}</div>
+          <div style="display:grid;grid-template-columns:repeat(5,52px);gap:8px;justify-content:center">${cells.map((v, i) => `<button data-i="${i}" style="width:52px;height:52px;border-radius:50%;border:2px solid var(--line);background:${v === '1' ? '#0B2A5B' : 'var(--card)'};cursor:pointer"></button>`).join('')}</div>
           <button class="btn btn-grad btn-block" style="margin-top:12px" id="pv">✔ ${only === 'draw' ? 'Valider mon dessin' : 'Utiliser ce symbole'}</button>${only === 'draw' ? extra.map(x => `<button class="btn ${x.cls || 'btn-ghost'} btn-block" style="margin-top:8px" data-x="${x.v}">${x.l}</button>`).join('') : ''}`}
       <button class="btn btn-ghost btn-block" style="margin-top:8px" id="pc">Annuler</button></div>`;
     o.querySelectorAll('[data-t]').forEach(b => b.onclick = () => { tab = b.dataset.t; render(); });
