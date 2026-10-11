@@ -240,6 +240,10 @@ if (!document.getElementById('cl-css')) document.head.insertAdjacentHTML('before
   const inPer = d => { if (per === 'all') return true; if (per === 'day') return new Date(d).toDateString() === new Date().toDateString(); return d >= Date.now() - 7 * 864e5; };
   const collect = cls => { const all = {}; Object.keys(SRC).forEach(k => { try { all[k] = SRC[k](cls).filter(e => inPer(e.date)).sort((a, b) => b.date - a.date); } catch (err) { console.warn('collectifs', k, err); all[k] = []; } }); return all; };
 
+  /* Pour le bilan (📊) : tous les événements collectifs d'une classe, sans filtre de période */
+  window.epsCollectifs = cls => Object.keys(SRC).flatMap(k => { try { return SRC[k](cls).map(e => ({ ...e, k })); } catch (err) { return []; } }).sort((x, y) => y.date - x.date);
+  window.epsCollClasses = allClasses;
+  window.epsCollSect = k => SECT[k] || k;
   TOOL_IMPL.collectifs = function (el) {
     const CL = allClasses();
     if (!CL.length) { el.innerHTML = noClassMsg; return; }

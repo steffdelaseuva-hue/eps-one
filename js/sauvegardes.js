@@ -86,7 +86,7 @@ TOOL_IMPL.resultats = function (el) {
       <div class="card"><div class="row"><div><label>Classe</label><select id="rc">${DB.classes.map(c => `<option ${c.name === cls ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</select></div>
         <div><label>Élève</label><select id="re"><option value="">Tous</option>${st.map(n => `<option ${n === who ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select></div></div></div>
       ${typeof epsPieCard === 'function' ? epsPieCard(who ? `📊 Synthèse · ${esc(who)}` : `📊 Synthèse · ${esc(cls)}`, [epsPie(epsSegs(rows.reduce((o, r) => (o[names[r.tool] || r.label || r.tool] = (o[names[r.tool] || r.label || r.tool] || 0) + 1, o), {})), 'Résultats par activité'), ...(who ? epsStudentPies(who) : [])]) : ''}
-      <div class="section-title"><h2>Résultats enregistrés (${rows.length})</h2><span style="display:flex;gap:14px;flex-wrap:wrap;justify-content:flex-end">${rows.length ? `<button class="link" id="rs-multi" data-cfg="bare">${multi ? '✕ Fermer la sélection' : '☑️ Sélection multiple'}</button>` : ''}<button class="link" id="exp">Exporter CSV</button></span></div>
+      <div class="section-title"><h2>Résultats enregistrés (${rows.length})</h2><span style="display:flex;gap:14px;flex-wrap:wrap;justify-content:flex-end">${rows.length ? `<button class="link" id="rs-multi" data-cfg="bare">${multi ? '✕ Fermer la sélection' : '☑️ Sélection multiple'}</button>` : ''}<button class="link" id="bil">📊 Bilan</button><button class="link" id="exp">Exporter CSV</button></span></div>
       ${multi && rows.length ? `<div class="card" id="rs-sel" data-cfg="bare"><b>☑️ Sélection multiple</b><div class="muted" style="font-size:.8rem;margin-top:2px">Cochez des élèves (tous leurs résultats affichés) ou des lignes du tableau.</div>
         <div class="rs-st">${pupils.map((n, k) => `<label data-pl="${k}"><input type="checkbox" data-p="${k}"><span>${esc(n)}</span><small>${rows.filter(r => r.eleve === n).length}</small></label>`).join('')}</div>
         <div class="rs-bar"><button class="btn btn-ghost" id="rs-all">Tout cocher</button><button class="btn btn-danger" id="rs-del" disabled>🗑 Supprimer la sélection</button></div></div>` : ''}
@@ -117,6 +117,7 @@ TOOL_IMPL.resultats = function (el) {
         sel.clear(); multi = false; save(); window.syncFlush && window.syncFlush(); toast(`${n} résultat${n > 1 ? 's' : ''} supprimé${n > 1 ? 's' : ''}`); draw(); };
       upd();
     }
+    $('#bil').onclick = () => openBilan();
     $('#exp').onclick = () => { if (!rows.length) return toast('Rien à exporter');
       download(`resultats-${cls}${who ? '-' + who : ''}.csv`, csv([['Date', 'Classe', 'Élève', 'Outil', 'Résultat', 'Détail'], ...rows.slice().reverse().map(r => [new Date(r.date).toLocaleDateString('fr-FR'), r.classe, r.eleve, names[r.tool] || r.tool, r.valeur, r.detail || ''])])); };
   };

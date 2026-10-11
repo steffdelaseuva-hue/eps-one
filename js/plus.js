@@ -4,9 +4,11 @@
    ========================================================= */
 /* Page Ko-fi : laisser vide tant qu'elle n'existe pas (le bouton est alors masqué) */
 const KOFI_URL = 'https://ko-fi.com/epsone';
-const APP_VERSION = '23.15';
+const APP_VERSION = '23.17';
 const APP_URL = 'https://steffdelaseuva-hue.github.io/eps-one/';
 const CHANGELOG = [
+  { v: '23.17', items: ['📊 Bilan : ajout des résultats collectifs (tournois, matchs, HYROX, C.O. par équipes, relais, cross) et des grilles d\'évaluation (niveaux en couleurs, note /20, camembert des niveaux).'] },
+  { v: '23.16', items: ['📊 Exporter un bilan : fichier HTML en couleurs (camemberts, tableaux élèves × outils, détail par outil) pour chaque classe, à envoyer, ouvrir ou imprimer en PDF. Fabriqué à la demande : aucun stockage supplémentaire.'] },
   { v: '23.15', items: ['Espace utilisé : la copie de synchronisation (2 à 3 Mo) est rangée à part (IndexedDB) et ne remplit plus la mémoire de la tablette ; affichage des plus gros postes de données.'] },
   { v: '23.14', items: ['Espace utilisé : jauge honnête (cartes de C.O., copie de synchronisation, données) et bouton « Réduire la taille des cartes de C.O. » ; les nouvelles cartes de lieux sont enregistrées plus légères.', 'Course d\'orientation › Contrôle : les symboles attendus sont masqués (🔒), affichage avec le code enseignant ; masqués aussi dans le contrôle pendant la course tant que l\'appareil est en mode élève.', 'Impression des parcours : bouton « 📄 PDF » (portrait ou paysage) à envoyer sur l\'ordinateur.'] },
   { v: '23.12', items: ['Accueil : le descriptif mentionne la création de cartes de C.O.'] },
@@ -530,6 +532,7 @@ function renderPlus() {
       ${item('lock', 'navy', 'Code enseignant', (window.curPin ? curPin() : DB.profPin) ? 'Code défini · protège les réglages des outils' : 'Protéger les réglages des outils face aux élèves', 'openProfPin()')}
       ${item('team', 'grad', 'Équipe EPS · tablettes partagées', window.teamOn && teamOn() ? `Mode Équipe · ${teamProfs().length} enseignant(s)${activeProf() ? ' · ' + esc(activeProf().name) : ''}` : 'Plusieurs collègues sur le même lot de tablettes', 'openTeam()')}
       ${window.isEpsAdmin && window.isEpsAdmin() ? item('lock', 'gold', 'Accès des collègues', 'Valider ou retirer les accès à EPS ONE', 'openAccessAdmin()') : ''}
+      ${item('save', 'gold', 'Exporter un bilan', 'Résultats par classe et par outil, en couleurs (camemberts)', 'openBilan()')}
       ${item('save', 'navy', 'Espace utilisé', 'Données, photos et vidéos sur cette tablette', 'openStorage()')}
       ${item('restore', 'grad', 'Copies de secours', 'Une copie automatique par jour · récupérer des classes', 'openBackups()')}
       ${item('save', 'blue', 'Exporter mes données', 'Fichier de sauvegarde JSON', 'exportData()')}
