@@ -4,9 +4,11 @@
    ========================================================= */
 /* Page Ko-fi : laisser vide tant qu'elle n'existe pas (le bouton est alors masqué) */
 const KOFI_URL = 'https://ko-fi.com/epsone';
-const APP_VERSION = '23.9';
+const APP_VERSION = '23.12';
 const APP_URL = 'https://steffdelaseuva-hue.github.io/eps-one/';
 const CHANGELOG = [
+  { v: '23.12', items: ['Accueil : le descriptif mentionne la création de cartes de C.O.'] },
+  { v: '23.10', items: ['Course d\'orientation : dans un parcours créé à partir d\'un lieu, le numéro de chaque balise est modifiable (32 → 1, 33 → 2…), avec « 1, 2, 3… dans l\'ordre », « 🔀 Numéros mélangés » et « ↺ Numéros du lieu » ; le poste garde son numéro et son symbole dans le lieu.'] },
   { v: '23.9', items: ['Course d\'orientation : bouton « ? » d\'aide à côté du coefficient de détour (à quoi il sert, quelle valeur choisir).'] },
   { v: '23.8', items: ['Course d\'orientation : « la RK » (réduction kilométrique) au féminin dans les textes ; aide sur le coefficient de détour.'] },
   { v: '23.7', items: ['Course d\'orientation : symboles de pinces en grille 6 × 6 pour le dessin et le répertoire ; les postes créés n\'ont plus de symbole automatique (boutons « 🎲 Symbole automatique » et « 🧹 Retirer tous les symboles », au choix) ; les anciens symboles 4 × 4 et 5 × 5 restent valides.'] },
