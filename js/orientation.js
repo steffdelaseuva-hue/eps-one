@@ -563,10 +563,54 @@ function coPrint(ps) {
 .ct{display:grid;gap:2mm}.cs{border:1.5px solid #333}.cn{font-size:9pt;font-weight:700;text-align:center;border-bottom:1px solid #333;padding:1mm}.cb{height:16mm}
 @media screen{body{background:#777;padding:10px}.page{background:#fff;padding:6mm;margin-bottom:10px}}
 @page{size:A4;margin:8mm}</style></head><body>${ps.map(p => page(p) + kohPages(p)).join('')}<script>function fit(){document.body.style.zoom=Math.min(1,(innerWidth-20)/760)}fit();addEventListener('resize',fit);<\/script></body></html>`;
+  // ---- Export PDF (portrait ou paysage) : carte rasterisée + textes et cartons vectoriels ----
+  let landscape = false;
+  const mapJpeg = V => new Promise(res => { try {
+    const d = new DOMParser().parseFromString(coMapView(V, { print: true, picto }), 'text/html'), sv = d.querySelector('svg'), W = 1600, Hh = Math.round(W * V.h / V.w);
+    sv.setAttribute('xmlns', 'http://www.w3.org/2000/svg'); sv.setAttribute('width', W); sv.setAttribute('height', Hh); sv.removeAttribute('style');
+    const c = document.createElement('canvas'); c.width = W; c.height = Hh; const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, W, Hh);
+    const base = new Image(); base.onload = () => { g.drawImage(base, 0, 0, W, Hh);
+      const ov = new Image(), fin = () => c.toBlob(b => b.arrayBuffer().then(ab => res({ b: new Uint8Array(ab), w: W, h: Hh })), 'image/jpeg', .88);
+      ov.onload = () => { g.drawImage(ov, 0, 0, W, Hh); fin(); }; ov.onerror = fin;
+      ov.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(new XMLSerializer().serializeToString(sv)); };
+    base.onerror = () => res(null); base.src = V.img; } catch (e) { res(null); } });
+  const wrap = (pdf, t, size, maxW, bold) => { const out = []; let line = ''; String(t).split(/\s+/).forEach(w => { const t2 = line ? line + ' ' + w : w; if (pdf.width(t2, size, bold) > maxW && line) { out.push(line); line = w; } else line = t2; }); if (line) out.push(line); return out; };
+  async function pdfBuild() {
+    const pdf = PdfMini(), L = landscape, PW = L ? 297 : 210, PHh = L ? 210 : 297, M = 10;
+    for (const p of ps) { if (p.type === 'koh') continue;
+      const V = coMapOf(p), ordered = ['suivi', 'papillon', 'relais'].includes(p.type), n = p.balises.length;
+      pdf.page(PW, PHh);
+      pdf.text(p.nom, M, 15, 15, { bold: true });
+      pdf.text(pdf.fit(`${CO_TYPES[p.type][0].replace(/[^\u0020-\u00FF\u2013\u2014]/gu, '').trim()}${V && V.lieu ? ' · ' + V.lieu : ''} · ${n} balises${p.distance ? ' · ' + (p.distance / 1000).toFixed(2).replace('.', ',') + ' km' : ''}`, 9, false, 110), PW - M, 15, 9, { align: 'right', color: '#555555' });
+      pdf.rect(M, 17, PW - 2 * M, .5, { fill: '#B0127A' });
+      const mj = V ? await mapJpeg(V) : null; let y0 = 21, x0 = M, rx = M, rw = PW - 2 * M, ry = 0;
+      const mw0 = L ? 188 : PW - 2 * M, mh0 = L ? PHh - 21 - M : 140;
+      if (mj) { const r = Math.min(mw0 / mj.w, mh0 / mj.h), w = mj.w * r, h = mj.h * r; pdf.image(mj.b, mj.w, mj.h, x0, y0, w, h); pdf.rect(x0, y0, w, h, { stroke: '#999999', lw: .2 });
+        if (L) { rx = x0 + w + 6; rw = PW - M - rx; ry = y0; } else ry = y0 + h + 5; }
+      else { pdf.text('Pas de carte pour ce parcours.', M, 30, 10); if (L) { rx = 108; rw = PW - M - rx; ry = 21; } else ry = 36; }
+      let y = ry + 3;
+      const lgT = [...new Set(((V && V.objs) || []).map(o => o.t))].filter(t => CO_OBJ[t]).map(t => CO_OBJ[t].l);
+      if (lgT.length) wrap(pdf, 'Légende : ' + lgT.join(' · '), 8.5, rw).forEach(l => { pdf.text(l, rx, y, 8.5); y += 4; });
+      if (coShowDef(p) && p.balises.some(b => coAide(p, b).def)) { y += 1; const t = 'Définitions : ' + p.balises.map((b, i) => { const d = coAide(p, b).def; return d ? `${ordered ? (i + 1) + '·' : ''}${b.num} ${d}` : ''; }).filter(Boolean).join(' · '); wrap(pdf, t, 8.5, rw).forEach(l => { pdf.text(l, rx, y, 8.5); y += 4; }); }
+      y += 4; if (L) { pdf.text('Nom : ………………………………………', rx, y, 10); y += 6; pdf.text('Classe : ………………  Départ : ………………', rx, y, 10); y += 6; pdf.text('Arrivée : ………………', rx, y, 10); y += 6; }
+      else { pdf.text('Nom : ……………………………………', rx, y, 10); pdf.text('Classe : ………', rx + 75, y, 10); pdf.text('Départ : ………', rx + 115, y, 10); pdf.text('Arrivée : ………', rx + 150, y, 10); y += 6; }
+      const cols = L ? 4 : n > 12 ? 8 : 6, gap = 2, cw = (rw - gap * (cols - 1)) / cols, ch = L ? 14 : 16, nh = 5;
+      const rows = Math.ceil(n / cols), avail = PHh - M - y; const chh = Math.min(ch, Math.max(8, (avail - rows * (nh + gap)) / rows));
+      p.balises.forEach((b, i) => { const cx = rx + (i % cols) * (cw + gap), cy = y + Math.floor(i / cols) * (nh + chh + gap);
+        pdf.rect(cx, cy, cw, nh + chh, { stroke: '#333333', lw: .35 }); pdf.rect(cx, cy, cw, nh, { stroke: '#333333', lw: .2 });
+        pdf.text(`${ordered ? (i + 1) + ' · ' : ''}${b.num}`, cx + cw / 2, cy + 3.6, 8.5, { bold: true, align: 'center' }); }); }
+    return pdf.blob(); }
   const o = document.createElement('div'); o.style.cssText = 'position:fixed;inset:0;z-index:300;background:#333;display:flex;flex-direction:column';
-  o.innerHTML = `<div style="display:flex;gap:8px;padding:10px;align-items:center;background:var(--grad,#0B2A5B);color:#fff"><b style="flex:1">🖨 Cartes à imprimer (${ps.length})</b>${hasObj ? `<button class="btn btn-ghost" data-pi style="color:#fff;font-size:.8rem;padding:8px">🖼 Symboles illustrés${picto ? ' ✓' : ''}</button>` : ''}<button class="btn btn-white" data-p>🖨 Imprimer</button><button class="btn btn-ghost" style="color:#fff" data-x>✕ Fermer</button></div><iframe title="Aperçu" style="flex:1;border:0;background:#777"></iframe>`;
+  o.innerHTML = `<div style="display:flex;gap:8px;padding:10px;align-items:center;background:var(--grad,#0B2A5B);color:#fff"><b style="flex:1">🖨 Cartes à imprimer (${ps.length})</b>${hasObj ? `<button class="btn btn-ghost" data-pi style="color:#fff;font-size:.8rem;padding:8px">🖼 Symboles illustrés${picto ? ' ✓' : ''}</button>` : ''}<button class="btn btn-white" data-p>🖨 Imprimer</button><button class="btn btn-white" data-pdf>📄 PDF</button><button class="btn btn-ghost" style="color:#fff" data-x>✕ Fermer</button></div><iframe title="Aperçu" style="flex:1;border:0;background:#777"></iframe>`;
   let html = build(); document.body.appendChild(o); o.querySelector('iframe').srcdoc = html; o.querySelector('[data-x]').onclick = () => o.remove();
   if (o.querySelector('[data-pi]')) o.querySelector('[data-pi]').onclick = e => { picto = !picto; coPictoSet(picto); html = build(); o.querySelector('iframe').srcdoc = html; e.currentTarget.textContent = '🖼 Symboles illustrés' + (picto ? ' ✓' : ''); };
+  o.querySelector('[data-pdf]').onclick = () => {
+    const d = document.createElement('div'); d.style.cssText = 'position:fixed;inset:0;z-index:400;background:rgba(0,0,0,.55);display:grid;place-items:center;padding:16px';
+    d.innerHTML = `<div class="card" style="max-width:340px;width:100%"><h3 style="margin-top:0">📄 Exporter en PDF</h3><label>Orientation de la page</label><div class="seg"><button data-or="p" class="${landscape ? '' : 'on'}">📄 Portrait</button><button data-or="l" class="${landscape ? 'on' : ''}">🖼 Paysage</button></div><p class="muted" style="font-size:.78rem">Le PDF peut être envoyé sur l'ordinateur (Mail, AirDrop, Fichiers). Les fiches Koh-Lanta ne sont pas incluses.</p><div class="row"><button class="btn btn-ghost" data-c>Annuler</button><button class="btn btn-grad" data-go>Créer le PDF</button></div></div>`;
+    document.body.appendChild(d); d.querySelectorAll('[data-or]').forEach(b => b.onclick = () => { landscape = b.dataset.or === 'l'; d.querySelectorAll('[data-or]').forEach(x => x.classList.toggle('on', x === b)); });
+    d.querySelector('[data-c]').onclick = () => d.remove();
+    d.querySelector('[data-go]').onclick = async () => { const g = d.querySelector('[data-go]'); g.disabled = true; g.textContent = 'Création…';
+      try { const bl = await pdfBuild(); d.remove(); window.__lastPdf = bl; await epsSharePdf(bl, 'parcours-orientation' + (landscape ? '-paysage' : '') + '.pdf', 'Parcours de course d\'orientation'); } catch (e) { d.remove(); toast('Création du PDF impossible'); } }; };
   o.querySelector('[data-p]').onclick = () => {   // impression dans la page (iPad / iPhone : l'impression d'un cadre échoue sur Safari)
     const d = new DOMParser().parseFromString(html, 'text/html'); document.getElementById('co-print')?.remove(); document.getElementById('co-print-css')?.remove();
     const st = document.createElement('style'); st.id = 'co-print-css'; st.media = 'print';
@@ -666,7 +710,7 @@ TOOL_IMPL.co = function (el) {
             <span class="muted" style="flex:1;font-size:.8rem">${q.x != null ? '📍 placé' : '⚠️ à placer'}${q.photo ? ' · 📷' : ''}${q.def ? ' · 📝 ' + esc(q.def.slice(0, 40)) + (q.def.length > 40 ? '…' : '') : ''}</span><button class="btn btn-ghost" style="padding:6px 9px" data-qa="${q.id}" title="Photo et définition">${q.photo || q.def ? '📝' : '＋📷'}</button>${L.map ? `<button class="btn btn-ghost" style="padding:6px 9px" data-qs="${q.id}">${q.x != null ? '✏️' : '📍'}</button>` : ''}<button class="btn btn-ghost" style="padding:6px 9px" data-qx="${q.id}">✕</button></div>`).join('')}</div></div>
         <div class="row" style="margin-top:12px"><button class="btn btn-grad" id="lsv">💾 Enregistrer le lieu</button><button class="btn btn-ghost" id="lbk">Annuler</button>${idx != null ? '<button class="btn btn-danger" id="ldel">Supprimer</button>' : ''}</div></div>`;
       const $ = s => box.querySelector(s), rd = () => { L.nom = $('#ln').value.trim() || 'Lieu'; };
-      $('#lf').onchange = e => { const f0 = e.target.files[0]; if (!f0) return; rd(); if (L.map && L.postes.some(q => q.x != null) && !confirm('Changer la carte ? Les postes gardent leur position : replacez-les si la nouvelle carte est différente.')) return; coImg(f0, (img, w, h) => { L.map = { img, w, h }; draw(); }, 1800); };
+      $('#lf').onchange = e => { const f0 = e.target.files[0]; if (!f0) return; rd(); if (L.map && L.postes.some(q => q.x != null) && !confirm('Changer la carte ? Les postes gardent leur position : replacez-les si la nouvelle carte est différente.')) return; coImg(f0, (img, w, h) => { L.map = { img, w, h }; draw(); }, 1400); };
       box.querySelectorAll('[data-mo]').forEach(b => b.onclick = () => { rd(); if (draft.length && !confirm('Abandonner l\'objet en cours ?')) return; mode = b.dataset.mo; draft = []; osel = null; if (mode !== 'move' && mode !== 'add') sel = null; draw(); });
       if ($('#lf')) $('#lf').addEventListener('change', () => { Z.s = 1; Z.tx = Z.ty = 0; ES.det = null; ES.cp = []; ES.state = ''; });
       // ----- échelle de la carte -----
@@ -1057,7 +1101,7 @@ TOOL_IMPL.co = function (el) {
       return `<div class="card" style="margin-top:10px"><h3 style="margin-top:0">🔍 Mes symboles / symboles attendus</h3>
         ${L.map(b => { const ok = T[b.num] === b.code; return `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-top:1px solid var(--line)"><b style="min-width:84px">Balise ${b.num}</b>
           <div style="text-align:center;flex:0 0 auto"><div class="muted" style="font-size:.7rem">${ctl === 'dessin' ? 'mon dessin' : 'mon choix'}</div>${isPat(T[b.num]) ? patSVG(T[b.num], 44) : '<span style="font-size:1.6rem">❓</span>'}</div>
-          <div style="text-align:center;flex:0 0 auto"><div class="muted" style="font-size:.7rem">attendu</div>${patSVG(b.code, 44)}</div><b style="margin-left:auto;font-size:1.3rem;color:${ok ? '#1B9E5A' : '#D64545'}">${ok ? '✓' : '✗'}</b></div>`; }).join('')}</div>`; };
+          <div style="text-align:center;flex:0 0 auto"><div class="muted" style="font-size:.7rem">attendu</div>${ok || (typeof profUnlocked === 'function' && profUnlocked()) ? patSVG(b.code, 44) : '<span style="display:grid;place-items:center;width:44px;height:44px;border:1.5px dashed var(--line);border-radius:6px">🔒</span>'}</div><b style="margin-left:auto;font-size:1.3rem;color:${ok ? '#1B9E5A' : '#D64545'}">${ok ? '✓' : '✗'}</b></div>`; }).join('')}</div>`; };
     const saveSeance = () => { const tab1 = cur.only != null && cur.runs[cur.only];
       if (!tab1 && cur.runs.some(r => r.dep && !r.arr) && !confirm('Certains élèves ne sont pas arrivés. Enregistrer quand même ?')) return;
       // tablette d'une équipe : seule SA course est enregistrée (pas de lignes vides pour les autres)
@@ -1193,7 +1237,7 @@ TOOL_IMPL.co = function (el) {
   }
 
   /* ================= CONTRÔLE DES CARTONS ================= */
-  const CK = { pc: null, ans: {}, photo: null, run: '' };
+  const CK = { pc: null, ans: {}, photo: null, run: '', reveal: false };
   function ctlSettings(box) {
     box.innerHTML = ''; const C = coCtl(), h = document.createElement('div');
     h.innerHTML = `<div class="card" data-cfg style="margin-bottom:12px;border:2px solid var(--gold,#C9A227)"><h3 style="margin-top:0">🔎 Méthode de contrôle des cartons</h3><p class="muted" style="margin:0 0 4px;font-size:.8rem">Réglée avant la séance ; elle s'applique à l'élève (tablette de l'équipe) comme à l'enseignant (bouton « 🔎 Contrôler le carton » de chaque élève dans ⏱ Séance).</p>
@@ -1228,15 +1272,16 @@ TOOL_IMPL.co = function (el) {
           <label class="btn btn-ghost btn-block" style="display:block;text-align:center;cursor:pointer;margin:8px 0 0">📷 ${CK.photo ? 'Changer la photo' : 'Prendre / choisir une photo'}<input id="kf" type="file" accept="image/*" capture="environment" style="display:none"></label></div>
         <div class="card" style="margin-top:12px"><h3>Symboles poinçonnés par l'élève</h3>
           <p class="muted" style="margin:0 0 6px;font-size:.8rem">Pour chaque case du carton, touchez le symbole que vous voyez.</p>
+          <div style="display:flex;align-items:center;gap:8px;margin:0 0 8px;padding:8px 10px;border-radius:10px;background:var(--grad-soft)"><span style="flex:1;font-size:.82rem;font-weight:700">${CK.reveal ? '👁 Symboles attendus affichés (réservé à l\'enseignant)' : '🔒 Symboles attendus masqués : l\'élève ne peut pas les mémoriser'}</span><button class="btn btn-ghost" id="krv" style="padding:6px 10px;font-size:.8rem">${CK.reveal ? '🙈 Masquer' : '🔓 Afficher (code enseignant)'}</button></div>
           <div class="sheet-table"><table><tr><th>Balise</th><th>Attendu</th><th>Carton</th><th>Résultat</th></tr>
-          ${p.balises.map(b => `<tr><td><b>${b.num}</b>${b.ob ? ' <span class="muted" style="font-size:.7rem">oblig.</span>' : ''}</td><td>${isPat(b.code) ? patSVG(b.code, 34, '#8A94A6') : '<span class="muted">—</span>'}</td>
+          ${p.balises.map(b => `<tr><td><b>${b.num}</b>${b.ob ? ' <span class="muted" style="font-size:.7rem">oblig.</span>' : ''}</td><td>${!isPat(b.code) ? '<span class="muted">—</span>' : CK.reveal ? patSVG(b.code, 34, '#8A94A6') : '<span style="display:grid;place-items:center;width:34px;height:34px;border:1.5px dashed var(--line);border-radius:6px;font-size:.9rem">🔒</span>'}</td>
             <td>${isPat(b.code) ? `<button data-a="${b.num}" style="padding:0;border:none;background:none;cursor:pointer">${cell(b)}</button>` : ''}</td><td>${res(b)}</td></tr>`).join('')}</table></div>
           <div class="result" style="margin-top:10px"><div class="card"><b>${ok}</b><small>bonnes</small></div><div class="card"><b>${ko}</b><small>fausses</small></div><div class="card"><b>${p.balises.length - ok - ko}</b><small>non poinçonnées</small></div></div>
           ${live ? `<button class="btn btn-grad btn-block" style="margin-top:12px" id="kap">✔ Reporter dans la séance</button>` : ''}
           <button class="btn btn-ghost btn-block" style="margin-top:8px" id="kz">↺ Carton suivant</button></div>`;
       const $ = s => box.querySelector(s);
       if ($('#kgo')) $('#kgo').onclick = () => { tab = 'seance'; frame(); };
-      $('#kp').onchange = e => { CK.pc = e.target.value; CK.ans = {}; CK.run = ''; controle(box); };
+      $('#kp').onchange = e => { CK.pc = e.target.value; CK.ans = {}; CK.run = ''; CK.reveal = false; controle(box); };
       if ($('#kr')) $('#kr').onchange = e => { CK.run = e.target.value; };
       if ($('#kimg')) $('#kimg').onclick = () => { const o = document.createElement('div'); o.style.cssText = 'position:fixed;inset:0;z-index:300;background:rgba(0,0,0,.92);display:grid;place-items:center;padding:12px'; o.innerHTML = `<img src="${CK.photo}" style="max-width:100%;max-height:100%;object-fit:contain">`; o.onclick = () => o.remove(); document.body.appendChild(o); };
       $('#kf').onchange = e => { const f = e.target.files[0]; if (!f) return; const url = URL.createObjectURL(f), img = new Image();
@@ -1249,7 +1294,8 @@ TOOL_IMPL.co = function (el) {
       if ($('#kap')) $('#kap').onclick = () => { if (CK.run === '') return toast('Choisissez le participant'); const r = live.runs[+CK.run];
         r.found = p.balises.filter(b => status(b) === 1).map(b => b.num); r.wrong = p.balises.filter(b => status(b) === -1).length; save();
         toast(`${r.name} : ${r.found.length} balise(s) ✔`); CK.ans = {}; CK.photo = null; CK.run = String(Math.min(+CK.run + 1, live.runs.length - 1)); draw(); };
-      $('#kz').onclick = () => { CK.ans = {}; CK.photo = null; draw(); };
+      $('#krv').onclick = () => { if (CK.reveal) { CK.reveal = false; draw(); } else profGate(() => { CK.reveal = true; draw(); }, 'Afficher les symboles attendus'); };
+      $('#kz').onclick = () => { CK.ans = {}; CK.photo = null; CK.reveal = false; draw(); };
     };
     draw();
   }

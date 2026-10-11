@@ -4,9 +4,10 @@
    ========================================================= */
 /* Page Ko-fi : laisser vide tant qu'elle n'existe pas (le bouton est alors masqué) */
 const KOFI_URL = 'https://ko-fi.com/epsone';
-const APP_VERSION = '23.12';
+const APP_VERSION = '23.14';
 const APP_URL = 'https://steffdelaseuva-hue.github.io/eps-one/';
 const CHANGELOG = [
+  { v: '23.14', items: ['Espace utilisé : jauge honnête (cartes de C.O., copie de synchronisation, données) et bouton « Réduire la taille des cartes de C.O. » ; les nouvelles cartes de lieux sont enregistrées plus légères.', 'Course d\'orientation › Contrôle : les symboles attendus sont masqués (🔒), affichage avec le code enseignant ; masqués aussi dans le contrôle pendant la course tant que l\'appareil est en mode élève.', 'Impression des parcours : bouton « 📄 PDF » (portrait ou paysage) à envoyer sur l\'ordinateur.'] },
   { v: '23.12', items: ['Accueil : le descriptif mentionne la création de cartes de C.O.'] },
   { v: '23.10', items: ['Course d\'orientation : dans un parcours créé à partir d\'un lieu, le numéro de chaque balise est modifiable (32 → 1, 33 → 2…), avec « 1, 2, 3… dans l\'ordre », « 🔀 Numéros mélangés » et « ↺ Numéros du lieu » ; le poste garde son numéro et son symbole dans le lieu.'] },
   { v: '23.9', items: ['Course d\'orientation : bouton « ? » d\'aide à côté du coefficient de détour (à quoi il sert, quelle valeur choisir).'] },
@@ -391,30 +392,52 @@ function openPrivacy() {
         <div id="mem-g" style="margin-top:12px"></div>
         <div class="row" style="margin-top:12px"><button class="btn btn-ghost" onclick="exportData()">💾 Exporter</button><button class="btn btn-danger" id="del">🗑 Tout effacer</button></div></div>`;
     el.querySelector('#del').onclick = () => { resetAll(); closeTool(); };
-    memGauge(el.querySelector('#mem-g'), size);
+    memGauge(el.querySelector('#mem-g'));
   });
 }
 
 /* ---------- 💾 Jauge « Espace utilisé » ---------- */
+const MEM_MAX = 5242880;   // ~5 Mo de caractères (Safari compte 2 octets par caractère)
+function memStats() {
+  const o = { main: 0, maps: 0, sync: 0, other: 0 };
+  try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i), v = localStorage.getItem(k) || '', n = (k.length + v.length) * 2;
+    if (k === 'mesOutilsEPS_v1') o.main += n; else if (k === 'epsone_sync_base') o.sync += n; else o.other += n; } } catch (e) {}
+  try { const co = DB.co || {}, len = m => m && m.img ? m.img.length * 2 : 0; o.maps = (co.lieux || []).reduce((a, l) => a + len(l.map), 0) + (co.parcours || []).reduce((a, q) => a + len(q.map), 0); } catch (e) {}
+  o.main = Math.max(0, o.main - o.maps); o.total = o.main + o.maps + o.sync + o.other; return o;
+}
 function openStorage() {
   openPanel('Espace utilisé', el => {
-    const size = (() => { try { return Math.round(((localStorage.getItem('mesOutilsEPS_v1') || '').length + (localStorage.getItem('chronos-eps-v1') || '').length) / 1024); } catch (e) { return 0; } })();
     el.innerHTML = `<div class="card"><div id="mem-g"></div><button class="btn btn-ghost btn-block" style="margin-top:12px" onclick="exportData()">💾 Exporter une sauvegarde</button></div>
-      <p class="muted" style="margin:12px 4px;font-size:.82rem">Les photos (acrosport, gym, escalade, danse) et les vidéos sont rangées à part : elles ne remplissent pas l'espace des données et sont synchronisées comme avant (sauf les vidéos, qui restent sur la tablette qui les a filmées).</p>`;
-    memGauge(el.querySelector('#mem-g'), size);
+      <p class="muted" style="margin:12px 4px;font-size:.82rem">Les photos (acrosport, gym, escalade, danse) et les vidéos sont rangées à part : elles ne remplissent pas cet espace. Les cartes de course d'orientation, elles, y sont comprises (et la synchronisation en garde une 2ᵉ copie).</p>`;
+    memGauge(el.querySelector('#mem-g'));
   });
 }
-async function memGauge(box, dataKo) {
+/* Réduit les cartes de C.O. (≤ 1200 px, JPEG) pour libérer de la place */
+async function coShrinkMaps() {
+  const list = []; const co = DB.co || {};
+  (co.lieux || []).forEach(l => l.map && l.map.img && list.push(l.map)); (co.parcours || []).forEach(q => q.map && q.map.img && list.push(q.map));
+  let gain = 0;
+  for (const m of list) { if (m.img.length < 120000) continue;
+    await new Promise(res => { const im = new Image(); im.onload = () => { try { const r = Math.min(1, 1200 / Math.max(im.width, im.height)), c = document.createElement('canvas'); c.width = Math.round(im.width * r); c.height = Math.round(im.height * r);
+      const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height); g.drawImage(im, 0, 0, c.width, c.height); const u = c.toDataURL('image/jpeg', .6);
+      if (u.length < m.img.length * .9) { gain += (m.img.length - u.length) * 2; m.img = u; m.w = c.width; m.h = c.height; } } catch (e) {} res(); }; im.onerror = res; im.src = m.img; }); }
+  return gain;
+}
+async function memGauge(box) {
   if (!box) return;
+  const st = memStats(), pct = Math.min(100, Math.round(st.total / MEM_MAX * 100)), col = pct > 85 ? 'var(--danger,#D64545)' : pct > 60 ? '#E0892F' : 'var(--ok,#1B9E5A)';
   const imgK = Object.keys(DB).filter(k => /^(acroImg_|gymImg_|escImg_|danseImg_)/.test(k) && DB[k]), imgKo = Math.round(imgK.reduce((a, k) => a + String(DB[k]).length, 0) / 1024);
   let tot = null; try { if (navigator.storage && navigator.storage.estimate) tot = await navigator.storage.estimate(); } catch (e) {}
-  const pct = Math.min(100, Math.round(dataKo / 4800 * 100)), col = pct > 85 ? 'var(--danger,#D64545)' : pct > 60 ? '#E0892F' : 'var(--ok,#1B9E5A)';
-  const mo = b => (b / 1048576).toFixed(b > 1048576 * 10 ? 0 : 1).replace('.', ',') + ' Mo';
+  const mo = b => (b / 1048576).toFixed(b > 1048576 * 10 ? 0 : 1).replace('.', ',') + ' Mo', ko = b => Math.round(b / 1024) + ' Ko';
   box.innerHTML = `<b>💾 Espace utilisé</b>
-    <div style="margin-top:6px;font-size:.85rem">Données (classes, résultats, réglages…) : <b>${dataKo} Ko</b> sur ~5 Mo</div>
+    <div style="margin-top:6px;font-size:.85rem"><b>${mo(st.total)}</b> sur ~5 Mo (${pct} %)</div>
     <div style="height:12px;border-radius:99px;background:var(--line);overflow:hidden;margin-top:4px"><i style="display:block;height:100%;width:${Math.max(2, pct)}%;background:${col}"></i></div>
-    <div class="muted" style="font-size:.78rem;margin-top:4px">${pct > 85 ? '⚠️ Presque plein : exportez puis faites du tri (anciennes séances, résultats).' : 'Rangées à part, sans cette limite :'}</div>
-    <div style="font-size:.85rem;margin-top:4px">🖼️ Photos : <b>${imgK.length}</b> (${imgKo} Ko)${tot && tot.usage != null ? ` · 🎬 Vidéos et appli : <b>${mo(tot.usage)}</b>${tot.quota ? ` sur ${mo(tot.quota)} disponibles` : ''}` : ''}</div>`;
+    <div style="font-size:.82rem;margin-top:6px;line-height:1.6">📚 Données (classes, résultats, réglages) : <b>${ko(st.main)}</b><br>🗺 Cartes de course d'orientation : <b>${ko(st.maps)}</b><br>🔄 Copie de synchronisation : <b>${ko(st.sync)}</b><br>🧩 Autres : <b>${ko(st.other)}</b></div>
+    <div class="muted" style="font-size:.78rem;margin-top:6px">${pct > 85 ? '⚠️ Presque plein : les modifications risquent de ne plus être enregistrées. Réduisez les cartes ou exportez puis faites du tri.' : 'Marge suffisante.'}</div>
+    ${st.maps > 200000 ? '<button class="btn btn-grad btn-block" id="mem-shr" style="margin-top:10px">🗺 Réduire la taille des cartes de C.O.</button>' : ''}
+    <div style="font-size:.85rem;margin-top:10px">🖼️ Photos (stockées à part) : <b>${imgK.length}</b> (${imgKo} Ko)${tot && tot.usage != null ? ` · 🎬 Vidéos et appli : <b>${mo(tot.usage)}</b>${tot.quota ? ` sur ${mo(tot.quota)} disponibles` : ''}` : ''}</div>`;
+  const b = box.querySelector('#mem-shr');
+  if (b) b.onclick = async () => { b.disabled = true; b.textContent = 'Réduction en cours…'; const g = await coShrinkMaps(); try { save(); } catch (e) {} toast(g > 0 ? `✔ ${mo(g)} libérés` : 'Cartes déjà légères'); memGauge(box); };
 }
 
 /* ---------- 🗓 Nouvelle année scolaire ---------- */

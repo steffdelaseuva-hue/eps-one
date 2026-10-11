@@ -10,10 +10,13 @@ const PdfMini = (() => {
   const K = 72 / 25.4, f = n => (Math.round(n * 100) / 100).toString();
   const rgb = h => { h = (h || '#000').replace('#', ''); if (h.length === 3) h = h.replace(/./g, c => c + c); return [0, 2, 4].map(i => f(parseInt(h.slice(i, i + 2), 16) / 255)).join(' '); };
   return function () {
-    const pages = []; let cur = null; const PH = 297;
+    const pages = [], sizes = [], imgs = []; let cur = null, PH = 297;   // pages A4 portrait par défaut ; page(297, 210) = paysage
     const api = {
       get pages() { return pages.length; },
-      page() { cur = []; pages.push(cur); return api; },
+      page(w = 210, h = 297) { cur = []; pages.push(cur); sizes.push([w, h]); PH = h; return api; },
+      // image JPEG (octets) posée dans le rectangle x, y, w, h (mm)
+      image(bytes, pw, ph, x, y, w, h) { const id = imgs.length; imgs.push({ b: bytes, pw, ph }); (cur.imgs = cur.imgs || new Set()).add(id);
+        cur.push(`q ${f(w * K)} 0 0 ${f(h * K)} ${f(x * K)} ${f((PH - y - h) * K)} cm /Im${id} Do Q`); return api; },
       width(s, size, bold) { const T = bold ? WB : WR; return enc(s).reduce((a, c) => a + (T[c - 32] || 556), 0) / 1000 * size / K; },   // en mm (size en pt)
       fit(s, size, bold, maxW) { s = String(s); if (api.width(s, size, bold) <= maxW) return s; while (s.length > 1 && api.width(s + '…', size, bold) > maxW) s = s.slice(0, -1); return s.trimEnd() + '…'; },
       rect(x, y, w, h, o = {}) {
@@ -28,8 +31,10 @@ const PdfMini = (() => {
       blob() {
         const obj = [], add = s => { obj.push(s); return obj.length; };
         add('<< /Type /Catalog /Pages 2 0 R >>'); add(''); add('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>'); add('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>');
-        const kids = pages.map(pg => { const st = pg.join('\n'), c = add(`<< /Length ${st.length} >>\nstream\n${st}\nendstream`);
-          return add(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595.28 841.89] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents ${c} 0 R >>`); });
+        const bin = u => { let t = ''; for (let i = 0; i < u.length; i += 8192) t += String.fromCharCode.apply(null, u.subarray(i, i + 8192)); return t; };
+        const imgId = imgs.map(im => { const d = bin(im.b); return add(`<< /Type /XObject /Subtype /Image /Width ${im.pw} /Height ${im.ph} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${d.length} >>\nstream\n${d}\nendstream`); });
+        const kids = pages.map((pg, i) => { const st = pg.join('\n'), c = add(`<< /Length ${st.length} >>\nstream\n${st}\nendstream`), [w, h] = sizes[i] || [210, 297], xo = pg.imgs ? ` /XObject << ${[...pg.imgs].map(k => `/Im${k} ${imgId[k]} 0 R`).join(' ')} >>` : '';
+          return add(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${f(w * K)} ${f(h * K)}] /Resources << /Font << /F1 3 0 R /F2 4 0 R >>${xo} >> /Contents ${c} 0 R >>`); });
         obj[1] = `<< /Type /Pages /Kids [${kids.map(k => k + ' 0 R').join(' ')}] /Count ${kids.length} >>`;
         let out = '%PDF-1.4\n%\xE2\xE3\xCF\xD3\n'; const off = [];
         obj.forEach((o, i) => { off.push(out.length); out += `${i + 1} 0 obj\n${o}\nendobj\n`; });
