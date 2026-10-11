@@ -4,9 +4,10 @@
    ========================================================= */
 /* Page Ko-fi : laisser vide tant qu'elle n'existe pas (le bouton est alors masqué) */
 const KOFI_URL = 'https://ko-fi.com/epsone';
-const APP_VERSION = '23.14';
+const APP_VERSION = '23.15';
 const APP_URL = 'https://steffdelaseuva-hue.github.io/eps-one/';
 const CHANGELOG = [
+  { v: '23.15', items: ['Espace utilisé : la copie de synchronisation (2 à 3 Mo) est rangée à part (IndexedDB) et ne remplit plus la mémoire de la tablette ; affichage des plus gros postes de données.'] },
   { v: '23.14', items: ['Espace utilisé : jauge honnête (cartes de C.O., copie de synchronisation, données) et bouton « Réduire la taille des cartes de C.O. » ; les nouvelles cartes de lieux sont enregistrées plus légères.', 'Course d\'orientation › Contrôle : les symboles attendus sont masqués (🔒), affichage avec le code enseignant ; masqués aussi dans le contrôle pendant la course tant que l\'appareil est en mode élève.', 'Impression des parcours : bouton « 📄 PDF » (portrait ou paysage) à envoyer sur l\'ordinateur.'] },
   { v: '23.12', items: ['Accueil : le descriptif mentionne la création de cartes de C.O.'] },
   { v: '23.10', items: ['Course d\'orientation : dans un parcours créé à partir d\'un lieu, le numéro de chaque balise est modifiable (32 → 1, 33 → 2…), avec « 1, 2, 3… dans l\'ordre », « 🔀 Numéros mélangés » et « ↺ Numéros du lieu » ; le poste garde son numéro et son symbole dans le lieu.'] },
@@ -408,7 +409,7 @@ function memStats() {
 function openStorage() {
   openPanel('Espace utilisé', el => {
     el.innerHTML = `<div class="card"><div id="mem-g"></div><button class="btn btn-ghost btn-block" style="margin-top:12px" onclick="exportData()">💾 Exporter une sauvegarde</button></div>
-      <p class="muted" style="margin:12px 4px;font-size:.82rem">Les photos (acrosport, gym, escalade, danse) et les vidéos sont rangées à part : elles ne remplissent pas cet espace. Les cartes de course d'orientation, elles, y sont comprises (et la synchronisation en garde une 2ᵉ copie).</p>`;
+      <p class="muted" style="margin:12px 4px;font-size:.82rem">Les photos (acrosport, gym, escalade, danse) et les vidéos sont rangées à part : elles ne remplissent pas cet espace. Les cartes de course d'orientation, elles, y sont comprises .</p>`;
     memGauge(el.querySelector('#mem-g'));
   });
 }
@@ -432,8 +433,9 @@ async function memGauge(box) {
   box.innerHTML = `<b>💾 Espace utilisé</b>
     <div style="margin-top:6px;font-size:.85rem"><b>${mo(st.total)}</b> sur ~5 Mo (${pct} %)</div>
     <div style="height:12px;border-radius:99px;background:var(--line);overflow:hidden;margin-top:4px"><i style="display:block;height:100%;width:${Math.max(2, pct)}%;background:${col}"></i></div>
-    <div style="font-size:.82rem;margin-top:6px;line-height:1.6">📚 Données (classes, résultats, réglages) : <b>${ko(st.main)}</b><br>🗺 Cartes de course d'orientation : <b>${ko(st.maps)}</b><br>🔄 Copie de synchronisation : <b>${ko(st.sync)}</b><br>🧩 Autres : <b>${ko(st.other)}</b></div>
+    <div style="font-size:.82rem;margin-top:6px;line-height:1.6">📚 Données (classes, résultats, réglages) : <b>${ko(st.main)}</b><br>🗺 Cartes de course d'orientation : <b>${ko(st.maps)}</b><br>${st.sync ? `🔄 Copie de synchronisation : <b>${ko(st.sync)}</b><br>` : ''}🧩 Autres : <b>${ko(st.other)}</b></div>
     <div class="muted" style="font-size:.78rem;margin-top:6px">${pct > 85 ? '⚠️ Presque plein : les modifications risquent de ne plus être enregistrées. Réduisez les cartes ou exportez puis faites du tri.' : 'Marge suffisante.'}</div>
+    ${(() => { try { const top = Object.keys(DB).filter(k => !/^(acroImg_|gymImg_|escImg_|danseImg_)/.test(k)).map(k => [k, JSON.stringify(DB[k] ?? null).length * 2]).filter(x => x[1] > 40000).sort((a, b) => b[1] - a[1]).slice(0, 5); return top.length ? `<div class="muted" style="font-size:.78rem;margin-top:6px">Plus gros postes de données : ${top.map(([k, n]) => `<b>${esc(k)}</b> ${ko(n)}`).join(' · ')}</div>` : ''; } catch (e) { return ''; } })()}
     ${st.maps > 200000 ? '<button class="btn btn-grad btn-block" id="mem-shr" style="margin-top:10px">🗺 Réduire la taille des cartes de C.O.</button>' : ''}
     <div style="font-size:.85rem;margin-top:10px">🖼️ Photos (stockées à part) : <b>${imgK.length}</b> (${imgKo} Ko)${tot && tot.usage != null ? ` · 🎬 Vidéos et appli : <b>${mo(tot.usage)}</b>${tot.quota ? ` sur ${mo(tot.quota)} disponibles` : ''}` : ''}</div>`;
   const b = box.querySelector('#mem-shr');

@@ -51,8 +51,19 @@ async function writeCheck() { const { doc, setDoc } = fb.fs; await setDoc(doc(fb
    c'est cet appareil qui garde la sienne. Les envois passent par une transaction : deux
    tablettes qui envoient en même temps ne s'écrasent pas. */
 const BASE_KEY = 'epsone_sync_base';
-let BASE; try { BASE = JSON.parse(localStorage.getItem(BASE_KEY)) || {}; } catch (e) { BASE = {}; }
-const saveBase = () => { try { localStorage.setItem(BASE_KEY, JSON.stringify(BASE)); } catch (e) {} };
+/* La « base » est rangée dans IndexedDB (et non plus dans localStorage) : elle doublait l'espace pris par les données (limite ~5 Mo). */
+const BASE_DB = 'epsone-syncbase'; let BASE = {}, baseIDB = true;
+const baseOpen = () => new Promise((ok, ko) => { const r = indexedDB.open(BASE_DB, 1); r.onupgradeneeded = () => r.result.createObjectStore('b'); r.onsuccess = () => ok(r.result); r.onerror = () => ko(r.error); });
+const baseIdbPut = v => baseOpen().then(db => new Promise((ok, ko) => { const t = db.transaction('b', 'readwrite'); t.objectStore('b').put(v, 'base'); t.oncomplete = () => ok(); t.onerror = t.onabort = () => ko(t.error); }));
+const baseReady = (async () => {
+  let legacy = null; try { legacy = localStorage.getItem(BASE_KEY); } catch (e) {}
+  try {
+    const db = await baseOpen(), v = await new Promise(res => { const q = db.transaction('b').objectStore('b').get('base'); q.onsuccess = () => res(q.result); q.onerror = () => res(null); });
+    if (legacy) { try { BASE = JSON.parse(legacy) || {}; } catch (e) { BASE = {}; } await baseIdbPut(JSON.stringify(BASE)); try { localStorage.removeItem(BASE_KEY); } catch (e) {} }   // migration depuis l'ancien emplacement
+    else if (v) { try { BASE = JSON.parse(v) || {}; } catch (e) { BASE = {}; } }
+  } catch (e) { baseIDB = false; try { BASE = JSON.parse(legacy) || {}; } catch (e2) { BASE = {}; } }   // IndexedDB indisponible : ancien fonctionnement
+})();
+const saveBase = () => { if (baseIDB) baseIdbPut(JSON.stringify(BASE)).catch(() => {}); else { try { localStorage.setItem(BASE_KEY, JSON.stringify(BASE)); } catch (e) {} } };
 const setBase = (k, v) => { if (v && typeof v === 'object') BASE[k] = JSON.stringify(v); else delete BASE[k]; };
 const getBase = k => { try { return BASE[k] != null ? JSON.parse(BASE[k]) : undefined; } catch (e) { return undefined; } };
 const jeq = (a, b) => JSON.stringify(a) === JSON.stringify(b);
@@ -106,7 +117,7 @@ const readDoc = async (r, k, get) => { if (!r) return undefined; if (typeof r.c 
 
 /* ---------- Envoi (groupé) des rubriques modifiées ---------- */
 let pushing = false;
-async function pushChanged() {
+async function pushChanged() { await baseReady;
   if (!fb || !S.user || !CK || S.mismatch || !syncAllowed() || pushing || window.epsImgLoaded === false) return;
   const { doc, runTransaction } = fb.fs;
   const keys = syncKeys().filter(k => meta.keys[k]?.h !== hash(JSON.stringify(outb(k))));
@@ -173,7 +184,7 @@ let staleLocal = (() => { try { return (meta.applyT || 0) > (+localStorage.getIt
 const keepCls = (k, out, rem) => window.epsClsKeep ? window.epsClsKeep(k, out, rem) : out;
 
 /* ---------- Réception : fusion des données venues des autres appareils ---------- */
-async function applyRemote(k, r) {
+async function applyRemote(k, r) { await baseReady;
   if (k === CHECK_ID || !r || LOCAL_TOP.has(k) || isPart(k)) return false;
   if (r.dev === meta.dev && meta.keys[k]?.t >= r.t) return false;          // notre propre envoi
   let rv; try { rv = await readDoc(r, k); } catch (e) { S.mismatch = true; S.status = 'error'; refreshUI(); return false; }
@@ -187,7 +198,7 @@ async function applyRemote(k, r) {
   return !jeq(out, local);
 }
 let replaceOnce = false;
-async function applySnap(docs) {
+async function applySnap(docs) { await baseReady;
   let changed = false;
   docs.forEach(x => PARTS.set(x.id, x.data()));
   const mains = new Set(docs.map(x => isPart(x.id) ? x.id.split(PART)[0] : x.id));
