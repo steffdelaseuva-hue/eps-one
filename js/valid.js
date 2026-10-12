@@ -32,8 +32,12 @@ const VAL_TOOLS = {
 const valSplit = n => { const m = /^([^·]{2,20}) · (.+)$/.exec(n); return m ? [m[1].trim(), m[2]] : [null, n]; };
 const VAL_SEC = { Attaque: '#D64545', 'Défense': '#1E5BD8', 'Rôles': '#8E44AD' };
 const VD = () => { if (!DB.valid || typeof DB.valid !== 'object') DB.valid = {}; const v = DB.valid; v.crit = v.crit || {}; v.v = v.v || {}; return v; };
-const valDef = k => { const [t, sb] = k.split(':'), T = VAL_TOOLS[t]; return (sb && T.sub && T.sub[sb] && T.sub[sb].c) || T.c || []; };
+const valDef = k => { const [t, sb] = k.split('@')[0].split(':'), T = VAL_TOOLS[t]; return (sb && T.sub && T.sub[sb] && T.sub[sb].c) || T.c || []; };
 const valCrit = k => { const v = VD(); if (!Array.isArray(v.crit[k])) v.crit[k] = valDef(k).map((n, i) => ({ id: 'c' + i, n })); return v.crit[k]; };
+/* Critères et poids par niveau de classe : un jeu spécifique (clé « outil:sport@4 ») remplace le jeu général pour les classes de ce niveau */
+const VAL_LV = ['6', '5', '4', '3'];
+const valLevelOf = cls => { const m = /^\s*([3-6])/.exec(String(cls || '')) || /([3-6])\s*(?:e|è|ème|eme)\b/i.exec(String(cls || '')); return m ? m[1] : ''; };
+const valHasSet = (k, lv) => !!lv && Array.isArray(VD().crit[k + '@' + lv]);
 const valOf = (tool, cls) => { const v = VD(); v.v[tool] = v.v[tool] || {}; return (v.v[tool][cls] = v.v[tool][cls] || {}); };
 /* Notation sur 20 (facultative, par outil) : chaque niveau de maîtrise a une fourchette de points (ex. Satisfaisant = 11 à 15) ;
    l'enseignant choisit la note exacte dans la fourchette pour chaque critère ; note de l'élève = moyenne des critères observés */
@@ -67,25 +71,27 @@ function openValid(tool) {
   let cls = DB.classes.some(c => c.name === DB.lastClass) ? DB.lastClass : DB.classes[0].name, si = 0, view = 'eleve', undo = null;
   VD().last = VD().last || {}; let sub = T.sub ? (T.sub[VD().last[tool]] ? VD().last[tool] : Object.keys(T.sub)[0]) : '';
   const K = () => sub && sub !== 'gen' ? tool + ':' + sub : tool, NM = () => T.n + (sub && sub !== 'gen' ? ' · ' + T.sub[sub].n : '');
-  if (!valCrit(K()).length) view = 'crit';
+  let clv = '';   // niveau édité dans ⚙️ Critères ('' = toutes les classes)
+  const KC = () => view === 'crit' ? (valHasSet(K(), clv) ? K() + '@' + clv : K()) : (valHasSet(K(), valLevelOf(cls)) ? K() + '@' + valLevelOf(cls) : K());
+  if (!valCrit(KC()).length) view = 'crit';
   const o = document.createElement('div'); o.style.cssText = 'position:fixed;inset:0;z-index:300;background:var(--bg,#fff);overflow:auto;padding:14px 14px 40px';
   document.body.appendChild(o);
   const close = () => { o.remove(); };
   const commit = () => { save(); window.syncFlush && window.syncFlush(); };
   const sync = (n, V) => { const L = valLvls(V); if (typeof saveResult !== 'function') return; const av = epsMAvg(L);
-    if (av == null) return; const C = valCrit(K());
-    const cf = valCfg(K()), nt = cf.on ? valNote(C, V, cf) : null;
+    if (av == null) return; const C = valCrit(KC());
+    const cf = valCfg(KC()), nt = cf.on ? valNote(C, V, cf) : null;
     saveResult({ key: `valid|${K()}|${cls}|${n}`, tool, label: NM() + ' · validation enseignant', classe: cls, eleve: n, valeur: nt ? `${valFmt(nt.n20)} / 20` : EPS_M[av][0],
       detail: (nt ? `${EPS_M[av][0]} · ` : '') + C.filter(c => V[c.id] != null).map(c => `${c.n} : ${EPS_M[V[c.id]][2]}${nt ? ` (${valPt(c.id, V, cf)}/20)` : ''}`).join(' · ') }); };
   const draw = () => {
-    const st = studentsOf(cls), C = valCrit(K()), all = valOf(K(), cls); if (si >= st.length) si = 0; const n = st[si], V = all[n] || {};
-    const L = valLvls(V), av = epsMAvg(L), cfg = valCfg(K()), NT = cfg.on ? valNote(C, V, cfg) : null, WT = cfg.on ? valWeights(C, cfg) : null;
+    const st = studentsOf(cls), C = valCrit(KC()), all = valOf(K(), cls); if (si >= st.length) si = 0; const n = st[si], V = all[n] || {};
+    const L = valLvls(V), av = epsMAvg(L), cfg = valCfg(KC()), NT = cfg.on ? valNote(C, V, cfg) : null, WT = cfg.on ? valWeights(C, cfg) : null;
     o.innerHTML = `<div style="display:flex;align-items:center;gap:8px;max-width:900px;margin:0 auto"><h2 style="flex:1;margin:0;font-size:1.15rem">✅ Validation enseignant · ${esc(NM())}</h2><button class="btn btn-ghost" style="flex:0 0 auto" data-q>✕ Fermer</button></div>
       <div style="max-width:900px;margin:10px auto 0">
       <div class="card"><div class="row"><div><label style="margin-top:0">Classe</label><select id="vc">${DB.classes.map(c => `<option ${c.name === cls ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</select></div>
         ${view === 'eleve' ? `<div><label style="margin-top:0">Élève</label><select id="ve">${st.map((x, k) => { const q = epsMAvg(valLvls(all[x])); return `<option value="${k}" ${k === si ? 'selected' : ''}>${q != null ? '✓ ' : ''}${esc(x)}</option>`; }).join('')}</select></div>` : ''}</div>
         ${T.sub ? `<label>Sport</label><div class="tog">${Object.entries(T.sub).map(([k, x]) => `<button data-sub="${k}" class="${sub === k ? 'on' : ''}">${esc(x.n)}</button>`).join('')}</div>` : ''}
-        <div class="tog" style="margin-top:10px">${[['eleve', '👤 Par élève'], ['classe', '📋 Tableau de la classe'], ['crit', '⚙️ Critères']].map(([k, l]) => `<button data-v="${k}" class="${view === k ? 'on' : ''}">${l}</button>`).join('')}</div></div>
+        <div class="tog" style="margin-top:10px">${[['eleve', '👤 Par élève'], ['classe', '📋 Tableau de la classe'], ['crit', '⚙️ Critères']].map(([k, l]) => `<button data-v="${k}" class="${view === k ? 'on' : ''}">${l}</button>`).join('')}</div>${view !== 'crit' && valHasSet(K(), valLevelOf(cls)) ? `<div class="muted" style="font-size:.78rem;margin-top:8px">🎓 Critères et poids des ${valLevelOf(cls)}e (jeu spécifique)</div>` : ''}</div>
       ${view === 'eleve' && !C.length ? '<div class="card empty" style="margin-top:12px">Aucun critère pour l\'instant : créez-les dans <b>⚙️ Critères</b>.</div>' : view === 'eleve' ? (st.length ? `<div class="card" style="margin-top:12px"><div style="display:flex;align-items:center;gap:8px"><button class="btn btn-ghost" style="flex:0 0 auto;padding:8px 12px" id="vp" ${si ? '' : 'disabled'}>◀</button><h3 style="flex:1;margin:0;text-align:center">${esc(n)}</h3><button class="btn btn-ghost" style="flex:0 0 auto;padding:8px 12px" id="vn" ${si < st.length - 1 ? '' : 'disabled'}>▶</button></div>
           ${C.map((c, i) => { const [sec, nm] = valSplit(c.n), prev = i ? valSplit(C[i - 1].n)[0] : null;
             return `${sec && sec !== prev ? `<div style="margin-top:12px;font-size:.78rem;font-weight:900;text-transform:uppercase;letter-spacing:.05em;color:${VAL_SEC[sec] || 'var(--muted)'}">${esc(sec)}</div>` : ''}<div data-crow="${c.id}" style="padding:10px 0;border-top:1px solid var(--line)"><div style="font-weight:800;margin-bottom:6px">${esc(nm)} ${epsMTag(V[c.id])}${cfg.on && WT ? ` <span class="muted" style="font-size:.72rem;font-weight:700">· ${valFmt(WT[c.id] * 100)} % de la note</span>` : ''}</div>${epsMBar(V[c.id], 'data-vm')}${cfg.on && V[c.id] != null ? (() => { const bd = cfg.bands[V[c.id]], cur = valPt(c.id, V, cfg), col = EPS_M[V[c.id]][1]; return `<div style="margin-top:8px"><div class="muted" style="font-size:.75rem;margin-bottom:4px">Note du critère (${bd[0]} à ${bd[1]} / 20)</div><div style="display:flex;flex-wrap:wrap;gap:6px">${Array.from({ length: bd[1] - bd[0] + 1 }, (_, k) => bd[0] + k).map(x => `<button type="button" data-np="${c.id}|${x}" style="min-width:42px;padding:8px 6px;border-radius:10px;font-weight:800;border:1.5px solid ${cur === x ? 'transparent' : 'var(--line)'};background:${cur === x ? col : 'transparent'};color:${cur === x ? '#fff' : 'inherit'}">${x}</button>`).join('')}</div></div>`; })() : ''}</div>`; }).join('')}
@@ -98,7 +104,10 @@ function openValid(tool) {
           <div class="muted" style="font-size:.78rem;margin-top:8px">${C.map((c, i) => `C${i + 1} : ${esc(c.n)}`).join(' · ')}</div>
           <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px">${EPS_M.map(([l, c]) => `<span style="display:inline-flex;align-items:center;gap:4px;font-size:.78rem"><i style="width:12px;height:12px;border-radius:50%;background:${c};display:inline-block"></i>${l}</span>`).join('')}</div>
           <button class="btn btn-ghost btn-block" style="margin-top:10px" id="vcsv">📤 Exporter (CSV)</button></div>`
-      : `<div class="card" style="margin-top:12px"><b>⚙️ Critères observés</b><div class="muted" style="font-size:.8rem">Modifiez, ajoutez ou retirez des critères (pour toutes les classes). Astuce : « Attaque · … », « Défense · … » ou « Rôles · … » range le critère dans une rubrique.</div>
+      : `<div class="card" style="margin-top:12px"><b>🎓 Critères pour quels niveaux ?</b><div class="muted" style="font-size:.8rem">Par défaut, les mêmes critères et les mêmes poids valent pour toutes les classes. Tu peux créer un jeu <b>propre à un niveau</b> (6e, 5e, 4e, 3e) : il remplace alors le jeu général pour les classes de ce niveau (classe « 403 » = 4e).</div>
+          <div class="tog" style="margin-top:8px"><button data-clv="" class="${clv === '' ? 'on' : ''}">Toutes les classes</button>${VAL_LV.map(l => `<button data-clv="${l}" class="${clv === l ? 'on' : ''}">${l}e${valHasSet(K(), l) ? ' ✔' : ''}</button>`).join('')}</div>
+          ${clv && !valHasSet(K(), clv) ? `<div class="muted" style="font-size:.82rem;margin-top:8px">Les classes de ${clv}e utilisent pour l'instant les critères généraux.</div><button class="btn btn-grad btn-block" style="margin-top:8px" id="lvmk">＋ Créer un jeu spécifique pour les ${clv}e (copie du général, à adapter)</button>` : clv ? `<div style="margin-top:8px;font-size:.82rem;font-weight:700;color:var(--ok,#1B9E5A)">✔ Jeu spécifique ${clv}e : les modifications ci-dessous ne concernent que les classes de ${clv}e.</div><button class="btn btn-ghost btn-block" style="margin-top:8px" id="lvrm">🗑 Supprimer le jeu ${clv}e (retour au général)</button>` : ''}</div>
+      ${clv && !valHasSet(K(), clv) ? '' : `<div class="card" style="margin-top:12px"><b>⚙️ Critères observés${clv ? ' · ' + clv + 'e' : ''}</b><div class="muted" style="font-size:.8rem">Modifiez, ajoutez ou retirez des critères (${clv ? 'pour les classes de ' + clv + 'e' : 'pour toutes les classes'}). Astuce : « Attaque · … », « Défense · … » ou « Rôles · … » range le critère dans une rubrique.</div>
           <div style="margin-top:10px;padding:10px 12px;border-radius:12px;border:2px solid var(--gold,#C9A227)"><label style="display:flex;align-items:center;gap:8px;margin:0;font-weight:800"><input type="checkbox" id="vpon" ${cfg.on ? 'checked' : ''} style="width:20px;height:20px;margin:0"> 🧮 Noter sur 20</label>
             ${cfg.on ? `<div class="muted" style="font-size:.78rem;margin-top:6px">Chaque niveau de maîtrise correspond à une fourchette de points sur 20. Pour chaque critère, tu touches le niveau puis tu choisis la note exacte dans la fourchette. La note de l'élève = moyenne pondérée de ses critères (voir « Poids dans la note »).</div>
             ${EPS_M.map((m, i) => `<div class="row" style="margin-top:8px;align-items:center;gap:6px"><span style="flex:1;font-weight:800;color:${m[1]}">${m[0]}</span><span class="muted" style="font-size:.78rem">de</span><input type="number" min="0" max="20" inputmode="numeric" data-bmin="${i}" value="${cfg.bands[i][0]}" style="flex:0 0 58px;text-align:center"><span class="muted" style="font-size:.78rem">à</span><input type="number" min="0" max="20" inputmode="numeric" data-bmax="${i}" value="${cfg.bands[i][1]}" style="flex:0 0 58px;text-align:center"></div>`).join('')}
@@ -113,15 +122,18 @@ function openValid(tool) {
           ${C.map((c, i) => `<div class="row" style="margin-top:8px;gap:6px"><input data-cn="${c.id}" value="${esc(c.n)}" style="flex:3"><button class="btn btn-ghost" style="flex:0 0 auto;padding:8px" data-cu="${i}" ${i ? '' : 'disabled'}>↑</button><button class="btn btn-ghost" style="flex:0 0 auto;padding:8px" data-cx="${c.id}">🗑</button></div>`).join('')}
           <div class="row" style="margin-top:10px;gap:6px"><input id="cnew" placeholder="Nouveau critère…" style="flex:3"><button class="btn btn-grad" style="flex:0 0 auto" id="cadd">＋ Ajouter</button></div>
           ${(T.sug || []).length ? `<button class="btn btn-ghost btn-block" style="margin-top:10px" id="csug">💡 Ajouter des critères proposés (${T.sug.length})</button>` : ''}
-          ${valDef(K()).length ? '<button class="btn btn-ghost btn-block" style="margin-top:10px" id="cdef">↺ Revenir aux critères proposés</button>' : ''}
-          ${undo ? `<button class="btn btn-ghost btn-block" style="margin-top:8px" id="vund">↶ Annuler : ${esc(undo.l)}</button>` : ''}</div>`}
+          ${valDef(K()).length && !clv ? '<button class="btn btn-ghost btn-block" style="margin-top:10px" id="cdef">↺ Revenir aux critères proposés</button>' : ''}
+          ${undo ? `<button class="btn btn-ghost btn-block" style="margin-top:8px" id="vund">↶ Annuler : ${esc(undo.l)}</button>` : ''}</div>`}`}
       </div>`;
     const $ = s => o.querySelector(s), A = s => o.querySelectorAll(s), snap = l => { undo = { l, v: JSON.stringify(VD()) }; };
     $('[data-q]').onclick = close;
     $('#vc').onchange = e => { cls = e.target.value; DB.lastClass = cls; si = 0; save(); draw(); };
     if ($('#ve')) $('#ve').onchange = e => { si = +e.target.value; draw(); };
-    A('[data-v]').forEach(b => b.onclick = () => { view = b.dataset.v; draw(); });
-    A('[data-sub]').forEach(b => b.onclick = () => { sub = b.dataset.sub; VD().last[tool] = sub; commit(); if (!valCrit(K()).length) view = 'crit'; draw(); });
+    A('[data-v]').forEach(b => b.onclick = () => { view = b.dataset.v; if (view === 'crit') clv = valHasSet(K(), valLevelOf(cls)) ? valLevelOf(cls) : clv; draw(); });
+    A('[data-clv]').forEach(b => b.onclick = () => { clv = b.dataset.clv; draw(); });
+    if ($('#lvmk')) $('#lvmk').onclick = () => { const V0 = VD(), kk = K() + '@' + clv; V0.crit[kk] = JSON.parse(JSON.stringify(valCrit(K()))); V0.pts = V0.pts || {}; V0.pts[kk] = JSON.parse(JSON.stringify(valCfg(K()))); commit(); draw(); toast('Jeu ' + clv + 'e créé : adapte critères et poids'); };
+    if ($('#lvrm')) $('#lvrm').onclick = () => { if (!confirm(`Supprimer le jeu spécifique ${clv}e ? Les classes de ${clv}e reprendront les critères généraux.`)) return; const V0 = VD(), kk = K() + '@' + clv; delete V0.crit[kk]; if (V0.pts) delete V0.pts[kk]; clv = ''; commit(); draw(); };
+    A('[data-sub]').forEach(b => b.onclick = () => { sub = b.dataset.sub; VD().last[tool] = sub; commit(); if (!valCrit(KC()).length) view = 'crit'; draw(); });
     if ($('#csug')) $('#csug').onclick = () => { const have = new Set(C.map(c => c.n)); (T.sug || []).filter(x => !have.has(x)).forEach((x, i) => C.push({ id: 'u' + Date.now().toString(36) + i, n: x })); commit(); draw(); };
     if ($('#vp')) $('#vp').onclick = () => { si--; draw(); };
     if ($('#vn')) $('#vn').onclick = () => { si++; draw(); };
@@ -151,7 +163,7 @@ function openValid(tool) {
     A('[data-np]').forEach(b => b.onclick = () => { const [id, x] = b.dataset.np.split('|'), W = all[n] = all[n] || {}; W['_p' + id] = +x; W._t = Date.now(); commit(); sync(n, W); const y = o.scrollTop; draw(); o.scrollTop = y; });
     A('[data-cn]').forEach(i => i.onchange = () => { const c = C.find(x => x.id === i.dataset.cn); if (c && i.value.trim()) { c.n = i.value.trim(); commit(); } });
     A('[data-cu]').forEach(b => b.onclick = () => { const i = +b.dataset.cu; [C[i - 1], C[i]] = [C[i], C[i - 1]]; commit(); draw(); });
-    A('[data-cx]').forEach(b => b.onclick = () => { const c = C.find(x => x.id === b.dataset.cx); if (!confirm(`Retirer le critère « ${c.n} » ? (les niveaux déjà donnés pour ce critère ne comptent plus)`)) return; snap('critère retiré'); VD().crit[K()] = C.filter(x => x !== c); commit(); draw(); });
+    A('[data-cx]').forEach(b => b.onclick = () => { const c = C.find(x => x.id === b.dataset.cx); if (!confirm(`Retirer le critère « ${c.n} » ? (les niveaux déjà donnés pour ce critère ne comptent plus)`)) return; snap('critère retiré'); VD().crit[KC()] = C.filter(x => x !== c); commit(); draw(); });
     if ($('#cadd')) $('#cadd').onclick = () => { const v = $('#cnew').value.trim(); if (!v) return; C.push({ id: 'u' + Date.now().toString(36), n: v }); commit(); draw(); };
     if ($('#cdef')) $('#cdef').onclick = () => { if (!confirm('Revenir aux critères proposés par l\'appli ?')) return; snap('critères réinitialisés'); delete VD().crit[K()]; commit(); draw(); };
   };
