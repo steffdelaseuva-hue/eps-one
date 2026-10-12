@@ -4,9 +4,10 @@
    ========================================================= */
 /* Page Ko-fi : laisser vide tant qu'elle n'existe pas (le bouton est alors masqué) */
 const KOFI_URL = 'https://ko-fi.com/epsone';
-const APP_VERSION = '23.26';
+const APP_VERSION = '23.27';
 const APP_URL = 'https://steffdelaseuva-hue.github.io/eps-one/';
 const CHANGELOG = [
+  { v: '23.27', items: ['Copies de secours : « 🗑 Supprimer cette copie » sur chaque copie et « Supprimer les anciennes (garder les 2 plus récentes) ».'] },
   { v: '23.26', items: ['Plus → Copies de secours : « 🧩 Récupérer tout ce qui manque » (depuis une copie ou depuis un fichier .json) — ajoute à l\'état actuel les résultats, validations, grilles, tournois, matchs, C.O., cross… absents, sans rien supprimer. La garde de synchronisation protège aussi les anciens résultats sans identifiant.'] },
   { v: '23.25', items: ['Synchronisation : protection étendue à TOUTES les données (résultats, validations, grilles, tournois, matchs, cross, C.O., etc.). Une synchronisation ne peut plus faire disparaître un élément que le compte possède encore : seule une suppression volontaire faite sur l\'appareil, pendant l\'utilisation, le retire.'] },
   { v: '23.24', items: ['Validation enseignant · poids dans la note : les pourcentages se saisissent librement (rien ne bouge pendant la saisie), le total s\'affiche en direct (il manque / il dépasse) et le bouton « ✅ Valider » les ramène à 100 % — pour les rubriques et pour les critères de chaque rubrique.'] },
