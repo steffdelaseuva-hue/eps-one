@@ -26,6 +26,8 @@ const WOD_CAT = [
   ['Mountain climbers', 3, 1], ['Gainage coudes', 3, 2, ['Gainage planche']], ['Levés de jambes (axe)', 3, 3, ['Levés de jambes axiaux']], ['Levés de jambes (côté)', 3, 4, ['Levés de jambes latéraux']], ['Gainage latéral', 3, 3],
 ];
 const WOD_EX = WOD_CAT.map(x => x[0]);
+/* Objectif d'un bloc : les 4 familles + « tout le corps » (mélange libre, indice 4) */
+const WOD_BLOC = [...WOD_FAM, 'Tout le corps — Mélange'];
 const WOD_COL = ['#1FA2E8', '#E53935', '#F4B400', '#43A047'];
 const exNorm = t => (t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, ' ').trim().split(' ').map(w => w.replace(/(s|x)$/, '')).join(' ');
 // famille / niveau d'un exercice : passeport, sinon réglage de l'enseignant (DB.wod.exMeta)
@@ -139,7 +141,7 @@ TOOL_IMPL.wod = function (el) {
     let custom = JSON.parse(JSON.stringify(DB.wod.customEx || [])), nf = null;
     // liste « Ajouter un exercice » rangée par famille (famille du bloc en premier), du niveau 1 au niveau 4
     const exList = () => [...WOD_CAT.map(x => ({ nom: x[0], f: x[1], n: x[2] })), ...custom.map(c => { const m = exMeta(c); return { nom: c, f: m ? m.f : null, n: m ? m.n : null }; })];
-    const exOptions = bi => { const L = exList(), fb = e.blocs[bi].famille, order = [fb, ...[0, 1, 2, 3].filter(f => f !== fb)];
+    const exOptions = bi => { const L = exList(), fb = e.blocs[bi].famille, order = fb < 4 ? [fb, ...[0, 1, 2, 3].filter(f => f !== fb)] : [0, 1, 2, 3];
       const opt = x => `<option value="${esc(x.nom)}">${x.n ? 'N' + x.n + ' · ' : ''}${esc(x.nom)}</option>`, srt = (a, b) => (a.n || 9) - (b.n || 9) || a.nom.localeCompare(b.nom);
       return order.map(f => `<optgroup label="Famille ${f + 1} · ${WOD_FAM[f]}">${L.filter(x => x.f === f).sort(srt).map(opt).join('')}</optgroup>`).join('')
         + (L.some(x => x.f == null) ? `<optgroup label="Autres exercices">${L.filter(x => x.f == null).sort(srt).map(opt).join('')}</optgroup>` : ''); };
@@ -184,7 +186,7 @@ TOOL_IMPL.wod = function (el) {
         <div class="row" style="margin-top:8px">${cs ? '<button class="btn btn-ghost" id="cpy">⧉ Copier depuis Élève 1</button>' : ''}${nM > 2 ? `<button class="btn btn-ghost" id="rmstu">✕ Retirer l'Élève ${cs + 1}</button>` : ''}</div>
         <p class="muted" style="margin:6px 2px 0;font-size:.78rem">Famille, séries et course sont communes au groupe. Exercices, répétitions et niveaux ci-dessous : <b style="color:${WOD_STU[cs]}">Élève ${cs + 1}</b>.</p></div>` : ''}
       ${e.blocs.map((b, bi) => `<div class="blk"><div class="blk-h"><b>Bloc ${bi + 1}</b><button class="btn btn-ghost" style="padding:6px 10px" data-up="${bi}" ${bi ? '' : 'disabled'}>↑</button><button class="btn btn-ghost" style="padding:6px 10px" data-rmb="${bi}">✕</button></div>
-          <label>Famille</label><select data-fam="${bi}">${WOD_FAM.map((f, k) => `<option value="${k}" ${b.famille === k ? 'selected' : ''}>${f}</option>`).join('')}</select>
+          <label>Objectif du bloc</label><select data-fam="${bi}">${WOD_BLOC.map((f, k) => `<option value="${k}" ${b.famille === k ? 'selected' : ''}>${f}</option>`).join('')}</select>
           <label>Séries (nombre de tours du bloc)</label><input type="number" min="1" data-ser="${bi}" value="${b.series}">
           <label>${nM ? `<span style="color:${WOD_STU[cs]}">Élève ${cs + 1}</span> · exercices · répétitions · niveau` : 'Exercices · répétitions · niveau'}</label>
           <div>${exs(bi).map((x, xi) => `<div class="ex-row" style="border-left:5px solid ${(exMeta(x.nom) || {}).f != null ? WOD_COL[exMeta(x.nom).f] : 'transparent'};padding-left:8px">${nM ? `<select class="nm" data-swap="${bi}-${xi}" style="flex:1 1 150px;padding:7px" title="Changer d'exercice (même famille)">${swapOpts(x)}</select>` : `<span class="nm">${tagOf(x.nom)}${esc(x.nom)}${(exMeta(x.nom) || {}).n ? `<span class="muted" style="font-size:.72rem;font-weight:600"> · ${exMeta(x.nom).cat ? 'passeport' : 'niveau'} N${exMeta(x.nom).n}</span>` : ''}</span>`}<button class="btn btn-danger" style="flex:0 0 auto;padding:6px 10px;font-size:.8rem" data-rmx="${bi}-${xi}" title="Retirer cet exercice">🗑 Retirer</button>
@@ -216,7 +218,7 @@ TOOL_IMPL.wod = function (el) {
       all('[data-nv]').forEach(b => b.onclick = () => { read(); const [bi, xi, n] = b.dataset.nv.split('-').map(Number); exs(bi)[xi].niv = n; draw(); });
       all('[data-rmx]').forEach(b => b.onclick = () => { read(); const [bi, xi] = b.dataset.rmx.split('-').map(Number); exs(bi).splice(xi, 1); draw(); });
       all('[data-add]').forEach(s => s.onchange = () => { read(); let v = s.value; if (!v) return;
-        if (v === '__new') { nf = { bi: +s.dataset.add, f: e.blocs[+s.dataset.add].famille, n: 1 }; draw(); const i = box.querySelector('#nf-nm'); i && i.focus(); return; }
+        if (v === '__new') { nf = { bi: +s.dataset.add, f: Math.min(3, e.blocs[+s.dataset.add].famille), n: 1 }; draw(); const i = box.querySelector('#nf-nm'); i && i.focus(); return; }
         const m = exMeta(v); exs(+s.dataset.add).push({ nom: v, reps: 10, niv: (m && m.n) || 1 }); draw(); });
       const setMeta = (nom, f, n) => { DB.wod.exMeta = DB.wod.exMeta || {}; const k = exNorm(nom), o = DB.wod.exMeta[k] || {}; if (f !== undefined) o.f = f; if (n !== undefined) o.n = n; DB.wod.exMeta[k] = o; save(); };
       if ($('#nf-ok')) $('#nf-ok').onclick = () => { read(); const v = $('#nf-nm').value.trim(), f = +$('#nf-f').value, n = +$('#nf-n').value; if (!v) return toast('Indiquez le nom de l\'exercice');
@@ -354,7 +356,7 @@ TOOL_IMPL.wod = function (el) {
         : `<div class="wod-vs">${[null, ...P.keys()].map(s => `<button data-vs="${s == null ? '' : s}" class="${vs === s ? 'on' : ''}"${vs === s ? ` style="background:${s == null ? '#555' : WOD_STU[s]}"` : ''}>${s == null ? '👥 Tous' : `Élève ${s + 1}${P[s] ? ' · ' + esc(P[s]) : ' · —'}`}</button>`).join('')}</div>
           <details style="margin-top:6px"><summary style="cursor:pointer;font-weight:700;font-size:.82rem">👥 Changer qui est qui${extra.length ? ' ⚠' : ''}</summary>${pfRows}</details>`}
         ${IT.map((ser, k) => { const b = e.blocs[k], done = !!g.splits[k], B = bilanOf(g, e, k, IT), cur = g.dep && !fin && k === curK;
-          const head = `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><b>Bloc ${k + 1}${done ? ' · synthèse' : cur ? ' · en cours' : ''}</b><span class="muted" style="font-size:.8rem;text-align:right">${done ? '✅ ' + mmss((g.splits[k] - g.dep) / 1000) : WOD_FAM[b.famille] + (b.series > 1 ? ` · ${b.series} séries` : '')}</span></div>`;
+          const head = `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><b>Bloc ${k + 1}${done ? ' · synthèse' : cur ? ' · en cours' : ''}</b><span class="muted" style="font-size:.8rem;text-align:right">${done ? '✅ ' + mmss((g.splits[k] - g.dep) / 1000) : WOD_BLOC[b.famille] + (b.series > 1 ? ` · ${b.series} séries` : '')}</span></div>`;
           const body = !g.dep ? famChips(B.fam, true) + planEdit(k) + (b.series > 1 ? `<div class="muted" style="margin-top:6px;font-size:.8rem">× ${b.series} séries</div>` : '') + (b.run ? `<div class="muted" style="margin-top:6px;font-size:.85rem">🏃 RUN ${b.runVal} ${RUN_T[b.runType] || ''} (groupe)</div>` : '')
             : done || fin ? synthHTML(g, e, k, IT) + `<details style="margin-top:8px"><summary style="cursor:pointer;font-weight:700;font-size:.85rem">${run ? '✏️ Voir / corriger les coches' : 'Voir le détail'}</summary>${cols(ser, run)}</details>`
             : cur ? famChips(B.fam) + cols(ser, run) + `<button class="btn btn-ghost btn-block" style="margin-top:10px" data-nx="${k}">⏭ Valider le bloc et passer au suivant</button>`
@@ -403,7 +405,7 @@ TOOL_IMPL.wod = function (el) {
           ${run ? `<button class="btn ${n === tot ? 'btn-grad' : 'btn-danger'} btn-block" style="margin-top:12px;font-size:1.15rem;padding:14px" id="gv-fin">🏁 Arrivée${n === tot ? ' — tout est fait !' : ''}</button>` : ''}
           ${g.arr || g.capped ? `<div style="margin-top:10px;font-weight:800">${r.cap ? '⏱ Time cap atteint' : '✅ Épreuve terminée'} · écart ${r.ecart > 0 ? '+' : ''}${mmss(r.ecart)} / ${e.prevu} min</div>` : ''}</div>
         ${nM ? multiHTML(g, i, IT, P, run) : IT.map((ser, k) => { const b = e.blocs[k], done = !!g.splits[k];
-          return `<div class="card" style="margin-top:10px${done ? ';border:2px solid #1B9E5A' : ''}"><div style="display:flex;justify-content:space-between;align-items:center"><b>Bloc ${k + 1}</b><span class="muted" style="font-size:.8rem">${done ? '✅ ' + mmss((g.splits[k] - g.dep) / 1000) : WOD_FAM[b.famille]}</span></div>
+          return `<div class="card" style="margin-top:10px${done ? ';border:2px solid #1B9E5A' : ''}"><div style="display:flex;justify-content:space-between;align-items:center"><b>Bloc ${k + 1}</b><span class="muted" style="font-size:.8rem">${done ? '✅ ' + mmss((g.splits[k] - g.dep) / 1000) : WOD_BLOC[b.famille]}</span></div>
             ${ser.map(x => `${ser.length > 1 ? `<div class="muted" style="margin-top:8px;font-size:.8rem;font-weight:800">Série ${x.sr + 1} / ${ser.length}</div>` : ''}
               ${x.list.map(it => `<button class="gv-it ${g.checks[it.id] ? 'on' : ''}" data-ck="${it.id}" ${run ? '' : 'disabled'}${it.col ? ` style="border-left:8px solid ${it.col}"` : ''}><span class="bx">${g.checks[it.id] ? '✓' : ''}</span><span class="t">${esc(it.txt)}</span></button>`).join('')}`).join('')}</div>`; }).join('')}
         ${g.arr || g.capped ? '<button class="btn btn-grad btn-block" style="margin-top:12px" id="save">💾 Enregistrer le résultat</button>' : ''}
@@ -454,7 +456,7 @@ TOOL_IMPL.wod = function (el) {
           <div class="muted" style="text-align:center" id="capinfo"></div>
           ${cur.groups.length > 1 ? `<div data-cfg="bare"><label>📱 Tablette d'un groupe (les élèves ne verront que leur groupe)</label><select id="only"><option value="">Tous les groupes</option>${cur.groups.map((g, i) => `<option value="${i}" ${cur.only === i ? 'selected' : ''}>${esc(g.name)}</option>`).join('')}</select></div>` : ''}
           <div class="row" style="margin-top:8px"><button class="btn btn-grad" id="all">🚩 Départ ${cur.only != null ? 'du groupe' : 'groupé'}</button></div><button class="btn btn-ghost btn-block" data-cfg="bare" style="margin-top:8px" id="edg">✏️ Modifier les groupes / participants (absent, blessé…)</button></div>
-        <details class="card" style="margin-top:10px"><summary style="font-weight:800;cursor:pointer">📋 Rappel de l'épreuve</summary>${e.blocs.map((b, i) => `<div style="margin-top:8px"><b>Bloc ${i + 1}</b> <span class="muted">· ${WOD_FAM[b.famille]} · ${b.series} série${b.series > 1 ? 's' : ''}</span>
+        <details class="card" style="margin-top:10px"><summary style="font-weight:800;cursor:pointer">📋 Rappel de l'épreuve</summary>${e.blocs.map((b, i) => `<div style="margin-top:8px"><b>Bloc ${i + 1}</b> <span class="muted">· ${WOD_BLOC[b.famille]} · ${b.series} série${b.series > 1 ? 's' : ''}</span>
           ${nM ? b.pe.map((L, s) => `<div class="muted" style="font-size:.85rem"><b style="color:${WOD_STU[s]}">Élève ${s + 1}</b> : ${L.map(x => `${famOf(x.nom) != null ? `<span style="color:${WOD_COL[famOf(x.nom)]}">●</span> ` : ''}${x.reps} ${esc(x.nom)} (N${x.niv})`).join(' · ') || '—'}</div>`).join('')
             + (Object.keys(b.obj || {}).length ? `<div class="muted" style="font-size:.85rem">🎯 Groupe : ${Object.keys(b.obj).map(f => `${famShort(+f)} ${b.obj[f]} rép.${b.series > 1 ? ' / série' : ''}`).join(' · ')}${b.run ? ` · RUN ${b.runVal} ${RUN_T[b.runType]}` : ''}</div>` : b.run ? `<div class="muted" style="font-size:.85rem">RUN ${b.runVal} ${RUN_T[b.runType]}</div>` : '') : `
           <div class="muted" style="font-size:.85rem">${b.ex.map(x => `${(exMeta(x.nom) || {}).f != null ? `<span style="color:${WOD_COL[exMeta(x.nom).f]}">●</span> ` : ''}${x.reps} ${esc(x.nom)} (N${x.niv})`).join(' · ')}${b.run ? ` · RUN ${b.runVal} ${RUN_T[b.runType]}` : ''}</div>`}</div>`).join('')}</details>

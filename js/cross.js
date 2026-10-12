@@ -444,7 +444,7 @@ tr:nth-child(-n+4) td{font-weight:700}`,
       box.querySelectorAll('[data-stclr]').forEach(b => b.onclick = () => { const c = E.courses[+b.dataset.stclr]; if (!c.start || !confirm(`Annuler le départ de « ${c.name} » ?`)) return; c.start = null; commit(); again(); });
       $('#cx-rz').onclick = () => { if (!confirm('Remettre ce cross à zéro ?\nTous les départs et toutes les arrivées sont effacés. Les courses, inscriptions et dossards sont conservés.')) return; E.arr = []; E.courses.forEach(c => { c.start = null; }); commit(); toast('↺ Cross remis à zéro'); again(); };
       $('#cx-rarr').onclick = () => { if (!E.arr.length || !confirm('Effacer toutes les arrivées de ce cross ?')) return; E.arr = []; commit(); again(); };
-      $('#cx-delev').onclick = () => { if (!confirm(`Supprimer définitivement « ${E.name} » ?`)) return; DB.cross.events = X().events.filter(e => e.id !== E.id); setCur(''); commit(); frame(); };
+      $('#cx-delev').onclick = () => { if (!confirm(`Supprimer définitivement « ${E.name} » ?`)) return; window.epsItemDeleted && epsItemDeleted('cross', E.id); DB.cross.events = X().events.filter(e => e.id !== E.id); setCur(''); commit(); frame(); };
     }
 
     /* ---------- 👥 Inscriptions ---------- */

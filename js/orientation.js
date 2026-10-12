@@ -779,7 +779,7 @@ TOOL_IMPL.co = function (el) {
         L.postes.push({ id: coId(), num: nextNum(), code: '', x, y }); sel = null; beep(900, .04); draw(); } });
       $('#lbk').onclick = () => { if (confirm('Quitter sans enregistrer ?')) listParcours(box); };
       if ($('#ldel')) $('#ldel').onclick = () => { const n = DB.co.parcours.filter(p => p.lieu === L.id).length; if (!confirm(`Supprimer le lieu « ${L.nom} » ?${n ? ` ${n} parcours garderont leurs balises mais plus la carte.` : ''}`)) return;
-        DB.co.parcours.forEach(p => { if (p.lieu === L.id) delete p.lieu; }); coLieux().splice(idx, 1); save(); listParcours(box); };
+        DB.co.parcours.forEach(p => { if (p.lieu === L.id) delete p.lieu; }); window.epsItemDeleted && epsItemDeleted('co', L.id); coLieux().splice(idx, 1); save(); listParcours(box); };
       $('#lsv').onclick = () => { rd(); const nums = L.postes.map(q => q.num); if (new Set(nums).size !== nums.length) return toast('Deux postes ont le même numéro');
         // parcours de ce lieu : numéros et symboles mis à jour, postes supprimés retirés
         DB.co.parcours.forEach(p => { if (p.lieu !== L.id) return; p.balises = p.balises.filter(b => L.postes.some(q => q.id === b.pid)).map(b => { const q = L.postes.find(z => z.id === b.pid); return { ...b, num: b.renum ? b.num : q.num, code: q.code }; }); });
@@ -905,7 +905,7 @@ TOOL_IMPL.co = function (el) {
       if ($('#rmp')) $('#rmp').onclick = () => { if (!confirm('Retirer le symbole de toutes les balises ? Vous pourrez ensuite les choisir ou les dessiner une par une.')) return; read(); p.balises.forEach(b => { b.code = ''; }); draw(); };
       if ($('#autop')) $('#autop').onclick = () => { read(); const free = CO_PATS.filter(c => !p.balises.some(b => b.code === c)); p.balises.forEach(b => { if (!isPat(b.code)) b.code = free.shift() || ''; }); draw(); };
       $('#bk').onclick = () => listParcours(box);
-      if ($('#del')) $('#del').onclick = () => { if (confirm('Supprimer ce parcours ?')) { DB.co.parcours.splice(idx, 1); save(); listParcours(box); } };
+      if ($('#del')) $('#del').onclick = () => { if (confirm('Supprimer ce parcours ?')) { window.epsItemDeleted && epsItemDeleted('co', (DB.co.parcours[idx] || {}).id); DB.co.parcours.splice(idx, 1); save(); listParcours(box); } };
       $('#sv').onclick = () => { read(); if (p.lieu && !p.balises.length) return toast('Touchez au moins un poste sur la carte'); const nums = p.balises.map(b => b.num); if (new Set(nums).size !== nums.length) return toast('Deux balises ont le même numéro');
         if (idx != null) DB.co.parcours[idx] = p; else DB.co.parcours.push(p); save(); toast('Parcours enregistré ✔'); listParcours(box); };
     };
@@ -1325,7 +1325,7 @@ TOOL_IMPL.co = function (el) {
       $('#bc').onchange = () => { cls = $('#bc').value; draw(); };
       box.querySelectorAll('[data-x]').forEach(b => b.onclick = () => { const g = gs[+b.dataset.x];
         if (!confirm(g.recs.length > 1 ? `Supprimer cette séance ? (${g.recs.length} enregistrements de tablettes seront supprimés)` : 'Supprimer cette séance ?')) return;
-        g.recs.forEach(s => { const A0 = DB.co.seances, i = A0.indexOf(s); if (i >= 0) A0.splice(i, 1); }); save(); bilan(box); });
+        g.recs.forEach(s => { const A0 = DB.co.seances, i = A0.indexOf(s); if (i >= 0) { window.epsItemDeleted && epsItemDeleted('co', s.id); A0.splice(i, 1); } }); save(); bilan(box); });
       box.querySelectorAll('[data-v]').forEach(b => b.onclick = () => { const g = gs[+b.dataset.v], p = g.p;
         $('#det').innerHTML = `<div class="section-title"><h2>${new Date(g.date).toLocaleDateString('fr-FR')} — ${esc(p.nom)}${g.recs.length > 1 ? ` <small class="muted">(${g.recs.length} tablettes)</small>` : ''}</h2></div>${ranking(g.runs.map(({ r, p: q }) => ({ r, x: result(r, q) })), p)}`; $('#det').scrollIntoView({ behavior: 'smooth' }); });
       $('#exp').onclick = () => download(`course-orientation-${cls}.csv`, csv([

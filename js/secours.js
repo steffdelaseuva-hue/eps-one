@@ -49,7 +49,22 @@
   window.epsClsDeleted = (k, c) => { if (!c || !c.name) return; const o = lsGet(DEL, {}); o[k + '|' + c.name] = Date.now(); lsSet(DEL, o); };
   const delOK = (k, n) => { const t = lsGet(DEL, {})[k + '|' + n]; return t && Date.now() - t < DEL_DAYS * 864e5; };
   // out = résultat de la fusion ; rem = version du serveur / cloud
+  /* Garde du C.O. et du cross : lieux, parcours, séances, épreuves de cross ne sont retirés du compte
+     que par une suppression volontaire faite sur cet appareil (epsItemDeleted). */
+  const IT = { co: ['lieux', 'parcours', 'seances'], cross: ['events'] };
+  window.epsItemDeleted = (k, id) => { if (id == null) return; const o = lsGet(DEL, {}); o['it|' + k + '|' + id] = Date.now(); lsSet(DEL, o); };
+  const itDel = (k, id) => { const t = lsGet(DEL, {})['it|' + k + '|' + id]; return t && Date.now() - t < DEL_DAYS * 864e5; };
+  const keepItems = (k, out, rem) => {
+    if (!IT[k] || !out || typeof out !== 'object' || Array.isArray(out) || !rem || typeof rem !== 'object') return out;
+    let res = out;
+    IT[k].forEach(f => { const R = rem[f]; if (!Array.isArray(R)) return; const O = Array.isArray(out[f]) ? out[f] : [], have = new Set(O.map(x => x && x.id));
+      const back = R.filter(x => x && x.id != null && !have.has(x.id) && !itDel(k, x.id)); if (!back.length) return;
+      try { console.warn('EPS ONE : éléments gardés (suppression non volontaire évitée)', k, f, back.map(x => x.nom || x.name)); } catch (e) {}
+      if (res === out) res = { ...out }; res[f] = [...O, ...JSON.parse(JSON.stringify(back))]; });
+    return res;
+  };
   window.epsClsKeep = (k, out, rem) => {
+    if (IT[k]) return keepItems(k, out, rem);
     if (!CK.includes(k) || !Array.isArray(out) || !Array.isArray(rem)) return out;
     const have = new Set(out.map(c => c && c.name)), back = rem.filter(c => c && c.name && !have.has(c.name) && !delOK(k, c.name));
     if (!back.length) return out;
@@ -92,16 +107,33 @@
   }
   setTimeout(banner, 1500);
 
+  /* Récupération « sans rien supprimer » : ajoute à l'état actuel les lieux, parcours, séances de C.O. et épreuves de cross
+     d'une copie, quand ils sont absents (même identifiant). Le reste des données n'est pas touché. */
+  function restoreCO(o) {
+    let n = { lieux: 0, parcours: 0, seances: 0, cross: 0 };
+    const add = (cur, arr, cnt) => { (arr || []).forEach(x => { if (x && x.id != null && !cur.some(y => y && y.id === x.id)) { cur.push(JSON.parse(JSON.stringify(x))); n[cnt]++; } }); };
+    epsClsGuardOff(() => {
+      if (o.co) { DB.co = DB.co || { parcours: [], seances: [], current: null }; DB.co.lieux = DB.co.lieux || []; DB.co.parcours = DB.co.parcours || []; DB.co.seances = DB.co.seances || [];
+        add(DB.co.lieux, o.co.lieux, 'lieux'); add(DB.co.parcours, o.co.parcours, 'parcours'); add(DB.co.seances, o.co.seances, 'seances'); }
+      if (o.cross && Array.isArray(o.cross.events)) { DB.cross = DB.cross || { events: [] }; DB.cross.events = DB.cross.events || []; add(DB.cross.events, o.cross.events, 'cross'); }
+    });
+    return n;
+  }
+  const coMsg = n => { const t = [n.lieux && `${n.lieux} lieu${n.lieux > 1 ? 'x' : ''}`, n.parcours && `${n.parcours} parcours`, n.seances && `${n.seances} séance${n.seances > 1 ? 's' : ''} de C.O.`, n.cross && `${n.cross} cross`].filter(Boolean); return t.length ? t.join(' · ') + ' récupéré(s) ✔' : 'Rien à récupérer : tout est déjà présent'; };
+  const coCount = j => { try { const o = JSON.parse(j); return { l: ((o.co || {}).lieux || []).length, p: ((o.co || {}).parcours || []).length, x: ((o.cross || {}).events || []).length }; } catch (e) { return { l: 0, p: 0, x: 0 }; } };
+
   /* ---------- Écran « Copies de secours » ---------- */
   window.openBackups = () => openPanel('Copies de secours', el => {
     const draw = async () => {
       let L = []; try { L = await bakAll(); } catch (e) {}
       const lost = lsGet(LOST, []);
       el.innerHTML = `<div class="card"><b>🛟 Copies de secours automatiques</b><p class="muted" style="margin:6px 0 0;font-size:.85rem">Une copie par jour, à la première ouverture de l'app (${KEEP} derniers jours), sur <b>cette</b> tablette. Les photos et vidéos ne sont pas dedans (elles sont rangées à part).</p>
+          <button class="btn btn-grad btn-block" style="margin-top:10px" id="bk-file">📂 Récupérer C.O. + cross depuis un fichier de secours (.json)</button><input type="file" id="bk-fi" accept=".json,application/json" multiple hidden>
           <button class="btn btn-ghost btn-block" style="margin-top:10px" id="bk-now">📸 Faire une copie maintenant</button></div>
         ${L.length ? L.map((x, i) => `<div class="card" style="margin-top:10px"><div style="display:flex;justify-content:space-between;gap:8px;align-items:center"><div><b>${new Date(x.t).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}</b> <span class="muted">· ${new Date(x.t).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</span>
-            <div class="muted" style="font-size:.82rem">${x.nc} classe${x.nc > 1 ? 's' : ''} · ${x.nr} résultat${x.nr > 1 ? 's' : ''} · ${Math.round(x.j.length / 1024)} Ko</div></div></div>
+            <div class="muted" style="font-size:.82rem">${x.nc} classe${x.nc > 1 ? 's' : ''} · ${x.nr} résultat${x.nr > 1 ? 's' : ''} · ${(() => { const c = coCount(x.j); return `🧭 ${c.l} lieu${c.l > 1 ? 'x' : ''}, ${c.p} parcours · 🏃 ${c.x} cross`; })()} · ${Math.round(x.j.length / 1024)} Ko</div></div></div>
             <div class="row" style="margin-top:8px;gap:6px"><button class="btn btn-grad" style="padding:9px" data-rc="${i}">↶ Récupérer les classes manquantes</button><button class="btn btn-ghost" style="padding:9px" data-dl="${i}">⬇️ Télécharger</button></div>
+            <button class="btn btn-ghost btn-block" style="margin-top:6px;padding:9px" data-rco="${i}">🧭 Récupérer C.O. + cross (sans rien supprimer)</button>
             <button class="btn btn-ghost btn-block" style="margin-top:6px;padding:9px;font-size:.85rem" data-ra="${i}">⚠️ Tout remettre comme ce jour-là</button></div>`).join('')
           : '<div class="card empty" style="margin-top:10px">Pas encore de copie : elle sera faite à la prochaine ouverture de l\'app (ou touchez « Faire une copie maintenant »).</div>'}
         ${lost.length ? `<div class="section-title"><h2>Classes supprimées par la synchronisation</h2></div>${lost.map((x, i) => `<div class="list-item"><div style="flex:1"><b>${x.list.map(c => esc(c.name)).join(', ')}</b><div class="muted" style="font-size:.8rem">${new Date(x.t).toLocaleString('fr-FR')}</div></div><button class="btn btn-grad" style="flex:0 0 auto;padding:8px 12px" data-lr="${i}">↶ Restaurer</button></div>`).join('')}` : ''}`;
@@ -117,6 +149,10 @@
         const o = JSON.parse(x.j); Object.keys(DB).forEach(k => { if (IMG.test(k)) o[k] = DB[k]; });   // garder les photos
         epsClsGuardOff(() => { DB = Object.assign({ favs: [], recent: [], classes: [], dispenses: [], oublis: {}, journal: [], grilles: [], suivi: {}, debrief: [], annee: DB.annee }, o); window.teamInstall && teamInstall(); });
         saveNow(); window.syncFlush && window.syncFlush(); try { renderHome(); } catch (e) {} toast('Données restaurées ✔'); draw(); });
+      A('[data-rco]').forEach(b => b.onclick = () => { const n = restoreCO(JSON.parse(L[+b.dataset.rco].j)); save(); window.syncFlush && window.syncFlush(); try { renderHome(); } catch (e) {} toast(coMsg(n)); });
+      { const fb = el.querySelector('#bk-file'), fi = el.querySelector('#bk-fi'); if (fb) fb.onclick = () => fi.click();
+        if (fi) fi.onchange = async () => { for (const f of [...fi.files]) { try { const o = JSON.parse(await f.text()); const n = restoreCO(o); save(); toast(f.name + ' : ' + coMsg(n)); } catch (e) { toast('Fichier illisible : ' + f.name); } }
+          window.syncFlush && window.syncFlush(); try { renderHome(); } catch (e) {} fi.value = ''; }; }
       A('[data-lr]').forEach(b => b.onclick = () => { const x = lost[+b.dataset.lr]; const n = epsClsGuardOff(() => restoreList(x.k, x.list));
         save(); window.syncFlush && window.syncFlush(); try { renderHome(); } catch (e) {} toast(n ? `${n} classe${n > 1 ? 's' : ''} restaurée${n > 1 ? 's' : ''} ✔` : 'Classes déjà présentes'); });
     };

@@ -156,6 +156,7 @@ const SPORTS = {
   tt:       { name: 'Tennis de table', coll: false, type: 'points', target: 11, ecart: true, score: [{ l: 'Point +1', p: 1 }] },
 };
 const BONUS_VALUES = [1, 2, 3, 5, 10, 100, 1000];
+
 /* Observations individuelles : critères selon le sport */
 function obsCrit(sport) {
   const sp = SPORTS[sport];
@@ -359,6 +360,7 @@ function epsMatchPies(m) {
   if (!m.simple && (m.ev || []).length) { const A = by(0), B = by(1); if (A.length > 1 || B.length > 1) P.push(epsPie(A, `Points de ${esc(m.a)}`), epsPie(B, `Points de ${esc(m.b)}`)); }
   if (!m.simple && (m.ev || []).some(e => e.kind === 'bonus')) [0, 1].forEach(t => { const E = (m.ev || []).filter(e => e.team === t && e.pts), nb = E.filter(e => e.kind === 'bonus').reduce((a, e) => a + e.pts, 0), nn = E.filter(e => e.kind === 'score').reduce((a, e) => a + e.pts, 0);
     P.push(epsPie([{ l: 'Points normaux', v: nn, c: t ? '#1E5BD8' : '#B8912A' }, { l: 'Points bonus', v: nb, c: '#1B9E5A' }], `${esc(t ? m.b : m.a)} : normaux / bonus`)); });
+  if (!m.simple && (m.ev || []).some(e => e.kind === 'bonus')) [0, 1].forEach(t => { const o = {}; (m.ev || []).filter(e => e.team === t && (e.kind === 'score' || e.kind === 'bonus')).forEach(e => { const l = epsEvLabel(e); o[l] = (o[l] || 0) + 1; }); P.push(epsPie(epsSegs(o), `${esc(t ? m.b : m.a)} : points bonus et points normaux : nombre de chaque type`)); });
   return P;
 }
 /* Camemberts d'une liste de matchs (tournoi) : points marqués et victoires par équipe */
@@ -368,7 +370,23 @@ function epsMatchesPies(ms) {
     if (a === b) res.Nuls++; else { res.Victoires++; const w = a > b ? m.a : m.b; win[w] = (win[w] || 0) + 1; } });
   if (!Object.keys(pts).length) return [];
   const nb = { 'Points normaux': 0, 'Points bonus': 0 }; (ms || []).filter(m => !m.obsOnly).forEach(m => (m.ev || []).forEach(e => { if (e.kind === 'bonus') nb['Points bonus'] += e.pts || 0; else if (e.kind === 'score') nb['Points normaux'] += e.pts || 0; }));
-  return [epsPie(epsSegs(pts), 'Points marqués'), epsPie(epsSegs(win), 'Victoires'), res.Nuls ? epsPie([{ l: 'Matchs gagnés', v: res.Victoires, c: '#1B9E5A' }, { l: 'Matchs nuls', v: res.Nuls, c: '#C9A227' }], 'Issues des matchs') : '', nb['Points bonus'] ? epsPie([{ l: 'Points normaux', v: nb['Points normaux'], c: '#1E5BD8' }, { l: 'Points bonus', v: nb['Points bonus'], c: '#1B9E5A' }], 'Points normaux / bonus') : ''];
+  return [epsPie(epsSegs(pts), 'Points marqués'), epsPie(epsSegs(win), 'Victoires'), res.Nuls ? epsPie([{ l: 'Matchs gagnés', v: res.Victoires, c: '#1B9E5A' }, { l: 'Matchs nuls', v: res.Nuls, c: '#C9A227' }], 'Issues des matchs') : '', nb['Points bonus'] ? epsPie([{ l: 'Points normaux', v: nb['Points normaux'], c: '#1E5BD8' }, { l: 'Points bonus', v: nb['Points bonus'], c: '#1B9E5A' }], 'Points normaux / bonus') : '', epsTeamSynth(ms)];
+}
+/* Synthèse PAR ÉQUIPE d'un tournoi : points normaux / bonus (nombre et %), et nombre de points de chaque type
+   (point normal, bonus +N…) pour suivre la maîtrise collective */
+const epsEvLabel = e => e.kind === 'bonus' ? `Bonus +${e.pts}` : (e.label || 'Point');
+function epsTeamSynth(ms) {
+  const T = {}; (ms || []).filter(m => !m.obsOnly).forEach(m => (m.ev || []).forEach(e => { if (e.kind !== 'score' && e.kind !== 'bonus') return; const nm = e.team ? m.b : m.a; if (!nm) return;
+    const x = T[nm] = T[nm] || { n: 0, b: 0, types: {} }; if (e.kind === 'bonus') x.b += e.pts || 0; else x.n += e.pts || 0; const l = epsEvLabel(e), y = x.types[l] = x.types[l] || { n: 0, pts: 0 }; y.n++; y.pts += e.pts || 0; }));
+  const names = Object.keys(T).sort((a, b) => (T[b].n + T[b].b) - (T[a].n + T[a].b) || a.localeCompare(b, 'fr', { numeric: true }));
+  if (!names.length) return '';
+  const pc = (v, t) => t ? Math.round(v / t * 100) + ' %' : '–';
+  const rows = names.map(n => { const x = T[n], tot = x.n + x.b, nt = Object.values(x.types).reduce((a, v) => a + v.n, 0);
+    return `<tr><td style="text-align:left"><b>${esc(n)}</b><div class="muted" style="font-size:.74rem;line-height:1.5;font-weight:600">${Object.entries(x.types).sort((a, b) => b[1].n - a[1].n).map(([l, v]) => `<span style="white-space:nowrap">${esc(l)} <b>×${v.n}</b>${v.pts ? ` = ${v.pts} pts` : ''} (${pc(v.n, nt)})</span>`).join(' · ')}</div></td><td>${x.n}</td><td>${x.b}</td><td><b>${tot}</b></td><td>${pc(x.b, tot)}</td></tr>`; }).join('');
+  const det = names.map(n => { const x = T[n], tt = epsSegs(Object.fromEntries(Object.entries(x.types).map(([l, v]) => [l + (v.pts ? ` (${v.pts} pts)` : ''), v.n])));
+    const P = [x.n + x.b ? epsPie([{ l: 'Points normaux', v: x.n, c: '#1E5BD8' }, { l: 'Points bonus', v: x.b, c: '#1B9E5A' }], 'Points normaux / bonus', 110) : '', tt.length > 1 ? epsPie(tt, 'Nombre de chaque type de point', 110) : ''].filter(Boolean);
+    return P.length ? `<details style="margin-top:6px;border:1.5px solid var(--line);border-radius:12px;padding:6px 10px"><summary style="font-weight:800;cursor:pointer">${esc(n)} <span class="muted" style="font-weight:600">· ${x.n} normaux + ${x.b} bonus</span></summary><div class="pie-wrap" style="margin-top:8px">${P.join('')}</div></details>` : ''; }).join('');
+  return `<div style="flex:1 1 100%;width:100%;margin-top:10px"><b>📋 Par équipe : points normaux / bonus</b><div class="sheet-table" style="margin-top:6px"><table><tr><th style="text-align:left">Équipe · nombre de chaque type de point</th><th>Normaux</th><th>Bonus</th><th>Total</th><th>% bonus</th></tr>${rows}</table></div>${det}</div>`;
 }
 /* Synthèse individuelle d'un élève (matchs, observations, lutte) */
 function epsStudentPies(n) {

@@ -4,9 +4,14 @@
    ========================================================= */
 /* Page Ko-fi : laisser vide tant qu'elle n'existe pas (le bouton est alors masqué) */
 const KOFI_URL = 'https://ko-fi.com/epsone';
-const APP_VERSION = '23.17';
+const APP_VERSION = '23.23';
 const APP_URL = 'https://steffdelaseuva-hue.github.io/eps-one/';
 const CHANGELOG = [
+  { v: '23.23', items: ['Protection du C.O. et du cross : la synchronisation ne peut plus retirer un lieu, un parcours, une séance de C.O. ou une épreuve de cross — seule une suppression volontaire faite sur l\'appareil les retire.', 'Plus → Copies de secours : nombre de lieux / parcours / cross indiqué pour chaque copie, « 🧭 Récupérer C.O. + cross » (ajoute ce qui manque sans rien supprimer ni toucher aux classes et validations) et récupération depuis un fichier .json de secours.'] },
+  { v: '23.22', items: ['Synthèse de match / tournoi par équipe : points normaux et points bonus (nombre et %), nombre de fois où chaque bonus a été cliqué (ex. 3 × +100, 5 × +10) avec ses camemberts. Réglages de match inchangés.'] },
+  { v: '23.21', items: ['Validation enseignant : poids dans la note — chaque rubrique (Attaque, Défense…) pèse un % de la note et chaque critère un % de sa rubrique (répartition équitable en un bouton, ou % au choix) ; note ramenée sur 20, sous-notes par rubrique.', ] },
+  { v: '23.20', items: ['Validation enseignant : option « Noter sur 20 » par fourchettes de points selon le niveau de maîtrise (par défaut 0-5 · 6-10 · 11-15 · 16-20, modifiables) ; pour chaque critère on touche le niveau puis la note exacte dans la fourchette ; note de l\'élève = moyenne des critères, affichée par élève, dans le tableau de la classe, le CSV et les résultats enregistrés.'] },
+  { v: '23.18', items: ['Crosstraining / HYROX : l\'objectif d\'un bloc peut être « Tout le corps — Mélange » (en plus de bas du corps, haut du corps, cardio, gainage) ; la liste des exercices propose alors toutes les familles.'] },
   { v: '23.17', items: ['📊 Bilan : ajout des résultats collectifs (tournois, matchs, HYROX, C.O. par équipes, relais, cross) et des grilles d\'évaluation (niveaux en couleurs, note /20, camembert des niveaux).'] },
   { v: '23.16', items: ['📊 Exporter un bilan : fichier HTML en couleurs (camemberts, tableaux élèves × outils, détail par outil) pour chaque classe, à envoyer, ouvrir ou imprimer en PDF. Fabriqué à la demande : aucun stockage supplémentaire.'] },
   { v: '23.15', items: ['Espace utilisé : la copie de synchronisation (2 à 3 Mo) est rangée à part (IndexedDB) et ne remplit plus la mémoire de la tablette ; affichage des plus gros postes de données.'] },
