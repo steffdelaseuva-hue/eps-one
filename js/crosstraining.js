@@ -113,6 +113,65 @@ document.head.insertAdjacentHTML('beforeend', `<style>
 .wod-vs button.on{color:#fff;border-color:transparent}
 </style>`);
 
+/* ---- fonctions de séance HYROX / Crosstraining (hors de l'écran : aussi utilisées par le bilan) ---- */
+const resOf = (g, e) => { const t = g.dep && g.arr ? (g.arr - g.dep) / 1000 : null;
+  return { t, ecart: t != null ? t - e.prevu * 60 : null, cap: g.capped || (t != null && t > e.cap * 60) }; };
+
+// Liste des étapes à cocher : pour chaque bloc, chaque série, (RUN) + exercices
+// Duo/trio/quatuor : profil (Élève 1…n) → membre du groupe ; plan d'un profil (ajustements du groupe avant le départ dans g.plan)
+// g.prof absent (anciennes séances) : un membre peut prendre plusieurs profils (rotation) · g.prof présent : '' = profil vide (absent)
+const profOf = (g, n) => { const M = g.members || [];
+  if (!Array.isArray(g.prof)) return Array.from({ length: n }, (_, s) => M.length ? M[s % M.length] : '');
+  const Q = Array.from({ length: n }, (_, s) => { const p = g.prof[s]; return p === '' ? '' : p && M.includes(p) ? p : null; }), free = M.filter(m => !Q.includes(m));
+  return Q.map(p => p != null ? p : free.shift() || ''); };
+const profInit = (members, n) => Array.from({ length: n }, (_, s) => members[s] || '');
+const planOf = (g, e, k, s) => (g && g.plan && g.plan[k] && g.plan[k][s]) || e.blocs[k].pe[s] || [];
+const exTxt = x => `${x.reps} ${x.nom}${/gainage/i.test(x.nom) ? ' (s)' : ''} · N${x.niv}`;
+// Liste des étapes à cocher : pour chaque bloc, chaque série, (RUN) + exercices (duo/trio/quatuor : une colonne par élève dans cols)
+const itemsOf = (e, g) => { const n = wodMulti(e), P = n && g ? profOf(g, n) : []; return e.blocs.map((b, k) => { const L = [];
+  for (let sr = 0; sr < (b.series || 1); sr++) {
+    const runN = runCount(b), unit = b.runType === 'ar' ? 'aller-retour' : 'tour';
+    const runIt = (base, s) => !b.run ? [] : runN > 1
+      ? Array.from({ length: runN }, (_, i) => ({ id: i ? `${base}${i}` : base, s, nom: '🏃 RUN', reps: 1, run: 1, txt: `🏃 RUN ${i + 1} / ${runN} · 1 ${unit}` }))
+      : [{ id: base, s, nom: '🏃 RUN', reps: 1, run: 1, txt: `🏃 RUN ${b.runVal} ${RUN_T[b.runType] || ''}` }];
+    const perStu = n && b.runBy === 'e', run = perStu ? [] : runIt(`${k}-${sr}-r`).map(it => ({ ...it, s: undefined }));
+    if (n) { const cols = Array.from({ length: n }, (_, s) => [...(perStu ? runIt(`${k}-${sr}-p${s}-r`, s) : []), ...planOf(g, e, k, s).map((x, j) => { const f = famOf(x.nom);
+        return { id: `${k}-${sr}-p${s}-${j}`, s, f, nom: x.nom, niv: x.niv, reps: +x.reps || 0, col: f != null ? WOD_COL[f] : null, txt: exTxt(x) }; })]);
+      const act = cols.filter((_, s) => !g || P[s] !== '').flat();          // profil vide (absent) : pas à cocher
+      L.push({ sr, run, cols, list: e.sport === 'hyrox' ? [...run, ...act] : [...act, ...run] }); continue; }
+    const ex = b.ex.map((x, j) => ({ id: `${k}-${sr}-${j}`, col: (exMeta(x.nom) || {}).f != null ? WOD_COL[exMeta(x.nom).f] : null, txt: exTxt(x) }));
+    L.push({ sr, list: e.sport === 'hyrox' ? [...run, ...ex] : [...ex, ...run] }); }
+  return L; }); };
+const progOf = (g, e) => { const all = itemsOf(e, g).flat().flatMap(x => x.list); return [all.filter(x => g.checks && g.checks[x.id]).length, all.length]; };
+// Bilan d'un bloc : ce que chaque élève a fait (exercices, rép. faites / prévues) et cumul du groupe par famille vs objectif
+const bilanOf = (g, e, k, IT) => { const n = wodMulti(e), b = e.blocs[k], ser = (IT || itemsOf(e, g))[k], P = profOf(g, n), ck = g.checks || {}, pt = g.part || {};
+  const stu = Array.from({ length: n }, (_, s) => { const m = new Map();
+    ser.forEach(x => x.cols[s].forEach(it => { const key = it.nom + '|' + it.niv, o = m.get(key) || { nom: it.nom, niv: it.niv, f: it.f, done: 0, plan: 0 }; o.plan += it.reps; if (ck[it.id]) o.done += it.reps; else if (pt[it.id]) o.done += Math.min(it.reps, pt[it.id]); m.set(key, o); }));
+    return { s, name: P[s], empty: P[s] === '', ex: [...m.values()] }; });
+  const act = stu.filter(x => !x.empty);
+  const F = [...new Set([...act.flatMap(x => x.ex.map(y => y.f)).filter(f => f != null), ...Object.keys(b.obj || {}).filter(f => +b.obj[f] > 0).map(Number)])].sort();
+  const fam = F.map(f => { const parts = act.flatMap(x => x.ex.filter(y => y.f === f).map(y => ({ ...y, s: x.s, name: x.name })));
+    return { f, parts, done: parts.reduce((a, y) => a + y.done, 0), plan: parts.reduce((a, y) => a + y.plan, 0), target: (+(b.obj || {})[f] || 0) * (b.series || 1) }; });
+  const R = ser.flatMap(x => x.run || []), run = b.run && R.length ? { done: R.filter(it => ck[it.id]).length, tot: R.length } : null;
+  return { stu, fam, run }; };
+/* Données structurées d'une séance enregistrée, pour le bilan (tableaux par groupe : élèves × exercices) */
+const wodStruct = rec => { const e = rec.snap, nM = wodMulti(e);
+  return { id: rec.id, date: rec.date, classe: rec.classe, nom: e.nom, prevu: e.prevu, cap: e.cap, nM,
+    groups: (rec.groups || []).map(g => { const r = resOf(g, e), IT = itemsOf(e, g);
+      const blocks = e.blocs.map((b, k) => {
+        if (nM) { const B = bilanOf(g, e, k, IT), cols = [];
+          B.stu.filter(x => !x.empty).forEach(x => x.ex.forEach(y => { if (!cols.some(c => c.nom === y.nom && c.niv === y.niv)) cols.push({ nom: y.nom, niv: y.niv, f: y.f }); }));
+          cols.sort((p, q) => (p.f == null ? 9 : p.f) - (q.f == null ? 9 : q.f));
+          const rows = B.stu.filter(x => !x.empty).map(x => ({ name: x.name, s: x.s, cells: cols.map(c => { const y = x.ex.find(z => z.nom === c.nom && z.niv === c.niv); return y ? { done: y.done, plan: y.plan } : null; }) }));
+          return { k, cols, rows, fam: B.fam.map(x => ({ f: x.f, done: x.done, target: x.target || x.plan, goal: !!x.target })), run: B.run }; }
+        const ck = g.checks || {}, pt = g.part || {}, sr = b.series || 1;
+        const cols = (b.ex || []).map((x, j) => ({ nom: x.nom, niv: x.niv, f: famOf(x.nom), j, reps: +x.reps || 0 })); cols.sort((p, q) => (p.f == null ? 9 : p.f) - (q.f == null ? 9 : q.f));
+        const cell = c => { let done = 0; for (let i = 0; i < sr; i++) { const id = `${k}-${i}-${c.j}`; if (ck[id]) done += c.reps; else if (pt[id]) done += Math.min(c.reps, pt[id]); } return { done, plan: c.reps * sr }; };
+        return { k, cols, rows: (g.members || []).map(n => ({ name: n, cells: cols.map(cell) })), fam: [], run: null }; });
+      return { name: g.name, members: g.members || [], t: r.t, ecart: r.ecart, capped: r.cap, blocks }; }) }; };
+window.epsWodSeances = cls => (DB.wod && Array.isArray(DB.wod.seances) ? DB.wod.seances : []).filter(x => x && x.snap && (!cls || x.classe === cls)).map(x => { try { return wodStruct(x); } catch (er) { return null; } }).filter(Boolean);
+window.epsWodFam = { names: WOD_FAM.map(f => f.split(' — ')[0]), cols: WOD_COL };
+
 TOOL_IMPL.wod = function (el) {
   wodMigrate();
   let tab = DB.wod.current || partToday('wod').length || partRecoverHTML('wod') ? 'seance' : 'epreuves';
@@ -261,46 +320,6 @@ TOOL_IMPL.wod = function (el) {
   }
 
   /* ================= 2. SÉANCE ================= */
-  const resOf = (g, e) => { const t = g.dep && g.arr ? (g.arr - g.dep) / 1000 : null;
-    return { t, ecart: t != null ? t - e.prevu * 60 : null, cap: g.capped || (t != null && t > e.cap * 60) }; };
-
-  // Liste des étapes à cocher : pour chaque bloc, chaque série, (RUN) + exercices
-  // Duo/trio/quatuor : profil (Élève 1…n) → membre du groupe ; plan d'un profil (ajustements du groupe avant le départ dans g.plan)
-  // g.prof absent (anciennes séances) : un membre peut prendre plusieurs profils (rotation) · g.prof présent : '' = profil vide (absent)
-  const profOf = (g, n) => { const M = g.members || [];
-    if (!Array.isArray(g.prof)) return Array.from({ length: n }, (_, s) => M.length ? M[s % M.length] : '');
-    const Q = Array.from({ length: n }, (_, s) => { const p = g.prof[s]; return p === '' ? '' : p && M.includes(p) ? p : null; }), free = M.filter(m => !Q.includes(m));
-    return Q.map(p => p != null ? p : free.shift() || ''); };
-  const profInit = (members, n) => Array.from({ length: n }, (_, s) => members[s] || '');
-  const planOf = (g, e, k, s) => (g && g.plan && g.plan[k] && g.plan[k][s]) || e.blocs[k].pe[s] || [];
-  const exTxt = x => `${x.reps} ${x.nom}${/gainage/i.test(x.nom) ? ' (s)' : ''} · N${x.niv}`;
-  // Liste des étapes à cocher : pour chaque bloc, chaque série, (RUN) + exercices (duo/trio/quatuor : une colonne par élève dans cols)
-  const itemsOf = (e, g) => { const n = wodMulti(e), P = n && g ? profOf(g, n) : []; return e.blocs.map((b, k) => { const L = [];
-    for (let sr = 0; sr < (b.series || 1); sr++) {
-      const runN = runCount(b), unit = b.runType === 'ar' ? 'aller-retour' : 'tour';
-      const runIt = (base, s) => !b.run ? [] : runN > 1
-        ? Array.from({ length: runN }, (_, i) => ({ id: i ? `${base}${i}` : base, s, nom: '🏃 RUN', reps: 1, run: 1, txt: `🏃 RUN ${i + 1} / ${runN} · 1 ${unit}` }))
-        : [{ id: base, s, nom: '🏃 RUN', reps: 1, run: 1, txt: `🏃 RUN ${b.runVal} ${RUN_T[b.runType] || ''}` }];
-      const perStu = n && b.runBy === 'e', run = perStu ? [] : runIt(`${k}-${sr}-r`).map(it => ({ ...it, s: undefined }));
-      if (n) { const cols = Array.from({ length: n }, (_, s) => [...(perStu ? runIt(`${k}-${sr}-p${s}-r`, s) : []), ...planOf(g, e, k, s).map((x, j) => { const f = famOf(x.nom);
-          return { id: `${k}-${sr}-p${s}-${j}`, s, f, nom: x.nom, niv: x.niv, reps: +x.reps || 0, col: f != null ? WOD_COL[f] : null, txt: exTxt(x) }; })]);
-        const act = cols.filter((_, s) => !g || P[s] !== '').flat();          // profil vide (absent) : pas à cocher
-        L.push({ sr, run, cols, list: e.sport === 'hyrox' ? [...run, ...act] : [...act, ...run] }); continue; }
-      const ex = b.ex.map((x, j) => ({ id: `${k}-${sr}-${j}`, col: (exMeta(x.nom) || {}).f != null ? WOD_COL[exMeta(x.nom).f] : null, txt: exTxt(x) }));
-      L.push({ sr, list: e.sport === 'hyrox' ? [...run, ...ex] : [...ex, ...run] }); }
-    return L; }); };
-  const progOf = (g, e) => { const all = itemsOf(e, g).flat().flatMap(x => x.list); return [all.filter(x => g.checks && g.checks[x.id]).length, all.length]; };
-  // Bilan d'un bloc : ce que chaque élève a fait (exercices, rép. faites / prévues) et cumul du groupe par famille vs objectif
-  const bilanOf = (g, e, k, IT) => { const n = wodMulti(e), b = e.blocs[k], ser = (IT || itemsOf(e, g))[k], P = profOf(g, n), ck = g.checks || {}, pt = g.part || {};
-    const stu = Array.from({ length: n }, (_, s) => { const m = new Map();
-      ser.forEach(x => x.cols[s].forEach(it => { const key = it.nom + '|' + it.niv, o = m.get(key) || { nom: it.nom, niv: it.niv, f: it.f, done: 0, plan: 0 }; o.plan += it.reps; if (ck[it.id]) o.done += it.reps; else if (pt[it.id]) o.done += Math.min(it.reps, pt[it.id]); m.set(key, o); }));
-      return { s, name: P[s], empty: P[s] === '', ex: [...m.values()] }; });
-    const act = stu.filter(x => !x.empty);
-    const F = [...new Set([...act.flatMap(x => x.ex.map(y => y.f)).filter(f => f != null), ...Object.keys(b.obj || {}).filter(f => +b.obj[f] > 0).map(Number)])].sort();
-    const fam = F.map(f => { const parts = act.flatMap(x => x.ex.filter(y => y.f === f).map(y => ({ ...y, s: x.s, name: x.name })));
-      return { f, parts, done: parts.reduce((a, y) => a + y.done, 0), plan: parts.reduce((a, y) => a + y.plan, 0), target: (+(b.obj || {})[f] || 0) * (b.series || 1) }; });
-    const R = ser.flatMap(x => x.run || []), run = b.run && R.length ? { done: R.filter(it => ck[it.id]).length, tot: R.length } : null;
-    return { stu, fam, run }; };
   // pastilles « cumul du groupe » par famille (pre = avant le départ : on affiche l'objectif)
   const famChips = (fam, pre, lbl) => fam.length ? `<div class="wod-fam">${lbl ? `<b style="align-self:center;font-size:.8rem">${lbl}</b>` : ''}${fam.map(x => { const tg = x.target || x.plan, ok = !pre && tg && x.done >= tg;
     return `<span class="${ok ? 'ok' : ''}"><i class="wod-dot" style="background:${WOD_COL[x.f]}"></i>${famShort(x.f)} <b>${pre ? (x.target ? '🎯 ' + tg : tg) : x.done + '/' + tg}</b>${x.target ? (pre ? ' <small class="muted">rép. à cumuler</small>' : '') : ' <small class="muted">prévu</small>'}${ok ? ' ✔' : ''}</span>`; }).join('')}</div>` : '';

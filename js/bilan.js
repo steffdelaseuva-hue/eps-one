@@ -41,6 +41,39 @@ function bilanExtras(cls, opt) {
   return { html, nColl, nGr };
 }
 
+
+/* HYROX / Crosstraining : tableaux par groupe (élèves × exercices), couleurs par famille, temps et écart du groupe */
+function bilanWod(cls) {
+  if (typeof epsWodSeances !== 'function') return '';
+  const S0 = epsWodSeances(cls).sort((a, b) => a.date - b.date); if (!S0.length) return '';
+  const S = []; S0.forEach(x => { const k = new Date(x.date).toDateString() + '|' + (x.nom || '') + '|' + x.prevu; let y = S.find(z => z.k === k); if (!y) S.push(y = { ...x, k, groups: [] }); y.groups.push(...x.groups); });   // une tablette par groupe : on réunit les groupes d'une même épreuve du même jour
+  const FN = (window.epsWodFam || {}).names || ['Bas du corps', 'Haut du corps', 'Cardio', 'Résistance'], FC = (window.epsWodFam || {}).cols || ['#1FA2E8', '#E53935', '#F4B400', '#43A047'];
+  const mm = s => { if (s == null || isNaN(s)) return '–'; const neg = s < 0; s = Math.abs(Math.round(s)); return (neg ? '−' : '') + Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
+  const tint = c => c + '26', fcol = f => f == null ? '#6B7280' : FC[f], fnm = f => f == null ? 'RUN / autre' : FN[f];
+  const natural = (a, b) => String(a.name).localeCompare(String(b.name), 'fr', { numeric: true });
+  // validation enseignant (maîtrise par critère), si elle existe pour cette classe
+  const vk = typeof valHasSet === 'function' && valHasSet('wod', valLevelOf(cls)) ? 'wod@' + valLevelOf(cls) : 'wod';
+  const VC = typeof valCrit === 'function' ? (() => { try { return valCrit(vk); } catch (e) { return []; } })() : [], VV = ((DB.valid || {}).v || {}).wod && DB.valid.v.wod[cls] || {};
+  const chips = n => { const W = VV[n]; if (!W || !VC.length) return ''; return VC.filter(c => W[c.id] != null).map(c => { const m = EPS_M[W[c.id]]; return `<span class="chip2" style="background:${m[1]}">${esc(String(c.n).replace(/^Maîtrise des exercices\s*/i, '').replace(/^Maîtrise\s*/i, ''))} · ${esc(m[2] || m[0])}</span>`; }).join(' '); };
+  return S.map(se => {
+    const gs = se.groups.slice().sort(natural);
+    const tbl = (g, bl) => { const col = bl.cols, fam = []; col.forEach(c => { const l = fam[fam.length - 1]; if (l && l.f === c.f) l.n++; else fam.push({ f: c.f, n: 1 }); });
+      const head = `<tr><th class="l" rowspan="2">Élève</th>${fam.map(x => `<th colspan="${x.n}" style="background:${fcol(x.f)}">${esc(fnm(x.f))}</th>`).join('')}</tr><tr>${col.map(c => `<th class="ex" style="background:${tint(fcol(c.f))};color:#0E1A33">${esc(c.nom)}${c.niv ? ` <small>N${c.niv}</small>` : ''}</th>`).join('')}</tr>`;
+      const rows = bl.rows.map(r => `<tr><td class="l"><b>${esc(r.name)}</b></td>${r.cells.map((x, i) => !x ? '<td class="none">–</td>' : `<td style="background:${tint(fcol(col[i].f))};font-weight:800">${x.done >= x.plan ? x.done + ' ✔' : `<span style="color:#B45309">${x.done}/${x.plan}</span>`}</td>`).join('')}</tr>`).join('');
+      const foot = bl.fam.length ? `<tr class="cum"><td class="l"><b>👥 Cumul du groupe</b></td>${fam.map(x => { const F = bl.fam.find(y => y.f === x.f); return `<td colspan="${x.n}" style="background:${F ? tint(fcol(x.f)) : '#fff'};font-weight:900">${F ? `${F.done} / ${F.target}${F.done >= F.target ? ' ✔' : ''}` : ''}</td>`; }).join('')}</tr>` : '';
+      const run = bl.run ? `<div class="mut" style="margin-top:4px">🏃 RUN du groupe : <b>${bl.run.done} / ${bl.run.tot}</b></div>` : '';
+      return `<div class="sc"><table class="wt">${head}${rows}${foot}</table></div>${run}`; };
+    const cards = gs.map(g => { const ok = g.ecart != null && g.ecart <= 0;
+      const valRows = g.members.map(n => [n, chips(n)]).filter(x => x[1]);
+      return `<div class="wg"><div class="wgh"><div><b>${esc(g.name)}</b><div class="mut" style="font-size:.78rem">${esc(g.members.join(' · '))}</div></div>
+        <div class="wgt">${g.t != null ? `<span class="tm">⏱ ${mm(g.t)}</span>` : '<span class="tm nt">non terminé</span>'}${g.ecart != null ? `<span class="ec" style="background:${ok ? '#1B9E5A' : '#D64545'}">écart ${g.ecart > 0 ? '+' : ''}${mm(g.ecart)} / ${se.prevu} min</span>` : ''}${g.capped ? '<span class="ec" style="background:#E0892F">⏱ time cap</span>' : ''}</div></div>
+        ${g.blocks.map((b, i) => `${g.blocks.length > 1 ? `<div style="font-weight:800;margin:8px 0 2px">Bloc ${b.k + 1}</div>` : ''}${tbl(g, b)}`).join('')}
+        ${valRows.length ? `<div class="vr"><b>✅ Validation enseignant</b>${valRows.map(([n, c]) => `<div><span>${esc(n)}</span><span>${c}</span></div>`).join('')}</div>` : ''}</div>`; }).join('');
+    const tg = gs.filter(g => g.t != null), best = tg.length ? tg.slice().sort((a, b) => Math.abs(a.ecart) - Math.abs(b.ecart))[0] : null;
+    const sumT = gs.length > 1 ? `<div class="sc"><table><tr><th class="l">Groupe</th><th>Temps</th><th>Écart / ${se.prevu} min</th></tr>${gs.map(g => `<tr><td class="l"><b>${esc(g.name)}</b> <span class="d">${esc(g.members.join(', '))}</span></td><td>${g.t != null ? mm(g.t) : '–'}${g.capped ? ' ⏱ cap' : ''}</td><td style="background:${g.ecart == null ? '#fff' : g.ecart <= 0 ? '#DDF3E7' : '#FBE0E0'};font-weight:800">${g.ecart != null ? (g.ecart > 0 ? '+' : '') + mm(g.ecart) : '–'}</td></tr>`).join('')}</table></div>` : '';
+    return `<div class="ev" style="border-left-color:#E53935"><div class="evh"><b>${esc(se.nom || 'Épreuve')}</b><span>${new Date(se.date).toLocaleDateString('fr-FR')} · prévu ${se.prevu} min · ${gs.length} groupe${gs.length > 1 ? 's' : ''}</span></div>${sumT}${cards}</div>`; }).join('');
+}
+
 function bilanHTML(opt) {
   const names = Object.fromEntries(TOOLS.map(t => [t.id, t.name])), tName = r => names[r.tool] || r.label || r.tool || 'Autre';
   const all = (DB.resultats || []).filter(r => r && r.classe && r.eleve && opt.classes.includes(r.classe) && (!opt.tools || opt.tools.includes(r.tool)));
@@ -59,7 +92,9 @@ function bilanHTML(opt) {
     const last = (n, t) => (byTool[t] || []).filter(r => r.eleve === n).sort((a, b) => b.date - a.date)[0];
     const matrix = `<h3>Tableau élèves × outils <small>(dernier résultat de chaque outil)</small></h3><div class="sc"><table class="mx"><tr><th class="l">Élève</th>${tools.map(t => `<th style="background:${tc[t]}">${esc(t)}</th>`).join('')}</tr>
       ${pupils.map(n => `<tr><td class="l"><b>${esc(n)}</b></td>${tools.map(t => { const r = last(n, t); return r ? `<td style="background:${tint(tc[t])}">${esc(String(r.valeur))}</td>` : '<td class="none">–</td>'; }).join('')}</tr>`).join('')}</table></div>`;
-    const blocks = tools.map(t => { const L = byTool[t].slice().sort((a, b) => (pupils.indexOf(a.eleve) - pupils.indexOf(b.eleve)) || a.date - b.date);
+    const blocks = tools.map(t => { let L = byTool[t].slice(); const wodX = L.some(r => r.tool === 'wod') ? (typeof bilanWod === 'function' ? bilanWod(cls) : '') : '';
+      if (wodX) { L = L.filter(r => !/^(wod\||valid\|wod)/.test(String(r.key || ''))); const head = `<h3 style="border-color:${tc[t]}"><span class="dot" style="background:${tc[t]}"></span>${esc(t)} <small>par groupe</small></h3>${wodX}`; if (!L.length) return head; return head + (() => { const L2 = L.slice().sort((a, b) => (pupils.indexOf(a.eleve) - pupils.indexOf(b.eleve)) || a.date - b.date); return `<div class="sc"><table><tr><th class="l">Élève</th><th>Date</th><th>Résultat</th><th class="l">Détail</th></tr>${L2.map(r => `<tr><td class="l"><b>${esc(r.eleve)}</b></td><td>${dt(r.date)}</td><td style="background:${tint(tc[t])};font-weight:800">${esc(String(r.valeur))}</td><td class="l d">${esc(String(r.detail || ''))}</td></tr>`).join('')}</table></div>`; })(); }
+      L = L.sort((a, b) => (pupils.indexOf(a.eleve) - pupils.indexOf(b.eleve)) || a.date - b.date);
       const num = r => { const m = /-?\d+(?:[.,]\d+)?/.exec(String(r.valeur)); return m && !/:/.test(String(r.valeur)) ? parseFloat(m[0].replace(',', '.')) : null; };
       const nums = L.map(num), ok = nums.filter(x => x != null).length >= 3, mx = ok ? Math.max(...nums.filter(x => x != null), 0) : 0;
       return `<h3 style="border-color:${tc[t]}"><span class="dot" style="background:${tc[t]}"></span>${esc(t)} <small>${L.length} résultat${L.length > 1 ? 's' : ''}</small></h3><div class="sc"><table><tr><th class="l">Élève</th><th>Date</th><th>Résultat</th>${ok ? '<th class="bar"></th>' : ''}<th class="l">Détail</th></tr>
@@ -91,6 +126,8 @@ h3{margin:20px 0 8px;font-size:1.05rem;border-bottom:2px solid #0B2A5B;padding-b
 td.bar{width:20%;padding:6px;text-align:left}td.bar i{display:block;height:10px;border-radius:99px}tr:nth-child(even) td:not([style]){background:#F8FAFD}
 .toc{columns:2;line-height:1.8}
 .ev{border:1px solid #D9DFEB;border-left:5px solid #C9A227;border-radius:10px;padding:10px 12px;margin:10px 0;break-inside:avoid}.evh{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap}.evh span{color:#667;font-size:.8rem}.lead{font-weight:700;font-size:.85rem;margin:4px 0}
+.wg{border:1px solid #D9DFEB;border-radius:12px;padding:10px 12px;margin:10px 0;break-inside:avoid}.wgh{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:flex-start;margin-bottom:6px}.wgt{display:flex;gap:6px;flex-wrap:wrap;align-items:center}.tm{font-weight:900;font-size:1.05rem;color:#0B2A5B}.tm.nt{color:#889;font-size:.85rem}.ec{color:#fff;font-weight:800;font-size:.78rem;border-radius:99px;padding:3px 10px}
+table.wt th{font-size:.78rem}th.ex{font-weight:700;font-size:.74rem}table.wt td{font-size:.86rem}tr.cum td{border-top:2px solid #0B2A5B}.vr{margin-top:8px;font-size:.82rem}.vr>div{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:3px 0;border-top:1px solid #EEF1F7}.vr>div>span:first-child{width:180px;font-weight:700}.chip2{display:inline-block;color:#fff;font-size:.72rem;font-weight:800;border-radius:99px;padding:2px 8px;margin:1px 2px 1px 0}
 @media print{body{background:#fff}.page{box-shadow:none;border-radius:0;margin:0;padding:6mm;max-width:none;page-break-after:always;break-after:page}.page:last-child{page-break-after:auto;break-after:auto}.sc{overflow:visible}tr{break-inside:avoid}@page{size:A4 landscape;margin:8mm}}
 </style></head><body>${sum}${clsSections}</body></html>`;
 }
