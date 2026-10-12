@@ -98,7 +98,7 @@ function merge3(base, loc, rem) {
 const LOCAL_TOP = new Set(['recent', 'recentBy', 'envois', 'lastClass', 'natLanes', 'natMode', 'acroFiltre', 'matchTeams', 'tablette']); // tablette : réglages propres à chaque appareil (groupe suivi…)
 const LOCAL_SUB = { co: ['current'], duathlon: ['current', 'lastCfg'], combine: ['current'], demifond: ['current', 'lastCfg', 'calc'], sauvetage: ['current', 'lastCfg'], wod: ['current'], escalade: ['defi', 'lastVoie', 'lastMode', 'filt'], gym: ['filt'], lutte: ['current'] };
 const syncKeys = () => Object.keys(DB).filter(k => !LOCAL_TOP.has(k));
-const dbG = k => window.dbGet ? window.dbGet(k) : DB[k], dbS = (k, v) => window.dbSet ? window.dbSet(k, v) : (DB[k] = v);
+const dbG = k => window.dbGet ? window.dbGet(k) : DB[k], dbS = (k, v) => { window.dbSet ? window.dbSet(k, v) : (DB[k] = v); try { window.epsSnapKey && window.epsSnapKey(k); } catch (e) {} };
 function outb(k, v = dbG(k)) {                                   // version envoyée (sans l'état local)
   v = v ?? null; const sub = LOCAL_SUB[k]; if (!sub || !isObj(v)) return v;
   const o = { ...v }; sub.forEach(f => delete o[f]); return o;
@@ -117,7 +117,7 @@ const readDoc = async (r, k, get) => { if (!r) return undefined; if (typeof r.c 
 
 /* ---------- Envoi (groupé) des rubriques modifiées ---------- */
 let pushing = false;
-async function pushChanged() { await baseReady;
+async function pushChanged() { await baseReady; await window.epsTombReady;
   if (!fb || !S.user || !CK || S.mismatch || !syncAllowed() || pushing || window.epsImgLoaded === false) return;
   const { doc, runTransaction } = fb.fs;
   const keys = syncKeys().filter(k => meta.keys[k]?.h !== hash(JSON.stringify(outb(k))));
@@ -184,7 +184,7 @@ let staleLocal = (() => { try { return (meta.applyT || 0) > (+localStorage.getIt
 const keepCls = (k, out, rem) => window.epsClsKeep ? window.epsClsKeep(k, out, rem) : out;
 
 /* ---------- Réception : fusion des données venues des autres appareils ---------- */
-async function applyRemote(k, r) { await baseReady;
+async function applyRemote(k, r) { await baseReady; await window.epsTombReady;
   if (k === CHECK_ID || !r || LOCAL_TOP.has(k) || isPart(k)) return false;
   if (r.dev === meta.dev && meta.keys[k]?.t >= r.t) return false;          // notre propre envoi
   let rv; try { rv = await readDoc(r, k); } catch (e) { S.mismatch = true; S.status = 'error'; refreshUI(); return false; }
@@ -193,6 +193,7 @@ async function applyRemote(k, r) { await baseReady;
   const local = outb(k), m = meta.keys[k], dirty = m && m.h !== hash(JSON.stringify(local));
   const out = keepCls(k, !m ? (replaceOnce || local == null ? rv : mergeData(local, rv)) : dirty ? (staleLocal ? mergeData(local, rv) : merge3(getBase(k), local, rv)) : rv, rv);
   setBase(k, rv);
+  try { const cnt = v => Array.isArray(v) ? v.length : isObj(v) ? Object.values(v).reduce((n, x) => n + (Array.isArray(x) ? x.length : 0), 0) : 0; if (local != null && cnt(out) < cnt(local) && window.epsSafetyBackup) await window.epsSafetyBackup(k); } catch (e) {}   // la synchro retire des éléments : copie de sécurité d'abord
   applying = true; dbS(k, withLocal(k, out)); applying = false;
   meta.keys[k] = { h: dirty || !m ? (jeq(out, rv) ? hash(JSON.stringify(rv)) : 'x') : hash(JSON.stringify(rv)), t: r.t };
   return !jeq(out, local);

@@ -9,7 +9,7 @@
       sont mises de côté et un bandeau propose de les restaurer.
    ========================================================= */
 (() => {
-  const BAK_DB = 'epsone-bak', KEEP = 7, LOST = 'epsone_cls_lost', IMG = /^(acroImg_|gymImg_|escImg_|danseImg_)/;
+  const BAK_DB = 'epsone-bak', KEEP = 12, LOST = 'epsone_cls_lost', IMG = /^(acroImg_|gymImg_|escImg_|danseImg_)/;
   const CK = ['classes', 'classesAll'];
   const day = (t = Date.now()) => { const d = new Date(t); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
   const getK = k => window.dbGet ? dbGet(k) : DB[k];
@@ -37,6 +37,11 @@
     } catch (e) { /* stockage indisponible : on ignore */ }
   }
   window.epsBackupNow = () => dailyBackup(true);
+  // Copie de sécurité juste avant qu'une synchronisation fasse DIMINUER des données de cet appareil (au plus 5 conservées)
+  window.epsSafetyBackup = async why => {
+    try { const j = snapJSON(), t = Date.now(); await tx('readwrite', st => st.put({ t, j, ...stats(j), why }, 'sync-' + t));
+      const L = (await bakAll()).filter(x => String(x.k).startsWith('sync-')); if (L.length > 5) await tx('readwrite', st => L.slice(5).forEach(x => st.delete(x.k))); } catch (e) {}
+  };
   // au démarrage, avant que la synchronisation n'apporte des changements
   try { dailyBackup(); } catch (e) {}
 
@@ -49,23 +54,70 @@
   window.epsClsDeleted = (k, c) => { if (!c || !c.name) return; const o = lsGet(DEL, {}); o[k + '|' + c.name] = Date.now(); lsSet(DEL, o); };
   const delOK = (k, n) => { const t = lsGet(DEL, {})[k + '|' + n]; return t && Date.now() - t < DEL_DAYS * 864e5; };
   // out = résultat de la fusion ; rem = version du serveur / cloud
-  /* Garde du C.O. et du cross : lieux, parcours, séances, épreuves de cross ne sont retirés du compte
-     que par une suppression volontaire faite sur cet appareil (epsItemDeleted). */
-  const IT = { co: ['lieux', 'parcours', 'seances'], cross: ['events'] };
-  window.epsItemDeleted = (k, id) => { if (id == null) return; const o = lsGet(DEL, {}); o['it|' + k + '|' + id] = Date.now(); lsSet(DEL, o); };
-  const itDel = (k, id) => { const t = lsGet(DEL, {})['it|' + k + '|' + id]; return t && Date.now() - t < DEL_DAYS * 864e5; };
-  const keepItems = (k, out, rem) => {
-    if (!IT[k] || !out || typeof out !== 'object' || Array.isArray(out) || !rem || typeof rem !== 'object') return out;
-    let res = out;
-    IT[k].forEach(f => { const R = rem[f]; if (!Array.isArray(R)) return; const O = Array.isArray(out[f]) ? out[f] : [], have = new Set(O.map(x => x && x.id));
-      const back = R.filter(x => x && x.id != null && !have.has(x.id) && !itDel(k, x.id)); if (!back.length) return;
-      try { console.warn('EPS ONE : éléments gardés (suppression non volontaire évitée)', k, f, back.map(x => x.nom || x.name)); } catch (e) {}
-      if (res === out) res = { ...out }; res[f] = [...O, ...JSON.parse(JSON.stringify(back))]; });
-    return res;
-  };
+  /* ---------- Garde générale : la synchronisation ne supprime plus rien « toute seule » ----------
+     Une suppression est VOLONTAIRE si elle est faite sur cet appareil pendant qu'on utilise l'app : elle est
+     détectée à chaque enregistrement (un élément identifié, ou une clé d'objet, qui disparaît) et notée dans
+     un carnet de suppressions. Lors d'une synchronisation, tout élément que le serveur possède encore et que la
+     fusion ferait disparaître est remis, sauf s'il figure dans le carnet. Valable pour toutes les rubriques. */
+  const TOMB_DB = 'epsone-tomb', TOMB_DAYS = 45, TOMB_MAX = 30000, MAXD = 4;
+  let TOMB = {}, tombDirty = false, SNAP = {};
+  const hsh = str => { let h = 5381; for (let i = 0; i < str.length; i++) h = ((h << 5) + h + str.charCodeAt(i)) | 0; return (h >>> 0).toString(36); };
+  const ikey = (x, d) => { if (!x || typeof x !== 'object' || Array.isArray(x)) return null; const k = x.id != null ? 'id:' + x.id : x.k != null ? 'k:' + x.k : x.name != null ? 'name:' + x.name : x.nom != null ? 'nom:' + x.nom : null;
+    if (k != null || d > 1) return k; try { const j = JSON.stringify(x); return j.length < 1500 ? 'j:' + hsh(j) : null; } catch (e) { return null; } };   // sans identifiant (ex. anciens résultats) : empreinte du contenu, aux 2 premiers niveaux
+  const isO = x => x && typeof x === 'object' && !Array.isArray(x);
+  const SKIP = k => /^(recent|recentBy|envois|lastClass|natLanes|natMode|acroFiltre|matchTeams|tablette)$/.test(k) || IMG.test(k);
+  function walk(v, p, d, out) {
+    if (d > MAXD || !v || typeof v !== 'object') return;
+    if (Array.isArray(v)) { if (v.length > 6000) return; for (const x of v) { const k = ikey(x, d); if (k == null) continue; const q = p + '/' + k; out.add(q); walk(x, q, d + 1, out); } }
+    else for (const k of Object.keys(v)) { if (k[0] === '_') continue; const c = v[k]; if (!c || typeof c !== 'object') continue; const q = p + '/' + k; out.add(q); walk(c, q, d + 1, out); }
+  }
+  const snapOf = k => { const o = new Set(); try { walk(getK(k), k, 0, o); } catch (e) {} return o; };
+  window.epsSnapKey = k => { if (!SKIP(k)) SNAP[k] = snapOf(k); };       // appelé après chaque écriture venant de la synchronisation : ce n'est pas une suppression volontaire
+  const tombPut = () => { tombDirty = true; clearTimeout(tombPut.t); tombPut.t = setTimeout(async () => { if (!tombDirty) return; tombDirty = false;
+    try { const db = await new Promise((ok, ko) => { const r = indexedDB.open(TOMB_DB, 1); r.onupgradeneeded = () => r.result.createObjectStore('b'); r.onsuccess = () => ok(r.result); r.onerror = () => ko(r.error); });
+      await new Promise((ok, ko) => { const t = db.transaction('b', 'readwrite'); t.objectStore('b').put(JSON.stringify(TOMB), 'tomb'); t.oncomplete = ok; t.onerror = () => ko(t.error); }); } catch (e) {} }, 2000); };
+  window.epsTombReady = (async () => { try { const db = await new Promise((ok, ko) => { const r = indexedDB.open(TOMB_DB, 1); r.onupgradeneeded = () => r.result.createObjectStore('b'); r.onsuccess = () => ok(r.result); r.onerror = () => ko(r.error); });
+    const v = await new Promise(res => { const q = db.transaction('b').objectStore('b').get('tomb'); q.onsuccess = () => res(q.result); q.onerror = () => res(null); });
+    if (v) { const o = JSON.parse(v), lim = Date.now() - TOMB_DAYS * 864e5; Object.keys(o).forEach(h => { if (o[h] > lim) TOMB[h] = o[h]; }); } } catch (e) {}
+    Object.keys(DB).forEach(k => { if (!SKIP(k)) SNAP[k] = snapOf(k); }); })();
+  const tomb = p => TOMB[hsh(p)] != null;
+  function tombScan() {                                                  // à chaque enregistrement : ce qui a disparu depuis le dernier passage = supprimé volontairement
+    const now = Date.now(); let n = 0;
+    Object.keys(DB).forEach(k => { if (SKIP(k)) return; const cur = snapOf(k), old = SNAP[k];
+      if (old) old.forEach(p => { if (!cur.has(p)) { TOMB[hsh(p)] = now; n++; } }); SNAP[k] = cur; });
+    if (n) { const ks = Object.keys(TOMB); if (ks.length > TOMB_MAX) ks.sort((a, b) => TOMB[a] - TOMB[b]).slice(0, ks.length - TOMB_MAX).forEach(h => delete TOMB[h]); tombPut(); }
+  }
+  { const sv = window.saveNow; if (typeof sv === 'function') window.saveNow = function () { try { tombScan(); } catch (e) {} return sv.apply(this, arguments); }; }
+  const clone = x => JSON.parse(JSON.stringify(x));
+  function restore(o, r, p, d, F) {                                         // remet ce que le serveur possède et que la fusion a fait disparaître
+    if (d > MAXD) return o;
+    if (Array.isArray(o) && Array.isArray(r)) { let res = o, have = null;
+      for (const x of r) { const k = ikey(x, d); if (k == null) continue; if (!have) have = new Map(o.map((y, i) => [ikey(y, d), i]));
+        if (!have.has(k)) { if (F || !tomb(p + '/' + k)) { if (res === o) res = o.slice(); res.push(clone(x)); } }
+        else if (isO(x)) { const i = have.get(k), nv = restore(o[i], x, p + '/' + k, d + 1, F); if (nv !== o[i]) { if (res === o) res = o.slice(); res[i] = nv; } } }
+      return res; }
+    if (isO(o) && isO(r)) { let res = o;
+      for (const k of Object.keys(r)) { if (k[0] === '_') continue; const c = r[k]; if (!c || typeof c !== 'object') continue;
+        if (!(k in o) || o[k] == null) { if (F || !tomb(p + '/' + k)) { if (res === o) res = { ...o }; res[k] = clone(c); } }
+        else { const nv = restore(o[k], c, p + '/' + k, d + 1, F); if (nv !== o[k]) { if (res === o) res = { ...o }; res[k] = nv; } } }
+      return res; }
+    return o;
+  }
+  const keepAll = (k, out, rem) => { if (SKIP(k) || out == null || rem == null) return out;
+    try { const res = restore(out, rem, k, 0); if (res !== out) { try { console.warn('EPS ONE : éléments gardés (suppression non volontaire évitée) dans', k); } catch (e) {} } return res; } catch (e) { return out; } };
+  /* Récupération générale « sans rien supprimer » depuis une copie : ajoute à l'état actuel tout élément absent (toutes rubriques) */
+  function restoreAll(o) {
+    const det = {};
+    epsClsGuardOff(() => Object.keys(o || {}).forEach(k => { if (SKIP(k) || o[k] == null || typeof o[k] !== 'object') return;
+      const before = snapOf(k); const cur = getK(k);
+      if (cur == null) setK(k, clone(o[k])); else { const nv = restore(cur, o[k], k, 0, true); if (nv !== cur) setK(k, nv); }
+      const after = snapOf(k); let n = 0; after.forEach(p => { if (!before.has(p)) n++; }); if (n) det[k] = n; try { window.epsSnapKey && epsSnapKey(k); } catch (e) {} }));
+    return det;
+  }
+  window.epsItemDeleted = () => {};                                      // ancien appel : la détection est maintenant automatique
   window.epsClsKeep = (k, out, rem) => {
-    if (IT[k]) return keepItems(k, out, rem);
-    if (!CK.includes(k) || !Array.isArray(out) || !Array.isArray(rem)) return out;
+    if (!CK.includes(k)) return keepAll(k, out, rem);
+    if (!Array.isArray(out) || !Array.isArray(rem)) return out;
     const have = new Set(out.map(c => c && c.name)), back = rem.filter(c => c && c.name && !have.has(c.name) && !delOK(k, c.name));
     if (!back.length) return out;
     try { console.warn('EPS ONE : classes gardées (suppression non volontaire évitée)', back.map(c => c.name)); } catch (e) {}
@@ -129,10 +181,12 @@
       const lost = lsGet(LOST, []);
       el.innerHTML = `<div class="card"><b>🛟 Copies de secours automatiques</b><p class="muted" style="margin:6px 0 0;font-size:.85rem">Une copie par jour, à la première ouverture de l'app (${KEEP} derniers jours), sur <b>cette</b> tablette. Les photos et vidéos ne sont pas dedans (elles sont rangées à part).</p>
           <button class="btn btn-grad btn-block" style="margin-top:10px" id="bk-file">📂 Récupérer C.O. + cross depuis un fichier de secours (.json)</button><input type="file" id="bk-fi" accept=".json,application/json" multiple hidden>
+          <button class="btn btn-ghost btn-block" style="margin-top:8px" id="bk-file2">🧩 Récupérer tout ce qui manque depuis un fichier (.json)</button><input type="file" id="bk-fi2" accept=".json,application/json" multiple hidden>
           <button class="btn btn-ghost btn-block" style="margin-top:10px" id="bk-now">📸 Faire une copie maintenant</button></div>
-        ${L.length ? L.map((x, i) => `<div class="card" style="margin-top:10px"><div style="display:flex;justify-content:space-between;gap:8px;align-items:center"><div><b>${new Date(x.t).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}</b> <span class="muted">· ${new Date(x.t).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</span>
+        ${L.length ? L.map((x, i) => `<div class="card" style="margin-top:10px"><div style="display:flex;justify-content:space-between;gap:8px;align-items:center"><div>${String(x.k).startsWith('sync-') ? '<span class="muted" style="font-size:.78rem">🛡 Copie automatique avant une synchronisation qui retirait des données</span><br>' : ''}<b>${new Date(x.t).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}</b> <span class="muted">· ${new Date(x.t).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</span>
             <div class="muted" style="font-size:.82rem">${x.nc} classe${x.nc > 1 ? 's' : ''} · ${x.nr} résultat${x.nr > 1 ? 's' : ''} · ${(() => { const c = coCount(x.j); return `🧭 ${c.l} lieu${c.l > 1 ? 'x' : ''}, ${c.p} parcours · 🏃 ${c.x} cross`; })()} · ${Math.round(x.j.length / 1024)} Ko</div></div></div>
             <div class="row" style="margin-top:8px;gap:6px"><button class="btn btn-grad" style="padding:9px" data-rc="${i}">↶ Récupérer les classes manquantes</button><button class="btn btn-ghost" style="padding:9px" data-dl="${i}">⬇️ Télécharger</button></div>
+            <button class="btn btn-ghost btn-block" style="margin-top:6px;padding:9px" data-rall="${i}">🧩 Récupérer tout ce qui manque (toutes les données, sans rien supprimer)</button>
             <button class="btn btn-ghost btn-block" style="margin-top:6px;padding:9px" data-rco="${i}">🧭 Récupérer C.O. + cross (sans rien supprimer)</button>
             <button class="btn btn-ghost btn-block" style="margin-top:6px;padding:9px;font-size:.85rem" data-ra="${i}">⚠️ Tout remettre comme ce jour-là</button></div>`).join('')
           : '<div class="card empty" style="margin-top:10px">Pas encore de copie : elle sera faite à la prochaine ouverture de l\'app (ou touchez « Faire une copie maintenant »).</div>'}
@@ -149,6 +203,12 @@
         const o = JSON.parse(x.j); Object.keys(DB).forEach(k => { if (IMG.test(k)) o[k] = DB[k]; });   // garder les photos
         epsClsGuardOff(() => { DB = Object.assign({ favs: [], recent: [], classes: [], dispenses: [], oublis: {}, journal: [], grilles: [], suivi: {}, debrief: [], annee: DB.annee }, o); window.teamInstall && teamInstall(); });
         saveNow(); window.syncFlush && window.syncFlush(); try { renderHome(); } catch (e) {} toast('Données restaurées ✔'); draw(); });
+      const allMsg = d => { const t = Object.entries(d); return t.length ? t.map(([k, n]) => `${k} : ${n}`).join(' · ') + ' récupéré(s) ✔' : 'Rien à récupérer : tout est déjà présent'; };
+      A('[data-rall]').forEach(b => b.onclick = () => { if (!confirm('Ajouter à l\'état actuel tout ce que cette copie contient et qui manque (résultats, validations, grilles, tournois, C.O., cross…) ?\nRien n\'est supprimé.\nAttention : ce que tu aurais supprimé volontairement depuis cette date réapparaîtra.')) return;
+        const d = restoreAll(JSON.parse(L[+b.dataset.rall].j)); save(); window.syncFlush && window.syncFlush(); try { renderHome(); } catch (e) {} toast(allMsg(d)); });
+      { const fb2 = el.querySelector('#bk-file2'), fi2 = el.querySelector('#bk-fi2'); if (fb2) fb2.onclick = () => { if (confirm('Ajouter tout ce que le fichier contient et qui manque (toutes rubriques), sans rien supprimer ?\nCe que tu aurais supprimé volontairement depuis la date du fichier réapparaîtra.')) fi2.click(); };
+        if (fi2) fi2.onchange = async () => { for (const f of [...fi2.files]) { try { const d = restoreAll(JSON.parse(await f.text())); save(); toast(f.name + ' : ' + allMsg(d)); } catch (e) { toast('Fichier illisible : ' + f.name); } }
+          window.syncFlush && window.syncFlush(); try { renderHome(); } catch (e) {} fi2.value = ''; }; }
       A('[data-rco]').forEach(b => b.onclick = () => { const n = restoreCO(JSON.parse(L[+b.dataset.rco].j)); save(); window.syncFlush && window.syncFlush(); try { renderHome(); } catch (e) {} toast(coMsg(n)); });
       { const fb = el.querySelector('#bk-file'), fi = el.querySelector('#bk-fi'); if (fb) fb.onclick = () => fi.click();
         if (fi) fi.onchange = async () => { for (const f of [...fi.files]) { try { const o = JSON.parse(await f.text()); const n = restoreCO(o); save(); toast(f.name + ' : ' + coMsg(n)); } catch (e) { toast('Fichier illisible : ' + f.name); } }

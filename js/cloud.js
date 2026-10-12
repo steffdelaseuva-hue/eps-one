@@ -61,7 +61,7 @@
         const local = L().outb(k), m = meta.keys[k], dirty = m && m.h !== L().hash(JSON.stringify(local));
         let out = !m ? (local == null ? rv : L().mergeData(local, rv)) : dirty ? (stale ? L().mergeData(local, rv) : L().merge3(getBase(k), local, rv)) : rv;
         if (window.epsClsKeep) out = epsClsKeep(k, out, rv);
-        setBase(k, rv); applying = true; (window.dbSet ? dbSet(k, L().withLocal(k, out)) : (DB[k] = L().withLocal(k, out))); applying = false;
+        setBase(k, rv); applying = true; (window.dbSet ? dbSet(k, L().withLocal(k, out)) : (DB[k] = L().withLocal(k, out))); try { window.epsSnapKey && epsSnapKey(k); } catch (e) {} applying = false;
         meta.keys[k] = { h: L().jeq(out, rv) ? L().hash(JSON.stringify(rv)) : 'x', t: doc.t };
         if (!L().jeq(out, local)) changed = true;
       }
@@ -103,7 +103,7 @@
           }
           if (!ok) throw new Error('Envoi simultané de plusieurs tablettes : réessayez dans un instant');
           setBase(k, out); meta.keys[k] = { h: L().hash(JSON.stringify(out ?? null)), t };
-          if (!L().jeq(out, L().outb(k))) { applying = true; (window.dbSet ? dbSet(k, L().withLocal(k, out)) : (DB[k] = L().withLocal(k, out))); applying = false; chg = true; }
+          if (!L().jeq(out, L().outb(k))) { applying = true; (window.dbSet ? dbSet(k, L().withLocal(k, out)) : (DB[k] = L().withLocal(k, out))); try { window.epsSnapKey && epsSnapKey(k); } catch (e) {} applying = false; chg = true; }
         }
         C.status = 'ok'; C.err = ''; C.last = meta.last = Date.now();
       } catch (e) { C.status = 'error'; C.err = e.message; }
