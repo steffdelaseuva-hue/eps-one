@@ -170,12 +170,13 @@ TOOL_IMPL.duathlon = function (el) {
   /* ---- Épreuve en direct ---- */
   function live(box) {
     const C = D.current, c = C.cfg;
+    if (C.groups.length === 1 && C.only == null && !C.prof && !C.manual) C.only = 0;   // un seul groupe (1 tablette par groupe) : même grande vue colorée par étape que pour « Tablette d'un groupe »
     const hasData = g => g.etapes.some(E => E.dep || E.tc || Object.values(E.m).some(m => m.pts || m.tours || m.inval || m.penC));
     const saveSeance = () => {
       // seuls les groupes ayant des résultats sont enregistrés (une tablette par groupe → pas de lignes vides)
       const done = C.groups.filter(hasData); if (!done.length) return toast('Aucun groupe n\'a de résultat');
       if (C.only != null && done.some(g => g.etapes.some(E => E.dep && !E.arr)) && !confirm('Une étape n\'est pas terminée (pas d\'arrivée). Enregistrer quand même ?')) return;
-      const rec = { ...C, id: C.id + '-' + Math.random().toString(36).slice(2, 6), groups: done }; delete rec.only; delete rec.joined;   // id unique par tablette (fusion de synchro par id)
+      const rec = { ...C, id: C.id + '-' + Math.random().toString(36).slice(2, 6), groups: done }; delete rec.only; delete rec.prof; delete rec.joined;   // id unique par tablette (fusion de synchro par id)
       D.seances.push(rec); const wasGroup = C.only != null; D.current = null;
       if (typeof partOutboxAdd === 'function') partOutboxAdd('duathlon', rec, `${done.map(g => g.name).join(', ')} · ${C.nom}`);
       // synthèse « Résultats des élèves » : une ligne par élève des groupes enregistrés
@@ -231,7 +232,7 @@ TOOL_IMPL.duathlon = function (el) {
         ${hasData(g) ? '<button class="btn btn-grad btn-block" style="margin-top:12px" id="save">💾 Enregistrer les résultats du groupe</button>' : ''}
         <div style="text-align:center;margin:18px 0 6px"><button class="link" id="gv-prof">🔒 Mode enseignant</button></div>`;
       bind();
-      box.querySelector('#gv-prof').onclick = () => { if (!confirm('Passer en mode enseignant (tous les groupes, réglages) ?')) return; C.only = null; save(); draw(); };
+      box.querySelector('#gv-prof').onclick = () => { if (!confirm('Passer en mode enseignant (tous les groupes, réglages) ?')) return; C.only = null; C.prof = true; save(); draw(); };
     };
     // actions communes aux deux vues
     const bind = () => {
@@ -265,6 +266,7 @@ TOOL_IMPL.duathlon = function (el) {
       const e = C.etape;
       box.innerHTML = `<div class="card"><b>${esc(C.nom)}</b><div class="muted">${esc(C.classe)} · ${C.groups.length} groupes${c.optL ? ` · ${c.boucles} boucle(s) par lancer non valide` : ''}${c.optC ? ` · pénalité course ${c.secC} s` : ''} · distance ${duaFr((c.dist || DUA_DIST) / 1000, 2)} km</div>
           <label>Étape</label><div class="seg" id="et">${[0, 1, 2].map(k => `<button data-e="${k}" class="${k === e ? 'on' : ''}">Étape ${k + 1}${duaObj(k, c)}</button>`).join('')}</div>
+          ${C.groups.length === 1 ? '<button class="btn btn-ghost btn-block" style="margin-top:10px" id="back-gv">📱 Retour à la vue élèves (grande vue par étape)</button>' : ''}
           <button class="btn btn-grad btn-block" style="margin-top:10px" id="all">🚩 Départ groupé — étape ${e + 1}</button><button class="btn btn-ghost btn-block" data-cfg="bare" style="margin-top:8px" id="edg">✏️ Modifier les groupes / participants (absent, blessé…)</button>
           ${C.groups.length > 1 ? `<div data-cfg="bare"><label>📱 Tablette d'un groupe (les élèves ne verront que leur groupe)</label><select id="only"><option value="">Tous les groupes</option>${C.groups.map((g, i) => `<option value="${i}">${esc(g.name)}</option>`).join('')}</select></div>` : ''}</div>
         ${C.groups.map((g, gi) => { const E = g.etapes[e], s = stepOf(c, g, e), T = totalOf(c, g);
@@ -281,6 +283,7 @@ TOOL_IMPL.duathlon = function (el) {
         <div class="section-title"><h2>Classement provisoire</h2></div>${table(C)}
         <div class="row" style="margin-top:12px"><button class="btn btn-grad" data-cfg="bare" id="save">💾 Terminer et enregistrer</button><button class="btn btn-ghost" data-cfg="bare" id="cancel">Abandonner</button></div>`;
       const $ = s => box.querySelector(s), keep = () => save();
+      if ($('#back-gv')) $('#back-gv').onclick = () => { C.prof = false; C.only = 0; save(); draw(); };
       $('#all').onclick = () => { const t = Date.now(); C.groups.forEach(g => { if (!g.etapes[e].dep) g.etapes[e].dep = t; }); beep(1300, .45); keep(); draw(); };
       $('#edg').onclick = () => editGroupsPanel('Groupes du duathlon', { cls: C.classe, list: () => C.groups, names: g => g.members,
         take: (g, n) => { g.members.splice(g.members.indexOf(n), 1); const d = g.etapes.map(E => E.m[n]); g.etapes.forEach(E => delete E.m[n]); d.vma = g.vma ? g.vma[n] : null; if (g.vma) delete g.vma[n]; return d; },

@@ -434,13 +434,13 @@ TOOL_IMPL.match = function (el, grp = 'col') {
       <div class="card" data-cfg style="${GS.length < 2 ? 'display:none' : ''}"><h3>Sport</h3><div class="tog" id="sp">${Object.entries(SPORTS).filter(([k]) => inG(k)).map(([k, x]) => `<button data-s="${k}" class="${k === S.sport ? 'on' : ''}">${x.name}</button>`).join('')}</div></div>
       <div class="court" style="margin-top:12px;background:${courtSVG(S.sport).bg}"><svg viewBox="${courtSVG(S.sport).vb}">${courtSVG(S.sport).svg}</svg></div>
       <div class="card" data-cfg style="margin-top:12px"><h3>Équipes</h3>
-        <details id="mt-d" ${DB.classes.length && !DB.matchTeams ? 'open' : ''}><summary style="font-weight:800;cursor:pointer">👥 Constituer les équipes avec les élèves d'une classe</summary><div id="mt-host" style="margin-top:6px"></div></details>
-        ${(RACKET.includes(S.sport) || S.sport === 'escrime') && DB.classes.length ? (() => { const c0 = DB.classes.some(c => c.name === DB.lastClass) ? DB.lastClass : DB.classes[0].name, st = studentsOf(c0);
+        <details id="mt-d" ${DB.classes.length && !DB.matchTeams ? 'open' : ''}><summary style="font-weight:800;cursor:pointer">👥 Constituer les équipes avec les élèves d'une classe</summary>${RACKET.includes(S.sport) || S.sport === 'escrime' ? `<label style="display:flex;gap:8px;align-items:center;margin:8px 0 0;font-weight:800"><input type="checkbox" id="mt-solo" ${S.solo !== false ? 'checked' : ''} style="width:auto"> 👤 Joueurs individuels (1 élève = 1 participant, son nom s'affiche)</label><p class="muted" style="font-size:.78rem;margin:2px 0 0">Décochez pour former des équipes (duos, trios…).</p>` : ''}<div id="mt-host" style="margin-top:6px"></div></details>
+        ${(RACKET.includes(S.sport) || S.sport === 'escrime') && (S.forme || 'match') === 'match' && DB.classes.length ? (() => { const c0 = DB.classes.some(c => c.name === DB.lastClass) ? DB.lastClass : DB.classes[0].name, st = studentsOf(c0);
           return `<details style="margin-top:8px" ${DB.matchTeams ? '' : 'open'}><summary style="font-weight:800;cursor:pointer">👤 Match en simple : choisir 2 élèves</summary>
           <div class="row" style="margin-top:6px"><div><label>Classe</label><select id="s1-c">${DB.classes.map(c => `<option ${c.name === c0 ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</select></div></div>
           <div class="row"><div><label>Joueur A</label><select id="s1-a">${st.map((n, i) => `<option ${i === 0 ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select></div><div><label>Joueur B</label><select id="s1-b">${st.map((n, i) => `<option ${i === 1 ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select></div></div>
           <button class="btn btn-grad btn-block" style="margin-top:8px" id="s1-ok">✔ Ces deux élèves s'affrontent</button></details>`; })() : ''}
-        ${teamsBlock()}
+        <div id="mt-tb">${teamsBlock()}</div>
         ${atpOK(S.sport) ? `<button class="btn btn-grad btn-block" style="margin-top:10px;padding:13px" id="atp-new">${atpI(S.sport)} Créer un ${S.sport === 'escrime' ? 'tournoi « style ATP »' : 'Défi ATP'} (classement individuel des élèves, partagé avec les tablettes)</button>` : ''}
         <div class="row"><div><label>Nom équipe A</label><input id="na" value="${esc(S.a)}"></div><div><label>Nom équipe B</label><input id="nb" value="${esc(S.b)}"></div></div></div>
       <div class="card" data-cfg style="margin-top:12px"><h3>Règles du match</h3>
@@ -609,14 +609,19 @@ TOOL_IMPL.match = function (el, grp = 'col') {
   function wireTeams() {
     const $ = s => el.querySelector(s);
     const host = $('#mt-host');
-    if (host) { mountComposer(host, { duel: true, id: 'mt', modes: ['random', 'hetero', 'homo'], button: '🧩 Former les équipes',
+    if (host) { mountComposer(host, { duel: true, id: 'mt', onCls: () => el._mtVis && el._mtVis(), modes: ['random', 'hetero', 'homo'], button: '🧩 Former les équipes',
       onTeams: teams => { const $n = s => el.querySelector(s); if ($n('#na')) { S.a = $n('#na').value; S.b = $n('#nb').value; }
-        if (!encOk()) return setup(); unlinkT(); DB.matchTeams = { cls: el.querySelector('#mt-cls')?.value || '', teams: teams.map(x => ({ name: x.name, members: x.members.map(m => m.n) })) };
+        if (!encOk()) return setup(); unlinkT(); const solo = teams.length > 1 && teams.every(x => x.members.length === 1); DB.matchTeams = { cls: el.querySelector('#mt-cls')?.value || '', teams: teams.map(x => ({ name: solo ? x.members[0].n : x.name, members: x.members.map(m => m.n) })) };
         S.ia = 0; S.ib = teams.length > 1 ? 1 : 0; S.a = teams[S.ia].name; S.b = teams[S.ib].name; selPl = null; save(); setup(); } });
-      const v = el.querySelector('#mt-v'); if (v && !DB.matchTeams) v.value = 2; }
+      const v = el.querySelector('#mt-v'); if (v && !DB.matchTeams) v.value = 2;
+      const so = el.querySelector('#mt-solo'), kk = el.querySelector('#mt-k');
+      if (so && kk && v) { const ap = () => { S.solo = so.checked; if (so.checked) { kk.value = 's'; v.value = 1; } else if (+v.value === 1) v.value = 2; kk.disabled = v.disabled = so.checked; kk.dispatchEvent(new Event('change')); }; so.onchange = ap; ap(); } }
     if ($('#s1-c')) { $('#s1-c').onchange = () => { DB.lastClass = $('#s1-c').value; S.a = $('#na').value; S.b = $('#nb').value; save(); setup(); };
       $('#s1-ok').onclick = () => { const a = $('#s1-a').value, b = $('#s1-b').value; if (!a || !b || a === b) return toast('Choisissez deux élèves différents'); if (!encOk()) return setup(); unlinkT();
         DB.matchTeams = { cls: $('#s1-c').value, teams: [{ name: a, members: [a] }, { name: b, members: [b] }] }; S.ia = 0; S.ib = 1; S.a = a; S.b = b; selPl = null; save(); beep(1000, .08); toast(`${a} contre ${b} ✔`); setup(); }; }
+    { const tb = $('#mt-tb'), tt = T();   // les équipes d'une AUTRE classe ne s'affichent pas : on ne voit que celles de la classe choisie
+      el._mtVis = () => { const c = ($('#mt-cls') || {}).value || '', b2 = $('#mt-tb'); if (b2 && tt) b2.style.display = !tt.cls || !c || tt.cls === c ? '' : 'none'; };
+      if (tb && tt) el._mtVis(); }
     const t = T(); if (!t) return;
     const pick = (k, i) => { if (!encOk()) return setup(); unlinkT(); S.a = $('#na').value; S.b = $('#nb').value; S[k] = i; if (k === 'ia') S.a = t.teams[i].name; else S.b = t.teams[i].name; setup(); };
     if ($('#ia')) $('#ia').onchange = e => pick('ia', +e.target.value);
@@ -697,7 +702,8 @@ TOOL_IMPL.match = function (el, grp = 'col') {
   const afterSave = m => { unlinkT(); if (m.tid && TR().some(x => x.id === m.tid)) tview(m.tid); else setup(); };
   const curRegles = () => ({ type: S.type, dur: S.dur, target: S.target, ecart: S.ecart, bonus: [...S.bonus], stats: S.stats, zones: S.zones, nz: S.nz, obsOn: S.obsOn, obsN: S.obsN });
   function createT(tm, fmt0) {
-    const seen = {}, teams = tm.teams.filter(x => x.name || x.members.length).map((x, i) => { let n = (x.name || '').trim() || 'Équipe ' + (i + 1); if (seen[n]) n += ' (' + (++seen[n]) + ')'; else seen[n] = 1; return { name: n, members: [...x.members] }; });
+    const live = tm.teams.filter(x => x.name || x.members.length), solo = live.length > 1 && live.every(x => x.members.length === 1);   // participants individuels : on affiche le nom du joueur, pas « Équipe n »
+    const seen = {}, teams = live.map((x, i) => { let n = (solo ? String(x.members[0]) : (x.name || '').trim()) || 'Équipe ' + (i + 1); if (seen[n]) n += ' (' + (++seen[n]) + ')'; else seen[n] = 1; return { name: n, members: [...x.members] }; });
     if (teams.length < 2) return toast('Au moins 2 équipes');
     const def = `Tournoi ${tm.cls ? tm.cls + ' · ' : '· '}${SP().name}`, names = teams.map(x => x.name), G = tPoules(names), gk = Object.keys(G);
     const C = { nom: def, format: ['poule', 'elim', 'pyramide'].includes(fmt0) ? fmt0 : 'poule', v: 3, n: 2, d: 1, mx: false, pp: 0, ar: false };
@@ -1177,6 +1183,7 @@ TOOL_IMPL.match = function (el, grp = 'col') {
         <div class="muted" style="font-size:.78rem;margin-top:4px">${V.info}</div>${t.regles ? `<div class="muted" style="font-size:.78rem;margin-top:2px">⚙️ ${t.regles.type === 'temps' ? `Match au temps · ${t.regles.dur} min` : `Match en ${t.regles.target} points${t.regles.ecart ? ' (2 pts d\'écart)' : ''}`}${t.regles.bonus.length ? ' · bonus ' + t.regles.bonus.map(v => '+' + v).join(' ') : ' · sans bonus'}${t.regles.obsOn ? ` · observations ${t.regles.obsN} joueurs` : ''}</div>` : ''}</div>
       ${f !== 'atp' && t.teams.some(x => (x.members || []).length && !(x.members.length === 1 && x.members[0] === x.name)) ? `<details class="card" style="margin-top:12px"><summary style="font-weight:800;cursor:pointer">👥 Composition des équipes (${t.teams.length})</summary>
         <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin-top:8px">${t.teams.map(x => `<div style="border:1.5px solid var(--line);border-radius:12px;padding:8px 10px"><b>${esc(x.name)}</b><div class="muted" style="font-size:.82rem">${(x.members || []).map(esc).join(', ') || '—'}</div></div>`).join('')}</div></details>` : ''}
+      ${f !== 'atp' && t.teams.length > 1 && t.teams.every(x => (x.members || []).length === 1) && t.teams.some(x => x.name !== x.members[0]) ? `<div class="card" style="margin-top:12px;border:2px solid #B8912A"><b>👤 Chaque équipe n'a qu'un seul joueur</b><div class="muted" style="font-size:.82rem;margin:4px 0 8px">Afficher le nom du joueur (ex. « Thomas contre Baptiste, arbitre Loïc ») à la place de « ${esc(t.teams[0].name)} » dans les poules, les matchs et le classement.</div><button class="btn btn-grad btn-block" id="t-solo">✏️ Afficher les noms des joueurs</button></div>` : ''}
       ${V.html}
       ${(() => { const P = [...epsMatchesPies(DB.matchs.filter(m => m.tid === t.id && !m.obsOnly)), f === 'atp' ? epsPie(epsSegs(Object.fromEntries(tAtp(t).ranks.map(r => [r.n, Math.round(r.pts)]))), 'Points ATP') : ''].filter(Boolean);
         return P.length ? `<details class="card" style="margin-top:12px"><summary style="font-weight:800;cursor:pointer">📊 Synthèse du tournoi</summary><div class="pie-wrap" style="margin-top:8px">${P.join('')}</div></details>` : ''; })()}
@@ -1200,6 +1207,14 @@ TOOL_IMPL.match = function (el, grp = 'col') {
         <p class="muted" style="font-size:.78rem;margin:6px 0 0">Les matchs déjà enregistrés restent dans l'historique. Un tournoi supprimé peut être restauré (« 📁 Tournois terminés »).</p></details>`;
     const $ = q => el.querySelector(q);
     $('#t-bk').onclick = setup;
+    if ($('#t-solo')) $('#t-solo').onclick = () => { const T0 = TR().find(x => x.id === t.id); if (!T0) return; if (!encOk()) return;
+      const map = {}, used = new Set(); T0.teams.forEach(x => { let n = String(x.members[0]), k = 1; while (used.has(n)) n = x.members[0] + ' (' + (++k) + ')'; used.add(n); map[x.name] = n; });
+      const olds = Object.keys(map).sort((u, v) => v.length - u.length), rx = new RegExp('(' + olds.map(o => o.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|') + ')(?!\\d)', 'g');
+      const walk = (o, key) => { if (typeof o === 'string') return key === 'arb' ? o.replace(rx, m => map[m]) : (map[o] != null && key !== 'id' && key !== 'nom' ? map[o] : o);
+        if (Array.isArray(o)) return o.map(x => walk(x, key)); if (o && typeof o === 'object') { const r = {}; Object.keys(o).forEach(k => r[map[k] != null && k !== 'id' ? map[k] : k] = walk(o[k], k)); return r; } return o; };
+      Object.keys(T0).forEach(k => { if (!['id', 'nom', 'date', 'sport', 'classe', 'format', 'regles'].includes(k)) T0[k] = walk(T0[k], k); });
+      DB.matchs.filter(m => m.tid === T0.id).forEach(m => { if (map[m.a] != null) m.a = map[m.a]; if (map[m.b] != null) m.b = map[m.b]; });
+      save(); window.syncFlush && window.syncFlush(); toast('Noms des joueurs affichés ✔'); tview(T0.id); };
     V.wire();
     el.querySelectorAll('[data-tm]').forEach(b => b.onclick = () => { const m = DB.matchs.find(x => x.id === b.dataset.tm); if (m) summary(m, true); });
     if (!V.libre) $('#t-fr').onclick = () => { const a = +$('#t-fa').value, b = +$('#t-fb').value; if (a === b) return toast('Choisissez deux équipes différentes'); playT(t, t.teams[a].name, t.teams[b].name, null); };

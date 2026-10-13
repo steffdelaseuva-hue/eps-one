@@ -84,7 +84,7 @@ function teamsHTML(teams, withLevels) {
 /* ---------- Module « Composer les équipes » réutilisable ---------- */
 /* Groupes préparés à l'avance, par outil et par classe (ex. 10 h et 14 h le même jour) */
 DB.prepGroups = DB.prepGroups || {};
-function mountComposer(host, { id, modes = ['random', 'hetero', 'homo'], allowFree = false, minPerLevel = 1, button = '🧩 Former les équipes', onTeams, prep = true, duel = false }) {   // duel : « niveau de jeu » (activités de duel), sinon « niveau »
+function mountComposer(host, { id, modes = ['random', 'hetero', 'homo'], allowFree = false, minPerLevel = 1, button = '🧩 Former les équipes', onTeams, prep = true, duel = false, onCls }) {   // duel : « niveau de jeu » (activités de duel), sinon « niveau »
   const M = { random: ['Aléatoire', ''], hetero: ['Hétérogène', 'niveaux mélangés'], homo: ['Homogène', 'équipes de niveau'], manual: ['Manuel', 'je place les élèves'] };
   if (!modes.includes('manual')) modes = [...modes, 'manual'];   // création manuelle partout (fonctionne sans synchronisation, avec une partie de la classe)
   let mode = 'random';
@@ -132,7 +132,7 @@ function mountComposer(host, { id, modes = ['random', 'hetero', 'homo'], allowFr
     const vl = q('v') && q('v').previousElementSibling; if (vl) vl.textContent = mode === 'manual' ? 'Nombre de groupes au départ' : 'Valeur';
   };
   if (q('cls') && DB.lastClass && DB.classes.some(c => c.name === DB.lastClass)) q('cls').value = DB.lastClass;
-  if (q('cls')) q('cls').onchange = () => { q('box').innerHTML = ''; if (q('cls').value) DB.lastClass = q('cls').value; refresh(); };
+  if (q('cls')) q('cls').onchange = () => { q('box').innerHTML = ''; if (q('cls').value) DB.lastClass = q('cls').value; refresh(); if (onCls) onCls(q('cls').value); };
   q('lv').onclick = () => levelEditor(q('box'), cls(), refresh, duel);
   host.querySelectorAll(`#${id}-seg [data-m]`).forEach(b => b.onclick = () => { mode = b.dataset.m; refresh(); });
   const compose = () => {

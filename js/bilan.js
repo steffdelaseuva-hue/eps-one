@@ -74,7 +74,113 @@ function bilanWod(cls) {
     return `<div class="ev" style="border-left-color:#E53935"><div class="evh"><b>${esc(se.nom || 'Épreuve')}</b><span>${new Date(se.date).toLocaleDateString('fr-FR')} · prévu ${se.prevu} min · ${gs.length} groupe${gs.length > 1 ? 's' : ''}</span></div>${sumT}${cards}</div>`; }).join('');
 }
 
+/* Duathlon : un tableau par groupe (élèves × étapes), couleurs par étape, temps et totaux du groupe */
+function bilanDua(cls) {
+  const S0 = ((DB.duathlon || {}).seances || []).filter(r => r && r.classe === cls).sort((a, b) => a.date - b.date); if (!S0.length) return '';
+  const mm = s => { if (s == null || isNaN(s)) return '–'; s = Math.round(s); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
+  const S = []; S0.forEach(x => { const base = String(x.id).split('-')[0]; let y = S.find(z => z.base === base); if (!y) S.push(y = { ...x, base, groups: [] }); y.groups.push(...(x.groups || [])); });
+  const SC = ['#1E88E5', '#E8832A', '#43A047'], tint = c => c + '26', nat = (a, b) => String(a.name).localeCompare(String(b.name), 'fr', { numeric: true });
+  return S.map(se => { const c = se.cfg || {}, commun = e => Array.isArray(c.tc) ? !!c.tc[e] : e === 2;
+    const cols = () => [['pts', '🎯 Pts'], ...(c.optL ? [['inval', '❌ Lancers']] : []), ['tours', '🏃 Tours'], ...(c.optC ? [['penC', '⚠️ Pén.']] : [])];
+    const step = (g, e) => { const E = g.etapes[e], ms = g.members.map(n => E.m[n] || {}), sum = k => ms.reduce((a, m) => a + (m[k] || 0), 0), temps = E.dep && E.arr ? (E.arr - E.dep) / 1000 : null, penS = c.optC ? sum('penC') * (c.secC || 10) : 0;
+      return { pts: sum('pts'), tours: commun(e) ? (E.tc || 0) : sum('tours'), inval: sum('inval'), penC: sum('penC'), temps, penS, total: temps != null ? temps + penS : null }; };
+    const tot = g => { const st = [0, 1, 2].map(e => step(g, e)); return { st, T: st.every(x => x.total != null) ? st.reduce((a, x) => a + x.total, 0) : null, part: st.reduce((a, x) => a + (x.total || 0), 0), pts: st.reduce((a, x) => a + x.pts, 0), tours: st.reduce((a, x) => a + x.tours, 0), pen: st.reduce((a, x) => a + x.penS, 0) }; };
+    const cs = cols();
+    const cards = se.groups.slice().sort(nat).map(g => { const { st, T, part, pts, tours, pen } = tot(g);
+      const head = `<tr><th class="l" rowspan="2">Élève</th>${[0, 1, 2].map(e => `<th colspan="${cs.length}" style="background:${SC[e]}">Étape ${e + 1}${st[e].temps != null ? ` · ⏱ ${mm(st[e].temps)}${st[e].penS ? ` (+${st[e].penS} s)` : ''}` : ''}</th>`).join('')}<th colspan="2" style="background:#0B2A5B">Total élève</th></tr>
+        <tr>${[0, 1, 2].map(e => cs.map(([k, l]) => `<th class="ex" style="background:${tint(SC[e])};color:#0E1A33">${l}</th>`).join('')).join('')}<th class="ex" style="background:#E4E9F3;color:#0E1A33">🎯 Pts</th><th class="ex" style="background:#E4E9F3;color:#0E1A33">🏃 Tours</th></tr>`;
+      const rows = g.members.map(n => { let tp = 0, tt = 0, anyT = false; const tds = [0, 1, 2].map(e => { const m = (g.etapes[e].m[n]) || {}; tp += m.pts || 0; if (!commun(e)) { tt += m.tours || 0; anyT = true; }
+        return cs.map(([k]) => k === 'tours' && commun(e) ? `<td style="background:${tint(SC[e])}" class="d">↓ groupe</td>` : `<td style="background:${tint(SC[e])};font-weight:800;${k === 'inval' || k === 'penC' ? (m[k] ? 'color:#C62828' : 'color:#9AA') : ''}">${m[k] || 0}</td>`).join(''); }).join('');
+        return `<tr><td class="l"><b>${esc(n)}</b></td>${tds}<td style="font-weight:900">${tp}</td><td style="font-weight:900">${anyT ? tt : '–'}</td></tr>`; }).join('');
+      const foot = `<tr class="cum"><td class="l"><b>👥 Groupe</b></td>${[0, 1, 2].map(e => cs.map(([k]) => `<td style="background:${tint(SC[e])};font-weight:900">${st[e][k]}</td>`).join('')).join('')}<td style="font-weight:900">${pts}</td><td style="font-weight:900">${tours}</td></tr>`;
+      return `<div class="wg"><div class="wgh"><div><b>${esc(g.name)}</b><div class="mut" style="font-size:.78rem">${esc(g.members.join(' · '))}</div></div>
+        <div class="wgt">${T != null ? `<span class="tm">⏱ ${mm(T)}</span>` : `<span class="tm nt">${mm(part)} · incomplet</span>`}${pen ? `<span class="ec" style="background:#E0892F">+${pen} s pénalités</span>` : ''}<span class="ec" style="background:#1B9E5A">${pts} pts · ${tours} tours</span></div></div>
+        <div class="sc"><table class="wt">${head}${rows}${foot}</table></div></div>`; }).join('');
+    const ranked = se.groups.map(g => { const t = tot(g); return { name: g.name, t: t.T, pts: t.pts, tours: t.tours }; });
+    const best = Math.min(...ranked.filter(r => r.t != null).map(r => r.t), Infinity);
+    const sum = se.groups.length > 1 ? `<div class="sc"><table><tr><th class="l">Groupe</th><th>Temps total</th><th>Points lancers</th><th>Tours</th></tr>${ranked.slice().sort((a, b) => (a.t ?? 1e9) - (b.t ?? 1e9)).map(r => `<tr><td class="l"><b>${esc(r.name)}</b></td><td style="background:${r.t === best ? '#DDF3E7' : '#fff'};font-weight:800">${r.t != null ? mm(r.t) + (r.t === best ? ' 🏆' : '') : '–'}</td><td>${r.pts}</td><td>${r.tours}</td></tr>`).join('')}</table></div>` : '';
+    return `<div class="ev" style="border-left-color:#1E88E5"><div class="evh"><b>${esc(se.nom || 'Duathlon')}</b><span>${new Date(se.date).toLocaleDateString('fr-FR')} · ${se.groups.length} groupe${se.groups.length > 1 ? 's' : ''}</span></div>${sum}${cards}</div>`; }).join('');
+}
+
+/* Toutes les autres activités : tableau élèves × indicateurs (lus dans le détail), regroupé par séance et par groupe/équipe, cases colorées selon la valeur */
+function bilanGen(L, color, pupils) {
+  const dt = ts => new Date(ts).toLocaleDateString('fr-FR'), day = ts => new Date(ts).toDateString();
+  const BAD = /faute|p[ée]nalit|erreur|non valid|perdu|abandon|chute|rat[ée]|manqu|recule|temps|✗|❌/i;
+  const GRP = /^(groupe|[ée]quipe|bin[ôo]me|relais|team|poule|couloir|atelier)\b/i;
+  const num = s => { const m = /-?\d+(?:[.,]\d+)?/.exec(String(s)); return m ? parseFloat(m[0].replace(',', '.')) : null; };
+  const P = L.map(r => { const segs = String(r.detail || '').split(' · ').map(s => s.trim()).filter(Boolean), M = [], notes = []; let grp = '';
+    segs.forEach((s, i) => { if (i === 0 && GRP.test(s)) { grp = s; return; }
+      const m = /^(.*?)[\s:]*(-?\d+(?:[.,]\d+)?)\s*(%|pts?|s|m|min|km\/h|tours?)?$/i.exec(s), m2 = /^(-?\d+(?:[.,]\d+)?)\s*(%|pts?|s|m|min|km\/h)?\s+(.+)$/i.exec(s);
+      if (m && m[1] && m[1].length < 26) M.push({ l: m[1].trim(), v: parseFloat(m[2].replace(',', '.')), u: m[3] || '' });
+      else if (m2 && m2[3].length < 26) M.push({ l: m2[3].trim(), v: parseFloat(m2[1].replace(',', '.')), u: m2[2] || '' });
+      else notes.push(s); });
+    const seen = {}; M.forEach(x => { seen[x.l] = (seen[x.l] || 0) + 1; if (seen[x.l] > 1) x.l += ' ' + seen[x.l]; });
+    if (!grp) { const q = /([ÉE]quipe\s+[A-Z0-9]+)/.exec(String(r.valeur)); if (q) grp = q[1]; }
+    return { r, grp, M, notes }; });
+  const days = new Set(L.map(r => day(r.date))), multi = days.size > 1;
+  const secs = []; P.forEach(p => { const k = (multi && p.grp ? day(p.r.date) : '') + '|' + p.grp; let s = secs.find(x => x.k === k); if (!s) secs.push(s = { k, date: p.r.date, grp: p.grp, rows: [] }); s.rows.push(p); });
+  secs.sort((a, b) => a.date - b.date || String(a.grp).localeCompare(String(b.grp), 'fr', { numeric: true }));
+  const tbl = s => { const cnt = {}; s.rows.forEach(p => p.M.forEach(x => cnt[x.l] = (cnt[x.l] || 0) + 1)); const top = Object.keys(cnt).sort((a, b) => cnt[b] - cnt[a]).slice(0, 7);
+    const ord = []; s.rows.forEach(p => p.M.forEach(x => { if (top.includes(x.l) && !ord.includes(x.l)) ord.push(x.l); }));
+    const st = {}; ord.forEach(l => { const v = s.rows.map(p => (p.M.find(x => x.l === l) || {}).v).filter(x => x != null); st[l] = { mn: Math.min(...v), mx: Math.max(...v), bad: BAD.test(l) }; });
+    const rn = s.rows.map(p => /^\s*-?\d+(?:[.,]\d+)?\s*(?:%|pts?|m|s|km\/h|tours?|points?)?\s*$/i.test(String(p.r.valeur)) ? num(p.r.valeur) : null), okR = rn.filter(x => x != null).length >= 2, rmx = Math.max(...rn.filter(x => x != null), 0), rmn = Math.min(...rn.filter(x => x != null), 0);
+    const heat = (v, S) => { if (v == null) return ''; if (S.mx === S.mn) return 'background:#9AA6BF22;'; const t = (v - S.mn) / (S.mx - S.mn), good = S.bad ? 1 - t : t, c = good > .66 ? '#1B9E5A' : good < .34 ? '#D64545' : '#E0A92F'; return `background:${c}${Math.round(24 + good * 40).toString(16).padStart(2, '0')};`; };
+    const showD = !s.grp && multi, notes = s.rows.some(p => p.notes.length), base = Math.min(rmn, 0);
+    return `<div class="sc"><table class="wt"><tr><th class="l">Élève</th>${showD ? '<th>Date</th>' : ''}<th style="background:${color}">Résultat</th>${ord.map(l => `<th style="background:${color}CC">${esc(l)}</th>`).join('')}${notes ? '<th class="l" style="background:#667">Remarques</th>' : ''}</tr>
+      ${s.rows.map((p, i) => `<tr><td class="l"><b>${esc(p.r.eleve)}</b></td>${showD ? `<td>${dt(p.r.date)}</td>` : ''}<td style="background:${color}22;font-weight:900">${esc(String(p.r.valeur))}${okR && rn[i] != null && rmx > base ? `<div class="mb"><i style="width:${Math.max(4, Math.round((rn[i] - base) / (rmx - base) * 100))}%;background:${color}"></i></div>` : ''}</td>${ord.map(l => { const x = p.M.find(y => y.l === l); return x ? `<td style="${heat(x.v, st[l])}font-weight:800">${x.v}${x.u && !/^tours?$/i.test(x.u) ? ' <small>' + esc(x.u) + '</small>' : ''}</td>` : '<td class="none">–</td>'; }).join('')}${notes ? `<td class="l d">${esc(p.notes.join(' · '))}</td>` : ''}</tr>`).join('')}</table></div>`; };
+  return secs.map(s => `<div class="wg">${s.grp ? `<div class="wgh"><div><b>${esc(s.grp)}</b>${multi ? ` <span class="mut" style="font-size:.78rem">· ${dt(s.date)}</span>` : ''}<div class="mut" style="font-size:.78rem">${esc([...new Set(s.rows.map(p => p.r.eleve))].join(' · '))}</div></div></div>` : ''}${tbl(s)}</div>`).join('');
+}
+
+/* Fiches individuelles : une page par élève (activités, critères/objectifs, niveaux de maîtrise en couleurs, notes, performances) */
+function bilanFiches(opt) {
+  const fr = x => (Math.round(x * 10) / 10).toString().replace('.', ','), dt = ts => new Date(ts).toLocaleDateString('fr-FR');
+  const names = Object.fromEntries(TOOLS.map(t => [t.id, t.name])), M = window.EPS_M;
+  const noteCol = n => n >= 16 ? '#1B9E5A' : n >= 11 ? '#2F6BD8' : n >= 6 ? '#E0892F' : '#D64545';
+  const pages = [];
+  opt.classes.forEach(cls => {
+    const st = (studentsOf(cls) || []).slice(), V = (DB.valid || {}).v || {}, lv = typeof valLevelOf === 'function' ? valLevelOf(cls) : '';
+    const rs = (DB.resultats || []).filter(r => r && r.classe === cls && r.eleve && (!opt.tools || opt.tools.includes(r.tool)));
+    rs.forEach(r => { if (!st.includes(r.eleve)) st.push(r.eleve); });
+    const vKeys = Object.keys(V).filter(k => V[k] && V[k][cls]);
+    st.forEach(n => {
+      let body = '', badges = '';
+      // 1) validation enseignant : objectifs/critères, maîtrise, note
+      vKeys.forEach(k => { const W = V[k][cls][n]; if (!W || typeof valLvls !== 'function' || !valLvls(W).length) return;
+        const [t, sb] = k.split(':'), T = (typeof VAL_TOOLS !== 'undefined' && VAL_TOOLS[t]) || { n: t }, ck = typeof valHasSet === 'function' && valHasSet(k, lv) ? k + '@' + lv : k;
+        let C = []; try { C = valCrit(ck); } catch (e) {} if (!C.length) return;
+        const cfg = valCfg(ck), NT = cfg.on ? valNote(C, W, cfg) : null, avg = epsMAvg(valLvls(W)), title = T.n + (sb ? ' · ' + ((T.sub && T.sub[sb] && T.sub[sb].n) || sb) : '');
+        badges += `<span class="fb" style="background:${avg != null ? M[avg][1] : '#889'}">${esc(title)} · ${avg != null ? esc(M[avg][2] || M[avg][0]) : '–'}${NT ? ' · ' + fr(NT.n20) + '/20' : ''}</span>`;
+        const subs = NT && Object.keys(NT.sub).filter(x => x).length ? `<div class="fsub">${Object.entries(NT.sub).filter(([x]) => x).map(([x, v]) => `<span style="border-color:${noteCol(v)};color:${noteCol(v)}">${esc(x)} : <b>${fr(v)}/20</b></span>`).join('')}</div>` : '';
+        body += `<div class="fa"><div class="fah"><b>${esc(title)}</b>${NT ? `<span class="fn" style="background:${noteCol(NT.n20)}">${fr(NT.n20)}<small>/20</small></span>` : ''}</div>
+          <div class="fgoal">🎯 Objectifs et critères observés</div>
+          <table class="wt"><tr><th class="l">Critère</th><th style="width:34%">Niveau de maîtrise</th>${cfg.on ? '<th style="width:60px">Note</th>' : ''}</tr>
+          ${C.map(c => { const l = W[c.id]; if (l == null) return `<tr><td class="l d">${esc(c.n)}</td><td class="none">non observé</td>${cfg.on ? '<td class="none">–</td>' : ''}</tr>`;
+            return `<tr><td class="l">${esc(c.n)}</td><td><div class="lvb">${M.map((m, i) => `<i style="background:${i <= l ? M[l][1] : '#E4E9F3'}"></i>`).join('')}</div><span class="lvt" style="color:${M[l][1]}">${esc(M[l][0])}</span></td>${cfg.on ? `<td style="font-weight:900">${fr(valPt(c.id, W, cfg))}</td>` : ''}</tr>`; }).join('')}</table>${subs}</div>`; });
+      // 2) performances (résultats des outils)
+      const mine = rs.filter(r => r.eleve === n && r.tool !== 'valid' && !/^valid\|/.test(String(r.key || '')));
+      const byT = {}; mine.forEach(r => (byT[names[r.tool] || r.label || r.tool] = byT[names[r.tool] || r.label || r.tool] || []).push(r));
+      const perf = Object.entries(byT).map(([t, L], i) => { const col = BIL_COLS[i % BIL_COLS.length]; L.sort((a, b) => a.date - b.date);
+        return `<div class="fa"><div class="fah"><b>${esc(t)}</b><span class="mut">${L.length} résultat${L.length > 1 ? 's' : ''}</span></div>
+          <table class="wt"><tr><th style="background:${col};width:90px">Date</th><th style="background:${col}">Résultat</th><th class="l" style="background:${col}CC">Détail</th></tr>${L.map(r => `<tr><td>${dt(r.date)}</td><td style="background:${col}22;font-weight:900">${esc(String(r.valeur))}</td><td class="l d">${esc(String(r.detail || '')).split(' · ').map(s => `<span class="chip3">${s}</span>`).join(' ')}</td></tr>`).join('')}</table></div>`; }).join('');
+      // 3) grilles d'évaluation
+      let gh = ''; (opt.grilles || []).forEach(gi => { const g = (DB.grilles || [])[gi]; if (!g) return; const E = ((g.evals || {})[cls] || {})[n]; if (!E || !Object.keys(E).length) return;
+        const L = grLevels(g), pts = (g.type || 'points') === 'points', nL = L.length, col = x => GR_COLORS[Math.round(x / Math.max(1, nL - 1) * 3)] || '#2F6BD8', tot = g.criteria.reduce((a, c) => a + (c.pts || 0), 0);
+        let s = 0; g.criteria.forEach((c, i) => { if (E[i] != null) s += (c.pts || 0) * grK(g, E[i]); }); const s20 = tot ? s / tot * 20 : 0;
+        gh += `<div class="fa"><div class="fah"><b>Évaluation · ${esc(g.name)}</b>${pts ? `<span class="fn" style="background:${noteCol(s20)}">${fr(s20)}<small>/20</small></span>` : ''}</div>
+          <table class="wt"><tr><th class="l">Critère</th><th>Niveau</th></tr>${g.criteria.map((c, i) => E[i] != null ? `<tr><td class="l">${esc(c.label)}${pts ? ` <small class="d">(${c.pts} pts)</small>` : ''}</td><td style="background:${col(E[i])};color:#fff;font-weight:800">${esc(L[E[i]])}</td></tr>` : '').join('')}</table></div>`; });
+      if (!body && !perf && !gh) return;
+      pages.push(`<section class="page fiche"><div class="fh"><div><h2 style="border:0;margin:0;color:#fff">${esc(n)}</h2><div>${esc(cls)} · ${esc(DB.annee || '')}</div></div><div class="fbs">${badges}</div></div>${body}${perf}${gh}<div class="mut" style="font-size:.7rem;margin-top:10px">Édité le ${new Date().toLocaleDateString('fr-FR')} — EPS ONE</div></section>`);
+    });
+  });
+  return pages.join('') || '<section class="page"><p class="mut">Aucune donnée individuelle pour les classes choisies.</p></section>';
+}
+
+/* Le bilan est en lecture seule : il ne doit rien écrire dans les données (les helpers de validation créent des valeurs par défaut en mémoire → on les annule) */
 function bilanHTML(opt) {
+  const before = JSON.stringify(DB.valid === undefined ? null : DB.valid);
+  try { return bilanHTML0(opt); } finally { if (JSON.stringify(DB.valid === undefined ? null : DB.valid) !== before) { const b = JSON.parse(before); if (b === null) delete DB.valid; else DB.valid = b; } }
+}
+function bilanHTML0(opt) {
   const names = Object.fromEntries(TOOLS.map(t => [t.id, t.name])), tName = r => names[r.tool] || r.label || r.tool || 'Autre';
   const all = (DB.resultats || []).filter(r => r && r.classe && r.eleve && opt.classes.includes(r.classe) && (!opt.tools || opt.tools.includes(r.tool)));
   const toolList = [...new Set(all.map(tName))].sort((a, b) => a.localeCompare(b, 'fr')), tc = Object.fromEntries(toolList.map((t, i) => [t, BIL_COLS[i % BIL_COLS.length]]));
@@ -94,7 +200,9 @@ function bilanHTML(opt) {
       ${pupils.map(n => `<tr><td class="l"><b>${esc(n)}</b></td>${tools.map(t => { const r = last(n, t); return r ? `<td style="background:${tint(tc[t])}">${esc(String(r.valeur))}</td>` : '<td class="none">–</td>'; }).join('')}</tr>`).join('')}</table></div>`;
     const blocks = tools.map(t => { let L = byTool[t].slice(); const wodX = L.some(r => r.tool === 'wod') ? (typeof bilanWod === 'function' ? bilanWod(cls) : '') : '';
       if (wodX) { L = L.filter(r => !/^(wod\||valid\|wod)/.test(String(r.key || ''))); const head = `<h3 style="border-color:${tc[t]}"><span class="dot" style="background:${tc[t]}"></span>${esc(t)} <small>par groupe</small></h3>${wodX}`; if (!L.length) return head; return head + (() => { const L2 = L.slice().sort((a, b) => (pupils.indexOf(a.eleve) - pupils.indexOf(b.eleve)) || a.date - b.date); return `<div class="sc"><table><tr><th class="l">Élève</th><th>Date</th><th>Résultat</th><th class="l">Détail</th></tr>${L2.map(r => `<tr><td class="l"><b>${esc(r.eleve)}</b></td><td>${dt(r.date)}</td><td style="background:${tint(tc[t])};font-weight:800">${esc(String(r.valeur))}</td><td class="l d">${esc(String(r.detail || ''))}</td></tr>`).join('')}</table></div>`; })(); }
+      if (L.length && L.every(r => r.tool === 'duathlon') && typeof bilanDua === 'function') { const dx = bilanDua(cls); if (dx) return `<h3 style="border-color:${tc[t]}"><span class="dot" style="background:${tc[t]}"></span>${esc(t)} <small>par groupe</small></h3>${dx}`; }
       L = L.sort((a, b) => (pupils.indexOf(a.eleve) - pupils.indexOf(b.eleve)) || a.date - b.date);
+      if (typeof bilanGen === 'function' && !L.every(r => r.tool === 'valid')) { const gx = bilanGen(L, tc[t], pupils); if (gx) return `<h3 style="border-color:${tc[t]}"><span class="dot" style="background:${tc[t]}"></span>${esc(t)} <small>${L.length} résultat${L.length > 1 ? 's' : ''}</small></h3>${gx}`; }
       const num = r => { const m = /-?\d+(?:[.,]\d+)?/.exec(String(r.valeur)); return m && !/:/.test(String(r.valeur)) ? parseFloat(m[0].replace(',', '.')) : null; };
       const nums = L.map(num), ok = nums.filter(x => x != null).length >= 3, mx = ok ? Math.max(...nums.filter(x => x != null), 0) : 0;
       return `<h3 style="border-color:${tc[t]}"><span class="dot" style="background:${tc[t]}"></span>${esc(t)} <small>${L.length} résultat${L.length > 1 ? 's' : ''}</small></h3><div class="sc"><table><tr><th class="l">Élève</th><th>Date</th><th>Résultat</th>${ok ? '<th class="bar"></th>' : ''}<th class="l">Détail</th></tr>
@@ -127,9 +235,12 @@ td.bar{width:20%;padding:6px;text-align:left}td.bar i{display:block;height:10px;
 .toc{columns:2;line-height:1.8}
 .ev{border:1px solid #D9DFEB;border-left:5px solid #C9A227;border-radius:10px;padding:10px 12px;margin:10px 0;break-inside:avoid}.evh{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap}.evh span{color:#667;font-size:.8rem}.lead{font-weight:700;font-size:.85rem;margin:4px 0}
 .wg{border:1px solid #D9DFEB;border-radius:12px;padding:10px 12px;margin:10px 0;break-inside:avoid}.wgh{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:flex-start;margin-bottom:6px}.wgt{display:flex;gap:6px;flex-wrap:wrap;align-items:center}.tm{font-weight:900;font-size:1.05rem;color:#0B2A5B}.tm.nt{color:#889;font-size:.85rem}.ec{color:#fff;font-weight:800;font-size:.78rem;border-radius:99px;padding:3px 10px}
-table.wt th{font-size:.78rem}th.ex{font-weight:700;font-size:.74rem}table.wt td{font-size:.86rem}tr.cum td{border-top:2px solid #0B2A5B}.vr{margin-top:8px;font-size:.82rem}.vr>div{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:3px 0;border-top:1px solid #EEF1F7}.vr>div>span:first-child{width:180px;font-weight:700}.chip2{display:inline-block;color:#fff;font-size:.72rem;font-weight:800;border-radius:99px;padding:2px 8px;margin:1px 2px 1px 0}
-@media print{body{background:#fff}.page{box-shadow:none;border-radius:0;margin:0;padding:6mm;max-width:none;page-break-after:always;break-after:page}.page:last-child{page-break-after:auto;break-after:auto}.sc{overflow:visible}tr{break-inside:avoid}@page{size:A4 landscape;margin:8mm}}
-</style></head><body>${sum}${clsSections}</body></html>`;
+table.wt th{font-size:.78rem}th.ex{font-weight:700;font-size:.74rem}table.wt td{font-size:.86rem}div.mb{height:5px;background:#E4E9F3;border-radius:9px;margin-top:3px;overflow:hidden}div.mb i{display:block;height:100%}tr.cum td{border-top:2px solid #0B2A5B}.vr{margin-top:8px;font-size:.82rem}.vr>div{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:3px 0;border-top:1px solid #EEF1F7}.vr>div>span:first-child{width:180px;font-weight:700}.chip2{display:inline-block;color:#fff;font-size:.72rem;font-weight:800;border-radius:99px;padding:2px 8px;margin:1px 2px 1px 0}
+.fiche{max-width:820px}.fh{background:linear-gradient(120deg,#C9A227,#1E5BD8 60%,#0B2A5B);color:#fff;border-radius:12px;padding:14px 18px;margin-bottom:12px;display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center}.fh h2{font-size:1.6rem}.fbs{display:flex;gap:6px;flex-wrap:wrap}.fb{color:#fff;font-weight:800;font-size:.78rem;border-radius:99px;padding:4px 10px;border:2px solid rgba(255,255,255,.7)}
+.fa{border:1px solid #D9DFEB;border-radius:12px;padding:10px 12px;margin:10px 0;break-inside:avoid}.fah{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:4px;font-size:1.05rem}.fn{color:#fff;font-weight:900;font-size:1.3rem;border-radius:10px;padding:2px 12px}.fn small{font-size:.7rem;opacity:.85}.fgoal{font-size:.8rem;font-weight:700;color:#445;margin:2px 0 6px}
+.lvb{display:flex;gap:3px;justify-content:center}.lvb i{width:26px;height:9px;border-radius:5px;display:block}.lvt{font-size:.74rem;font-weight:800}.fsub{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}.fsub span{border:2px solid;border-radius:99px;padding:2px 10px;font-size:.8rem;font-weight:700}.chip3{display:inline-block;background:#EEF1F7;border-radius:99px;padding:1px 8px;margin:1px;font-size:.76rem;color:#223}
+@media print{body{background:#fff}.page{box-shadow:none;border-radius:0;margin:0;padding:6mm;max-width:none;page-break-after:always;break-after:page}.page:last-child{page-break-after:auto;break-after:auto}.sc{overflow:visible}tr{break-inside:avoid}@page{size:A4 landscape;margin:8mm}}${opt.fiches ? '@page{size:A4 portrait;margin:8mm}' : ''}
+</style></head><body>${opt.fiches ? bilanFiches(opt) : sum + clsSections}</body></html>`;
 }
 
 function openBilan() {
@@ -148,6 +259,7 @@ function openBilan() {
     ${tools.length ? `<b style="display:block;margin-top:10px">Résultats des outils</b>${tools.map(([id, n]) => chk('t', id, n, res.filter(r => r.tool === id).length)).join('')}` : ''}
     ${hasColl ? `<b style="display:block;margin-top:10px">Résultats collectifs</b>${chk('k', 'coll', 'Tournois, matchs, HYROX, C.O. par équipes, relais, cross…', null)}` : ''}
     ${gr.length ? `<b style="display:block;margin-top:10px">Grilles d'évaluation</b>${gr.map(x => chk('g', x.i, x.g.name, null)).join('')}` : ''}
+    <b style="display:block;margin-top:10px">Fiches individuelles</b>${chk('f', 'fiches', '📄 Ajouter aussi une fiche par élève (objectifs, niveaux de maîtrise, notes, performances)', null).replace(' checked','')}
     <div class="row" style="margin-top:12px"><button class="btn btn-ghost" data-x>Annuler</button><button class="btn btn-grad" data-go>Créer le bilan</button></div>
     </div>`;
   document.body.appendChild(o);
@@ -155,11 +267,13 @@ function openBilan() {
   o.querySelector('[data-go]').onclick = async () => {
     const cs = [...o.querySelectorAll('[data-c]:checked')].map(x => x.dataset.c), ts = [...o.querySelectorAll('[data-t]:checked')].map(x => x.dataset.t), coll = !!o.querySelector('[data-k]:checked'), gs = [...o.querySelectorAll('[data-g]:checked')].map(x => +x.dataset.g);
     if (!cs.length || (!ts.length && !coll && !gs.length)) return toast('Choisissez au moins une classe et un contenu');
-    const html = bilanHTML({ classes: cs, tools: ts, coll, grilles: gs }); o.remove();
-    const name = 'bilan-eps-' + new Date().toISOString().slice(0, 10) + '.html', blob = new Blob([html], { type: 'text/html' });
+    const fic = !!o.querySelector('[data-f]:checked'), opt0 = { classes: cs, tools: ts, coll, grilles: gs }; let html = bilanHTML(opt0); o.remove();
+    const dd = new Date().toISOString().slice(0, 10); let name = 'bilan-eps-' + dd + '.html', blob = new Blob([html], { type: 'text/html' });
+    const docs = fic ? [{ html, name, blob }, (() => { const h = bilanHTML({ ...opt0, fiches: true }); return { html: h, name: 'fiches-eleves-' + dd + '.html', blob: new Blob([h], { type: 'text/html' }) }; })()] : null;
     const v = document.createElement('div'); v.style.cssText = 'position:fixed;inset:0;z-index:300;background:#333;display:flex;flex-direction:column';
-    v.innerHTML = `<div style="display:flex;gap:8px;padding:10px;align-items:center;background:var(--grad,#0B2A5B);color:#fff;flex-wrap:wrap"><b style="flex:1">📊 Bilan</b><button class="btn btn-white" data-s>📤 Enregistrer / envoyer</button><button class="btn btn-white" data-p>🖨 Imprimer / PDF</button><button class="btn btn-ghost" style="color:#fff" data-x>✕ Fermer</button></div><iframe title="Bilan" style="flex:1;border:0;background:#EEF1F7"></iframe>`;
+    v.innerHTML = `<div style="display:flex;gap:8px;padding:10px;align-items:center;background:var(--grad,#0B2A5B);color:#fff;flex-wrap:wrap"><b style="flex:1">📊 Bilan</b>${fic ? '<button class="btn btn-white" data-d="0" style="outline:3px solid #C9A227">📊 Bilan</button><button class="btn btn-white" data-d="1">📄 Fiches élèves</button>' : ''}<button class="btn btn-white" data-s>📤 Enregistrer / envoyer</button><button class="btn btn-white" data-p>🖨 Imprimer / PDF</button><button class="btn btn-ghost" style="color:#fff" data-x>✕ Fermer</button></div><iframe title="Bilan" style="flex:1;border:0;background:#EEF1F7"></iframe>`;
     document.body.appendChild(v); v.querySelector('iframe').srcdoc = html; v.querySelector('[data-x]').onclick = () => v.remove();
+    v.querySelectorAll('[data-d]').forEach(b => b.onclick = () => { const d = docs[+b.dataset.d]; html = d.html; name = d.name; blob = d.blob; v.querySelector('iframe').srcdoc = html; v.querySelectorAll('[data-d]').forEach(x => x.style.outline = x === b ? '3px solid #C9A227' : ''); });
     v.querySelector('[data-s]').onclick = async () => {
       const f = new File([blob], name, { type: 'text/html' });
       try { if (navigator.canShare && navigator.canShare({ files: [f] })) { await navigator.share({ files: [f], title: 'Bilan EPS' }); return; } } catch (e) { if (e && e.name === 'AbortError') return; }
