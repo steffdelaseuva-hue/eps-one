@@ -72,7 +72,7 @@ TOOL_IMPL.escalade = function (el) {
         return `<div class="card" style="margin-top:8px;display:flex;gap:12px;align-items:center">
           ${img ? `<img src="${img}" data-zoom="${w.id}" style="width:64px;height:64px;object-fit:cover;border-radius:10px;cursor:zoom-in">` : '<div style="width:64px;height:64px;border-radius:10px;background:var(--line);display:grid;place-items:center;font-size:1.6rem">🧗</div>'}
           <div style="flex:1;min-width:0"><div>${escBadge(w.cot)} <b>${esc(w.nom)}</b></div><div class="muted" style="font-size:.8rem;margin-top:3px">${E.passages.filter(p => p.voie === w.id).length} passage(s)</div></div>
-          <button class="btn btn-ghost" data-cfg="bare" style="padding:6px 10px" data-ed="${i}">✏️</button><button class="btn btn-ghost" data-cfg="bare" style="padding:6px 10px" data-dl="${i}">🗑</button></div>`; }).join('')
+          <button class="btn btn-ghost" data-cfg="bare" style="padding:6px 10px" data-ed="${i}">${epsCanEdit(w) ? '✏️' : '🔒'}</button><button class="btn btn-ghost" data-cfg="bare" style="padding:6px 10px" data-dl="${i}">🗑</button></div>`; }).join('')
         : '<div class="card empty">Aucune voie pour l\'instant : créez votre première voie ci-dessus.</div>'}`;
     const $ = s => box.querySelector(s);
     const showPh = () => { $('#ph').innerHTML = photo ? `<div style="position:relative"><img src="${photo}" style="width:100%;max-height:340px;object-fit:contain;border-radius:12px;background:#000"><button class="btn btn-ghost" id="prm" style="position:absolute;top:6px;right:6px;padding:4px 10px;background:#fff;color:#000">✕</button></div>` : '<div class="muted" style="font-size:.85rem">Aucune photo.</div>';
@@ -81,16 +81,17 @@ TOOL_IMPL.escalade = function (el) {
     box.querySelectorAll('[data-c]').forEach(b => b.onclick = () => { v.cot = b.dataset.c; box.querySelectorAll('[data-c]').forEach(x => x.className = 'btn ' + (x.dataset.c === v.cot ? 'btn-grad' : 'btn-ghost')); });
     $('#pf').onchange = async e => { const f = e.target.files[0]; if (!f) return; try { photo = await escReadPhoto(f); showPh(); } catch (er) { toast(er.message); } };
     $('#vs').onclick = () => { const nom = $('#vn').value.trim() || `Voie ${E.voies.length + 1}`;
-      if (v.id) { const w = E.voies.find(x => x.id === v.id); w.nom = nom; w.cot = v.cot; }
-      else { v.id = Date.now().toString(36); E.voies.push({ id: v.id, nom, cot: v.cot }); }
+      if (v.id) { const w = E.voies.find(x => x.id === v.id); if (!epsGuard(w, w.nom)) return; w.nom = nom; w.cot = v.cot; }
+      else { v.id = Date.now().toString(36); E.voies.push(epsTg({ id: v.id, nom, cot: v.cot })); }
       DB[escImgKey(v.id)] = photo || null;
       try { save(); } catch (er) {} toast('Voie enregistrée ✔'); voies(box); };
     if ($('#vx')) $('#vx').onclick = () => voies(box);
-    box.querySelectorAll('[data-ed]').forEach(b => b.onclick = () => { voies(box, { ...E.voies[+b.dataset.ed] }); el.scrollTop = 0; box.scrollIntoView?.(); });
+    box.querySelectorAll('[data-ed]').forEach(b => b.onclick = () => { const w0 = E.voies[+b.dataset.ed]; if (!epsGuard(w0, w0.nom)) return; voies(box, { ...w0 }); el.scrollTop = 0; box.scrollIntoView?.(); });
     box.querySelectorAll('[data-dl]').forEach(b => b.onclick = () => { const w = E.voies[+b.dataset.dl];
-      if (!confirm(`Supprimer la voie « ${w.nom} » ?\nLes passages déjà enregistrés sont conservés.`)) return;
+      if (!epsGuard(w, w.nom) || !confirm(`Supprimer la voie « ${w.nom} » ?\nLes passages déjà enregistrés sont conservés.`)) return;
       E.voies.splice(+b.dataset.dl, 1); DB[escImgKey(w.id)] = null; save(); voies(box); });
     box.querySelectorAll('[data-zoom]').forEach(i => i.onclick = () => zoom(i.dataset.zoom));
+    epsProtCard(box, 'voies d\'escalade', () => [E.voies], () => voies(box));
   }
   function zoom(id) {
     const img = DB[escImgKey(id)]; if (!img) return;

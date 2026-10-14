@@ -631,26 +631,43 @@ TOOL_IMPL.co = function (el) {
   }
 
   /* ================= 1. PARCOURS ================= */
-  function listParcours(box) {
-    box.innerHTML = `<div class="section-title"><h2>📍 Lieux et cartes</h2></div><div class="card" style="padding:0">${coLieux().length ? coLieux().map((L, i) => `<div class="list-item"><div style="flex:1"><b>${esc(L.nom)}</b>
-        <div class="muted">${L.map ? '🗺 carte' : '⚠️ pas de carte'}${L.map ? (coMPU(L) ? ' · 📏 échelle ✔' : ' · 📏 sans échelle') : ''} · ${L.postes.length} poste${L.postes.length > 1 ? 's' : ''}${L.postes.some(q => q.x == null) ? ` (${L.postes.filter(q => q.x == null).length} à placer)` : ''} · ${DB.co.parcours.filter(p => p.lieu === L.id).length} parcours</div></div><button class="btn btn-ghost" data-cfg="bare" data-le="${i}">✏️</button></div>`).join('')
+  const lk = x => typeof epsCanEdit === 'function' && !epsCanEdit(x), lkN = x => (typeof epsOwnerOf === 'function' && (epsOwnerOf(x) || {}).name) || 'son créateur';
+/* 🔒 Protection par code perso : lieux, cartes et parcours */
+  const protOf = () => { const me = typeof activeProf === 'function' ? activeProf() : null; if (!me || !teamOn()) return null;
+    const all = [...coLieux(), ...DB.co.parcours]; return { me, free: all.filter(x => !x.prof), mine: all.filter(x => x.prof === me.id) }; };
+  const protHTML = () => { const P = protOf(); if (!P) return ''; return `<div class="card" data-cfg style="margin-top:14px;border:2px solid #B8912A"><h3 style="margin:0">🔒 Protection de mes lieux, cartes et parcours</h3>
+      <p class="muted" style="font-size:.84rem;margin:6px 0 8px">Protégés par le code de <b>${esc(P.me.name)}</b> : tes collègues peuvent les utiliser (séances, impression, duplication) mais ne peuvent ni les modifier ni les supprimer.</p>
+      <div style="font-size:.9rem">🔓 Non protégés : <b>${P.free.length}</b> · 🔒 Protégés à ton nom : <b>${P.mine.length}</b></div>
+      ${P.free.length ? `<button class="btn btn-grad btn-block" style="margin-top:10px" id="prot-on">🔒 Protéger les ${P.free.length} éléments non protégés</button>` : ''}
+      ${P.mine.length ? `<button class="btn btn-ghost btn-block" style="margin-top:8px" id="prot-off">🔓 Retirer ma protection (${P.mine.length})</button>` : ''}</div>`; };
+  const protWire = box => { const P = protOf(); if (!P) return; const ask = (txt, go) => { const run = () => { go(); save(); listParcours(box); };
+      if (!confirm(txt)) return; if (P.me.pin && typeof pinPad === 'function') pinPad('ask', run, `Code de ${P.me.name}`, { hash: P.me.pin }); else run(); };
+    const on = box.querySelector('#prot-on'), off = box.querySelector('#prot-off');
+    if (on) on.onclick = () => ask(`Protéger ${P.free.length} élément(s) (lieux, cartes, parcours) au nom de ${P.me.name} ?\nLes collègues pourront les utiliser mais pas les modifier.`, () => { P.free.forEach(x => x.prof = P.me.id); toast(`🔒 ${P.free.length} élément(s) protégé(s)`); });
+    if (off) off.onclick = () => ask(`Retirer la protection de tes ${P.mine.length} éléments ?\nTout le monde pourra de nouveau les modifier.`, () => { P.mine.forEach(x => delete x.prof); toast('🔓 Protection retirée'); }); };
+    function listParcours(box) {
+    box.innerHTML = `<div class="section-title"><h2>📍 Lieux et cartes</h2></div><div class="card" style="padding:0">${coLieux().length ? coLieux().map((L, i) => `<div class="list-item"><div style="flex:1"><b>${esc(L.nom)}</b>${lk(L) ? ` <span class="pill" style="font-size:.7rem">🔒 ${esc(lkN(L))}</span>` : ''}
+        <div class="muted">${L.map ? '🗺 carte' : '⚠️ pas de carte'}${L.map ? (coMPU(L) ? ' · 📏 échelle ✔' : ' · 📏 sans échelle') : ''} · ${L.postes.length} poste${L.postes.length > 1 ? 's' : ''}${L.postes.some(q => q.x == null) ? ` (${L.postes.filter(q => q.x == null).length} à placer)` : ''} · ${DB.co.parcours.filter(p => p.lieu === L.id).length} parcours</div></div>${lk(L) ? `<button class="btn btn-ghost" data-cfg="bare" data-lk="l|${i}" title="Protégé par ${esc(lkN(L))}">🔒</button>` : `<button class="btn btn-ghost" data-cfg="bare" data-le="${i}">✏️</button>`}</div>`).join('')
         : '<div class="empty" style="font-size:.85rem">Importez la carte vierge d\'un lieu (établissement, bois…) et placez-y les postes : les parcours se créeront ensuite en touchant les postes.</div>'}</div>
       <button class="btn btn-ghost btn-block" data-cfg style="margin-top:8px" id="newl">＋ Nouveau lieu (carte vierge + postes)</button>
-      <div class="section-title"><h2>🗺 Parcours</h2>${DB.co.parcours.some(p => coMapOf(p) || (p.type === 'koh' && p.balises.some(coKohOk))) ? '<button class="link" id="prall">🖨 Imprimer les cartes</button>' : ''}</div><div class="card" style="padding:0">${DB.co.parcours.length ? DB.co.parcours.map((p, i) => `<div class="list-item"><div style="flex:1"><b>${esc(p.nom)}</b>
+      <div class="section-title"><h2>🗺 Parcours</h2>${DB.co.parcours.some(p => coMapOf(p) || (p.type === 'koh' && p.balises.some(coKohOk))) ? '<button class="link" id="prall">🖨 Imprimer les cartes</button>' : ''}</div><div class="card" style="padding:0">${DB.co.parcours.length ? DB.co.parcours.map((p, i) => `<div class="list-item"><div style="flex:1"><b>${esc(p.nom)}</b>${lk(p) ? ` <span class="pill" style="font-size:.7rem">🔒 ${esc(lkN(p))}</span>` : ''}
         <div class="muted">${CO_TYPES[p.type][0]} · ${p.distance ? (p.distance / 1000).toFixed(2).replace('.', ',') + ' km' : 'distance ?'}${p.deniv ? ' · D+ ' + p.deniv + ' m' : ''} · ${p.balises.length} balises${p.type === 'papillon' ? ` · boucles de ${legK(p)}` : p.type === 'relais' ? ` · ${legK(p)} bal./relayeur` : ''}${coLieu(p.lieu) ? ' · 📍 ' + esc(coLieu(p.lieu).nom) : p.map && p.map.img ? ' · 🗺 carte' : ''}${p.alloue ? ' · ' + p.alloue + ' min' : ''}</div></div>
-        ${coMapOf(p) || (p.type === 'koh' && p.balises.some(coKohOk)) ? `<button class="btn btn-ghost" data-pr="${i}" title="Imprimer la carte${p.type === 'koh' ? ' et les indices' : ''}">🖨</button>` : ''}<button class="btn btn-ghost" data-cfg="bare" data-e="${i}">✏️</button><button class="btn btn-ghost" data-cfg="bare" data-c="${i}" title="Dupliquer">⧉</button></div>`).join('') : '<div class="empty">Aucun parcours. Créez le premier !</div>'}</div>
-      <button class="btn btn-grad btn-block" data-cfg style="margin-top:12px" id="new">＋ Créer un parcours</button>`;
+        ${coMapOf(p) || (p.type === 'koh' && p.balises.some(coKohOk)) ? `<button class="btn btn-ghost" data-pr="${i}" title="Imprimer la carte${p.type === 'koh' ? ' et les indices' : ''}">🖨</button>` : ''}${lk(p) ? `<button class="btn btn-ghost" data-cfg="bare" data-lk="p|${i}" title="Protégé par ${esc(lkN(p))}">🔒</button>` : `<button class="btn btn-ghost" data-cfg="bare" data-e="${i}">✏️</button>`}<button class="btn btn-ghost" data-cfg="bare" data-c="${i}" title="Dupliquer">⧉</button></div>`).join('') : '<div class="empty">Aucun parcours. Créez le premier !</div>'}</div>
+      <button class="btn btn-grad btn-block" data-cfg style="margin-top:12px" id="new">＋ Créer un parcours</button>${protHTML()}`;
+    box.querySelectorAll('[data-lk]').forEach(b => b.onclick = () => { const [k, i] = b.dataset.lk.split('|'); const x = k === 'l' ? coLieux()[+i] : DB.co.parcours[+i]; epsGuard(x, x && x.nom); });
+    protWire(box);
     box.querySelector('#new').onclick = () => editParcours(box, null);
     box.querySelector('#newl').onclick = () => editLieu(box, null);
     box.querySelectorAll('[data-le]').forEach(b => b.onclick = () => editLieu(box, +b.dataset.le));
     box.querySelectorAll('[data-pr]').forEach(b => b.onclick = () => coPrint([DB.co.parcours[+b.dataset.pr]]));
     { const a = box.querySelector('#prall'); if (a) a.onclick = () => { const L = DB.co.parcours.filter(p => coMapOf(p) || (p.type === 'koh' && p.balises.some(coKohOk))); coPrint(L); }; }
     box.querySelectorAll('[data-e]').forEach(b => b.onclick = () => editParcours(box, +b.dataset.e));
-    box.querySelectorAll('[data-c]').forEach(b => b.onclick = () => { const c = JSON.parse(JSON.stringify(DB.co.parcours[+b.dataset.c])); c.id = coId(); c.nom += ' (copie)'; DB.co.parcours.push(c); save(); listParcours(box); });
+    box.querySelectorAll('[data-c]').forEach(b => b.onclick = () => { const c = JSON.parse(JSON.stringify(DB.co.parcours[+b.dataset.c])); c.id = coId(); c.nom += ' (copie)'; delete c.prof; if (window.teamTag) teamTag(c); DB.co.parcours.push(c); save(); listParcours(box); });
   }
 
   /* ---- Lieu : carte vierge + postes ---- */
   function editLieu(box, idx) {
+    if (idx != null && typeof epsGuard === 'function' && !epsGuard(coLieux()[idx], (coLieux()[idx] || {}).nom)) return;
     const L = idx != null ? JSON.parse(JSON.stringify(coLieux()[idx])) : { id: coId(), nom: coLieux().length ? 'Bois' : 'Établissement', postes: [] };
     let mode = 'add', pick = null, sel = null, otype = null, draft = [], osel = null, pv = false; const Z = { s: 1, tx: 0, ty: 0 }; L.objs = L.objs || [];
     const ES = { det: null, state: '', cp: [], dist: (L.echelle && L.echelle.ref) || 60, mdist: '', wdist: '' };   // échelle : détection, mesure manuelle
@@ -789,11 +806,12 @@ TOOL_IMPL.co = function (el) {
           if (man.length && Math.abs(mpu - before) > 1e-9 && confirm(`Échelle réglée : calculer la distance de ${man.length === 1 ? 'ce parcours' : 'ces ' + man.length + ' parcours'} d'après la carte ? (${man.map(p => p.nom).join(', ')}) La distance saisie sera remplacée ; vous pourrez revenir à une distance manuelle dans chaque parcours.`)) man.forEach(p => p.distAuto = true);
           ps.filter(p => p.distAuto).forEach(p => { const r = coDistCalc(p, L); if (r && r.m) { p.distance = r.m; nd++; } }); }
         else ps.forEach(p => { if (p.distAuto) p.distAuto = false; });
-        if (idx != null) coLieux()[idx] = L; else coLieux().push(L); save(); toast(nd ? `Lieu enregistré ✔ · distance recalculée pour ${nd} parcours` : 'Lieu enregistré ✔'); listParcours(box); };
+        if (idx != null) coLieux()[idx] = L; else coLieux().push(window.teamTag ? teamTag(L) : L); save(); toast(nd ? `Lieu enregistré ✔ · distance recalculée pour ${nd} parcours` : 'Lieu enregistré ✔'); listParcours(box); };
     };
     draw();
   }
   function editParcours(box, idx) {
+    if (idx != null && typeof epsGuard === 'function' && !epsGuard(DB.co.parcours[idx], (DB.co.parcours[idx] || {}).nom)) return;
     const p = idx != null ? JSON.parse(JSON.stringify(DB.co.parcours[idx])) : {
       id: coId(), nom: 'Parcours 1', type: 'libre', distance: 1200, denivOn: false, deniv: 0, alloue: 20, ecart: 2,
       balises: Array.from({ length: 8 }, (_, i) => ({ num: 31 + i, niv: 1, ob: true })),
@@ -907,7 +925,7 @@ TOOL_IMPL.co = function (el) {
       $('#bk').onclick = () => listParcours(box);
       if ($('#del')) $('#del').onclick = () => { if (confirm('Supprimer ce parcours ?')) { window.epsItemDeleted && epsItemDeleted('co', (DB.co.parcours[idx] || {}).id); DB.co.parcours.splice(idx, 1); save(); listParcours(box); } };
       $('#sv').onclick = () => { read(); if (p.lieu && !p.balises.length) return toast('Touchez au moins un poste sur la carte'); const nums = p.balises.map(b => b.num); if (new Set(nums).size !== nums.length) return toast('Deux balises ont le même numéro');
-        if (idx != null) DB.co.parcours[idx] = p; else DB.co.parcours.push(p); save(); toast('Parcours enregistré ✔'); listParcours(box); };
+        if (idx != null) DB.co.parcours[idx] = p; else DB.co.parcours.push(window.teamTag ? teamTag(p) : p); save(); toast('Parcours enregistré ✔'); listParcours(box); };
     };
     draw();
   }

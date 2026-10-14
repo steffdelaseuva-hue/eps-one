@@ -560,6 +560,7 @@ TOOL_IMPL.acrosport = function (el) {
     if ($('#acl')) $('#acl').onchange = e => { cls = e.target.value; DB.lastClass = cls; gi = 0; save(); frame(); };
     if ($('#agr') && gs.length) $('#agr').onchange = e => { gi = +e.target.value; frame(); };
     ({ groupes: tabGroupes, banque: tabBanque, liaisons: tabLiaisons, enchainement: tabEnch, securite: tabSecu })[tab]($('#ab'));
+    if (tab === 'banque' || tab === 'liaisons') epsProtCard($('#ab'), 'créations d\'acrosport', () => [A.custom, A.liaisons], frame);
   }
 
   /* ---------- Groupes (modifiables) ---------- */
@@ -625,7 +626,7 @@ TOOL_IMPL.acrosport = function (el) {
     box.querySelectorAll('[data-add]').forEach(b => b.onclick = () => addFig(b.dataset.add));
     box.querySelector('#acnew').onclick = () => acroEditor(null, saveCustom);
   }
-  const saveCustom = fig => { A.custom = A.custom || []; const i = A.custom.findIndex(x => x.id === fig.id); if (i >= 0) A.custom[i] = fig; else A.custom.push(fig);
+  const saveCustom = fig => { A.custom = A.custom || []; const i = A.custom.findIndex(x => x.id === fig.id); if (i >= 0) { if (A.custom[i].prof) fig.prof = A.custom[i].prof; A.custom[i] = fig; } else A.custom.push(epsTg(fig));
     save(); toast('Pyramide enregistrée ✔'); frame(); };
   const addFig = id => { const g = G(); if (!g) return; g.seq.push({ k: Date.now().toString(36), t: 'fig', fig: id }); save(); toast(`Ajoutée à ${g.name} (${g.seq.length}) ✔`); frame(); };
   const detail = f => {
@@ -644,9 +645,9 @@ TOOL_IMPL.acrosport = function (el) {
         <div class="row" data-cfg="bare" style="margin-top:8px">${f.custom ? '<button class="btn btn-ghost" id="aced">✏️ Modifier</button><button class="btn btn-ghost" id="acdel">🗑 Supprimer</button>' : '<button class="btn btn-ghost" id="accp">✏️ Copier et modifier</button>'}</div>
         <button class="btn btn-ghost btn-block" style="margin-top:8px" id="acx">Fermer</button></div>`;
     o.onclick = e => { const id = e.target.id; if (e.target === o || id === 'acx') o.remove(); if (id === 'acadd') { o.remove(); addFig(f.id); }
-      if (id === 'aced') { o.remove(); acroEditor(f, saveCustom); }
+      if (id === 'aced') { if (!epsGuard(f, f.n)) return; o.remove(); acroEditor(f, saveCustom); }
       if (id === 'accp') { o.remove(); acroEditor({ ...JSON.parse(JSON.stringify(f)), n: f.n + ' (variante)', custom: 0 }, saveCustom); }
-      if (id === 'acdel' && confirm(`Supprimer « ${f.n} » ?`)) { o.remove(); A.custom = (A.custom || []).filter(x => x.id !== f.id); save(); toast('Pyramide supprimée'); frame(); } };
+      if (id === 'acdel' && epsGuard(f, f.n) && confirm(`Supprimer « ${f.n} » ?`)) { o.remove(); A.custom = (A.custom || []).filter(x => x.id !== f.id); save(); toast('Pyramide supprimée'); frame(); } };
     let chg = 0;
     const nivBox = () => { const sc = acroScore(f), au = acroAutoNiv(f), raw = A.niv && A.niv[f.id], man = raw && raw !== 'auto', isAuto = raw === 'auto' || (!raw && !f.nv);
       const vl = sc.vol === 2 ? 'semi' : Object.keys(ACRO_VOLPTS).find(k => ACRO_VOLPTS[k] === sc.vol);
@@ -726,13 +727,13 @@ TOOL_IMPL.acrosport = function (el) {
     if ($('#lis')) $('#lis').onclick = () => { const n = $('#lin').value.trim(), url = $('#liu').value.trim(), d = $('#lid').value.trim(); if (!n) return toast('Indiquez le nom de la liaison');
       if (url && !/^https?:\/\//i.test(url)) return toast('Le lien doit commencer par https://');
       const all = $('#liall') && $('#liall').checked; if (all) AC_LUNDO = Object.fromEntries(L.map(x => [x.id, x.url || '']));
-      if (liEdit === 'new') L.push({ id: newId(), n, url, d }); else Object.assign(L.find(x => x.id === liEdit), { n, url, d });
-      if (all) L.forEach(x => { x.url = url; });
+      if (liEdit === 'new') L.push(epsTg({ id: newId(), n, url, d })); else { const lx = L.find(x => x.id === liEdit); if (!epsGuard(lx, lx.n)) return; Object.assign(lx, { n, url, d }); }
+      if (all) L.forEach(x => { if (epsCanEdit(x)) x.url = url; });
       liEdit = null; save(); toast(all ? 'Lien copié dans toutes les liaisons ✔' : 'Liaison enregistrée ✔'); tabLiaisons(box); };
     if ($('#liundo')) $('#liundo').onclick = () => { L.forEach(x => { if (x.id in AC_LUNDO) x.url = AC_LUNDO[x.id]; }); AC_LUNDO = null; save(); toast('Liens rétablis ✔'); tabLiaisons(box); };
     box.querySelectorAll('[data-lv]').forEach(b => b.onclick = () => acroVideo(L.find(x => x.id === b.dataset.lv)));
-    box.querySelectorAll('[data-le]').forEach(b => b.onclick = () => { liEdit = b.dataset.le; tabLiaisons(box); window.scrollTo(0, 0); });
-    box.querySelectorAll('[data-lx]').forEach(b => b.onclick = () => { if (!confirm('Supprimer cette liaison ?')) return; A.liaisons = A.liaisons.filter(x => x.id !== b.dataset.lx); save(); tabLiaisons(box); });
+    box.querySelectorAll('[data-le]').forEach(b => b.onclick = () => { const lx = L.find(x => x.id === b.dataset.le); if (!epsGuard(lx, lx && lx.n)) return; liEdit = b.dataset.le; tabLiaisons(box); window.scrollTo(0, 0); });
+    box.querySelectorAll('[data-lx]').forEach(b => b.onclick = () => { const lx = A.liaisons.find(x => x.id === b.dataset.lx); if (!epsGuard(lx, lx && lx.n) || !confirm('Supprimer cette liaison ?')) return; A.liaisons = A.liaisons.filter(x => x.id !== b.dataset.lx); save(); tabLiaisons(box); });
     box.querySelectorAll('[data-la]').forEach(b => b.onclick = () => { const g2 = G(); if (!g2) return; g2.seq.push({ k: Date.now().toString(36), t: 'liaison', lid: b.dataset.la }); save(); toast(`Liaison ajoutée à ${g2.name} (${g2.seq.length}) ✔`); });
   }
 

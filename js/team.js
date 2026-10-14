@@ -61,6 +61,25 @@ ICONS.team = '<circle cx="9" cy="8" r="3.2"/><path d="M3 19.5c0-3.3 2.7-6 6-6s6 
   };
   // marque un nouvel enregistrement au nom de l'enseignant actif
   window.teamTag = o => { const p = activeProf(); if (p && o && !o.prof) o.prof = p.id; return o; };
+  /* Protection par code perso : un élément (lieu, carte, parcours…) marqué au nom d'un enseignant reste UTILISABLE par tous mais n'est MODIFIABLE que par lui (appareil déverrouillé avec son code) */
+  window.epsOwnerOf = x => { const id = x && x.prof; return id ? teamProfs().find(p => p.id === id) || null : null; };
+  window.epsCanEdit = x => { if (!teamOn() || !x || !x.prof) return true; const o = epsOwnerOf(x); if (!o) return true; const p = activeProf(); return !!p && p.id === o.id; };
+  window.epsGuard = (x, nom) => { if (epsCanEdit(x)) return true; const o = epsOwnerOf(x); toast(`🔒 « ${nom || x.nom || 'Élément'} » est protégé par ${o ? o.name : 'son créateur'} : vous pouvez l'utiliser, l'imprimer ou le dupliquer, mais pas le modifier.`); return false; };
+  window.epsTg = o => (window.teamTag ? teamTag(o) : o);
+  /* Carte « Protection de mes créations » : protège / libère en un clic tout ce que l'enseignant actif a créé (lists = () => tableaux d'objets) */
+  window.epsProtCard = (host, titre, lists, after) => {
+    const me = activeProf(); if (!me || !teamOn() || !host) return; const all = lists().filter(Array.isArray).flat().filter(x => x && typeof x === 'object');
+    const free = all.filter(x => !x.prof), mine = all.filter(x => x.prof === me.id); if (!free.length && !mine.length) return;
+    host.insertAdjacentHTML('beforeend', `<div class="card" data-cfg style="margin-top:14px;border:2px solid #B8912A"><h3 style="margin:0">🔒 Protection de mes ${titre}</h3>
+      <p class="muted" style="font-size:.84rem;margin:6px 0 8px">Protégés par le code de <b>${me.name}</b> : tes collègues peuvent les utiliser mais ni les modifier ni les supprimer.</p>
+      <div style="font-size:.9rem">🔓 Non protégés : <b>${free.length}</b> · 🔒 Protégés à ton nom : <b>${mine.length}</b></div>
+      ${free.length ? `<button class="btn btn-grad btn-block" style="margin-top:10px" data-pc="on">🔒 Protéger les ${free.length} éléments non protégés</button>` : ''}
+      ${mine.length ? `<button class="btn btn-ghost btn-block" style="margin-top:8px" data-pc="off">🔓 Retirer ma protection (${mine.length})</button>` : ''}</div>`);
+    const ask = (txt, go) => { const run = () => { go(); if (typeof save === 'function') save(); if (after) after(); }; if (!confirm(txt)) return; if (me.pin && typeof pinPad === 'function') pinPad('ask', run, `Code de ${me.name}`, { hash: me.pin }); else run(); };
+    const on = host.querySelector('[data-pc=on]'), off = host.querySelector('[data-pc=off]');
+    if (on) on.onclick = () => ask(`Protéger ${free.length} élément(s) au nom de ${me.name} ?`, () => { free.forEach(x => x.prof = me.id); toast('🔒 Protégé'); });
+    if (off) off.onclick = () => ask(`Retirer la protection de tes ${mine.length} éléments ?`, () => { mine.forEach(x => delete x.prof); toast('🔓 Protection retirée'); });
+  };
   window.teamFilter = L => (Array.isArray(L) ? L : []).filter(teamSees);
 
   const uid = () => 'p' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);

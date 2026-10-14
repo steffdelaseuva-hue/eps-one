@@ -449,6 +449,7 @@ TOOL_IMPL.gym = function (el) {
     if ($('#gcl')) $('#gcl').onchange = e => { cls = e.target.value; DB.lastClass = cls; gi = 0; ind = null; save(); frame(); };
     if ($('#ggr') && (gs.length || stl.length)) $('#ggr').onchange = e => { const v = e.target.value; if (v.startsWith('e:')) ind = v.slice(2); else if (v.startsWith('g:')) { ind = null; gi = +v.slice(2); } frame(); };
     ({ groupes: tabGroupes, elements: tabElements, diapos: tabDiapos, ench: tabEnch, valid: tabValid, secu: tabSecu })[tab]($('#gb'));
+    if (tab === 'elements' || tab === 'diapos') epsProtCard($('#gb'), 'créations de gymnastique', () => [Gd.custom, Gd.liens, Object.values(Gd.edits)], frame);
   }
 
   /* ---------- 👥 Groupes ---------- */
@@ -562,9 +563,9 @@ TOOL_IMPL.gym = function (el) {
       save(); close(); detail(gymFind(e.id)); };
     if ($('#gyurlx')) $('#gyurlx').onclick = () => { lsnap('lien retiré'); if (own) delete Gd.elinks[e.id]; else delete Gd.elinkAll; save(); toast(own ? 'Lien de l\'élément retiré' : 'Lien commun retiré de tous les éléments'); close(); detail(gymFind(e.id)); };
     if ($('#gyundo')) $('#gyundo').onclick = () => { Gd.elinks = GY_LUNDO.elinks; if (GY_LUNDO.all) Gd.elinkAll = GY_LUNDO.all; else delete Gd.elinkAll; GY_LUNDO = null; save(); toast('Annulé ✔'); close(); detail(gymFind(e.id)); };
-    $('#gyed').onclick = () => { close(); editor(e); };
-    if ($('#gydl')) $('#gydl').onclick = () => { if (!confirm(`Supprimer « ${e.n} » ?`)) return; Gd.custom = Gd.custom.filter(x => x.id !== e.id); delete Gd.elinks[e.id]; save(); toast('Élément supprimé'); close(); frame(); };
-    if ($('#gyrs')) $('#gyrs').onclick = () => { if (!confirm('Rétablir le nom, la lettre et les textes d\'origine ?')) return; delete Gd.edits[e.id]; save(); toast('Élément rétabli'); close(); frame(); };
+    $('#gyed').onclick = () => { if (!epsGuard(e.custom ? e : Gd.edits[e.id], e.n)) return; close(); editor(e); };
+    if ($('#gydl')) $('#gydl').onclick = () => { if (!epsGuard(e, e.n) || !confirm(`Supprimer « ${e.n} » ?`)) return; Gd.custom = Gd.custom.filter(x => x.id !== e.id); delete Gd.elinks[e.id]; save(); toast('Élément supprimé'); close(); frame(); };
+    if ($('#gyrs')) $('#gyrs').onclick = () => { if (!epsGuard(Gd.edits[e.id], e.n) || !confirm('Rétablir le nom, la lettre et les textes d\'origine ?')) return; delete Gd.edits[e.id]; save(); toast('Élément rétabli'); close(); frame(); };
     document.body.appendChild(o);
   }
 
@@ -597,9 +598,9 @@ TOOL_IMPL.gym = function (el) {
       $('#geok').onclick = () => {
         const n = E.n.trim(); if (!n) { toast('Donnez un nom à l\'élément'); $('#gen').focus(); return; }
         if (custom) { const x = { id: src ? src.id : 'g' + newId(), n, ag: E.ag, fam: E.fam, lvl: E.lvl, am: [...E.am], c: E.c.trim(), s: E.s.trim(), custom: 1 }; if (E.v) x.v = E.v;
-          const i = Gd.custom.findIndex(y => y.id === x.id); if (i >= 0) Gd.custom[i] = x; else Gd.custom.push(x); }
+          const i = Gd.custom.findIndex(y => y.id === x.id); if (i >= 0) { if (Gd.custom[i].prof) x.prof = Gd.custom[i].prof; Gd.custom[i] = x; } else Gd.custom.push(epsTg(x)); }
         else { const d = {}; ['n', 'c', 's', 'lvl'].forEach(k => { const v = k === 'n' ? n : (E[k] || '').trim(); if (v !== base[k]) d[k] = v; });
-          if (Object.keys(d).length) Gd.edits[src.id] = d; else delete Gd.edits[src.id]; }
+          if (Object.keys(d).length) { if (Gd.edits[src.id] && Gd.edits[src.id].prof) d.prof = Gd.edits[src.id].prof; else epsTg(d); Gd.edits[src.id] = d; } else delete Gd.edits[src.id]; }
         save(); o.remove(); toast('Élément enregistré ✔'); frame();
       };
     };
@@ -632,11 +633,11 @@ TOOL_IMPL.gym = function (el) {
     if ($('#glc')) $('#glc').onclick = () => { liEdit = null; tabDiapos(box); };
     if ($('#gls')) $('#gls').onclick = () => { const n = $('#gln').value.trim(), url = $('#glu').value.trim(), d = $('#gld').value.trim(), fam = $('#glf').value, ag = $('#gla').value;
       if (!n) return toast('Indiquez un nom'); if (url && !/^https?:\/\//i.test(url)) return toast('Le lien doit commencer par https://');
-      if (liEdit === 'new') L.push({ id: newId(), n, url, d, fam, ag }); else Object.assign(L.find(x => x.id === liEdit), { n, url, d, fam, ag });
+      if (liEdit === 'new') L.push(epsTg({ id: newId(), n, url, d, fam, ag })); else { const lx = L.find(x => x.id === liEdit); if (!epsGuard(lx, lx.n)) return; Object.assign(lx, { n, url, d, fam, ag }); }
       liEdit = null; save(); toast('Diaporama enregistré ✔'); tabDiapos(box); };
     box.querySelectorAll('[data-lv]').forEach(b => b.onclick = () => acroVideo(L.find(x => x.id === b.dataset.lv)));
-    box.querySelectorAll('[data-le]').forEach(b => b.onclick = () => { liEdit = b.dataset.le; tabDiapos(box); window.scrollTo(0, 0); });
-    box.querySelectorAll('[data-lx]').forEach(b => b.onclick = () => { if (!confirm('Supprimer ce lien ?')) return; Gd.liens = Gd.liens.filter(x => x.id !== b.dataset.lx); save(); tabDiapos(box); });
+    box.querySelectorAll('[data-le]').forEach(b => b.onclick = () => { const lx = L.find(x => x.id === b.dataset.le); if (!epsGuard(lx, lx && lx.n)) return; liEdit = b.dataset.le; tabDiapos(box); window.scrollTo(0, 0); });
+    box.querySelectorAll('[data-lx]').forEach(b => b.onclick = () => { const lx = Gd.liens.find(x => x.id === b.dataset.lx); if (!epsGuard(lx, lx && lx.n) || !confirm('Supprimer ce lien ?')) return; Gd.liens = Gd.liens.filter(x => x.id !== b.dataset.lx); save(); tabDiapos(box); });
   }
 
   /* ---------- 🎬 Enchaînement ---------- */

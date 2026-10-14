@@ -4,9 +4,12 @@
    ========================================================= */
 /* Page Ko-fi : laisser vide tant qu'elle n'existe pas (le bouton est alors masqué) */
 const KOFI_URL = 'https://ko-fi.com/epsone';
-const APP_VERSION = '23.34';
+const APP_VERSION = '23.37';
 const APP_URL = 'https://steffdelaseuva-hue.github.io/eps-one/';
 const CHANGELOG = [
+  { v: '23.37', items: ['🔒 Protection par code perso de tout ce que tu crées : danse (œuvres, banque, projets, vidéos), gymnastique (éléments, diaporamas), acrosport (pyramides, liaisons), escalade (voies). Les collègues peuvent utiliser mais pas modifier ni supprimer. Une carte « Protection de mes … » permet de protéger l’existant en un clic.', 'Parkour : les éléments choisis de la séance sont maintenant propres à chaque enseignant, et on peut supprimer un élément ajouté à la main.'] },
+  { v: '23.36', items: ['🔒 Cross : protection par code perso (onglet Courses → « Protection de mes cross »). Les collègues peuvent utiliser un cross protégé (inscriptions, scan des arrivées, classements, impression, duplication) mais pas modifier les courses, dossards et départs ni le remettre à zéro ou le supprimer.', 'Parkour : les enchaînements et évaluations sont déjà liés à chaque classe, donc séparés entre enseignants.'] },
+  { v: '23.35', items: ['🔒 Course d’orientation : protection par code perso des lieux, cartes et parcours (onglet Parcours → « Protection de mes lieux, cartes et parcours »). Les collègues peuvent les UTILISER (séances, impression, duplication) mais pas les modifier ni les supprimer ; les nouveaux éléments sont protégés automatiquement au nom de l’enseignant actif ; une copie est au nom de celui qui la fait'] },
   { v: '23.34', items: ['Duathlon : avec UN SEUL groupe (une tablette par groupe, sans réseau), les élèves ont maintenant la même grande vue colorée que pour « Tablette d’un groupe » (onglets d’étape, gros chrono, une carte par élève). Bouton « 🔒 Mode enseignant » pour revoir le tableau complet, et « 📱 Retour à la vue élèves » pour revenir'] },
   { v: '23.33', items: ['Raquette / escrime : le choix « Match en simple : choisir 2 élèves » est remis quand la forme de pratique est « Match 1 contre 1 » (masqué pour poule, élimination, pyramide)'] },
   { v: '23.32', items: ['Gestion de match (raquette, escrime, collectifs) : les équipes d’une AUTRE classe ne s’affichent plus sous « 3. Joueurs ou équipes » — on ne voit que les groupes de la classe choisie, et ils apparaissent après « Former les équipes »', 'Retrait du bloc « Match en simple : choisir 2 élèves » (déjà couvert par la forme de pratique « Match 1 contre 1 » + case « Joueurs individuels »)'] },

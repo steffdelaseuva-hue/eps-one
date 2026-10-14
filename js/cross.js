@@ -362,23 +362,49 @@ tr:nth-child(-n+4) td{font-weight:700}`,
       if (!L.length) {
         el.innerHTML = `<div class="card" data-cfg><h3>🏁 Nouveau cross</h3><p class="muted" style="margin:6px 0 0">Courses par niveau et par sexe, dossards avec QR code, scan des arrivées sur une ou plusieurs tablettes, classements automatiques.</p>
           <label>Nom</label><input id="cx-nn" value="Cross du collège ${new Date().getFullYear()}"><button class="btn btn-grad btn-block" style="margin-top:12px" id="cx-mk">＋ Créer le cross</button></div>`;
-        el.querySelector('#cx-mk').onclick = () => { const E = newEvent(el.querySelector('#cx-nn').value.trim()); X().events.push(E); setCur(E.id); commit(); frame(); };
+        el.querySelector('#cx-mk').onclick = () => { const E = newEvent(el.querySelector('#cx-nn').value.trim()); X().events.push(window.teamTag ? teamTag(E) : E); setCur(E.id); commit(); frame(); };
         return;
       }
       const E = norm(cur()); setCur(E.id);
-      el.innerHTML = `<div class="cx-bar" data-cfg="bare"><select id="cx-ev" aria-label="Cross">${L.map(e => `<option value="${esc(e.id)}" ${e === E ? 'selected' : ''}>${esc(e.name)}</option>`).join('')}</select>
+      el.innerHTML = `<div class="cx-bar" data-cfg="bare"><select id="cx-ev" aria-label="Cross">${L.map(e => `<option value="${esc(e.id)}" ${e === E ? 'selected' : ''}>${typeof epsCanEdit === 'function' && !epsCanEdit(e) ? '🔒 ' : ''}${esc(e.name)}</option>`).join('')}</select>
           <button class="btn btn-ghost" id="cx-new" title="Nouveau cross">＋</button><button class="btn btn-ghost" id="cx-dup" title="Dupliquer">⧉</button></div>
         <div class="cx-tabs">${[['courses', '🏁 Courses'], ['inscr', '👥 Inscriptions'], ['bibs', '🎽 Dossards'], ['scan', '🔫 TOP DÉPART !'], ['rank', '🏆 Classements']].map(([k, l]) => `<button data-tab="${k}" class="${tab === k ? 'on' : ''}">${l}</button>`).join('')}</div>
         <div id="cx-body"></div>`;
       el.querySelector('#cx-ev').onchange = e => { setCur(e.target.value); insCls = ''; rc = ''; frame(); };
-      el.querySelector('#cx-new').onclick = () => { const n = prompt('Nom du nouveau cross :', 'Cross ' + new Date().getFullYear()); if (!n) return; const N = newEvent(n.trim()); X().events.push(N); setCur(N.id); tab = 'courses'; commit(); frame(); };
+      el.querySelector('#cx-new').onclick = () => { const n = prompt('Nom du nouveau cross :', 'Cross ' + new Date().getFullYear()); if (!n) return; const N = newEvent(n.trim()); X().events.push(window.teamTag ? teamTag(N) : N); setCur(N.id); tab = 'courses'; commit(); frame(); };
       el.querySelector('#cx-dup').onclick = () => { const n = prompt('Nom de la copie (courses, classes, sexes et dossards repris : les dossards déjà imprimés restent valables ; départs et arrivées vides) :', E.name + ' (copie)'); if (!n) return;
         const N = JSON.parse(JSON.stringify(E)); Object.assign(N, { id: uid(4), name: n.trim(), created: Date.now(), date: new Date().toISOString().slice(0, 10), arr: [], src: [E.id, ...(E.src || [])] });   /* src : les dossards déjà imprimés du cross d'origine restent valables au scan */ N.courses.forEach(c => { c.start = null; delete c.end; c.id = uid(5); });
         const map = Object.fromEntries(E.courses.map((c, i) => [c.id, N.courses[i].id])); Object.values(N.el).forEach(o => { if (o.c) o.c = map[o.c] || ''; });
-        X().events.push(N); setCur(N.id); commit(); toast('Cross dupliqué ✔'); frame(); };
+        delete N.prof; X().events.push(window.teamTag ? teamTag(N) : N); setCur(N.id); commit(); toast('Cross dupliqué ✔'); frame(); };
       el.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => { tab = b.dataset.tab; frame(); });
       const body = el.querySelector('#cx-body');
       ({ courses, inscr, bibs, scan, rank })[tab](body, E);
+      if (typeof epsCanEdit === 'function' && !epsCanEdit(E)) roApply(body, E);
+      protCard(E);
+    }
+    /* 🔒 Protection par code perso : un cross protégé reste utilisable par tous (inscriptions, scan des arrivées, classements, impression, duplication)
+       mais ses réglages (courses, départs, numéros de dossard, remise à zéro, suppression) ne sont modifiables que par son propriétaire */
+    function roApply(body, E) {
+      const o = typeof epsOwnerOf === 'function' ? epsOwnerOf(E) : null, nm = o ? o.name : 'son créateur';
+      const ban = `<div class="card" style="border:2px solid #B8912A;margin-bottom:10px"><b>🔒 Cross protégé par ${esc(nm)}</b><div class="muted" style="font-size:.82rem;margin-top:3px">Consultation seulement ici. Les inscriptions, le scan des arrivées, les classements, l'impression et la duplication restent utilisables.</div></div>`;
+      if (tab === 'courses') body.querySelectorAll('input,select,textarea,button').forEach(x => { x.disabled = true; });
+      else if (tab === 'bibs') body.querySelectorAll('#cx-ab,#cx-bz,#cx-rb,.cx-bibin').forEach(x => { x.disabled = true; });
+      else return;
+      body.insertAdjacentHTML('afterbegin', ban);
+    }
+    function protCard(E) {
+      const me = typeof activeProf === 'function' ? activeProf() : null; if (!me || !teamOn() || tab !== 'courses') return;
+      const L = X().events, free = L.filter(e => !e.prof), mine = L.filter(e => e.prof === me.id);
+      if (!free.length && !mine.length) return;
+      el.insertAdjacentHTML('beforeend', `<div class="card" data-cfg style="margin-top:14px;border:2px solid #B8912A"><h3 style="margin:0">🔒 Protection de mes cross</h3>
+        <p class="muted" style="font-size:.84rem;margin:6px 0 8px">Protégés par le code de <b>${esc(me.name)}</b> : les collègues les utilisent (inscriptions, arrivées, classements, impression, duplication) mais ne peuvent pas modifier les courses, dossards et départs, ni remettre à zéro ou supprimer.</p>
+        <div style="font-size:.9rem">🔓 Non protégés : <b>${free.length}</b> · 🔒 Protégés à ton nom : <b>${mine.length}</b></div>
+        ${free.length ? `<button class="btn btn-grad btn-block" style="margin-top:10px" id="cxp-on">🔒 Protéger les ${free.length} cross non protégés</button>` : ''}
+        ${mine.length ? `<button class="btn btn-ghost btn-block" style="margin-top:8px" id="cxp-off">🔓 Retirer ma protection (${mine.length})</button>` : ''}</div>`);
+      const ask = (txt, go) => { const run = () => { go(); commit(); frame(); }; if (!confirm(txt)) return; if (me.pin && typeof pinPad === 'function') pinPad('ask', run, `Code de ${me.name}`, { hash: me.pin }); else run(); };
+      const on = el.querySelector('#cxp-on'), off = el.querySelector('#cxp-off');
+      if (on) on.onclick = () => ask(`Protéger ${free.length} cross au nom de ${me.name} ?\nLes collègues pourront les utiliser mais pas modifier courses, dossards et départs.`, () => { free.forEach(e => e.prof = me.id); toast(`🔒 ${free.length} cross protégé(s)`); });
+      if (off) off.onclick = () => ask(`Retirer la protection de tes ${mine.length} cross ?`, () => { mine.forEach(e => delete e.prof); toast('🔓 Protection retirée'); });
     }
     const again = () => { const y = el.scrollTop; frame(); el.scrollTop = y; };
     const openW = new Set();

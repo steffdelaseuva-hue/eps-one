@@ -30,11 +30,15 @@ document.head.insertAdjacentHTML('beforeend', `<style>
 
 let PK_UNDO = null;   // dernière suppression : { label, evals, list, ench }
 TOOL_IMPL.parkour = function (el) {
-  const D = liveDB(() => DB.parkour); D.list = D.list || []; D.customEx = D.customEx || []; D.evals = D.evals || []; D.cycle = D.cycle || 1; D.ench = D.ench || {};
+  const D = liveDB(() => DB.parkour); D.lists = D.lists || {}; D.customEx = D.customEx || []; D.evals = D.evals || []; D.cycle = D.cycle || 1; D.ench = D.ench || {};
+  const PID = localStorage.getItem('epsone_prof_actif') || '_';
+  /* Éléments choisis de la séance : propres à chaque enseignant (ne sont plus partagés) */
+  if ((D.list || []).length && !Object.keys(D.lists).length) D.lists[PID] = D.list;
+  const LS = () => (D.lists[PID] = D.lists[PID] || []), setLS = v => { D.lists[PID] = v; };
   let cls = DB.lastClass && DB.classes.some(c => c.name === DB.lastClass) ? DB.lastClass : (DB.classes[0]?.name || ''), si = 0, at = 0, niv = 1, exi = 0, ratings = {}, step = 'choix';
   const ateliers = () => (PK_DATA[D.cycle] || []).filter(a => a.f !== 'ENCHAÎNER');   // l'enchaînement se construit avec le bouton 🎬
   const famsOf = () => [...new Set(ateliers().map(a => a.f))];
-  const elems = (a, v) => [...a.e.filter(x => x.v === v), ...D.customEx.filter(c => c.cycle === D.cycle && c.a === a.a && c.v === v).map(c => ({ n: c.n, v: c.v, c: [], custom: true }))];
+  const elems = (a, v) => [...a.e.filter(x => x.v === v), ...D.customEx.filter(c => c.cycle === D.cycle && c.a === a.a && c.v === v).map(c => ({ n: c.n, v: c.v, c: [], custom: true, ref: c }))];
   const findEl = (x) => { const a = (PK_DATA[x.cycle || D.cycle] || []).find(a => a.a === x.atelier); return a ? a.e.find(e => e.n === x.ex && e.v === x.niv) : null; };
   const tag = m => m == null ? '–' : `<span class="pk-tag" style="background:${PK_M[m][1]}">${PK_M[m][0]}</span>`;
   const crit = e => e && (e.c.length || e.o) ? `<ul class="pk-crit">${e.c.map(c => `<li>${esc(c)}</li>`).join('')}${e.o ? `<li><b>${esc(e.o)}</b></li>` : ''}</ul>` : '';
@@ -53,21 +57,21 @@ TOOL_IMPL.parkour = function (el) {
       ${step === 'choix' ? `<div class="card" data-cfg style="margin-top:12px"><h3>① Choisir ses éléments</h3>
         <label>Famille · atelier</label><div class="pk-at">${A.map((x, k) => `<button data-at="${k}" class="${k === at ? 'on' : ''}">${esc(x.a)}</button>`).join('')}</div>
         <label>Niveau</label><div class="seg">${[1, 2, 3, 4].map(n => `<button data-n="${n}" class="${n === niv ? 'on' : ''}">Niveau ${n}</button>`).join('')}</div>
-        <label>Élément</label><div class="row"><select id="ex">${L.map((x, k) => `<option value="${k}" ${k === exi ? 'selected' : ''}>${esc(x.n)}</option>`).join('') || '<option value="">— aucun élément à ce niveau —</option>'}</select><button class="btn btn-ghost" style="flex:0 0 auto" id="addx" title="Élément non répertorié">✎</button></div>
+        <label>Élément</label><div class="row"><select id="ex">${L.map((x, k) => `<option value="${k}" ${k === exi ? 'selected' : ''}>${esc(x.n)}</option>`).join('') || '<option value="">— aucun élément à ce niveau —</option>'}</select><button class="btn btn-ghost" style="flex:0 0 auto" id="addx" title="Élément non répertorié">✎</button>${L[exi] && L[exi].custom ? `<button class="btn btn-ghost" style="flex:0 0 auto" id="delx" title="Supprimer cet élément ajouté">${epsCanEdit(L[exi].ref) ? '🗑' : '🔒'}</button>` : ''}</div>
         ${cur ? `<div class="muted" style="font-size:.78rem;margin-top:6px"><b>Critères de validation</b></div>${crit(cur) || '<div class="muted" style="font-size:.8rem">—</div>'}` : ''}
         <button class="btn btn-grad btn-block" style="margin-top:12px" id="addl" ${cur ? '' : 'disabled'}>＋ Ajouter cet élément</button></div>
-      <div class="card" style="margin-top:12px;padding:0"><div style="padding:12px 14px 4px;display:flex;align-items:center;gap:8px"><b style="flex:1">Éléments choisis (${D.list.length})</b>${D.list.length ? '<button class="btn btn-ghost" data-cfg="bare" style="padding:6px 10px;font-size:.8rem" data-rz="list">🗑 Tout supprimer</button>' : ''}</div>
-        ${D.list.length ? D.list.map((x, i) => `<div class="list-item"><div style="flex:1"><b>${esc(x.ex)}</b> <span class="muted">· ${esc(x.atelier || x.fam)} · niv. ${x.niv}</span></div><button class="btn btn-ghost" data-cfg="bare" style="padding:4px 9px" data-rml="${i}" title="Retirer">✕</button></div>`).join('') : '<div class="empty">Aucun élément choisi pour l\'instant.</div>'}</div>
-      <button class="btn btn-grad btn-block" style="margin-top:12px;padding:15px" data-step="ench" ${D.list.length ? '' : 'disabled'}>② Créer son enchaînement →</button>` : ''}
+      <div class="card" style="margin-top:12px;padding:0"><div style="padding:12px 14px 4px;display:flex;align-items:center;gap:8px"><b style="flex:1">Éléments choisis (${LS().length})</b>${LS().length ? '<button class="btn btn-ghost" data-cfg="bare" style="padding:6px 10px;font-size:.8rem" data-rz="list">🗑 Tout supprimer</button>' : ''}</div>
+        ${LS().length ? LS().map((x, i) => `<div class="list-item"><div style="flex:1"><b>${esc(x.ex)}</b> <span class="muted">· ${esc(x.atelier || x.fam)} · niv. ${x.niv}</span></div><button class="btn btn-ghost" data-cfg="bare" style="padding:4px 9px" data-rml="${i}" title="Retirer">✕</button></div>`).join('') : '<div class="empty">Aucun élément choisi pour l\'instant.</div>'}</div>
+      <button class="btn btn-grad btn-block" style="margin-top:12px;padding:15px" data-step="ench" ${LS().length ? '' : 'disabled'}>② Créer son enchaînement →</button>` : ''}
       ${step === 'ench' ? `<div id="pk-ench" style="margin-top:12px"></div>` : ''}
       ${step === 'valid' ? `<div class="card" style="margin-top:12px"><div style="display:flex;align-items:center;gap:8px"><h3 style="flex:1;margin:0">③ Validation · ${esc(st[si] || '')}</h3><button class="btn btn-ghost" data-cfg="bare" style="padding:6px 10px;font-size:.8rem" data-rz="valid">🗑 Tout effacer</button></div>
-        ${D.list.length ? D.list.map((x, i) => { const r = rt(i), e = findEl(x); return `<div style="padding:10px 0;border-bottom:1px solid var(--line)">
+        ${LS().length ? LS().map((x, i) => { const r = rt(i), e = findEl(x); return `<div style="padding:10px 0;border-bottom:1px solid var(--line)">
           <div style="display:flex;align-items:center;gap:8px"><div style="flex:1"><b>${esc(x.ex)}</b> <span class="muted">· ${esc(x.atelier || x.fam)} · niv. ${x.niv}</span></div><button class="btn btn-ghost" data-cfg="bare" style="padding:4px 9px" data-rml="${i}" title="Retirer de la liste">✕</button></div>
           ${e && e.c.length ? `<details><summary class="muted" style="font-size:.78rem;cursor:pointer">Critères de validation</summary>${crit(e)}</details>` : ''}
           <div class="muted" style="font-size:.75rem;margin-top:6px">Maîtrise</div><div class="pk-m">${PK_M.map(([l, c], k) => `<button data-rm="${i}|${k}" class="${r.m === k ? 'on' : ''}" style="${r.m === k ? 'background:' + c : ''}">${l}</button>`).join('')}</div>
           ${D.cycle === 2 ? `<div class="muted" style="font-size:.75rem;margin-top:6px">Fluidité</div><div class="pk-m">${PK_M.map(([l, c], k) => `<button data-rf="${i}|${k}" class="${r.flu === k ? 'on' : ''}" style="${r.flu === k ? 'background:' + c : ''}">${l}</button>`).join('')}</div>` : ''}</div>`; }).join('')
           : '<div class="empty">Choisissez d\'abord les éléments (①).</div>'}
-        <button class="btn btn-grad btn-block" style="margin-top:14px" id="sv" ${D.list.length ? '' : 'disabled'}>💾 Enregistrer et passer à l'élève suivant</button></div>
+        <button class="btn btn-grad btn-block" style="margin-top:14px" id="sv" ${LS().length ? '' : 'disabled'}>💾 Enregistrer et passer à l'élève suivant</button></div>
       ${D.cycle === 2 ? fluCard(st[si]) : ''}` : ''}
       <div class="section-title"><h2>${esc(st[si] || '')}</h2></div>
       ${enchCard(st[si])}
@@ -80,12 +84,12 @@ TOOL_IMPL.parkour = function (el) {
       ${PK_UNDO ? `<button class="btn btn-grad btn-block" style="margin-top:12px" id="pkundo">↶ Annuler : ${esc(PK_UNDO.label)}</button>` : ''}
       <div class="card" data-cfg="bare" style="margin-top:12px"><b>🗑 Supprimer / remettre à zéro</b>
         <div style="display:flex;flex-direction:column;gap:8px;margin-top:8px">
-          <button class="btn btn-ghost" data-rz="list" ${D.list.length ? '' : 'disabled'}>Vider les éléments choisis (${D.list.length})</button>
+          <button class="btn btn-ghost" data-rz="list" ${LS().length ? '' : 'disabled'}>Vider les éléments choisis (${LS().length})</button>
           <button class="btn btn-ghost" data-rz="eleve" ${st[si] ? '' : 'disabled'}>Effacer les évaluations et l'enchaînement de ${esc(st[si] || '—')}</button>
           <button class="btn btn-ghost" style="color:var(--danger)" data-rz="classe">Tout remettre à zéro pour la classe ${esc(cls)}</button></div>
         <p class="muted" style="margin:6px 0 0;font-size:.75rem">Un bouton « ↶ Annuler » permet de revenir en arrière juste après.</p></div>` : ''}`;
     const $ = s => el.querySelector(s), all = s => el.querySelectorAll(s);
-    all('[data-c]').forEach(b => b.onclick = () => { if (+b.dataset.c !== D.cycle && D.list.length && !confirm('Changer de cycle vide la liste d\'exercices de la séance. Continuer ?')) return; if (+b.dataset.c !== D.cycle) D.list = []; D.cycle = +b.dataset.c; at = 0; exi = 0; ratings = {}; save(); draw(); });
+    all('[data-c]').forEach(b => b.onclick = () => { if (+b.dataset.c !== D.cycle && LS().length && !confirm('Changer de cycle vide la liste d\'exercices de la séance. Continuer ?')) return; if (+b.dataset.c !== D.cycle) setLS([]); D.cycle = +b.dataset.c; at = 0; exi = 0; ratings = {}; save(); draw(); });
     if (!DB.classes.length) return;
     $('#cl').onchange = () => { cls = $('#cl').value; DB.lastClass = cls; si = 0; ratings = {}; save(); draw(); };
     $('#se').onchange = () => { si = +$('#se').value; ratings = {}; draw(); };
@@ -99,31 +103,32 @@ TOOL_IMPL.parkour = function (el) {
     all('[data-n]').forEach(b => b.onclick = () => { niv = +b.dataset.n; exi = 0; draw(); });
     if ($('#ex')) $('#ex').onchange = () => { exi = +$('#ex').value || 0; draw(); };
     if ($('#addx')) $('#addx').onclick = () => { const n = (prompt(`Nouvel élément (${a.a}, niveau ${niv}) :`) || '').trim(); if (!n) return;
-      if (!elems(a, niv).some(x => x.n === n)) { D.customEx.push({ cycle: D.cycle, a: a.a, v: niv, n }); save(); } exi = elems(a, niv).findIndex(x => x.n === n); draw(); };
-    if ($('#addl')) $('#addl').onclick = () => { if (!cur) return; D.list.push({ cycle: D.cycle, fam: a.f, atelier: a.a, ex: cur.n, niv }); save(); toast('Élément ajouté ✔'); draw(); };
-    all('[data-rml]').forEach(b => b.onclick = () => { const i = +b.dataset.rml; snap(`« ${D.list[i].ex} » retiré`); D.list.splice(i, 1); const nr = {}; Object.keys(ratings).forEach(k => { k = +k; if (k < i) nr[k] = ratings[k]; else if (k > i) nr[k - 1] = ratings[k]; }); ratings = nr; save(); draw(); });
+      if (!elems(a, niv).some(x => x.n === n)) { D.customEx.push(epsTg({ cycle: D.cycle, a: a.a, v: niv, n })); save(); } exi = elems(a, niv).findIndex(x => x.n === n); draw(); };
+    if ($('#delx')) $('#delx').onclick = () => { const c = L[exi] && L[exi].ref; if (!c || !epsGuard(c, c.n) || !confirm(`Supprimer l'élément « ${c.n} » ?`)) return; D.customEx.splice(D.customEx.indexOf(c), 1); exi = 0; save(); draw(); };
+    if ($('#addl')) $('#addl').onclick = () => { if (!cur) return; LS().push({ cycle: D.cycle, fam: a.f, atelier: a.a, ex: cur.n, niv }); save(); toast('Élément ajouté ✔'); draw(); };
+    all('[data-rml]').forEach(b => b.onclick = () => { const i = +b.dataset.rml; snap(`« ${LS()[i].ex} » retiré`); LS().splice(i, 1); const nr = {}; Object.keys(ratings).forEach(k => { k = +k; if (k < i) nr[k] = ratings[k]; else if (k > i) nr[k - 1] = ratings[k]; }); ratings = nr; save(); draw(); });
     all('[data-rm]').forEach(b => b.onclick = () => { const [i, k] = b.dataset.rm.split('|').map(Number); const r = rt(i); r.m = r.m === k ? null : k; draw(); });
     all('[data-rf]').forEach(b => b.onclick = () => { const [i, k] = b.dataset.rf.split('|').map(Number); const r = rt(i); r.flu = r.flu === k ? null : k; draw(); });
     if ($('#sv')) $('#sv').onclick = () => {
       if (!st[si]) return toast('Classe vide');
-      const done = D.list.map((x, i) => ({ x, r: rt(i) })).filter(o => o.r.m != null);
+      const done = LS().map((x, i) => ({ x, r: rt(i) })).filter(o => o.r.m != null);
       if (!done.length) return toast('Évaluez au moins un élément');
       if (D.cycle === 2 && done.some(o => o.r.flu == null)) return toast('Indiquez aussi la fluidité');
       done.forEach(({ x, r }) => D.evals.push({ date: Date.now(), classe: cls, eleve: st[si], cycle: D.cycle, fam: x.fam, atelier: x.atelier, ex: x.ex, niv: x.niv, m: r.m, flu: D.cycle === 2 ? r.flu : null }));
       save(); toast(`${st[si]} : ${done.length} élément(s) ✔`); ratings = {}; if (si < st.length - 1) si++; draw();
     };
-    const snap = label => { PK_UNDO = { label, evals: JSON.parse(JSON.stringify(D.evals)), list: JSON.parse(JSON.stringify(D.list)), ench: JSON.parse(JSON.stringify(D.ench)) }; };
+    const snap = label => { PK_UNDO = { label, evals: JSON.parse(JSON.stringify(D.evals)), list: JSON.parse(JSON.stringify(LS())), ench: JSON.parse(JSON.stringify(D.ench)) }; };
     all('[data-x]').forEach(b => b.onclick = () => { if (confirm('Supprimer cette évaluation ?')) { snap('suppression d\'une évaluation'); D.evals.splice(+b.dataset.x, 1); save(); draw(); } });
     all('[data-edel]').forEach(b => b.onclick = () => { const n = b.dataset.edel; if (!confirm(`Supprimer l'enchaînement de ${n} ?`)) return; snap(`enchaînement de ${n} supprimé`); delete (D.ench[cls] || {})[n]; save(); draw(); });
     all('[data-rz]').forEach(b => b.onclick = () => { const k = b.dataset.rz, n = st[si];
       const msg = k === 'list' ? 'Supprimer tous les éléments choisis ?' : k === 'valid' ? `Effacer toutes les validations de ${n} (maîtrise, fluidité, appuis) ?` : k === 'eleve' ? `Effacer toutes les évaluations et l'enchaînement de ${n} ?` : `Tout remettre à zéro pour la classe ${cls} (évaluations, enchaînements, éléments choisis) ?`;
       if (!confirm(msg)) return;
-      if (k === 'list') { snap('liste des éléments vidée'); D.list = []; ratings = {}; }
+      if (k === 'list') { snap('liste des éléments vidée'); setLS([]); ratings = {}; }
       if (k === 'valid') { snap(`validations de ${n} effacées`); D.evals = D.evals.filter(e => !(e.classe === cls && e.eleve === n)); const E = enchOf(n); if (E) { E.app = []; E.fluM = null; } ratings = {}; }
       if (k === 'eleve') { snap(`${n} remis à zéro`); D.evals = D.evals.filter(e => !(e.classe === cls && e.eleve === n)); if (D.ench[cls]) delete D.ench[cls][n]; ratings = {}; }
-      if (k === 'classe') { snap(`classe ${cls} remise à zéro`); D.evals = D.evals.filter(e => e.classe !== cls); delete D.ench[cls]; D.list = []; ratings = {}; }
+      if (k === 'classe') { snap(`classe ${cls} remise à zéro`); D.evals = D.evals.filter(e => e.classe !== cls); delete D.ench[cls]; setLS([]); ratings = {}; }
       save(); toast('Supprimé — « ↶ Annuler » en bas de page'); draw(); });
-    if ($('#pkundo')) $('#pkundo').onclick = () => { const u = PK_UNDO; if (!u) return; D.evals = u.evals; D.list = u.list; D.ench = u.ench; PK_UNDO = null; save(); toast('↶ Annulé'); draw(); };
+    if ($('#pkundo')) $('#pkundo').onclick = () => { const u = PK_UNDO; if (!u) return; D.evals = u.evals; setLS(u.list); D.ench = u.ench; PK_UNDO = null; save(); toast('↶ Annulé'); draw(); };
     $('#exp').onclick = () => { const rows = D.evals.filter(e => e.classe === cls); if (!rows.length) return toast('Rien à exporter');
       download(`parkour-${cls}.csv`, csv([['Élève', 'Date', 'Cycle', 'Famille', 'Atelier', 'Élément', 'Niveau', 'Maîtrise', 'Fluidité'],
         ...rows.map(e => [e.eleve, new Date(e.date).toLocaleDateString('fr-FR'), e.cycle === 2 ? 'Niveau 2 (4e)' : 'Niveau 1 (6e)', e.fam, e.atelier || '', e.ex, e.niv, PK_M[e.m][0], e.flu != null ? PK_M[e.flu][0] : ''])])); };
@@ -157,7 +162,7 @@ TOOL_IMPL.parkour = function (el) {
   function enchainement(n, host) {
     if (!host) return;
     if (!n) { host.innerHTML = '<div class="card empty">Classe vide.</div>'; return; }
-    const old = enchOf(n), avail = D.list.map(x => ({ ...x }));
+    const old = enchOf(n), avail = LS().map(x => ({ ...x }));
     if (!avail.length) { host.innerHTML = '<div class="card empty">Choisis d\'abord tes éléments (①).</div>'; return; }
     const W = old ? JSON.parse(JSON.stringify(old)) : { seq: [], app: [], cycle: D.cycle };
     W.seq = W.seq.filter(x => avail.some(y => key(y) === key(x))); W.cycle = D.cycle; W.app = W.app || [];
@@ -187,7 +192,7 @@ TOOL_IMPL.parkour = function (el) {
             $('#eok').onclick = () => { if (!old || old.seq.map(key).join('§') !== W.seq.map(key).join('§')) W.app = [];   // ordre changé : appuis à revalider
         W.app = W.app.slice(0, Math.max(0, W.seq.length - 1)); W.date = Date.now(); W.fluM = D.cycle === 2 ? fluLevel(W) : null;
         (D.ench[cls] = D.ench[cls] || {})[n] = W; save(); toast('Enchaînement enregistré ✔'); close(); };
-      if ($('#edel')) $('#edel').onclick = () => { if (!confirm('Supprimer l\'enchaînement enregistré ?')) return; PK_UNDO = { label: `enchaînement de ${n} supprimé`, evals: JSON.parse(JSON.stringify(D.evals)), list: JSON.parse(JSON.stringify(D.list)), ench: JSON.parse(JSON.stringify(D.ench)) }; delete D.ench[cls][n]; save(); draw(); };
+      if ($('#edel')) $('#edel').onclick = () => { if (!confirm('Supprimer l\'enchaînement enregistré ?')) return; PK_UNDO = { label: `enchaînement de ${n} supprimé`, evals: JSON.parse(JSON.stringify(D.evals)), list: JSON.parse(JSON.stringify(LS())), ench: JSON.parse(JSON.stringify(D.ench)) }; delete D.ench[cls][n]; save(); draw(); };
     };
     paint();
   }

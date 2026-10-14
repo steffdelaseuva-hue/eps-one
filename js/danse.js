@@ -188,6 +188,7 @@ TOOL_IMPL.danse = function (el) {
     if ($('#da-undo')) $('#da-undo').onclick = () => { D().cur = JSON.parse(undo.v); undo = null; commit(); frame(); };
     if ($('[data-zi]')) $('[data-zi]').onclick = e => acroZoom(e.target.src);
     ({ oeuvre: tabO, banque: tabB, ind: tabI, proc: tabP, fiches: tabF, video: tabV })[tab](el.querySelector('#da-b'));
+    if (tab === 'oeuvre' || tab === 'banque') epsProtCard(el.querySelector('#da-b'), 'créations de danse', () => { const x = D(); return [x.custom, x.fiches, x.vids, x.bank.img, x.bank.txt, x.bank.vid, x.bank.snd]; }, frame);
   }
 
   /* ---------- 🎨 Œuvre / thème ---------- */
@@ -216,13 +217,13 @@ TOOL_IMPL.danse = function (el) {
     const pickO = o => { snapCur('œuvre / thème'); D().cur.o = o ? { n: o.n, a: o.a || '', d: o.d || '', p: o.p || '', t: o.t || [], c: o.c || '', x: o.x || [], q: o.q || '', im: o.im || '', img: o.img || null } : null; commit(); frame(); };
     box.querySelectorAll('[data-os]').forEach(b => b.onclick = () => { const o = cat.L[+b.dataset.os]; pickO(C.o && C.o.n === o.n ? null : o); });
     $('#da-ro').onclick = () => { const L = cat.L.filter(o => cat.cat === 'Mes œuvres' || ok(o.n)); if (!L.length) return toast('Aucune œuvre dans cette catégorie'); const o = L[Math.floor(Math.random() * L.length)]; pickO(o); toast('🎲 ' + o.n); };
-    box.querySelectorAll('[data-cx]').forEach(b => b.onclick = () => { const o = cat.L[+b.dataset.cx]; if (!confirm(`Supprimer « ${o.n} » de mes œuvres ?`)) return; D().custom.splice(+b.dataset.cx, 1); if (o.img) DB[daImgKey(o.img)] = null; commit(); tabO(box); });
+    box.querySelectorAll('[data-cx]').forEach(b => b.onclick = () => { const o = cat.L[+b.dataset.cx]; if (!epsGuard(o, o.n)) return; if (!confirm(`Supprimer « ${o.n} » de mes œuvres ?`)) return; D().custom.splice(+b.dataset.cx, 1); if (o.img) DB[daImgKey(o.img)] = null; commit(); tabO(box); });
     $('#da-ci').onchange = async e => { const f = e.target.files[0]; if (!f) return; try { photo = await acroPhoto(f); $('#da-cim').textContent = 'Photo prête ✔'; } catch (er) { toast(er.message); } };
     $('#da-cs').onclick = () => { const n = $('#da-cn').value.trim(); if (!n) return toast('Indiquez le titre');
       const t = $('#da-ct').value.split('\n').map(l => l.split(/\s*[=:→]\s*/)).filter(x => x[0] && x[0].trim()).map(([a, ...b]) => [a.trim(), b.join(' ').trim()]);
       const o = { n, a: $('#da-ca').value.trim(), d: $('#da-cd').value.trim(), p: $('#da-cp').value.trim(), c: $('#da-cc').value.trim(), t };
       if (photo) { o.img = Date.now().toString(36); DB[daImgKey(o.img)] = photo; }
-      D().custom.push(o); oCat = allO().length - 1; pickO(o); };
+      D().custom.push(epsTg(o)); oCat = allO().length - 1; pickO(o); };
   }
 
   /* ---------- 🎲 Inducteurs (formulés pour les élèves) ---------- */
@@ -321,7 +322,7 @@ TOOL_IMPL.danse = function (el) {
     box.querySelectorAll('[data-zsvg]').forEach(b => b.onclick = () => { const x = DA_SVG.find(y => y.k === b.dataset.zsvg); big({ o: null, ind: [], sup: [{ ty: 'img', k: 'svg:' + x.k }], proc: [] }); });
     box.querySelectorAll('[data-zi3]').forEach(i => i.onclick = () => acroZoom(i.src));
     box.querySelectorAll('[data-artimg]').forEach(i => i.onchange = async e => { const f = e.target.files[0]; if (!f) return; try { DB[daImgKey('art' + i.dataset.artimg)] = await acroPhoto(f); commit(); tabB(box); } catch (er) { toast(er.message); } });
-    box.querySelectorAll('[data-bx]').forEach(b => b.onclick = () => { const [ty, i2] = b.dataset.bx.split('|'), L = B[ty], m = L.find(x => x.id === i2); if (!m || !confirm(`Supprimer « ${m.n} » de la banque ?`)) return;
+    box.querySelectorAll('[data-bx]').forEach(b => b.onclick = () => { const [ty, i2] = b.dataset.bx.split('|'), L = B[ty], m = L.find(x => x.id === i2); if (!m || !epsGuard(m, m.n) || !confirm(`Supprimer « ${m.n} » de la banque ?`)) return;
       B[ty] = L.filter(x => x.id !== i2); if (ty === 'img') DB[daImgKey(i2)] = null; if ((ty === 'vid' || ty === 'snd') && !m.url) epsVidDel(i2); d.cur.sup = d.cur.sup.filter(s => !(s.ty === 'mus' && s.k === 'my:' + i2)); d.cur.sup = d.cur.sup.filter(s => !(s.ty === ty && s.k === 'my:' + i2)); commit(); tabB(box); });
     box.querySelectorAll('[data-snd]').forEach(b => b.onclick = () => { playSnd(b.dataset.snd); tabB(box); });
     box.querySelectorAll('[data-aud]').forEach(b => b.onclick = async () => { if (sndKey === 'a:' + b.dataset.aud) sndOff(); else await playAud(b.dataset.aud); tabB(box); });
@@ -329,12 +330,12 @@ TOOL_IMPL.danse = function (el) {
     box.querySelectorAll('[data-avid]').forEach(i => i.onchange = async e => { const f = e.target.files[0]; if (!f) return; const k = i.dataset.avid, vid = d.bank.av[k] || 'dav' + id(); toast('🎬 Enregistrement…');
       try { await epsVidPut(vid, f); d.bank.av[k] = vid; commit(); toast('Vidéo jointe ✔ (sur cette tablette)'); tabB(box); } catch (er) { toast('Impossible : ' + (er.message || 'espace insuffisant')); } });
     if ($('#bf')) $('#bf').onchange = async e => { const f = e.target.files[0]; if (!f) return; const n = val('#bn') || f.name.replace(/\.[^.]+$/, ''), c = val('#bc'), i2 = id();
-      try { if (bt === 'img') { DB[daImgKey(i2)] = await acroPhoto(f); B.img.push({ id: i2, n, c }); }
-        else { toast('Enregistrement…'); await epsVidPut(i2, f); B[bt].push({ id: i2, n, c }); }
+      try { if (bt === 'img') { DB[daImgKey(i2)] = await acroPhoto(f); B.img.push(epsTg({ id: i2, n, c })); }
+        else { toast('Enregistrement…'); await epsVidPut(i2, f); B[bt].push(epsTg({ id: i2, n, c })); }
         commit(); toast('Ajouté à la banque ✔'); tabB(box); } catch (er) { toast('Impossible : ' + (er.message || '')); } };
     if ($('#bok')) $('#bok').onclick = () => { const n = val('#bn'); if (!n) return toast('Indiquez un titre');
-      if (bt === 'txt') { const t = $('#bt').value.trim(); if (!t) return toast('Collez le texte'); B.txt.push({ id: id(), n, a: val('#ba'), t, c: val('#bc') }); }
-      else { const u = val('#bu'); if (!/^https?:\/\//i.test(u)) return toast('Le lien doit commencer par https://'); B[bt === 'snd' ? 'snd' : 'vid'].push({ id: id(), n, c: val('#bc'), url: u }); }
+      if (bt === 'txt') { const t = $('#bt').value.trim(); if (!t) return toast('Collez le texte'); B.txt.push(epsTg({ id: id(), n, a: val('#ba'), t, c: val('#bc') })); }
+      else { const u = val('#bu'); if (!/^https?:\/\//i.test(u)) return toast('Le lien doit commencer par https://'); B[bt === 'snd' ? 'snd' : 'vid'].push(epsTg({ id: id(), n, c: val('#bc'), url: u })); }
       commit(); toast('Ajouté à la banque ✔'); tabB(box); };
   }
 
@@ -353,7 +354,7 @@ TOOL_IMPL.danse = function (el) {
       if (q('#fc')) q('#fc').onchange = e => draw(e.target.value);
       q('#fx').onclick = () => o.remove();
       q('#fok').onclick = () => { const f = { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 5), nom: q('#fn').value.trim() || 'Groupe', cls: q('#fc') ? q('#fc').value : '', el: [...o.querySelectorAll('input[type=checkbox]:checked')].map(x => x.value), o: C.o ? JSON.parse(JSON.stringify(C.o)) : null, ind: C.ind.map(x => ({ f: x.f, g: x.g, t: x.t, e: x.e })), sup: C.sup.map(x => ({ ...x })), proc: C.proc.map(x => ({ f: x.f, t: x.t, e: x.e, s: x.s })), date: Date.now() };
-        D().fiches.push(f); commit(); o.remove(); toast(`Projet enregistré pour ${f.nom} ✔`); tab = 'fiches'; frame(); }; };
+        D().fiches.push(epsTg(f)); commit(); o.remove(); toast(`Projet enregistré pour ${f.nom} ✔`); tab = 'fiches'; frame(); }; };
     draw(cl); document.body.appendChild(o);
   }
   function tabF(box) {
@@ -369,7 +370,7 @@ TOOL_IMPL.danse = function (el) {
     box.querySelectorAll('[data-fb]').forEach(b => b.onclick = () => big(by(b.dataset.fb)));
     box.querySelectorAll('[data-fl]').forEach(b => b.onclick = () => { const f = by(b.dataset.fl); snapCur('projet repris'); d.cur = { o: f.o, ind: f.ind.map(x => ({ ...x })), sup: (f.sup || []).map(x => ({ ...x })), proc: (f.proc || []).map(x => ({ ...x })) }; commit(); tab = 'ind'; frame(); toast('Projet repris ✔'); });
     box.querySelectorAll('[data-fv]').forEach(b => b.onclick = () => { vf = b.dataset.fv; tab = 'video'; frame(); });
-    box.querySelectorAll('[data-fx]').forEach(b => b.onclick = () => { const f = by(b.dataset.fx); if (!confirm(`Supprimer le projet « ${f.nom} » ? (ses vidéos restent dans l'onglet Vidéo)`)) return;
+    box.querySelectorAll('[data-fx]').forEach(b => b.onclick = () => { const f = by(b.dataset.fx); if (!epsGuard(f, f.nom) || !confirm(`Supprimer le projet « ${f.nom} » ? (ses vidéos restent dans l'onglet Vidéo)`)) return;
       undo = { l: 'projet ' + f.nom + ' supprimé', f: JSON.stringify(f), v: JSON.stringify(d.cur) }; d.fiches = d.fiches.filter(x => x.id !== f.id); commit(); tabF(box); });
     if ($('#da-fu')) $('#da-fu').onclick = () => { d.fiches.push(JSON.parse(undo.f)); undo = null; commit(); tabF(box); };
   }
@@ -416,12 +417,12 @@ TOOL_IMPL.danse = function (el) {
     $('#da-vf').onchange = e => { vf = e.target.value; tabV(box); };
     $('#da-vin').onchange = async e => { const f = e.target.files[0]; if (!f) return; if (f.size > 600 * 1024 * 1024) return toast('Vidéo trop lourde (600 Mo max)');
       const id = 'dv' + Date.now().toString(36); toast('🎬 Enregistrement de la vidéo…');
-      try { await epsVidPut(id, f); const n = d.vids.filter(v => v.fid === vf).length + 1; d.vids.push({ id, fid: vf, n: `${vf ? fn(vf) : 'Vidéo'} · essai ${n}`, d: Date.now() }); commit(); toast('Vidéo enregistrée ✔'); tabV(box); } catch (er) { toast('Impossible d\'enregistrer : ' + (er.message || 'espace insuffisant')); } };
+      try { await epsVidPut(id, f); const n = d.vids.filter(v => v.fid === vf).length + 1; d.vids.push(epsTg({ id, fid: vf, n: `${vf ? fn(vf) : 'Vidéo'} · essai ${n}`, d: Date.now() })); commit(); toast('Vidéo enregistrée ✔'); tabV(box); } catch (er) { toast('Impossible d\'enregistrer : ' + (er.message || 'espace insuffisant')); } };
     box.querySelectorAll('[data-ca]').forEach(b => b.onclick = () => { cmp[0] = cmp[0] === b.dataset.ca ? null : b.dataset.ca; tabV(box); });
     box.querySelectorAll('[data-cb]').forEach(b => b.onclick = () => { cmp[1] = cmp[1] === b.dataset.cb ? null : b.dataset.cb; tabV(box); });
     box.querySelectorAll('[data-vp]').forEach(b => b.onclick = async () => { const u = await epsVidUrl(b.dataset.vp); u ? epsVidPlay(u) : toast('Vidéo filmée sur une autre tablette'); });
     box.querySelectorAll('[data-vr]').forEach(b => b.onclick = () => { const v = d.vids.find(x => x.id === b.dataset.vr), n = prompt('Nom de la vidéo :', v.n); if (n && n.trim()) { v.n = n.trim(); commit(); tabV(box); } });
-    box.querySelectorAll('[data-vx]').forEach(b => b.onclick = () => { const v = d.vids.find(x => x.id === b.dataset.vx); if (!confirm(`Supprimer la vidéo « ${v.n} » ? (définitif)`)) return; d.vids = d.vids.filter(x => x.id !== v.id); epsVidDel(v.id); commit(); tabV(box); });
+    box.querySelectorAll('[data-vx]').forEach(b => b.onclick = () => { const v = d.vids.find(x => x.id === b.dataset.vx); if (!epsGuard(v, v.n) || !confirm(`Supprimer la vidéo « ${v.n} » ? (définitif)`)) return; d.vids = d.vids.filter(x => x.id !== v.id); epsVidDel(v.id); commit(); tabV(box); });
     // comparaison
     const vids = [null, null], off = [0, 0];
     [0, 1].forEach(async k => { if (!cmp[k]) return; const u = await epsVidUrl(cmp[k]), h = box.querySelector(`[data-cv="${k}"]`); if (!h) return;
