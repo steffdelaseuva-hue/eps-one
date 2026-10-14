@@ -706,39 +706,60 @@ TOOL_IMPL.match = function (el, grp = 'col') {
     const seen = {}, teams = live.map((x, i) => { let n = (solo ? String(x.members[0]) : (x.name || '').trim()) || 'Équipe ' + (i + 1); if (seen[n]) n += ' (' + (++seen[n]) + ')'; else seen[n] = 1; return { name: n, members: [...x.members] }; });
     if (teams.length < 2) return toast('Au moins 2 équipes');
     const def = `Tournoi ${tm.cls ? tm.cls + ' · ' : '· '}${SP().name}`, names = teams.map(x => x.name), G = tPoules(names), gk = Object.keys(G);
-    const C = { nom: def, format: ['poule', 'elim', 'pyramide'].includes(fmt0) ? fmt0 : 'poule', v: 3, n: 2, d: 1, mx: false, pp: 0, ar: false };
+    const C = { nom: def, format: ['poule', 'elim', 'pyramide'].includes(fmt0) ? fmt0 : 'poule', v: 3, n: 2, d: 1, mx: false, pp: 0, ar: false, k: 0, rep: 'niv', man: null, sh: shuffle(names) };
+    /* niveau (1 à 3, 3 = le plus fort) d'un participant : moyenne des niveaux de ses élèves dans la classe */
+    const lv = n => { const t = teams.find(x => x.name === n); if (!t || !tm.cls || typeof lvlOf !== 'function') return 0; const a = t.members.map(m => lvlOf(tm.cls, typeof m === 'object' ? m.n : m)); return a.length ? a.reduce((s, v) => s + v, 0) / a.length : 0; };
+    const hasLv = names.some(n => lv(n) > 0), pl = i => 'Poule ' + String.fromCharCode(65 + i);
     // poules de taille choisie (3 à 6 équipes / joueurs) : réparties équitablement, dans l'ordre ou au hasard
-    const sized = () => { if (!C.pp) return G; const L = C.mx ? shuffle(names) : [...names], k = Math.max(1, Math.ceil(L.length / C.pp)), out = {};
-      for (let i = 0; i < k; i++) out['Poule ' + String.fromCharCode(65 + i)] = [];
-      L.forEach((n, i) => out['Poule ' + String.fromCharCode(65 + (i % k))].push(n)); return out; };
+    const sized = () => {
+      if (C.man) { const out = {}; names.forEach(n => { const g = C.man[n]; if (g) (out[g] = out[g] || []).push(n); }); return Object.fromEntries(Object.keys(out).sort((a, b) => a.localeCompare(b, 'fr', { numeric: true })).map(g => [g, out[g]])); }
+      if (!C.pp && !C.k) return G;
+      const N = names.length, k = Math.max(1, Math.min(C.k ? C.k : Math.ceil(N / C.pp), Math.floor(N / 2) || 1)), out = {}; for (let i = 0; i < k; i++) out[pl(i)] = [];
+      const blocks = L => { const base = Math.floor(N / k), ex = N % k; let p = 0; for (let i = 0; i < k; i++) { const sz = base + (i < ex ? 1 : 0); out[pl(i)].push(...L.slice(p, p + sz)); p += sz; } return out; };
+      if (C.rep === 'ale') { C.sh = C.sh.filter(n => names.includes(n)); return blocks(C.sh); }
+      const L = names.map((n, i) => ({ n, i, l: lv(n) })).sort((x, y) => y.l - x.l || x.i - y.i).map(x => x.n);
+      if (C.rep === 'mix') { L.forEach((n, i) => { const r = Math.floor(i / k), c = i % k; out[pl(r % 2 ? k - 1 - c : c)].push(n); }); return out; }
+      return blocks(L); };
     const $ = q => el.querySelector(q);
-    const keepC = () => { C.nom = $('#c-nom').value; if ($('#c-v')) { C.v = +$('#c-v').value || 0; C.n = +$('#c-n').value || 0; C.d = +$('#c-d').value || 0; } if ($('#c-mx')) C.mx = $('#c-mx').checked; if ($('#c-ar')) C.ar = $('#c-ar').checked; };
+    const keepC = () => { C.nom = $('#c-nom').value; if ($('#c-v')) { C.v = +$('#c-v').value || 0; C.n = +$('#c-n').value || 0; C.d = +$('#c-d').value || 0; } if ($('#c-mx')) C.mx = $('#c-mx').checked; if ($('#c-k')) C.k = Math.max(0, Math.min(12, Math.floor(+$('#c-k').value) || 0)); if ($('#c-ar')) C.ar = $('#c-ar').checked; };
     const draw = () => {
       clearInterval(iv); M = null;
       const PG = sized(), pk = Object.keys(PG), size = 2 ** Math.ceil(Math.log2(teams.length)), nbR = pk.reduce((a, g) => a + PG[g].length * (PG[g].length - 1) / 2, 0) * (C.ar ? 2 : 1);
       const opts = C.format === 'poule' ? `<label>Points au classement</label><div class="row"><div><label>Victoire</label><input id="c-v" type="number" value="${C.v}"></div><div><label>Nul</label><input id="c-n" type="number" value="${C.n}"></div><div><label>Défaite</label><input id="c-d" type="number" value="${C.d}"></div></div>
-          <label>Taille des poules</label><div class="tog">${[[0, gk.length > 1 ? 'Par niveau' : 'Une seule poule'], [3, '3'], [4, '4'], [5, '5'], [6, '6']].map(([v, l]) => `<button data-pp="${v}" class="${C.pp === v ? 'on' : ''}">${l}</button>`).join('')}</div>
-          ${C.pp ? `<label style="display:flex;gap:8px;align-items:center;margin-top:10px"><input type="checkbox" id="c-mx" ${C.mx ? 'checked' : ''} style="width:auto"> Répartir au hasard dans les poules</label>` : ''}
+          <label>Taille des poules</label><div class="tog">${[[0, gk.length > 1 ? 'Par niveau' : 'Une seule poule'], [3, '3'], [4, '4'], [5, '5'], [6, '6'], [8, '8']].map(([v, l]) => `<button data-pp="${v}" class="${C.pp === v && !C.k ? 'on' : ''}">${l}</button>`).join('')}</div>
+          <div class="row" style="margin-top:8px"><div><label>…ou nombre de poules <span class="muted">(0 = d'après la taille)</span></label><input id="c-k" type="number" min="0" max="12" value="${C.k || 0}"></div></div>
+          ${C.pp || C.k ? `<label>Répartition</label><div class="tog">${[['niv', '🎚 Par niveau<br><small>les plus forts ensemble</small>'], ['mix', '🔀 Mélangés<br><small>niveaux répartis</small>'], ['ale', '🎲 Au hasard']].map(([k, l]) => `<button data-rep="${k}" class="${C.rep === k && !C.man ? 'on' : ''}">${l}</button>`).join('')}</div>
+          ${C.rep === 'ale' && !C.man ? '<button class="btn btn-ghost btn-block" style="margin-top:8px" id="c-resh">🎲 Re-mélanger</button>' : ''}
+          ${!hasLv && C.rep !== 'ale' && !C.man ? `<p class="muted" style="font-size:.8rem;margin:8px 0 0">ℹ️ Aucun niveau renseigné pour cette classe : l'ordre de la liste est utilisé. Classe d'abord les élèves avec « Classer les élèves par niveau » (écran précédent).</p>` : ''}` : ''}
+          ${C.man ? '<div class="card" style="margin-top:10px;padding:8px 12px;border:2px solid #B8912A"><b style="font-size:.88rem">✋ Poules modifiées à la main</b> <button class="btn btn-ghost" style="padding:5px 10px;font-size:.8rem;margin-left:8px" id="c-auto">↺ Répartition automatique</button></div>' : ''}
           <label style="display:flex;gap:8px;align-items:center;margin-top:10px"><input type="checkbox" id="c-ar" ${C.ar ? 'checked' : ''} style="width:auto"> Matchs aller-retour</label>
-          <p class="muted" style="font-size:.82rem;margin:8px 0 0">${pk.length > 1 ? (C.pp ? `🏁 ${pk.length} poules de ${C.pp} (environ) · ` : `🎚 ${pk.length} poules par niveau (équipes « Niveau 1 · … », « Niveau 2 · … ») · `) : ''}${nbR} rencontres${C.ar ? ' (aller-retour)' : pk.length > 1 ? '' : ' · tout le monde se rencontre une fois'}.</p>`
+          <p class="muted" style="font-size:.82rem;margin:8px 0 0">${pk.length > 1 ? (C.man ? `✋ ${pk.length} poules (manuel) · ` : C.pp || C.k ? `🏁 ${pk.length} poules (${PG[pk[0]].length} à ${PG[pk[pk.length - 1]].length} ${solo ? 'joueurs' : 'équipes'}) · ` : `🎚 ${pk.length} poules par niveau (équipes « Niveau 1 · … », « Niveau 2 · … ») · `) : ''}${nbR} rencontres${C.ar ? ' (aller-retour)' : pk.length > 1 ? '' : ' · tout le monde se rencontre une fois'}.</p>`
         : `<label style="display:flex;gap:8px;align-items:center;margin-top:14px"><input type="checkbox" id="c-mx" ${C.mx ? 'checked' : ''} style="width:auto"> ${C.format === 'elim' ? 'Mélanger au hasard' : 'Placement de départ au hasard'}</label>
           <p class="muted" style="font-size:.82rem;margin:8px 0 0">${C.format === 'elim' ? `Tableau de ${size} · ${teams.length - 1} matchs${size > teams.length ? ` · ${size - teams.length} équipe${size - teams.length > 1 ? 's' : ''} exempte${size - teams.length > 1 ? 's' : ''} au 1er tour (qualifiée${size - teams.length > 1 ? 's' : ''} d'office)` : ''}.`
             : 'Sans placement au hasard, l\'ordre des équipes ci-dessous donne le classement de départ (1re = sommet de la pyramide).'}</p>`;
-      const list = ns => ns.map((n, i) => `<div class="list-item">${C.format === 'pyramide' && !C.mx ? `<span class="muted" style="width:28px">#${i + 1}</span>` : ''}<b style="flex:1">${esc(n)}</b><span class="muted" style="font-size:.8rem">${(teams.find(x => x.name === n) || {}).members?.length || 0} élèves</span></div>`).join('');
+      const list = (ns, mv, gname) => ns.map((n, i) => `<div class="list-item">${C.format === 'pyramide' && !C.mx ? `<span class="muted" style="width:28px">#${i + 1}</span>` : ''}<b style="flex:1">${esc(n)}</b><span class="muted" style="font-size:.8rem">${lv(n) > 0 ? `<span class="lv-dot l${Math.round(lv(n))}" style="margin-right:6px">${Math.round(lv(n))}</span>` : ''}${(teams.find(x => x.name === n) || {}).members?.length || 0} élève${((teams.find(x => x.name === n) || {}).members?.length || 0) > 1 ? 's' : ''}</span>${mv ? `<select data-mv="${names.indexOf(n)}" style="flex:0 0 auto;width:auto;margin-left:8px;padding:6px" aria-label="Changer de poule">${Object.keys(PG).map(g => `<option value="${esc(g || 'Poule A')}" ${g === gname ? 'selected' : ''}>${esc(g || 'Poule A')}</option>`).join('')}<option value="__new">➕ Nouvelle poule</option></select>` : ''}</div>`).join('');
       el.innerHTML = `<button class="btn btn-ghost" id="c-bk">← Annuler</button>
         <div class="card" data-cfg style="margin-top:10px;border-top:6px solid #B8912A"><h3>🏆 Nouveau tournoi · ${esc(SP().name)}</h3>
           <label>Nom du tournoi (visible sur toutes les tablettes)</label><input id="c-nom" value="${esc(C.nom)}" style="font-weight:800;font-size:1.05rem">
           <label>Format du tournoi</label><div class="tn-fmts">${fmtOrder(S.sport).map(k => { const f = { ...TFMT[k], i: fmtI(k, S.sport), n: fmtN(k, S.sport) }, rec = k === 'atp' && atpOK(S.sport);
             return `<button class="tn-fmt ${C.format === k ? 'on' : ''} ${rec ? 'rec' : ''}" data-fmt="${k}"><span class="i">${f.i}</span><b>${f.n}${rec ? `<span class="tn-tag">conseillé ${S.sport === 'escrime' ? 'escrime' : 'raquettes'}</span>` : ''}</b><small>${f.d}${k === 'atp' ? ' · participants : les élèves de la classe' : ''}</small></button>`; }).join('')}</div>
           ${opts}</div>
-        ${C.format === 'poule' && pk.length > 1 ? pk.map(g => `<div class="card" style="margin-top:12px;padding:10px 14px"><h3 style="margin:0">${esc(g || 'Autres équipes')} · ${PG[g].length} équipes</h3>${list(PG[g])}</div>`).join('')
+        ${C.format === 'poule' && (pk.length > 1 || names.length >= 4) ? pk.map(g => { const ml = PG[g].map(lv).filter(x => x > 0), av = ml.length ? ml.reduce((s, v) => s + v, 0) / ml.length : 0; return `<div class="card" style="margin-top:12px;padding:10px 14px"><h3 style="margin:0">${esc(g || 'Poule A')} · ${PG[g].length} ${solo ? 'joueurs' : 'équipes'}${av ? ` <span class="muted" style="font-size:.8rem;font-weight:600">· niveau moyen ${av.toFixed(1).replace('.', ',')}</span>` : ''}</h3>${list(PG[g], true, g)}</div>`; }).join('')
           : `<div class="card" style="margin-top:12px;padding:10px 14px"><h3 style="margin:0">Équipes · ${teams.length}</h3>${list(names)}</div>`}
         <button class="btn btn-grad btn-block" data-cfg="bare" id="c-ok" style="margin-top:14px;padding:17px;font-size:1.15rem">✔ Créer le tournoi</button>`;
       $('#c-bk').onclick = setup;
       el.querySelectorAll('[data-fmt]').forEach(b => b.onclick = () => { keepC(); if (b.dataset.fmt === 'atp') return createAtp({ cls: tm.cls, txt: tm.cls ? '' : teams.flatMap(x => x.members).join('\n'), back: () => createT(tm) }); C.format = b.dataset.fmt; draw(); });
       if ($('#c-mx')) $('#c-mx').onchange = () => { keepC(); draw(); };
       if ($('#c-ar')) $('#c-ar').onchange = () => { keepC(); C.ar = $('#c-ar').checked; draw(); };
-      el.querySelectorAll('[data-pp]').forEach(b => b.onclick = () => { keepC(); C.pp = +b.dataset.pp; draw(); });
+      el.querySelectorAll('[data-pp]').forEach(b => b.onclick = () => { keepC(); C.pp = +b.dataset.pp; C.k = 0; C.man = null; draw(); });
+      el.querySelectorAll('[data-rep]').forEach(b => b.onclick = () => { keepC(); C.rep = b.dataset.rep; C.man = null; draw(); });
+      if ($('#c-resh')) $('#c-resh').onclick = () => { keepC(); C.sh = shuffle(names); draw(); };
+      if ($('#c-auto')) $('#c-auto').onclick = () => { keepC(); C.man = null; draw(); };
+      if ($('#c-k')) $('#c-k').onchange = () => { keepC(); C.man = null; if (C.k) C.pp = C.pp || 4; draw(); };
+      el.querySelectorAll('[data-mv]').forEach(s => s.onchange = () => { keepC(); const n = names[+s.dataset.mv];
+        if (!C.man) { C.man = {}; Object.keys(PG).forEach(g => PG[g].forEach(x => { C.man[x] = g || 'Poule A'; })); }
+        let g = s.value; if (g === '__new') { const used = new Set(Object.values(C.man)); let i = 0; while (used.has(pl(i))) i++; g = pl(i); }
+        C.man[n] = g; draw(); });
       $('#c-ok').onclick = () => { keepC(); create(size, PG); };
     };
     const create = (size, PG) => {

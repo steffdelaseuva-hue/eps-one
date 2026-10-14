@@ -4,9 +4,10 @@
    ========================================================= */
 /* Page Ko-fi : laisser vide tant qu'elle n'existe pas (le bouton est alors masqué) */
 const KOFI_URL = 'https://ko-fi.com/epsone';
-const APP_VERSION = '23.38';
+const APP_VERSION = '23.39';
 const APP_URL = 'https://steffdelaseuva-hue.github.io/eps-one/';
 const CHANGELOG = [
+  { v: '23.39', items: ['Tournoi en poules (raquettes, escrime, collectifs) : choix du nombre de poules OU de leur taille (3 à 8), répartition 🎚 par niveau (les plus forts ensemble), 🔀 mélangée (niveaux répartis) ou 🎲 au hasard (avec « Re-mélanger »), et ✋ déplacement manuel de chaque joueur / équipe d’une poule à l’autre (ou vers une nouvelle poule). Niveau de chaque joueur et niveau moyen de la poule affichés.'] },
   { v: '23.38', items: ['Bilan Duathlon : chaque groupe affiche maintenant son ⚡ potentiel VMA (somme des VMA) et son 🎯 % de maîtrise (vitesse réalisée ÷ VMA moyenne), la VMA de chaque élève sous son nom, et le tableau de comparaison des groupes reprend les deux colonnes.'] },
   { v: '23.37', items: ['🔒 Protection par code perso de tout ce que tu crées : danse (œuvres, banque, projets, vidéos), gymnastique (éléments, diaporamas), acrosport (pyramides, liaisons), escalade (voies). Les collègues peuvent utiliser mais pas modifier ni supprimer. Une carte « Protection de mes … » permet de protéger l’existant en un clic.', 'Parkour : les éléments choisis de la séance sont maintenant propres à chaque enseignant, et on peut supprimer un élément ajouté à la main.'] },
   { v: '23.36', items: ['🔒 Cross : protection par code perso (onglet Courses → « Protection de mes cross »). Les collègues peuvent utiliser un cross protégé (inscriptions, scan des arrivées, classements, impression, duplication) mais pas modifier les courses, dossards et départs ni le remettre à zéro ou le supprimer.', 'Parkour : les enchaînements et évaluations sont déjà liés à chaque classe, donc séparés entre enseignants.'] },
