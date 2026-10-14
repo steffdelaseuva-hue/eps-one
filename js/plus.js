@@ -4,9 +4,10 @@
    ========================================================= */
 /* Page Ko-fi : laisser vide tant qu'elle n'existe pas (le bouton est alors masqué) */
 const KOFI_URL = 'https://ko-fi.com/epsone';
-const APP_VERSION = '23.44';
+const APP_VERSION = '23.45';
 const APP_URL = 'https://steffdelaseuva-hue.github.io/eps-one/';
 const CHANGELOG = [
+  { v: '23.45', items: ['Course d’orientation, vue d’ensemble : choix de 2, 3 ou 4 cartes par ligne (4 par défaut, cartes plus compactes pour en voir davantage à l’écran).'] },
   { v: '23.44', items: ['Synchronisation : connexion « long polling » pour éviter le message rouge « client is offline » (wifi de l\'école, Safari). Le Cross n\'est pas modifié.'] },
   { v: '23.43', items: ['Course d’orientation, pendant la séance : nouveau bouton « ▦ Vue d’ensemble » qui dispose les cartes des élèves / groupes côte à côte, comme sur une table (nom(s), chrono, balises, arrivée, contrôle du carton), au lieu de les empiler. « ☰ Liste » revient à l’affichage précédent. Le choix est mémorisé sur chaque appareil.'] },
   { v: '23.42', items: ['Synchronisation après une séance wifi coupé : à la réactivation du wifi, les tablettes n’envoient plus toutes à la même seconde (délai aléatoire), l’envoi insiste jusqu’à 30 essais en cas de collision au lieu de 5, et les nouveaux essais automatiques sont décalés au hasard. Les résultats des tablettes arrivent ainsi beaucoup plus sûrement.'] },
