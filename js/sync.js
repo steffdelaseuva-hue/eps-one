@@ -116,7 +116,7 @@ const joinParts = (k, r, get = id => PARTS.get(id)) => { if (!(r.n > 1)) return 
 const readDoc = async (r, k, get) => { if (!r) return undefined; if (typeof r.c === 'string') { const c = joinParts(k, r, get); if (c === NOTREADY) return NOTREADY; return JSON.parse(await decrypt(c)); } if (typeof r.v === 'string') return JSON.parse(r.v); return undefined; };
 
 /* ---------- Envoi (groupé) des rubriques modifiées ---------- */
-let pushing = false;
+let pushing = false; const KERR = {}; let retryN = 0, retryT = null;   // KERR : dernière erreur d'envoi par rubrique (diagnostic)
 async function pushChanged() { await baseReady; await window.epsTombReady;
   if (!fb || !S.user || !CK || S.mismatch || !syncAllowed() || pushing || window.epsImgLoaded === false) return;
   const { doc, runTransaction } = fb.fs;
@@ -140,13 +140,15 @@ async function pushChanged() { await baseReady; await window.epsTombReady;
         t = Date.now(); tx.set(ref, n > 1 ? { c: c.slice(0, CHUNK), n, t, dev: meta.dev } : { c, t, dev: meta.dev });
         for (let i = 1; i < n; i++) tx.set(doc(fb.db, 'epsone', S.user.uid, 'data', k + PART + i), { c: c.slice(i * CHUNK, (i + 1) * CHUNK), t });
         for (let i = n; i < oldN; i++) tx.delete(doc(fb.db, 'epsone', S.user.uid, 'data', k + PART + i));
-      });
+      }, { maxAttempts: 30 });   // plusieurs tablettes qui envoient en même temps (retour du wifi en fin de séance) : on insiste au lieu d'abandonner après 5 essais
       if (!jeq(out, outb(k))) { applying = true; dbS(k, withLocal(k, out)); applying = false; changedLocal = true; }
-      setBase(k, out); meta.keys[k] = { h: hash(JSON.stringify(out ?? null)), t };
-    } catch (e) { errs.push(e); if (/offline|network|unavailable/i.test(e.message || '')) break; } }
+      setBase(k, out); meta.keys[k] = { h: hash(JSON.stringify(out ?? null)), t }; delete KERR[k];
+    } catch (e) { errs.push(e); KERR[k] = e.message || String(e); if (/offline|network|unavailable/i.test(e.message || '')) break; } }
     if (errs.length) throw errs[0];
-    S.status = 'ok'; S.err = ''; S.last = meta.last = Date.now();
-  } catch (e) { S.status = 'error'; S.err = e.message; syncErrToast(e.message); }
+    S.status = 'ok'; S.err = ''; S.last = meta.last = Date.now(); retryN = 0;
+  } catch (e) { S.status = 'error'; S.err = (e.message || '') + (Object.keys(KERR).length ? ' [' + Object.keys(KERR).join(', ') + ']' : ''); syncErrToast(e.message);
+    // nouvel essai automatique (45 s, puis 90 s… jusqu'à 5 min) : un incident passager (réseau de l'école, collision entre tablettes) se rattrape tout seul
+    if (!retryT && retryN < 12) { retryT = setTimeout(() => { retryT = null; retryN++; pushChanged(); }, Math.min(300000, 30000 * (retryN + 1)) + Math.floor(Math.random() * 25000)); } }
   pushing = false; if (changedLocal) persistDB(); if (window._saveOK !== false) { saveBase(); saveMeta(); } drawSendPill();
   if (changedLocal) { try { if (!document.getElementById('screen').classList.contains('open')) renderHome(); } catch (e) {} window.dispatchEvent(new Event('eps-remote')); }
   refreshUI();
@@ -415,7 +417,7 @@ async function boot() {
     const [appM, authM, fsM] = await Promise.all([import(SDK + 'firebase-app.js'), import(SDK + 'firebase-auth.js'), import(SDK + 'firebase-firestore.js')]);
     const app = appM.initializeApp(window.EPSONE_FIREBASE, 'epsone');
     const auth = authM.getAuth(app);
-    let db; try { db = fsM.initializeFirestore(app, { localCache: fsM.persistentLocalCache() }); } catch (e) { db = fsM.getFirestore(app); }
+    let db; try { db = fsM.initializeFirestore(app, { localCache: fsM.persistentLocalCache(), experimentalForceLongPolling: true }); } catch (e) { try { db = fsM.initializeFirestore(app, { experimentalForceLongPolling: true }); } catch (e2) { db = fsM.getFirestore(app); } }   /* long polling : le flux continu (WebChannel) est souvent coupé par le wifi de l'école / Safari → « client is offline » */
     fb = { auth, authM, db, fs: fsM }; S.ready = true;
     authM.onAuthStateChanged(auth, async u => {
       S.user = u; S.status = u ? 'ok' : 'off'; S.needKey = false; S.mismatch = false; gateBooted = true;
@@ -427,8 +429,8 @@ async function boot() {
     });
   } catch (e) { S.status = 'error'; S.err = 'Connexion à Firebase impossible (hors ligne ?)'; gateBooted = true; gate(); refreshUI(); }
 }
-window.addEventListener('online', () => S.user && !meta.collect && pushChanged());
-document.addEventListener('visibilitychange', () => { if (!S.user) return; if (document.visibilityState === 'hidden') { clearTimeout(pushTimer); pushTimer = null; pushChanged(); } else { if (meta.collect) pullAll(); else pushChanged(); } });
+window.addEventListener('online', () => { if (S.user && !meta.collect) setTimeout(pushChanged, 1500 + Math.floor(Math.random() * 20000)); });   // retour du wifi : les tablettes n'envoient pas toutes à la même seconde
+document.addEventListener('visibilitychange', () => { if (!S.user) return; if (document.visibilityState === 'hidden') { clearTimeout(pushTimer); pushTimer = null; pushChanged(); } else { if (meta.collect) pullAll(); else setTimeout(pushChanged, Math.floor(Math.random() * 8000)); } });
 window.addEventListener('pagehide', () => { if (S.user) pushChanged(); });
 
 /* ---------- Interface ---------- */
@@ -482,7 +484,10 @@ function drawPanel(el) {
   } else if (S.user) {
     el.innerHTML = `<div class="card"><h3>☁️ Synchronisation activée</h3>
         <p style="margin:6px 0">Compte : <b>${esc(S.user.email)}</b></p><p class="muted" style="margin:0">État : ${statusText()} · dernière synchro : ${last}</p>${errP}
+        ${pendingCount() ? `<p style="margin:6px 0 0;font-size:.85rem;color:var(--danger)">⏳ En attente d'envoi (${pendingCount()}) : ${syncKeys().filter(k => meta.keys[k]?.h !== hash(JSON.stringify(outb(k)))).join(', ')}</p>` : ''}
+        ${Object.keys(KERR).length ? `<div style="font-size:.8rem;margin-top:6px;color:var(--danger)">${Object.entries(KERR).map(([k, m]) => `<div><b>${esc(k)}</b> : ${esc(m)}</div>`).join('')}</div>` : ''}
         <div class="row" style="margin-top:12px"><button class="btn btn-grad" id="sy-now">🔄 Synchroniser maintenant</button><button class="btn btn-ghost" id="sy-out">Revenir en stockage local</button></div>
+        <button class="btn btn-ghost btn-block" style="margin-top:8px" id="sy-diag">🔍 Diagnostic : comparer cet appareil et le compte</button><div id="sy-diag-out" style="margin-top:8px"></div>
         <label style="display:flex;gap:8px;align-items:flex-start;margin-top:14px;color:var(--text);font-weight:600"><input type="checkbox" id="sy-col" ${meta.collect ? 'checked' : ''} style="width:auto;margin-top:3px"><span>📥 Tablette de collecte (envoi en fin de séance)<br><span class="muted" style="font-weight:400;font-size:.82rem">Pour les tablettes prêtées pendant un cours : rien n'est envoyé pendant la séance. En fin de cours, touchez le bouton « 📤 Envoyer les relevés » (l'envoi se fait aussi quand la tablette se met en veille). Les relevés de toutes les tablettes sont fusionnés sur votre compte, presque sans consommer de quota.</span></span></label>
         ${meta.collect ? `<button class="btn btn-grad btn-block" style="margin-top:10px" id="sy-send">📤 Envoyer les relevés maintenant${pendingCount() ? ' (' + pendingCount() + ')' : ''}</button>` : ''}</div>
       ${E2E_TXT}
@@ -517,6 +522,14 @@ function drawPanel(el) {
     $('#sy-mrep').onclick = () => run(async () => { if (!confirm('Remplacer toutes les données en ligne par celles de cet appareil ?')) return;
       unsub && unsub(); unsub = null; S.mismatch = false; await writeCheck(); await forcePushAll(); meta.linked = true; saveMeta(); listen(); toast('Données en ligne remplacées ✔'); });
   } else if (S.user) {
+    $('#sy-diag').onclick = async () => { const o = $('#sy-diag-out'); o.innerHTML = '<span class="muted">Lecture du compte…</span>';
+      try { const { collection, getDocs } = fb.fs, snap = await getDocs(collection(fb.db, 'epsone', S.user.uid, 'data')); snap.docs.forEach(x => PARTS.set(x.id, x.data()));
+        const cnt = v => Array.isArray(v) ? v.length : isObj(v) ? Object.values(v).reduce((n, x) => n + (Array.isArray(x) ? x.length : 0), 0) : (v == null ? 0 : 1), ko = v => Math.round(JSON.stringify(v ?? null).length / 1024) + ' Ko';
+        const R = {}; for (const x of snap.docs) { if (x.id === CHECK_ID || isPart(x.id)) continue; try { const r = x.data(), v = await readDoc(r, x.id); R[x.id] = v === NOTREADY ? { bad: 'parties manquantes' } : { v: outb(x.id, v), t: r.t, dev: r.dev, n: r.n || 1 }; } catch (e) { R[x.id] = { bad: 'illisible' }; } }
+        const rows = syncKeys().filter(k => dbG(k) != null || R[k]).sort().map(k => { const l = outb(k), r = R[k], same = r && r.v !== undefined && jeq(l, r.v), pend = meta.keys[k]?.h !== hash(JSON.stringify(l));
+          return `<tr style="${same ? '' : 'background:rgba(214,69,69,.10)'}"><td><b>${esc(k)}</b></td><td>${cnt(l)} · ${ko(l)}</td><td>${r ? (r.bad ? esc(r.bad) : cnt(r.v) + ' · ' + ko(r.v)) : '—'}</td><td>${same ? '✔' : pend ? '⏳ à envoyer' : '≠'}${KERR[k] ? ' ⚠️ ' + esc(KERR[k]) : ''}</td></tr>`; }).join('');
+        o.innerHTML = `<div class="sheet-table"><table style="font-size:.78rem"><tr><th>Rubrique</th><th>Cet appareil</th><th>Compte</th><th>État</th></tr>${rows}</table></div><p class="muted" style="font-size:.75rem;margin:6px 0 0">Nombre d'éléments · taille. En rouge : cet appareil et le compte diffèrent. Faites une capture de ce tableau (sur la tablette et sur le téléphone) si une rubrique n'arrive pas.</p>`;
+      } catch (e) { o.innerHTML = `<span style="color:var(--danger)">${esc(e.message || String(e))}</span>`; } };
     $('#sy-now').onclick = () => run(async () => { await forcePushAll(); await pullAll(); toast('Synchronisé ✔'); });
     $('#sy-col').onchange = e => { meta.collect = e.target.checked; saveMeta(); listen(); drawSendPill(); if (!meta.collect) pushChanged(); toast(meta.collect ? 'Tablette de collecte ✔' : 'Synchronisation en direct ✔'); refreshUI(); };
     if ($('#sy-send')) $('#sy-send').onclick = () => run(async () => { await pushChanged(); toast(pendingCount() ? 'Envoi incomplet : réessayez' : 'Relevés envoyés ✔'); });

@@ -269,8 +269,8 @@ function editGroupsPanel(title, ad) {
         ? `<div class="card team" data-d="new" style="cursor:pointer"><h3><span>Participants</span><span class="muted">${L.length}</span></h3><div style="display:flex;flex-wrap:wrap;gap:5px">${L.map((g, i) => chip(i, ad.names(g)[0] || '?')).join('') || '<span class="muted">—</span>'}</div></div>`
         : L.map((g, i) => `<div class="card team" data-d="${i}" style="cursor:pointer;${sel.length ? 'box-shadow:0 0 0 2px rgba(30,91,216,.35)' : ''}"><h3><span>${esc(g.name)}</span><span class="muted">${ad.names(g).length}</span></h3>
           <div style="display:flex;flex-wrap:wrap;gap:5px;min-height:34px">${ad.names(g).map(n => chip(i, n)).join('') || `<span class="muted">${sel.length ? 'Touchez pour y placer la sélection' : 'Groupe vide'}</span>`}</div>
-          <div class="row" style="margin-top:8px;gap:6px"><button class="btn btn-ghost" style="padding:6px" data-ren="${i}">✏️</button><button class="btn btn-ghost" style="padding:6px" data-del="${i}">🗑</button></div></div>`).join('')}
-          ${ad.indiv ? '' : '<button class="btn btn-ghost" style="min-height:80px" id="gnew">＋ Nouveau groupe</button>'}</div>
+          ${ad.fixed ? '' : `<div class="row" style="margin-top:8px;gap:6px"><button class="btn btn-ghost" style="padding:6px" data-ren="${i}">✏️</button><button class="btn btn-ghost" style="padding:6px" data-del="${i}">🗑</button></div>`}</div>`).join('')}
+          ${ad.indiv || ad.fixed ? '' : '<button class="btn btn-ghost" style="min-height:80px" id="gnew">＋ Nouveau groupe</button>'}</div>
         <div class="card" data-d="-1" style="cursor:pointer;position:sticky;top:64px;border-top:5px dashed var(--line);background:var(--grad-soft);padding:10px;max-height:calc(100dvh - 140px);overflow:auto"><h3 style="margin:0 0 6px;font-size:.95rem">${esc(listTitle)} <span class="muted">${free.length}</span></h3>
           ${free.map(n => chip(-1, n, true)).join('') || '<span class="muted" style="font-size:.8rem">Tous les élèves sont placés.</span>'}
           ${free.length > 1 ? `<button class="link" id="gselall" style="font-size:.8rem">Tout sélectionner</button>` : ''}</div></div>

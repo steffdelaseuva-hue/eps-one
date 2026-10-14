@@ -1191,6 +1191,40 @@ TOOL_IMPL.match = function (el, grp = 'col') {
         ...log.map(l => [new Date(l.m.date).toLocaleString('fr-FR'), l.c, l.from, l.d, l.to, l.cs, l.ds, l.w || 'nul', l.g, l.arb ? l.arb + ' (+0,5)' : '', (l.lib ? 'match libre · ' : 'défi · ') + (l.m.simple ? 'résultat simple' : 'match en direct')])])) };
   }
 
+  /* 👥 Élèves d'un tournoi déjà créé : retirer (absent, dispensé), ajouter (retard, remplaçant), déplacer d'une équipe à l'autre — tous formats */
+  function tPlayers(id) {
+    const T0 = () => TR().find(x => x.id === id); const t0 = T0(); if (!t0) return;
+    const solo = t0.teams.length > 1 && t0.teams.every(x => (x.members || []).length === 1), cls = t0.classe || '';
+    let prev = new Map(t0.teams.map(x => [x.name, x]));
+    const persist = () => { save(); window.syncFlush && window.syncFlush(); };
+    const reconcile = () => { const t = T0(), f = tFmt(t), now = new Set(t.teams.map(x => x.name)), res = tResults(t);
+      const gone = [...prev.keys()].filter(n => !now.has(n)), added = [...now].filter(n => !prev.has(n));
+      if (f === 'poule') {
+        t.rencontres = t.rencontres.filter(r => (now.has(r.a) && now.has(r.b)) || res[r.id]);   // matchs non joués d'un absent supprimés ; matchs déjà joués conservés
+        const gk = [...new Set(t.teams.map(x => x.g || '').filter(Boolean))];
+        if (gk.length) t.teams.forEach(x => { if (!x.g) { const c = Object.fromEntries(gk.map(k => [k, 0])); t.teams.forEach(y => { if (y.g) c[y.g]++; }); x.g = gk.sort((a, b) => c[a] - c[b])[0]; } });
+        const keyOf = (a, b, g, ret) => [a, b].sort().join('||') + '|' + (g || '') + (ret ? 'r' : ''), have = new Set(t.rencontres.map(r => keyOf(r.a, r.b, r.g, r.ret)));
+        const byG = {}; t.teams.forEach(x => (byG[x.g || ''] = byG[x.g || ''] || []).push(x.name));
+        let base = Math.max(0, ...t.rencontres.map(r => r.round || 0)); const used = {};   // tours supplémentaires : personne ne joue deux fois dans le même tour
+        const place = (a, b) => { let k = 1; while ((used[k] || new Set()).has(a) || (used[k] || new Set()).has(b)) k++; (used[k] = used[k] || new Set()).add(a).add(b); return base + k; };
+        Object.keys(byG).forEach(g => { const L = byG[g]; for (let i = 0; i < L.length; i++) for (let j = i + 1; j < L.length; j++) {
+          if (!have.has(keyOf(L[i], L[j], g, false))) { const r = { id: tuid(), round: place(L[i], L[j]), a: L[i], b: L[j] }; if (g) r.g = g; t.rencontres.push(r); }
+          if (t.ar && !have.has(keyOf(L[i], L[j], g, true))) { const r = { id: tuid(), round: place(L[i], L[j]), a: L[j], b: L[i], ret: true }; if (g) r.g = g; t.rencontres.push(r); } } });
+      } else if (f === 'elim') {
+        gone.forEach(n => { const rs = t.rencontres.filter(r => r.round === 1 && (r.a === n || r.b === n));
+          if (rs.some(r => res[r.id])) { t.teams.push(prev.get(n)); now.add(n); toast(`« ${n} » a déjà joué : impossible de le retirer du tableau`); return; }
+          rs.forEach(r => { if (r.a === n) r.a = null; if (r.b === n) r.b = null; }); });
+        added.forEach(n => { const r = t.rencontres.find(x => x.round === 1 && !res[x.id] && (x.a == null || x.b == null));
+          if (!r) { t.teams = t.teams.filter(x => x.name !== n); toast(`Tableau complet : pas de place pour « ${n} »`); return; } if (r.a == null) r.a = n; else r.b = n; });
+      } else if (f === 'pyramide') { t.order = (t.order || [...prev.keys()]).filter(n => now.has(n)); added.forEach(n => t.order.push(n)); }
+      prev = new Map(t.teams.map(x => [x.name, x])); persist(); };
+    const base = { cls, fixed: !solo, okLabel: '✔ Terminé', onClose: () => tview(id) };
+    if (solo) editGroupsPanel('Participants · ' + t0.nom, { ...base, indiv: true, listTitle: 'Non placés / absents', list: () => T0().teams, names: x => [x.members[0]],
+      take: x => ({ g: x.g }), put: (x, n, dd) => { x.members = [n]; if (dd && dd.g) x.g = dd.g; }, make: n => ({ name: n, members: [n] }), onChange: reconcile });
+    else editGroupsPanel('Équipes · ' + t0.nom, { ...base, list: () => T0().teams, names: x => x.members || [], take: (x, n) => { x.members.splice(x.members.indexOf(n), 1); return n; },
+      put: (x, n) => { x.members = x.members || []; x.members.push(n); }, make: name => ({ name, members: [] }), onChange: persist });
+  }
+  const solo0 = t => t.teams.length > 1 && t.teams.every(x => (x.members || []).length === 1);
   function tview(id) {
     clearInterval(iv); M = null;
     const t = TR().find(x => x.id === id); if (!t) { toast('Tournoi introuvable'); return setup(); }
@@ -1223,11 +1257,14 @@ TOOL_IMPL.match = function (el, grp = 'col') {
             <label style="display:flex;gap:8px;align-items:center;margin-top:10px"><input type="checkbox" id="rg-ob" ${R.obsOn ? 'checked' : ''} style="width:auto"> Observations individuelles des joueurs</label>
             ${R.obsOn ? `<div class="tog" style="margin-top:6px">${[2, 3, 4].map(n => `<button data-rgn="${n}" class="${R.obsN === n ? 'on' : ''}">${n} joueurs observés</button>`).join('')}</div>` : ''}
             <p class="muted" style="font-size:.78rem;margin:6px 0 0">S'applique aux prochains matchs, sur toutes les tablettes. Les matchs déjà joués ne changent pas.</p>`; })()}</details>
-        <button class="btn btn-ghost btn-block" style="margin-top:14px" id="t-fin">${t.fin ? '↩ Rouvrir le tournoi (il revient dans « Tournois en cours »)' : '✔ Terminer le tournoi (rangé dans « Tournois terminés », réouvrable)'}</button>
+        <button class="btn btn-ghost btn-block" style="margin-top:14px" id="t-pl">👥 Modifier les élèves : absent, retard, dispensé, remplaçant</button>
+        <p class="muted" style="font-size:.78rem;margin:4px 0 0">${solo0(t) ? 'Retirer un joueur supprime ses matchs non joués ; en ajouter un crée ses matchs.' : 'Retirer ou déplacer un élève d\'une équipe ; ajouter un élève de la classe.'}</p>
+        <button class="btn btn-ghost btn-block" style="margin-top:10px" id="t-fin">${t.fin ? '↩ Rouvrir le tournoi (il revient dans « Tournois en cours »)' : '✔ Terminer le tournoi (rangé dans « Tournois terminés », réouvrable)'}</button>
         <div class="row" style="margin-top:8px"><button class="btn btn-ghost" id="t-csv">📤 ${V.csvLbl}</button><button class="btn btn-danger" id="t-del">🗑 Supprimer le tournoi</button></div>
         <p class="muted" style="font-size:.78rem;margin:6px 0 0">Les matchs déjà enregistrés restent dans l'historique. Un tournoi supprimé peut être restauré (« 📁 Tournois terminés »).</p></details>`;
     const $ = q => el.querySelector(q);
     $('#t-bk').onclick = setup;
+    if ($('#t-pl')) $('#t-pl').onclick = () => tPlayers(t.id);
     if ($('#t-solo')) $('#t-solo').onclick = () => { const T0 = TR().find(x => x.id === t.id); if (!T0) return; if (!encOk()) return;
       const map = {}, used = new Set(); T0.teams.forEach(x => { let n = String(x.members[0]), k = 1; while (used.has(n)) n = x.members[0] + ' (' + (++k) + ')'; used.add(n); map[x.name] = n; });
       const olds = Object.keys(map).sort((u, v) => v.length - u.length), rx = new RegExp('(' + olds.map(o => o.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|') + ')(?!\\d)', 'g');

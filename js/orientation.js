@@ -43,6 +43,8 @@ document.head.insertAdjacentHTML('beforeend', `<style>
 .bal-chips button{min-width:46px;padding:8px 6px;border-radius:10px;border:1.5px solid var(--line);background:var(--card);font-weight:900;font-size:.85rem}
 .bal-chips button.on{background:#1B9E5A;color:#fff;border-color:transparent}
 .bal-chips button.ob{box-shadow:inset 0 -3px 0 var(--danger)}
+.co-grid.on{display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:12px;align-items:start}.co-grid.on .run{margin:0}
+.co-vw{display:flex;gap:6px;margin-top:10px}.co-vw button{flex:1;padding:9px 6px;border-radius:10px;border:1.5px solid var(--line);background:var(--card);font-weight:800}.co-vw button.on{background:var(--grad);color:#fff;border-color:transparent}
 .bal-chips button sup{font-size:.6rem;opacity:.8}
 .co-times{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
 .co-times input{padding:8px}
@@ -1130,6 +1132,7 @@ TOOL_IMPL.co = function (el) {
         const rec = { ...cur, id: cur.id + '-' + Math.random().toString(36).slice(2, 6), parcours: base, runs, parcoursSnap: coLite(pp) }; ['only', 'joined', 'psnap', 'profOnly'].forEach(k => delete rec[k]);
         DB.co.seances.push(rec); coResults(rec); });
       DB.co.current = null; save(); toast('Séance enregistrée ✔'); tabs(true); tab = 'bilan'; frame(); };
+    let ovw = false; try { ovw = localStorage.getItem('epsone_co_vue') === 'cartes'; } catch (e) {}   // vue propre à l'appareil
     const draw = () => {
       if (cur.only != null && cur.runs[cur.only]) return drawGroup();
       tabs(true);
@@ -1137,10 +1140,11 @@ TOOL_IMPL.co = function (el) {
       box.innerHTML = `<div class="card"><div style="display:flex;justify-content:space-between;gap:8px;align-items:center"><div><b>${esc(p.nom)}</b><div class="muted">${esc(cur.classe || '')} · ${CO_TYPES[p.type][0]} · ${p.balises.length} balises${p.alloue ? ` · ${p.alloue} min ± ${p.ecart}` : ''}</div></div><div class="run-t" id="now">${clock(Date.now())}</div></div>
           <div style="margin-top:6px;font-size:.8rem;font-weight:700">${CO_ORG(p)}${coMapOf(p) ? ' <button class="link" id="smap">🗺 Carte</button>' : ''}${coAideList(p).length ? ' <button class="link" id="said">🔎 Photos / définitions</button>' : ''}${p.type === 'koh' && p.balises.some(coKohOk) ? `<div class="bal-chips" style="margin-top:6px">${p.balises.filter(coKohOk).map((b, k) => `<button data-kt="${b.num}">🏝 Indice ${k + 1} · balise ${b.num}</button>`).join('')}${coKohMap(p).length ? '<button id="skdir">🧭 Correspondances</button>' : ''}</div>` : ''}</div>
           <div class="row" style="margin-top:10px"><button class="btn btn-grad" id="all">🚩 Départ groupé</button><button class="btn btn-ghost btn-block" data-cfg="bare" style="margin-top:8px" id="edg">✏️ Modifier les groupes / participants (absent, blessé…)</button><div data-cfg="bare" style="display:flex;gap:6px;align-items:center;flex:1.3"><input id="gap" type="number" value="${cur.gap || 60}" style="width:70px;padding:8px"><button class="btn btn-ghost" id="stag" style="padding:9px 8px;font-size:.8rem">Départs échelonnés (s)</button></div></div>
+          ${cur.runs.length > 1 ? `<div class="co-vw" data-cfg="bare"><button data-vw="l" class="${ovw ? '' : 'on'}">☰ Liste</button><button data-vw="c" class="${ovw ? 'on' : ''}">▦ Vue d'ensemble (cartes côte à côte)</button></div>` : ''}
           <p class="muted" style="margin:8px 0 0;font-size:.8rem">Balises : touchez un numéro trouvé (souligné rouge = obligatoire).</p>
           ${cur.profOnly ? '<p class="muted" style="margin:8px 0 0;font-size:.8rem">📋 Suivi enseignant uniquement : les élèves courent sans tablette ; arrêtez le temps à leur retour puis touchez « 🔎 Contrôler le carton » pour vérifier leur coupon papier.</p>' : ''}
           ${cur.runs.length > 1 && !cur.profOnly ? `<div data-cfg="bare"><label>📱 Tablette d'une équipe (les élèves ne verront que leur équipe)</label><select id="only"><option value="">Toutes</option>${cur.runs.map((r, i) => `<option value="${i}">${esc(r.name)}</option>`).join('')}</select></div>` : ''}</div>
-        ${rs.map(({ r, x }, i) => `<div class="run ${r.arr ? 'fin' : r.dep ? 'go' : ''}"><div class="run-h"><b>${esc(r.name)}</b><span class="run-t" data-live="${i}">${r.dep ? hms(elapsed(r)) : '0:00'}</span></div>
+        <div class="co-grid ${ovw && cur.runs.length > 1 ? 'on' : ''}">${rs.map(({ r, x }, i) => `<div class="run ${r.arr ? 'fin' : r.dep ? 'go' : ''}"><div class="run-h"><b>${esc(r.name)}</b><span class="run-t" data-live="${i}">${r.dep ? hms(elapsed(r)) : '0:00'}</span></div>
             ${r.members.length > 1 || r.name !== r.members[0] ? `<div class="muted" style="font-size:.8rem">${r.members.map(esc).join(', ')}</div>` : ''}
             ${isLegRun(r, pOf(r)) ? (!r.dep && (r.choix || r.libre || (DB.co.parcours.length > 1 && cur.runs.length <= 12)) ? pcPick(r, i) + (r.libre ? selPick(r, i) : '') : '') + legBox(r, i, pOf(r), false) : `<div class="co-times"><div><label style="margin:0 0 3px">Départ</label>${r.dep ? `<input type="time" step="1" data-cfg="bare" data-dep="${i}" value="${new Date(r.dep).toTimeString().slice(0, 8)}">` : `<button class="btn btn-grad btn-block" data-go="${i}">▶ Départ${r.plan ? ' ' + clock(r.plan).slice(0, 5) : ''}</button>`}</div>
               <div><label style="margin:0 0 3px">Arrivée</label>${r.arr ? `<input type="time" step="1" data-cfg="bare" data-arr="${i}" value="${new Date(r.arr).toTimeString().slice(0, 8)}">` : `<button class="btn ${r.dep ? 'btn-danger' : 'btn-ghost'} btn-block" data-fin="${i}" ${r.dep ? '' : 'disabled'}>🏁 Arrivée</button>`}</div></div>
@@ -1152,7 +1156,7 @@ TOOL_IMPL.co = function (el) {
             ${r.arr ? `<button class="btn btn-ghost btn-block" style="margin-top:8px;padding:9px" data-again="${i}">🔁 Enregistrer et repartir sur un nouveau parcours</button>` : ''}${r.done ? `<div class="muted" style="font-size:.75rem;margin-top:4px">${r.done} parcours déjà terminé${r.done > 1 ? 's' : ''} dans cette séance</div>` : ''}
             <div style="display:flex;align-items:center;gap:8px;margin-top:8px;font-size:.85rem"><span>Mauvaises balises :</span><button class="btn btn-ghost" style="padding:5px 12px" data-wm="${i}">−</button><b>${r.wrong}</b><button class="btn btn-ghost" style="padding:5px 12px" data-wp="${i}">+</button></div>
             ${pOf(r).type === 'koh' && Object.keys(r.vues || {}).length ? `<div class="muted" style="margin-top:6px;font-size:.78rem">🏝 Indices vus : ${Object.entries(r.vues).map(([n, v]) => `balise ${n} × ${v}`).join(' · ')}</div>` : ''}
-            <div class="muted" style="margin-top:6px;font-size:.8rem">${r.found.length}/${pOf(r).balises.length} balises · <b style="color:var(--text)">${x.score} pts</b>${x.penP ? ` (−${x.penP})` : ''}${x.miss ? ` · ${x.miss} oblig. manquante(s)` : ''}${x.temps != null ? ` · RK ${x.rk}${x.penS ? ` · pénalités +${hms(x.penS)}` : ''}${x.statut ? ' · ' + x.statut : ''}` : ''}</div></div>`).join('')}
+            <div class="muted" style="margin-top:6px;font-size:.8rem">${r.found.length}/${pOf(r).balises.length} balises · <b style="color:var(--text)">${x.score} pts</b>${x.penP ? ` (−${x.penP})` : ''}${x.miss ? ` · ${x.miss} oblig. manquante(s)` : ''}${x.temps != null ? ` · RK ${x.rk}${x.penS ? ` · pénalités +${hms(x.penS)}` : ''}${x.statut ? ' · ' + x.statut : ''}` : ''}</div></div>`).join('')}</div>
         <div class="section-title"><h2>Classement</h2></div>${ranking(rs, p)}
         <div class="row" style="margin-top:12px"><button class="btn btn-grad" data-cfg="bare" id="save">💾 Terminer et enregistrer la séance</button><button class="btn btn-ghost" data-cfg="bare" id="cancel">Abandonner</button></div>`;
       const $ = s => box.querySelector(s), keep = () => save();
@@ -1178,6 +1182,7 @@ TOOL_IMPL.co = function (el) {
       box.querySelectorAll('[data-wp]').forEach(b => b.onclick = () => { cur.runs[+b.dataset.wp].wrong++; keep(); draw(); });
       box.querySelectorAll('[data-wm]').forEach(b => b.onclick = () => { const r = cur.runs[+b.dataset.wm]; r.wrong = Math.max(0, r.wrong - 1); keep(); draw(); });
       if ($('#only')) $('#only').onchange = ev => { if (ev.target.value === '') return; cur.only = +ev.target.value; keep(); draw(); };
+      box.querySelectorAll('[data-vw]').forEach(b => b.onclick = () => { ovw = b.dataset.vw === 'c'; try { localStorage.setItem('epsone_co_vue', ovw ? 'cartes' : 'liste'); } catch (e) {} draw(); });
       $('#save').onclick = saveSeance;
       $('#cancel').onclick = () => { if (confirm('Abandonner cette séance ? Les temps saisis seront perdus.')) { partAskRemove(cur); DB.co.current = null; save(); draw2(); } };
     };
