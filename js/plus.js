@@ -4,9 +4,10 @@
    ========================================================= */
 /* Page Ko-fi : laisser vide tant qu'elle n'existe pas (le bouton est alors masqué) */
 const KOFI_URL = 'https://ko-fi.com/epsone';
-const APP_VERSION = '23.46';
+const APP_VERSION = '23.47';
 const APP_URL = 'https://steffdelaseuva-hue.github.io/eps-one/';
 const CHANGELOG = [
+  { v: '23.47', items: ['Cross, courses aux tours : classements → « Classes » : nouveau tableau « Total des tours par classe » (total, élèves, moyenne par élève, distance), avec impression et export CSV.'] },
   { v: '23.46', items: ['Course d’orientation : jusqu’à 6 cartes côte à côte en vue d’ensemble, et liseré de couleur différent sur chaque carte pour repérer facilement chaque élève ou groupe.'] },
   { v: '23.45', items: ['Course d’orientation, vue d’ensemble : choix de 2, 3 ou 4 cartes par ligne (4 par défaut, cartes plus compactes pour en voir davantage à l’écran).'] },
   { v: '23.44', items: ['Synchronisation : connexion « long polling » pour éviter le message rouge « client is offline » (wifi de l\'école, Safari). Le Cross n\'est pas modifié.'] },

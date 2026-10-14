@@ -350,6 +350,18 @@ tr:nth-child(-n+4) td{font-weight:700}`,
     head: ['Rang', 'Classe', 'Score', 'Arrivés', 'Filles', 'Garçons', `${E.topN} meilleures places`],
     rows: classRank(E, K, L).map(r => [r.rk, r.cls, r.score.toFixed(2).replace('.', ','), `${r.n}/${r.ins}`, r.F, r.G, r.pts.slice(0, E.topN).join(' · ') + (r.miss ? ` (+${r.miss} manquante${r.miss > 1 ? 's' : ''})` : '')]) });
 
+  /* Courses aux tours : total des tours par classe (toutes les courses « aux tours » du cross, élèves partis ou non) */
+  const lapsTable = (E, K) => {
+    const LC = K.courses.filter(x => x.c.mode === 'temps'); if (!LC.length) return null;
+    const M = new Map(); LC.forEach(x => [...x.R, ...x.W].forEach(r => { const cl = r.s.cls || '—', o = M.get(cl) || { cls: cl, tours: 0, n: 0, act: 0, dist: 0 }; o.n++; if (r.ok) { o.act++; o.tours += r.laps; o.dist += r.dist || 0; } M.set(cl, o); }));
+    const L = [...M.values()].filter(o => o.n).sort((a, b) => b.tours - a.tours || b.act - a.act || a.cls.localeCompare(b.cls, 'fr'));
+    if (!L.length) return null;
+    const f1 = v => (Math.round(v * 10) / 10).toString().replace('.', ',');
+    return { title: 'Total des tours par classe', note: 'Somme des tours de tous les élèves de la classe sur les courses aux tours. « Moy. » = tours par élève inscrit (un élève sans tour compte pour 0). Classement par total de tours.',
+      head: ['Rang', 'Classe', 'Total tours', 'Élèves', 'Avec ≥ 1 tour', 'Moy. / élève', 'Distance (m)'],
+      rows: L.map((o, i) => [i + 1, o.cls, o.tours, o.n, o.act, f1(o.tours / o.n), o.dist]) };
+  };
+
   /* ================= OUTIL ================= */
   let tab = 'courses', insCls = '', msel = null, rv = 'course', rc = '', rl = '6', rsx = '', gsel = new Set(), gstart = new Set();
   TOOL_IMPL.cross = function (el) {
@@ -741,7 +753,7 @@ tr:nth-child(-n+4) td{font-weight:700}`,
     function rank(box, E) {
       const K = compute(E);
       if (!E.courses.some(c => c.id === rc)) rc = (E.courses[0] || {}).id || '';
-      let T = null;
+      let T = null, T2 = null;
       const head = `<div class="seg">${[['course', 'Par course'], ['niveau', 'Par niveau'], ['classes', 'Classes']].map(([k, l]) => `<button data-rv="${k}" class="${rv === k ? 'on' : ''}">${l}</button>`).join('')}</div>`;
       let sub = '';
       if (rv === 'course') {
@@ -753,11 +765,12 @@ tr:nth-child(-n+4) td{font-weight:700}`,
       } else {
         sub = `<div class="cx-cls">${LV.map(l => `<button data-rl="${l}" class="${rl === l ? 'on' : ''}">${LVN[l]}</button>`).join('')}</div>
           <div class="row" data-cfg="bare" style="align-items:center;margin-top:8px"><label style="margin:0;flex:2">Nombre de places retenues par classe (X)</label><input id="cx-topn" type="number" min="1" max="35" value="${E.topN}" style="flex:0 0 80px"></div>`;
-        T = classTable(E, K, rl);
+        T = classTable(E, K, rl); T2 = lapsTable(E, K);
       }
       box.innerHTML = `<div class="card">${head}${sub}</div>
         ${T ? `<div class="section-title"><h2>${esc(T.title)}</h2></div>${T.note ? `<p class="muted" style="margin:-4px 2px 8px;font-size:.8rem">${esc(T.note)}</p>` : ''}
           <div class="card sheet-table cx-rk" style="margin-top:0">${T.rows.length ? `<table><tr>${T.head.map(h => `<th>${esc(h)}</th>`).join('')}</tr>${T.rows.map((r, i) => `<tr>${r.map((v, j) => `<td class="${j === 2 || (rv === 'classes' && j === 1) ? 'nmc' : ''}">${j === 0 && typeof v === 'number' && v <= 3 ? ['🥇', '🥈', '🥉'][v - 1] : j === 2 || (rv === 'classes' && j === 1) ? `<b>${esc(v)}</b>` : esc(v)}</td>`).join('')}</tr>`).join('')}</table>` : '<div class="empty">Aucun résultat pour l\'instant.</div>'}</div>` : ''}
+        ${T2 ? `<div class="section-title"><h2>${esc(T2.title)}</h2></div><p class="muted" style="margin:-4px 2px 8px;font-size:.8rem">${esc(T2.note)}</p><div class="card sheet-table cx-rk" style="margin-top:0"><table><tr>${T2.head.map(h => `<th>${esc(h)}</th>`).join('')}</tr>${T2.rows.map(r => `<tr>${r.map((v, j) => `<td class="${j === 1 ? 'nmc' : ''}">${j === 0 && typeof v === 'number' && v <= 3 ? ['🥇', '🥈', '🥉'][v - 1] : j === 1 ? `<b>${esc(v)}</b>` : esc(v)}</td>`).join('')}</tr>`).join('')}</table></div>` : ''}
         <div class="row" style="margin-top:12px"><button class="btn btn-ghost" id="cx-csv">📤 Exporter CSV</button><button class="btn btn-ghost" id="cx-pr">🖨 Imprimer</button><button class="btn btn-ghost" id="cx-pall">🖨 Tout imprimer</button></div>
         <button class="btn btn-grad btn-block" data-cfg="bare" style="margin-top:10px" id="cx-save">💾 Envoyer dans « Résultats des élèves »</button>`;
       const $ = s => box.querySelector(s);
@@ -766,10 +779,10 @@ tr:nth-child(-n+4) td{font-weight:700}`,
       box.querySelectorAll('[data-rl]').forEach(b => b.onclick = () => { rl = b.dataset.rl; again(); });
       box.querySelectorAll('[data-rs]').forEach(b => b.onclick = () => { rsx = b.dataset.rs; again(); });
       if ($('#cx-topn')) $('#cx-topn').onchange = e => { E.topN = Math.max(1, Math.min(35, +e.target.value || 10)); commit(); again(); };
-      const all = () => [...K.courses.map(courseTable), ...LV.flatMap(l => E.classes.some(c => lvOf(E, c) === l) ? [classTable(E, K, l), levelTable(E, K, l, '')] : [])];
-      $('#cx-csv').onclick = () => { const L = [T || { title: '', head: [], rows: [] }];
+      const all = () => [...K.courses.map(courseTable), ...LV.flatMap(l => E.classes.some(c => lvOf(E, c) === l) ? [classTable(E, K, l), levelTable(E, K, l, '')] : []), ...(lapsTable(E, K) ? [lapsTable(E, K)] : [])];
+      $('#cx-csv').onclick = () => { const L = [T || { title: '', head: [], rows: [] }, ...(T2 ? [T2] : [])];
         download(`cross-${E.name}-${T ? T.title : ''}.csv`.replace(/[^\w.-]+/g, '-'), csv(L.flatMap(t => [[t.title], t.head, ...t.rows]))); };
-      $('#cx-pr').onclick = () => { if (!T) return; printPreview(T.title, rankDoc(E, [T])); };
+      $('#cx-pr').onclick = () => { if (!T) return; printPreview(T.title, rankDoc(E, T2 ? [T, T2] : [T])); };
       $('#cx-pall').onclick = () => printPreview('Classements', rankDoc(E, all()));
       $('#cx-save').onclick = () => { const n = sendResults(E); if (n) toast(`${n} résultat${n > 1 ? 's' : ''} envoyé${n > 1 ? 's' : ''} ✔`); };
     }
@@ -800,5 +813,5 @@ tr:nth-child(-n+4) td{font-weight:700}`,
   }
 
   /* API pour les autres outils (Résultats collectifs) et les tests */
-  window.CROSS = { events: () => X().events, compute, classRank, levelRank, handle, parse, record, sendResults, lvOf: (E, c) => lvOf(E, c), dev: () => DEV, perf, tm };
+  window.CROSS = { lapsTable, events: () => X().events, compute, classRank, levelRank, handle, parse, record, sendResults, lvOf: (E, c) => lvOf(E, c), dev: () => DEV, perf, tm };
 })();
