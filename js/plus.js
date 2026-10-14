@@ -4,9 +4,10 @@
    ========================================================= */
 /* Page Ko-fi : laisser vide tant qu'elle n'existe pas (le bouton est alors masqué) */
 const KOFI_URL = 'https://ko-fi.com/epsone';
-const APP_VERSION = '23.37';
+const APP_VERSION = '23.38';
 const APP_URL = 'https://steffdelaseuva-hue.github.io/eps-one/';
 const CHANGELOG = [
+  { v: '23.38', items: ['Bilan Duathlon : chaque groupe affiche maintenant son ⚡ potentiel VMA (somme des VMA) et son 🎯 % de maîtrise (vitesse réalisée ÷ VMA moyenne), la VMA de chaque élève sous son nom, et le tableau de comparaison des groupes reprend les deux colonnes.'] },
   { v: '23.37', items: ['🔒 Protection par code perso de tout ce que tu crées : danse (œuvres, banque, projets, vidéos), gymnastique (éléments, diaporamas), acrosport (pyramides, liaisons), escalade (voies). Les collègues peuvent utiliser mais pas modifier ni supprimer. Une carte « Protection de mes … » permet de protéger l’existant en un clic.', 'Parkour : les éléments choisis de la séance sont maintenant propres à chaque enseignant, et on peut supprimer un élément ajouté à la main.'] },
   { v: '23.36', items: ['🔒 Cross : protection par code perso (onglet Courses → « Protection de mes cross »). Les collègues peuvent utiliser un cross protégé (inscriptions, scan des arrivées, classements, impression, duplication) mais pas modifier les courses, dossards et départs ni le remettre à zéro ou le supprimer.', 'Parkour : les enchaînements et évaluations sont déjà liés à chaque classe, donc séparés entre enseignants.'] },
   { v: '23.35', items: ['🔒 Course d’orientation : protection par code perso des lieux, cartes et parcours (onglet Parcours → « Protection de mes lieux, cartes et parcours »). Les collègues peuvent les UTILISER (séances, impression, duplication) mais pas les modifier ni les supprimer ; les nouveaux éléments sont protégés automatiquement au nom de l’enseignant actif ; une copie est au nom de celui qui la fait'] },
