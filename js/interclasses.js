@@ -30,6 +30,7 @@ ICONS.interclasses = '<path d="M7 4h10v3a5 5 0 0 1-10 0z"/><path d="M7 5H4.5a2.5
 .ic-chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
 .ic-chips button{padding:9px 13px;border-radius:12px;border:1.5px solid var(--line);background:var(--card);font-weight:800;font-size:.88rem;color:var(--text)}
 .ic-chips button.on{background:var(--grad);color:#fff;border-color:transparent}
+.ic-p.ab{text-decoration:line-through;opacity:.55}
 .ic-teams{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px;margin-top:10px}
 .ic-team{border:2px solid var(--line);border-left:8px solid var(--tc);border-radius:14px;padding:10px;background:var(--card)}
 .ic-team.tg{box-shadow:0 0 0 3px rgba(30,91,216,.3);border-color:#1E5BD8}
@@ -55,14 +56,15 @@ ICONS.interclasses = '<path d="M7 4h10v3a5 5 0 0 1-10 0z"/><path d="M7 5H4.5a2.5
 
   /* ---------- Équipes ---------- */
   function buildTeams(T) {
-    const c = T.cfg, abs = new Set(T.absents || []), teams = [];
+    const c = T.cfg, abs = new Set(T.absents || []), teams = []; T.pool = [];
     const studs = cl => studentsOf(cl).filter(n => !abs.has(cl + '|' + n));
     if (c.tm === 'classe') T.cls.forEach((cl, i) => teams.push({ id: uid(), name: cl, col: COLS[i % COLS.length][1], members: studs(cl).map(n => ({ n, c: cl })) }));
     else if (c.tm === 'parclasse') { let k = 0; T.cls.forEach(cl => { const S = shuffle(studs(cl)), n = c.by === 'sz' ? nFor(S.length, c.sz, 1) : Math.max(1, c.npc | 0);
       for (let j = 0; j < n; j++) teams.push({ id: uid(), name: `${cl} · ${j + 1}`, col: COLS[k++ % COLS.length][1], members: S.filter((_, x) => x % n === j).map(s => ({ n: s, c: cl })) }); }); }
     else { const n = c.by === 'sz' ? nFor(T.cls.reduce((a, cl) => a + studs(cl).length, 0), c.sz, 2) : Math.max(2, c.nt | 0); for (let j = 0; j < n; j++) teams.push({ id: uid(), name: n <= COLS.length ? COLS[j][0] : 'Équipe ' + (j + 1), col: COLS[j % COLS.length][1], members: [] });
-      let k = 0; T.cls.forEach(cl => shuffle(studs(cl)).forEach(s => { teams.sort((a, b) => a.members.length - b.members.length || 0); teams[0].members.push({ n: s, c: cl }); k++; }));
-      teams.sort((a, b) => COLS.findIndex(x => x[1] === a.col) - COLS.findIndex(x => x[1] === b.col)); }
+      if (c.tm === 'manuel') T.pool = T.cls.flatMap(cl => studs(cl).map(n => ({ n, c: cl })));   // ✋ équipes vides : l'enseignant place les élèves
+      else { let k = 0; T.cls.forEach(cl => shuffle(studs(cl)).forEach(s => { teams.sort((a, b) => a.members.length - b.members.length || 0); teams[0].members.push({ n: s, c: cl }); k++; }));
+        teams.sort((a, b) => COLS.findIndex(x => x[1] === a.col) - COLS.findIndex(x => x[1] === b.col)); } }
     T.teams = teams;
   }
 
@@ -204,9 +206,9 @@ ICONS.interclasses = '<path d="M7 4h10v3a5 5 0 0 1-10 0z"/><path d="M7 5H4.5a2.5
       const c = T.cfg;
       const num = (id, v, lab, min = 0, max = 99, step = 1, help = '') => `<div><label>${lab}</label><input type="number" id="${id}" value="${v}" min="${min}" max="${max}" step="${step}" inputmode="numeric">${help ? `<div class="muted" style="font-size:.75rem">${help}</div>` : ''}</div>`;
       const seg = (id, v, opts) => `<div class="seg" data-seg="${id}">${opts.map(([k, l]) => `<button data-v="${k}" class="${String(v) === String(k) ? 'on' : ''}">${l}</button>`).join('')}</div>`;
-      const cnt = cl => studentsOf(cl).length, tot = () => T.cls.reduce((a, cl) => a + cnt(cl), 0);
+      const cnt = cl => studentsOf(cl).filter(n => !(T.absents || []).includes(cl + '|' + n)).length, tot = () => T.cls.reduce((a, cl) => a + cnt(cl), 0);
       const nT = () => c.tm === 'classe' ? T.cls.length : c.tm === 'parclasse' ? T.cls.reduce((a, cl) => a + (c.by === 'sz' ? nFor(cnt(cl), c.sz, 1) : Math.max(1, c.npc)), 0) : c.by === 'sz' ? nFor(tot(), c.sz, 2) : Math.max(2, c.nt);
-      const sizeTxt = () => { const n = nT(); if (!n || !T.cls.length) return ''; if (c.tm === 'mix') { const a = Math.floor(tot() / n), b = Math.ceil(tot() / n); return ` de ${a === b ? a : a + ' à ' + b} joueurs`; }
+      const sizeTxt = () => { const n = nT(); if (!n || !T.cls.length) return ''; if (c.tm === 'mix' || c.tm === 'manuel') { const a = Math.floor(tot() / n), b = Math.ceil(tot() / n); return ` de ${a === b ? a : a + ' à ' + b} joueurs`; }
         if (c.tm === 'parclasse') { const z = T.cls.flatMap(cl => { const k = c.by === 'sz' ? nFor(cnt(cl), c.sz, 1) : Math.max(1, c.npc); return [Math.floor(cnt(cl) / k), Math.ceil(cnt(cl) / k)]; }); const a = Math.min(...z), b = Math.max(...z); return ` de ${a === b ? a : a + ' à ' + b} joueurs`; } return ''; };
       const render = () => {
         const n = edit ? T.teams.length : nT(), np = Math.max(1, Math.min(c.np, Math.floor(n / 2) || 1));
@@ -215,10 +217,13 @@ ICONS.interclasses = '<path d="M7 4h10v3a5 5 0 0 1-10 0z"/><path d="M7 5H4.5a2.5
             <label>Nom</label><input id="ic-nom" value="${esc(T.nom)}">
             <label>Sport collectif</label><div class="ic-chips">${Object.entries(IC_SP).map(([k, s]) => `<button data-sp="${k}" class="${T.sport === k ? 'on' : ''}">${s[1]} ${s[0]}</button>`).join('')}</div></div>
           ${edit ? '' : `<div class="card" style="margin-top:12px"><b>🏫 Classes (2 ou plus)</b><div class="ic-chips">${cls.map(x => `<button data-cl="${esc(x.name)}" class="${T.cls.includes(x.name) ? 'on' : ''}">${esc(x.name)} <small>${x.students.length}</small></button>`).join('')}</div>
-            <label>Équipes</label>${seg('tm', c.tm, [['classe', 'Une équipe par classe'], ['parclasse', 'Plusieurs par classe'], ['mix', '🔀 Classes mélangées']])}
+            <label>Équipes</label>${seg('tm', c.tm, [['classe', 'Une équipe par classe'], ['parclasse', 'Plusieurs par classe'], ['mix', '🔀 Classes mélangées'], ['manuel', '✋ Manuelle']])}
             ${c.tm !== 'classe' ? `<label>Choisir</label>${seg('by', c.by, [['nb', 'Le nombre d\'équipes'], ['sz', 'Le nombre de joueurs par équipe']])}` : ''}
-            ${c.tm === 'parclasse' ? `<div class="row">${c.by === 'sz' ? num('ic-sz', c.sz, 'Joueurs par équipe', 2, 30) : num('ic-npc', c.npc, 'Équipes par classe', 1, 8)}</div>` : ''}${c.tm === 'mix' ? `<div class="row">${c.by === 'sz' ? num('ic-sz', c.sz, 'Joueurs par équipe', 2, 30, 1, 'Le nombre d\'équipes est calculé ; tirage équilibré avec des élèves de chaque classe.') : num('ic-nt', c.nt, 'Nombre d\'équipes', 2, 32, 1, 'Tirage au sort équilibré : chaque équipe reçoit des élèves de chaque classe.')}</div>` : ''}
-            <p class="muted" style="font-size:.8rem;margin:6px 0 0">${T.cls.length ? `<b>${n} équipe${n > 1 ? 's' : ''}${sizeTxt()}</b> · vous pourrez ensuite déplacer des élèves, noter les absents et renommer les équipes.` : 'Touchez les classes qui participent.'}</p></div>`}
+            ${c.tm === 'parclasse' ? `<div class="row">${c.by === 'sz' ? num('ic-sz', c.sz, 'Joueurs par équipe', 2, 30) : num('ic-npc', c.npc, 'Équipes par classe', 1, 8)}</div>` : ''}${c.tm === 'mix' || c.tm === 'manuel' ? `<div class="row">${c.by === 'sz' ? num('ic-sz', c.sz, 'Joueurs par équipe', 2, 30, 1, c.tm === 'manuel' ? 'Le nombre d\'équipes est calculé ; elles seront créées vides.' : 'Le nombre d\'équipes est calculé ; tirage équilibré avec des élèves de chaque classe.') : num('ic-nt', c.nt, 'Nombre d\'équipes', 2, 32, 1, c.tm === 'manuel' ? 'Les équipes seront créées vides : vous placez les élèves à la main.' : 'Tirage au sort équilibré : chaque équipe reçoit des élèves de chaque classe.')}</div>` : ''}
+            <p class="muted" style="font-size:.8rem;margin:6px 0 0">${T.cls.length ? `<b>${n} équipe${n > 1 ? 's' : ''}${sizeTxt()}</b> · ${c.tm === 'manuel' ? 'vous placerez ensuite les élèves un par un (ou « compléter au hasard »).' : 'vous pourrez ensuite déplacer des élèves, noter les absents et renommer les équipes.'}` : 'Touchez les classes qui participent.'}</p></div>`}
+          ${edit || !T.cls.length ? '' : `<details class="card" style="margin-top:12px" data-cfg ${(T.absents || []).length ? 'open' : ''}><summary><b>🚫 Absents / dispensés</b> <span class="muted" style="font-size:.85rem">· ${(T.absents || []).length ? (T.absents || []).length + ' exclu' + ((T.absents || []).length > 1 ? 's' : '') + ' des équipes' : 'aucun'}</span></summary>
+            <p class="muted" style="font-size:.8rem;margin:6px 0 0">Touchez les élèves à ne pas mettre dans les équipes (barrés). Vous pourrez aussi le faire ensuite, même en cours de séance.</p>
+            ${T.cls.map(cl => `<div style="margin-top:8px"><b>${esc(cl)}</b><div class="ic-st">${studentsOf(cl).map(n => `<button class="ic-p ${(T.absents || []).includes(cl + '|' + n) ? 'ab' : ''}" data-ab="${esc(cl)}|${esc(n)}">${esc(n)}</button>`).join('')}</div></div>`).join('')}</details>`}
           <div class="card" style="margin-top:12px" data-cfg><b>🏆 Formule</b>${seg('fmt', c.fmt, [['poules', 'Poules + phases finales'], ['champ', 'Championnat (classement simple)']])}
             ${c.fmt === 'poules' ? `<div class="row">${num('ic-np', c.np, 'Nombre de poules', 1, 16)}<div><label>Phases finales à partir des</label><select id="ic-fin">${[['auto', 'Automatique'], [32, '16es de finale'], [16, '8es de finale'], [8, 'Quarts de finale'], [4, 'Demi-finales'], [2, 'Finale']].map(([k, l]) => `<option value="${k}" ${String(c.fin) === String(k) ? 'selected' : ''}>${l}</option>`).join('')}</select></div></div>
               <p class="muted" style="font-size:.8rem;margin:6px 0 0">${n >= 2 ? `${np} poule${np > 1 ? 's' : ''} de ${Math.floor(n / np)}${n % np ? ` à ${Math.ceil(n / np)}` : ''} équipes · ${ROUND[fs] || 'Finale'} : ${fs} qualifiés${fs >= np && fs % np === 0 ? ` (les ${fs / np} premiers de chaque poule)` : fs > np ? ` (les ${Math.floor(fs / np)} premiers de chaque poule + ${fs % np} meilleur${fs % np > 1 ? 's' : ''} suivant${fs % np > 1 ? 's' : ''})` : ` (les ${fs} meilleurs 1ers de poule)`}` : ''}</p>
@@ -241,6 +246,7 @@ ICONS.interclasses = '<path d="M7 4h10v3a5 5 0 0 1-10 0z"/><path d="M7 5H4.5a2.5
           if ($('#ic-btn')) { const v = parseNums($('#ic-btn').value); c.btn = v.length ? v : DEF_BTN[T.sport].slice(); }
           if ($('#ic-bon')) c.bon = $('#ic-bon').checked; if ($('#ic-bonv')) { const v = parseNums($('#ic-bonv').value); c.bonv = v.length ? v : DEF_BONUS.slice(); }
           if ($('#ic-fin')) c.fin = $('#ic-fin').value === 'auto' ? 'auto' : +$('#ic-fin').value; if ($('#ic-pt')) c.petite = $('#ic-pt').checked; c.arb = $('#ic-arb').checked; };
+        el.querySelectorAll('[data-ab]').forEach(b => b.onclick = () => { keep(); const k = b.dataset.ab, a = T.absents || []; T.absents = a.includes(k) ? a.filter(x => x !== k) : [...a, k]; const y = el.scrollTop; render(); el.scrollTop = y; });
         $('#ic-x').onclick = () => edit ? draw() : home();
         el.querySelectorAll('[data-sp]').forEach(b => b.onclick = () => { keep(); T.sport = b.dataset.sp; const d = defCfg(T.sport); c.mode = d.mode; c.dur = d.dur; c.target = d.target; c.btn = d.btn; render(); });
         el.querySelectorAll('[data-cl]').forEach(b => b.onclick = () => { keep(); const k = b.dataset.cl; T.cls = T.cls.includes(k) ? T.cls.filter(x => x !== k) : [...T.cls, k]; render(); });
@@ -279,22 +285,26 @@ ICONS.interclasses = '<path d="M7 4h10v3a5 5 0 0 1-10 0z"/><path d="M7 5H4.5a2.5
       const abs = T.absents || [];
       box.innerHTML = `<div class="card"><div class="muted" style="font-size:.85rem">Touchez un élève, puis l'équipe où le placer (ou « Absent »). Les noms d'équipes sont modifiables.</div>
           <div class="row" style="margin-top:10px;gap:6px"><button class="btn btn-ghost" id="ic-redraw" data-prof>🎲 Refaire les équipes</button><button class="btn btn-grad" id="ic-gen" data-prof>📅 ${(T.matches || []).length ? 'Regénérer' : 'Générer'} le calendrier</button></div></div>
-        ${sel ? `<div class="card" style="margin-top:10px;position:sticky;top:0;z-index:5;border:2px solid #1E5BD8"><b>${esc(sel.n)}</b> <span class="muted">(${esc(sel.c)})</span> → touchez une équipe <button class="btn btn-ghost" style="padding:6px 10px;margin-left:6px" id="ic-abs">🚫 Absent</button> <button class="btn btn-ghost" style="padding:6px 10px" id="ic-unsel">✕</button></div>` : ''}
+        ${sel ? `<div class="card" style="margin-top:10px;position:sticky;top:0;z-index:5;border:2px solid #1E5BD8"><b>${esc(sel.n)}</b> <span class="muted">(${esc(sel.c)})</span> → touchez une équipe <button class="btn btn-ghost" style="padding:6px 10px;margin-left:6px" id="ic-abs">🚫 Absent / dispensé</button>${T.cfg.tm === 'manuel' ? ' <button class="btn btn-ghost" style="padding:6px 10px" id="ic-pool">↩ À placer</button>' : ''} <button class="btn btn-ghost" style="padding:6px 10px" id="ic-unsel">✕</button></div>` : ''}
+        ${(T.pool || []).length ? `<div class="card" style="margin-top:10px;border:2px solid #B8912A"><b>👥 À placer (${T.pool.length})</b> <span class="muted" style="font-size:.8rem">touchez un élève, puis son équipe</span><div class="ic-st">${T.pool.map(m => `<button class="ic-p ${sel && sel.n === m.n && sel.c === m.c ? 'on' : ''}" data-pk="${esc(m.c)}|${esc(m.n)}">${esc(m.n)}${T.cls.length > 1 ? ` <small style="opacity:.7">${esc(m.c)}</small>` : ''}</button>`).join('')}</div><button class="btn btn-ghost" style="margin-top:8px" id="ic-fill" data-prof>🎲 Compléter au hasard (équilibré)</button></div>` : ''}
         <div class="ic-teams">${T.teams.map(t => `<div class="ic-team ${sel ? 'tg' : ''}" style="--tc:${t.col}" data-team="${t.id}"><h4><i class="ic-dot"></i><input data-tn="${t.id}" value="${esc(t.name)}"><span class="muted" style="font-size:.8rem">${t.members.length}</span></h4>
           <div class="ic-st">${t.members.map(m => `<button class="ic-p ${sel && sel.n === m.n && sel.c === m.c ? 'on' : ''}" data-pk="${esc(m.c)}|${esc(m.n)}">${esc(m.n)}${T.cls.length > 1 && T.cfg.tm !== 'classe' ? ` <small style="opacity:.7">${esc(m.c)}</small>` : ''}</button>`).join('') || '<span class="muted" style="font-size:.8rem">Aucun élève</span>'}</div></div>`).join('')}</div>
-        ${abs.length ? `<div class="card" style="margin-top:10px"><b>🚫 Absents (${abs.length})</b><div class="ic-st">${abs.map(k => `<button class="ic-p" data-back="${esc(k)}">↩ ${esc(k.split('|')[1])} <small>${esc(k.split('|')[0])}</small></button>`).join('')}</div></div>` : ''}${undoBtn()}`;
+        ${abs.length ? `<div class="card" style="margin-top:10px"><b>🚫 Absents / dispensés (${abs.length})</b><div class="ic-st">${abs.map(k => `<button class="ic-p" data-back="${esc(k)}">↩ ${esc(k.split('|')[1])} <small>${esc(k.split('|')[0])}</small></button>`).join('')}</div></div>` : ''}${undoBtn()}`;
       const $ = s => box.querySelector(s);
       box.querySelectorAll('[data-tn]').forEach(i => i.onchange = () => { const t = T.teams.find(x => x.id === i.dataset.tn); if (t && i.value.trim()) { t.name = i.value.trim(); commit(); } });
       box.querySelectorAll('[data-pk]').forEach(b => b.onclick = e => { e.stopPropagation(); const [c, ...n] = b.dataset.pk.split('|'); const N = n.join('|'); sel = sel && sel.n === N && sel.c === c ? null : { c, n: N }; draw(); });
       box.querySelectorAll('[data-team]').forEach(d => d.onclick = e => { if (!sel || e.target.closest('input')) return; const to = T.teams.find(t => t.id === d.dataset.team);
-        T.teams.forEach(t => { t.members = t.members.filter(m => !(m.n === sel.n && m.c === sel.c)); }); to.members.push(sel); sel = null; commit(); draw(); });
-      if ($('#ic-abs')) $('#ic-abs').onclick = () => { T.teams.forEach(t => { t.members = t.members.filter(m => !(m.n === sel.n && m.c === sel.c)); }); T.absents = [...(T.absents || []), sel.c + '|' + sel.n]; sel = null; commit(); draw(); };
+        T.teams.forEach(t => { t.members = t.members.filter(m => !(m.n === sel.n && m.c === sel.c)); }); T.pool = (T.pool || []).filter(m => !(m.n === sel.n && m.c === sel.c)); to.members.push(sel); sel = null; commit(); draw(); });
+      if ($('#ic-pool')) $('#ic-pool').onclick = () => { T.teams.forEach(t => { t.members = t.members.filter(m => !(m.n === sel.n && m.c === sel.c)); }); if (!(T.pool || []).some(m => m.n === sel.n && m.c === sel.c)) T.pool = [...(T.pool || []), sel]; sel = null; commit(); draw(); };
+      if ($('#ic-fill')) $('#ic-fill').onclick = () => { shuffle(T.pool || []).forEach(m => { const t = T.teams.reduce((a, b) => b.members.length < a.members.length ? b : a); t.members.push(m); }); T.pool = []; commit(); draw(); };
+      if ($('#ic-abs')) $('#ic-abs').onclick = () => { T.pool = (T.pool || []).filter(m => !(m.n === sel.n && m.c === sel.c)); T.teams.forEach(t => { t.members = t.members.filter(m => !(m.n === sel.n && m.c === sel.c)); }); T.absents = [...(T.absents || []), sel.c + '|' + sel.n]; sel = null; commit(); draw(); };
       if ($('#ic-unsel')) $('#ic-unsel').onclick = () => { sel = null; draw(); };
       box.querySelectorAll('[data-back]').forEach(b => b.onclick = () => { const k = b.dataset.back, [c, ...n] = k.split('|'); T.absents = T.absents.filter(x => x !== k);
+        if (T.cfg.tm === 'manuel') { T.pool = [...(T.pool || []), { c, n: n.join('|') }]; commit(); return draw(); }
         const t = T.cfg.tm === 'classe' ? T.teams.find(x => x.name === c) || T.teams[0] : T.teams.slice().sort((a, b) => a.members.length - b.members.length)[0]; t.members.push({ c, n: n.join('|') }); commit(); draw(); });
       $('#ic-redraw').onclick = () => { if ((T.matches || []).some(m => m.done) && !confirm('Des matchs ont déjà été joués. Refaire les équipes efface le calendrier et les scores. Continuer ?')) return;
         if (!confirm('Refaire toutes les équipes (nouveau tirage) ?')) return; snap('équipes refaites'); buildTeams(T); T.matches = []; delete T.poules; commit(); draw(); };
-      $('#ic-gen').onclick = () => { if ((T.matches || []).some(m => m.done && !m.bye) && !confirm('Regénérer le calendrier efface les scores déjà saisis. Continuer ?')) return;
+      $('#ic-gen').onclick = () => { if ((T.pool || []).length && !confirm(`${T.pool.length} élève${T.pool.length > 1 ? 's ne sont' : ' n\'est'} dans aucune équipe (« À placer »). Générer le calendrier quand même ?`)) return; if ((T.matches || []).some(m => m.done && !m.bye) && !confirm('Regénérer le calendrier efface les scores déjà saisis. Continuer ?')) return;
         snap('calendrier généré'); generate(T); tab = 'mt'; commit(); toast(`${T.matches.length} matchs programmés ✔`); draw(); };
     }
 

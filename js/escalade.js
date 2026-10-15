@@ -18,6 +18,24 @@ const ESC_FLU = ['', 'Saccadée', 'Hésitante', 'Fluide', 'Très fluide'];
 const escImgKey = id => 'escImg_' + id;
 const escCotCol = c => ({ 3: '#3BA55C', 4: '#2F6FE0', 5: '#D9A21B', 6: '#D8433B' })[c[0]] || '#888';
 const escBadge = c => `<span style="display:inline-block;min-width:38px;text-align:center;padding:2px 7px;border-radius:8px;background:${escCotCol(c)};color:#fff;font-weight:800;font-size:.85rem">${esc(c)}</span>`;
+if (!document.getElementById('esc-ov-css')) document.head.insertAdjacentHTML('beforeend', `<style id="esc-ov-css">
+.esc-vw{display:flex;gap:6px;margin-top:2px}.esc-vw button{flex:1;padding:9px 6px;border-radius:10px;border:1.5px solid var(--line);background:var(--card);font-weight:800;color:var(--text)}.esc-vw button.on{background:var(--grad);color:#fff;border-color:transparent}
+.esc-grid{display:grid;grid-template-columns:repeat(var(--cc,4),minmax(0,1fr));gap:8px;align-items:start}
+.esc-card{box-shadow:inset 9px 0 0 var(--rc,transparent);padding:10px 10px 10px 18px!important;margin:0!important;min-width:0}
+.esc-card label{font-size:.74rem;margin-top:6px}.esc-card select{width:100%;padding:6px;font-size:.85rem}
+.esc-card .btn{padding:9px 6px;font-size:.88rem}.esc-card .seg button{padding:7px 2px;font-size:.78rem}
+.ec-h{display:flex;justify-content:space-between;align-items:baseline;gap:6px}.ec-h b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ec-t{font-weight:900;font-variant-numeric:tabular-nums;font-size:1.3rem}
+.ec-pair{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.ec-cnt{display:flex;align-items:center;gap:4px;margin-top:6px}.ec-cnt span{flex:1;font-size:.78rem;font-weight:800}
+.ec-cnt button{padding:8px 10px;border-radius:10px;border:1.5px solid var(--line);background:var(--card);font-weight:800;color:var(--text)}.ec-cnt button[data-p]{background:var(--grad);color:#fff;border-color:transparent}.ec-cnt b{min-width:26px;text-align:center;font-size:1.2rem}
+.ec-voie{display:flex;gap:6px;align-items:center}.ec-voie img{width:34px;height:34px;object-fit:cover;border-radius:8px;cursor:zoom-in}
+.ec-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}.ec-chip{display:flex;gap:5px;align-items:center;font-weight:700;font-size:.82rem;padding:4px 10px;border-radius:999px;border:1.5px solid var(--line);border-left:7px solid var(--rc);margin:0}.ec-chip input{width:auto;margin:0}
+.esc-grid.cc5 .esc-card,.esc-grid.cc6 .esc-card{font-size:.8rem}.esc-grid.cc5 .ec-pair,.esc-grid.cc6 .ec-pair{grid-template-columns:1fr}
+.esc-card.team ul{margin:4px 0 0;padding-left:16px}
+@media(max-width:1100px){.esc-grid.cc5,.esc-grid.cc6{--cc:4!important}}
+@media(max-width:760px){.esc-grid{--cc:2!important}}@media(max-width:480px){.esc-grid{--cc:1!important}}
+</style>`);
 const escTime = s => s == null || isNaN(s) ? '–' : Math.floor(s / 60) + ':' + (s % 60).toFixed(1).padStart(4, '0').replace('.', ',');
 
 /* Photo : redimensionnée (800 px max) et compressée en JPEG */
@@ -119,12 +137,15 @@ TOOL_IMPL.escalade = function (el) {
     box.innerHTML = `<div class="card"><label style="margin-top:0">Classe</label><select id="ec">${DB.classes.map(c => `<option ${c.name === P.cls ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</select></div>
       <details class="card" data-cfg style="margin-top:12px" ${T.length ? '' : 'open'}><summary style="font-weight:800;cursor:pointer">🧩 ${T.length ? 'Refaire les équipes' : 'Former les équipes'}</summary><div id="ecmp" style="margin-top:6px"></div></details>
       <div class="section-title"><h2>Équipes de ${esc(P.cls)} (${T.length})</h2>${T.length ? '<button class="link" data-cfg="bare" id="edel">Supprimer les équipes</button>' : ''}</div>
-      ${T.length ? `<div class="teams">${T.map(t => `<div class="card team"><h3><span>${esc(t.name)}</span><span class="muted">${t.members.length}</span></h3><ul>${t.members.map(n => `<li>${esc(n)}</li>`).join('')}</ul></div>`).join('')}</div>
+      ${T.length ? `${vwBar('q')}<div class="${ovwOn('q') ? 'esc-grid cc' + ecols : 'teams'}" style="--cc:${ecols};margin-top:10px">${T.map((t, i) => {
+          const g = ovwOn('q'), td = E.passages.filter(p => p.classe === P.cls && isToday(p.date)), nOf = n => td.filter(p => p.eleve === n).length;
+          return `<div class="card team ${g ? 'esc-card' : ''}" ${g ? `style="--rc:${ESCCOL[i % ESCCOL.length]}"` : ''}><h3><span>${esc(t.name)}</span><span class="muted">${t.members.length}</span></h3><ul>${t.members.map(n => `<li>${esc(n)}${g && nOf(n) ? ` <span class="muted">· ${nOf(n)} voie${nOf(n) > 1 ? 's' : ''}</span>` : ''}</li>`).join('')}</ul></div>`; }).join('')}</div>
         <button class="btn btn-grad btn-block" data-cfg style="margin-top:12px" id="eedit">✏️ Modifier les équipes (absent, blessé…)</button>
         <p class="muted" style="font-size:.8rem;margin:8px 2px 0">Les équipes servent dans 📋 Passage (liste des élèves filtrée par équipe) et dans ⚔️ Défis (défi entre équipes).</p>`
         : '<div class="card empty">Aucune équipe pour cette classe.</div>'}`;
     const $ = s => box.querySelector(s);
     $('#ec').onchange = e => { P.cls = e.target.value; DB.lastClass = P.cls; P.eq = ''; save(); equipes(box); };
+    vwWire(box, 'q', () => equipes(box));
     mountComposer($('#ecmp'), { id: 'esq', prep: false, modes: ['random', 'hetero', 'homo'], button: '👥 Former les équipes',
       onTeams: teams => { if (T.length && !confirm('Remplacer les équipes existantes ?')) return;
         E.equipes[P.cls] = teams.map(t => ({ name: t.name, members: t.members.map(m => m.n) })); P.eq = ''; save(); escPub(P.cls, true); toast('Équipes formées ✔ · proposées aux autres tablettes'); equipes(box); } });
@@ -152,17 +173,98 @@ TOOL_IMPL.escalade = function (el) {
     q('#r-rnd').onclick = () => { drawRoles(pool, g, cls, false); toast(`🪢 ${P.as || '—'}${P.ca ? ' · 🤝 ' + P.ca : ''}`); redraw(); };
     q('#r-all').onclick = () => { const ng = drawRoles(pool, g, cls, true); setG(ng); toast(`🧗 ${ng} · 🪢 ${P.as || '—'}${P.ca ? ' · 🤝 ' + P.ca : ''}`); redraw(); }; };
   const rolesTxt = r => [r.as ? '🪢 ' + r.as : '', r.ca ? '🤝 ' + r.ca : ''].filter(Boolean).join(' · ');
+
+  /* ---------- ▦ Vue d'ensemble en cartes côte à côte (2 à 6 par ligne, liseré de couleur par carte) ----------
+     Réservée à l'enseignant : les boutons de bascule sont protégés par le code (data-cfg="bare") et la vue
+     n'est jamais affichée sur une tablette verrouillée (mode élève). Choix mémorisés sur l'appareil. */
+  const ESCCOL = ['#E53935', '#1E88E5', '#43A047', '#FB8C00', '#8E24AA', '#00ACC1', '#F4B400', '#D81B60', '#6D4C41', '#3949AB', '#7CB342', '#546E7A'];
+  const lsG = (k, d) => { try { const v = localStorage.getItem(k); return v == null ? d : v; } catch (e) { return d; } };
+  const lsS = (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} };
+  const OV = { p: lsG('epsone_esc_vue', '') === 'cartes', q: lsG('epsone_esc_vueq', '') === 'cartes' };
+  let ecols = +lsG('epsone_esc_cols', 4); if (!(ecols >= 2 && ecols <= 6)) ecols = 4;
+  const ovwOn = k => OV[k] && !(window.eleveMode && eleveMode());
+  const vwBar = k => { const on = ovwOn(k);
+    return `<div class="esc-vw" data-cfg="bare"><button data-vw="l" class="${on ? '' : 'on'}">☰ Liste</button><button data-vw="c" class="${on ? 'on' : ''}">▦ Vue d'ensemble (cartes côte à côte)</button></div>${on ? `<div class="esc-vw" data-cfg="bare" style="margin-top:6px"><span style="align-self:center;font-weight:800;font-size:.82rem">Cartes par ligne</span>${[2, 3, 4, 5, 6].map(n => `<button data-ecl="${n}" class="${ecols === n ? 'on' : ''}">${n}</button>`).join('')}</div>` : ''}`; };
+  const vwWire = (box, k, redraw) => {
+    box.querySelectorAll('[data-vw]').forEach(b => b.onclick = () => { OV[k] = b.dataset.vw === 'c'; lsS(k === 'p' ? 'epsone_esc_vue' : 'epsone_esc_vueq', OV[k] ? 'cartes' : 'liste'); redraw(); });
+    box.querySelectorAll('[data-ecl]').forEach(b => b.onclick = () => { ecols = +b.dataset.ecl; lsS('epsone_esc_cols', String(ecols)); redraw(); }); };
+
+  /* Plusieurs cordées en parallèle : un état et un chrono par cordée (en mémoire, propres à l'appareil) */
+  const CC = {}, CCHID = {};
+  const ccKey = (cls, t) => cls + '|' + t.name;
+  const ccOf = (cls, t) => { const c = CC[ccKey(cls, t)] || (CC[ccKey(cls, t)] = { gw: '', as: '', ca: '', caSet: false, voie: E.lastVoie || '', mode: E.lastMode || 'moul', pieds: 0, pme: 0, flu: 0, t0: 0, acc: 0, run: false });
+    if (!t.members.includes(c.gw)) { c.gw = t.members[0] || ''; c.as = c.ca = ''; c.caSet = false; }
+    if (!E.voies.some(w => w.id === c.voie)) c.voie = E.voies[0].id;
+    const o = t.members.filter(n => n !== c.gw); if (!o.includes(c.as)) c.as = o[0] || '';
+    const o2 = o.filter(n => n !== c.as); if (c.ca && !o2.includes(c.ca)) c.ca = '';
+    if (!c.ca && !c.caSet && o2.length) c.ca = o2[0];
+    return c; };
+  const csec = c => c.acc + (c.run ? (performance.now() - c.t0) / 1000 : 0);
+  const ccInner = (t, c, cls) => { const M = t.members, o = M.filter(n => n !== c.gw), RC = roleCnt(cls), V = E.voies.find(w => w.id === c.voie), img = DB[escImgKey(V.id)];
+    const opt = (n, k, sel) => `<option value="${esc(n)}" ${n === sel ? 'selected' : ''}>${esc(n)} (${(RC[n] || {})[k] || 0})</option>`;
+    const cnt = (k, l) => `<div class="ec-cnt"><span>${l}</span><button data-m="${k}">−</button><b data-n="${k}">${c[k]}</b><button data-p="${k}">＋1</button></div>`;
+    return `<div class="ec-h"><b>${esc(t.name)}</b><span class="ec-t" data-ct="${esc(ccKey(cls, t))}">${escTime(csec(c))}</span></div>
+      <label>🧗 Grimpeur</label><select data-f="gw">${M.map(n => opt(n, 'g', c.gw)).join('')}</select>
+      <div class="ec-pair"><div><label>🪢 Assureur</label><select data-f="as">${o.map(n => opt(n, 'a', c.as)).join('') || '<option value="">—</option>'}</select></div>
+        <div><label>🤝 Contre-ass.</label><select data-f="ca"><option value="">— aucun —</option>${o.filter(n => n !== c.as).map(n => opt(n, 'c', c.ca)).join('')}</select></div></div>
+      ${o.length > 1 ? '<button class="btn btn-ghost btn-block" style="margin-top:6px" data-a="rnd">🎲 Assureurs au hasard</button>' : ''}
+      <label>Voie</label><div class="ec-voie">${img ? `<img src="${img}" data-a="zoom" alt="">` : ''}<select data-f="voie">${E.voies.map(w => `<option value="${w.id}" ${w.id === c.voie ? 'selected' : ''}>${esc(w.cot)} — ${esc(w.nom)}</option>`).join('')}</select></div>
+      <div class="seg" style="margin-top:6px">${Object.entries(ESC_MODES).map(([k, l]) => `<button data-md="${k}" class="${c.mode === k ? 'on' : ''}">${l}</button>`).join('')}</div>
+      <div class="row" style="margin-top:8px;gap:6px"><button class="btn ${c.run ? 'btn-danger' : 'btn-grad'}" data-a="go">${c.run ? '⏹ Arrivée' : c.acc ? '▶ Reprendre' : '▶ Départ'}</button><button class="btn btn-ghost" style="flex:0 0 42px" data-a="rz" aria-label="Remettre le chrono à zéro">↺</button></div>
+      ${cnt('pieds', 'Poses de pieds')}${cnt('pme', 'PME')}
+      <label>Fluidité${c.flu ? ' · ' + ESC_FLU[c.flu] : ''}</label><div class="seg">${[1, 2, 3, 4].map(k => `<button data-fl="${k}" class="${c.flu === k ? 'on' : ''}" title="${ESC_FLU[k]}">${k}</button>`).join('')}</div>
+      <button class="btn btn-grad btn-block" style="margin-top:10px" data-a="sv">💾 Enregistrer ${esc(c.gw || '—')}</button>`; };
+  function ccWire(card, t, cls, redraw) {
+    const c = ccOf(cls, t), M = t.members;
+    card.querySelectorAll('[data-f]').forEach(s => s.onchange = () => { const f = s.dataset.f; c[f] = s.value;
+      if (f === 'ca') c.caSet = true; if (f === 'gw') { c.as = c.ca = ''; c.caSet = false; } if (f === 'voie') { E.lastVoie = c.voie; save(); } redraw(); });
+    card.querySelectorAll('[data-md]').forEach(b => b.onclick = () => { c.mode = E.lastMode = b.dataset.md; save(); redraw(); });
+    card.querySelectorAll('[data-fl]').forEach(b => b.onclick = () => { c.flu = c.flu === +b.dataset.fl ? 0 : +b.dataset.fl; redraw(); });
+    card.querySelectorAll('[data-p]').forEach(b => b.onclick = () => { const k = b.dataset.p; c[k]++; card.querySelector(`[data-n="${k}"]`).textContent = c[k]; beep(1100, .03, .15); });
+    card.querySelectorAll('[data-m]').forEach(b => b.onclick = () => { const k = b.dataset.m; c[k] = Math.max(0, c[k] - 1); card.querySelector(`[data-n="${k}"]`).textContent = c[k]; });
+    const A = a => card.querySelector(`[data-a="${a}"]`);
+    if (A('zoom')) A('zoom').onclick = () => zoom(c.voie);
+    if (A('rnd')) A('rnd').onclick = () => { const cn = roleCnt(cls), o = M.filter(n => n !== c.gw); c.as = pickFair(o, cn, 'a'); const o2 = o.filter(n => n !== c.as); c.ca = o2.length ? pickFair(o2, cn, 'c') : ''; c.caSet = true; toast(`🪢 ${c.as || '—'}${c.ca ? ' · 🤝 ' + c.ca : ''}`); redraw(); };
+    A('go').onclick = () => { if (c.run) { c.acc = csec(c); c.run = false; beep(900, .2); } else { c.t0 = performance.now(); c.run = true; beep(1300, .3); } redraw(); };
+    A('rz').onclick = () => { c.run = false; c.acc = 0; redraw(); };
+    A('sv').onclick = () => { const n = c.gw; if (!n) return toast('Cordée vide');
+      if (c.run) return toast('Arrêtez d\'abord le chrono de ' + t.name);
+      const V = E.voies.find(w => w.id === c.voie), tm = Math.round(csec(c) * 10) / 10;
+      if (!tm && !c.pieds && !c.pme && !c.flu && !confirm(`Aucun observable saisi pour ${n}. Enregistrer quand même la voie ${V.cot} ?`)) return;
+      const r = { id: Date.now().toString(36) + Math.floor(Math.random() * 1296).toString(36), date: Date.now(), classe: cls, eleve: n, voie: V.id, voieNom: V.nom, cot: V.cot, mode: c.mode, temps: tm || null, pieds: c.pieds, pme: c.pme, flu: c.flu || null, as: c.as || null, ca: c.ca || null };
+      E.passages.push(r);
+      saveResult({ tool: 'escalade', label: 'Escalade', classe: cls, eleve: n, valeur: `${V.cot} ${ESC_MODES[c.mode].toLowerCase()}`, detail: detailOf(r) });
+      toast(`${t.name} · ${n} : ${V.cot} ✔`); beep(1000, .15);
+      Object.assign(c, { pieds: 0, pme: 0, flu: 0, run: false, acc: 0, t0: 0, gw: M[(M.indexOf(n) + 1) % M.length] || n, as: '', ca: '', caSet: false });
+      redraw(); const l = el.querySelector('#last'); if (l) l.innerHTML = lastHTML(cls); };
+  }
+  const lastHTML = cls => { const last = E.passages.filter(p => p.classe === cls).slice(-6).reverse(); return last.length ? rowsTable(last, false) : '<div class="empty">Aucun passage pour cette classe.</div>'; };
+  function cordees(box) {
+    const TM = teamsOf(P.cls), vis = TM.map((t, i) => ({ t, i })).filter(x => !CCHID[ccKey(P.cls, x.t)]);
+    box.innerHTML = `${vwBar('p')}
+      <div class="card" style="margin-top:10px"><label style="margin-top:0">Classe</label><select id="cl">${DB.classes.map(c => `<option ${c.name === P.cls ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</select>
+        ${TM.length > 1 ? `<details style="margin-top:8px"><summary class="muted" style="cursor:pointer;font-weight:800">👁 Cordées affichées (${vis.length}/${TM.length})</summary><div class="ec-chips">${TM.map((t, i) => `<label class="ec-chip" style="--rc:${ESCCOL[i % ESCCOL.length]}"><input type="checkbox" data-sh="${i}" ${CCHID[ccKey(P.cls, t)] ? '' : 'checked'}> ${esc(t.name)}</label>`).join('')}</div></details>` : ''}</div>
+      ${TM.length ? `<div class="esc-grid cc${ecols}" style="--cc:${ecols};margin-top:10px">${vis.map(({ t, i }) => `<div class="card esc-card" data-cc="${i}" style="--rc:${ESCCOL[i % ESCCOL.length]}">${ccInner(t, ccOf(P.cls, t), P.cls)}</div>`).join('')}</div>`
+        : '<div class="card empty" style="margin-top:10px">Aucune équipe pour cette classe : formez-les dans l\'onglet <b>👥 Équipes</b>.</div>'}
+      <div class="section-title"><h2>Derniers passages</h2></div><div class="card sheet-table" id="last">${lastHTML(P.cls)}</div>`;
+    vwWire(box, 'p', () => passage(box));
+    box.querySelector('#cl').onchange = e => { P.cls = e.target.value; DB.lastClass = P.cls; P.si = 0; P.eq = ''; save(); passage(box); };
+    box.querySelectorAll('[data-sh]').forEach(x => x.onchange = () => { const t = TM[+x.dataset.sh]; CCHID[ccKey(P.cls, t)] = !x.checked; cordees(box); });
+    vis.forEach(({ t, i }) => { const card = box.querySelector(`[data-cc="${i}"]`), redraw = () => { card.innerHTML = ccInner(t, ccOf(P.cls, t), P.cls); ccWire(card, t, P.cls, redraw); }; ccWire(card, t, P.cls, redraw); });
+    escMount(box);
+  }
   /* ---------- 2/ & 3/ Passage : mode + observables ---------- */
   function passage(box) {
     if (!DB.classes.length) { box.innerHTML = noClassMsg; return escMount(box); }
     if (!E.voies.length) { box.innerHTML = '<div class="card empty">Créez d\'abord une voie dans l\'onglet <b>🧗 Voies</b>.</div>'; return escMount(box); }
     if (!E.voies.some(w => w.id === P.voie)) P.voie = E.voies[0].id;
     if (!DB.classes.some(c => c.name === P.cls)) P.cls = DB.classes[0].name;
+    if (ovwOn('p')) return cordees(box);
     const TM = teamsOf(P.cls); if (!TM.some(t => t.name === P.eq)) P.eq = '';
     const st = P.eq ? TM.find(t => t.name === P.eq).members : studentsOf(P.cls); if (P.si >= st.length) P.si = 0;
     const V = E.voies.find(w => w.id === P.voie), img = DB[escImgKey(V.id)], RC = roleCnt(P.cls); fixRoles(st, st[P.si]);
     const counter = (k, label) => `<label>${label}</label><div class="row" style="align-items:center"><button class="btn btn-ghost" style="flex:0 0 60px;font-size:1.3rem" data-m="${k}">−</button><div style="flex:0 0 70px;text-align:center;font-size:1.8rem;font-weight:900" id="n-${k}">${P[k]}</div><button class="btn btn-grad" style="flex:1;font-size:1.05rem;padding:14px" data-p="${k}">＋1</button></div>`;
-    box.innerHTML = `<div class="card">
+    box.innerHTML = `${TM.length ? vwBar('p') : ''}<div class="card" ${TM.length ? 'style="margin-top:10px"' : ''}>
         <div class="row"><div><label>Classe</label><select id="cl">${DB.classes.map(c => `<option ${c.name === P.cls ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</select></div>
           ${TM.length ? `<div><label>Équipe</label><select id="eqf"><option value="">Toute la classe</option>${TM.map(t => `<option ${t.name === P.eq ? 'selected' : ''}>${esc(t.name)}</option>`).join('')}</select></div>` : ''}
           <div><label>🧗 Grimpeur</label><select id="st">${st.map((n, k) => `<option value="${k}" ${k === P.si ? 'selected' : ''}>${esc(n)} (${(RC[n] || {}).g || 0})</option>`).join('')}</select></div></div>
@@ -183,6 +285,7 @@ TOOL_IMPL.escalade = function (el) {
       <div class="section-title"><h2>Derniers passages</h2></div><div class="card sheet-table" id="last"></div>`;
     const $ = s => box.querySelector(s), all = s => box.querySelectorAll(s);
     $('#cl').onchange = e => { P.cls = e.target.value; DB.lastClass = P.cls; P.si = 0; P.eq = ''; save(); passage(box); };
+    vwWire(box, 'p', () => passage(box));
     $('#st').onchange = e => { P.si = +e.target.value; passage(box); };
     roleWire(box, st, st[P.si], P.cls, () => passage(box), g => { P.si = Math.max(0, st.indexOf(g)); });
     if ($('#eqf')) $('#eqf').onchange = e => { P.eq = e.target.value; P.si = 0; passage(box); };
@@ -385,6 +488,7 @@ TOOL_IMPL.escalade = function (el) {
 
   frame();
   iv = setInterval(() => { const t = el.querySelector('#tm'); if (t && P.run && (tab === 'passage' || tabOf())) t.textContent = escTime(sec());
+    if (tab === 'passage' && ovwOn('p')) el.querySelectorAll('[data-ct]').forEach(e => { const c = CC[e.getAttribute('data-ct')]; if (c && c.run) e.textContent = escTime(csec(c)); });
     if (tab === 'defis') [0, 1].forEach(k => { const e = el.querySelector('#dt' + k); if (e && DC[k].run) e.textContent = escTime(dsec(k)); }); }, 100);
   return () => { clearInterval(iv); if (sub) { try { sub(); } catch (e) {} } };
 };

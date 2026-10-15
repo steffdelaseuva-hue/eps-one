@@ -354,12 +354,12 @@ tr:nth-child(-n+4) td{font-weight:700}`,
   const lapsTable = (E, K) => {
     const LC = K.courses.filter(x => x.c.mode === 'temps'); if (!LC.length) return null;
     const M = new Map(); LC.forEach(x => [...x.R, ...x.W].forEach(r => { const cl = r.s.cls || '—', o = M.get(cl) || { cls: cl, tours: 0, n: 0, act: 0, dist: 0 }; o.n++; if (r.ok) { o.act++; o.tours += r.laps; o.dist += r.dist || 0; } M.set(cl, o); }));
-    const L = [...M.values()].filter(o => o.n).sort((a, b) => b.tours - a.tours || b.act - a.act || a.cls.localeCompare(b.cls, 'fr'));
+    const L = [...M.values()].filter(o => o.n).sort((a, b) => b.tours / b.n - a.tours / a.n || b.tours - a.tours || b.act - a.act || a.cls.localeCompare(b.cls, 'fr'));
     if (!L.length) return null;
-    const f1 = v => (Math.round(v * 10) / 10).toString().replace('.', ',');
-    return { title: 'Total des tours par classe', note: 'Somme des tours de tous les élèves de la classe sur les courses aux tours. « Moy. » = tours par élève inscrit (un élève sans tour compte pour 0). Classement par total de tours.',
-      head: ['Rang', 'Classe', 'Total tours', 'Élèves', 'Avec ≥ 1 tour', 'Moy. / élève', 'Distance (m)'],
-      rows: L.map((o, i) => [i + 1, o.cls, o.tours, o.n, o.act, f1(o.tours / o.n), o.dist]) };
+    const f1 = v => (Math.round(v * 100) / 100).toFixed(2).replace('.', ',');
+    return { title: 'Classement général des classes · tours', note: 'Classement sur la MOYENNE de tours par élève (total des tours de la classe ÷ nombre d\'élèves inscrits sur la course aux tours ; un élève sans tour compte pour 0). À égalité : le plus grand total de tours.',
+      head: ['Rang', 'Classe', 'Moy. tours / élève', 'Total tours', 'Élèves', 'Avec ≥ 1 tour', 'Distance (m)'],
+      rows: L.map((o, i) => [i + 1, o.cls, f1(o.tours / o.n), o.tours, o.n, o.act, o.dist]) };
   };
 
   /* ================= OUTIL ================= */
@@ -655,7 +655,7 @@ tr:nth-child(-n+4) td{font-weight:700}`,
         [...gstart].forEach(id => { if (!ns.some(c => c.id === id)) gstart.delete(id); });
         $('#cx-starts').innerHTML = `${E.courses.map((c, i) => { const x = K.courses[i]; return `<div class="cx-start" style="--cc:${col(E, c)}"><span class="cx-dot"></span><div class="nm">${esc(c.name)}<small>${x.n} coureur${x.n > 1 ? 's' : ''} · ${c.mode === 'temps' ? 'aux tours · ' + c.dur + ' min' : c.dist + ' m'}${c.start ? ` · ${x.R.length}/${x.n} arrivé${x.R.length > 1 ? 's' : ''}` : ''}${c.end ? ` · ✅ terminée à ${hms(c.end)}` : c.start && x.n && x.R.length >= x.n && c.mode !== 'temps' ? ' · 🎉 tous arrivés' : ''}</small></div>
             ${c.end ? `<span class="clk" style="opacity:.6">🏁 ${tm(c.end - c.start)}</span><button class="cx-stop" data-prof data-reo="${i}" aria-label="Rouvrir la course">↩ Rouvrir</button><button class="cx-stop" data-prof data-stop="${i}" aria-label="Remettre la course à zéro">↺</button>`
-              : c.start ? `<span class="clk" data-clk="${i}"></span><button class="cx-stop" data-prof data-end="${i}" aria-label="Course terminée" style="${x.n && x.R.length >= x.n ? 'background:#1E9E5A;color:#fff;border-color:transparent' : ''}">🏁 Terminée</button><button class="cx-stop" data-prof data-stop="${i}" aria-label="Faux départ : remettre la course à zéro">↺</button>`
+              : c.start ? `<span class="clk" data-clk="${i}"></span><button class="cx-stop" data-prof data-end="${i}" aria-label="Arrêter la course" style="${x.n && x.R.length >= x.n ? 'background:#1E9E5A;color:#fff;border-color:transparent' : ''}">⏹ ARRÊTER</button><button class="cx-stop" data-prof data-stop="${i}" aria-label="Faux départ : remettre la course à zéro">↺</button>`
               : `<button class="cx-go" data-go="${i}">🔫 TOP DÉPART !</button>`}</div>
             ${(c.waves || []).map((w, j) => { const n = stu(E).filter(s2 => K.cOf.get(s2.k) === c && waveOf(c, s2) === w).length, plan = offS(w) > 0 && c.start ? c.start + offS(w) * 1000 : null;
               return `<div class="cx-start" style="--cc:${col(E, c)};margin-left:22px;opacity:.95"><span class="cx-dot" style="opacity:.5"></span><div class="nm">⏱ ${esc(w.n)}<small>${n} coureur${n > 1 ? 's' : ''}${offS(w) > 0 ? ` · prévu +${offTxt(w)}` : ''}${w.start ? ' · TOP ' + hms(w.start) : plan ? ' · départ auto ' + hms(plan) : ''}</small></div>
@@ -666,7 +666,7 @@ tr:nth-child(-n+4) td{font-weight:700}`,
         box.querySelectorAll('[data-wgo]').forEach(b => b.onclick = () => { const [i, j] = b.dataset.wgo.split('|').map(Number), w = E.courses[i].waves[j]; w.start = NOW(); commit(); beep(1500, .5, .5); toast('🔫 TOP ' + w.n + ' !'); drawStarts(); drawLast(); });
         box.querySelectorAll('[data-wclr]').forEach(b => b.onclick = () => { const [i, j] = b.dataset.wclr.split('|').map(Number), w = E.courses[i].waves[j]; if (!confirm(`Annuler le TOP de « ${w.n} » ?`)) return; w.start = null; commit(); drawStarts(); drawLast(); });
         box.querySelectorAll('[data-end]').forEach(b => b.onclick = () => { const c = E.courses[+b.dataset.end], x = compute(E).courses[+b.dataset.end]; if (!c || !c.start) return;
-          if (!confirm(`Terminer « ${c.name} » ?${x.n - x.R.length > 0 ? `\n⚠️ ${x.n - x.R.length} coureur(s) pas encore arrivé(s) : ils seront classés « non arrivés ».` : ''}\nLe classement est figé ; les scans suivants sont refusés (« Rouvrir » est possible).`)) return;
+          if (!confirm(`Arrêter « ${c.name} » ?${x.n - x.R.length > 0 ? `\n⚠️ ${x.n - x.R.length} coureur(s) pas encore arrivé(s) : ils seront classés « non arrivés ».` : ''}\nLe classement est figé ; les scans suivants sont refusés (« Rouvrir » est possible).`)) return;
           c.end = NOW(); commit(); toast(`🏁 « ${c.name} » terminée`); drawStarts(); drawLast(); });
         box.querySelectorAll('[data-reo]').forEach(b => b.onclick = () => { const c = E.courses[+b.dataset.reo]; if (!c) return; delete c.end; commit(); toast(`↩ « ${c.name} » rouverte`); drawStarts(); });
         box.querySelectorAll('[data-stop]').forEach(b => b.onclick = () => { const c = E.courses[+b.dataset.stop]; if (!c || !c.start) return;
