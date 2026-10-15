@@ -4,9 +4,10 @@
    ========================================================= */
 /* Page Ko-fi : laisser vide tant qu'elle n'existe pas (le bouton est alors masqué) */
 const KOFI_URL = 'https://ko-fi.com/epsone';
-const APP_VERSION = '23.51';
+const APP_VERSION = '23.52';
 const APP_URL = 'https://steffdelaseuva-hue.github.io/eps-one/';
 const CHANGELOG = [
+  { v: '23.52', items: ['Interclasses : possibilité de SUPPRIMER un interclasses (🗑 dans la liste et « Supprimer cet interclasses » dans ⚙️ Réglages), même avant la génération du calendrier.'] },
   { v: '23.51', items: ['Escalade : « ▦ Vue d’ensemble (cartes côte à côte) » comme en course d’orientation, 2 à 6 cartes par ligne et un liseré de couleur par carte. Onglet 📋 Passage : plusieurs cordées en parallèle, chacune avec son chrono, son grimpeur / assureur / contre-assureur, sa voie et ses observables. Onglet 👥 Équipes : cartes des équipes côte à côte (voies déjà grimpées aujourd’hui). Réservé à l’enseignant (code).'] },
   { v: '23.50', items: ['Interclasses : constitution MANUELLE des équipes (équipes vides + « À placer », ou compléter au hasard), liste « Absents / dispensés » à exclure dès la création des équipes (le nombre d’élèves par équipe tient compte des exclus) ; absent / dispensé toujours possible en cours de séance.'] },
   { v: '23.49', items: ['Cross : le bouton « 🏁 Terminée » à côté du chrono devient « ⏹ ARRÊTER » (plus clair pendant la course).'] },

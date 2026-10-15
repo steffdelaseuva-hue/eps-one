@@ -187,14 +187,20 @@ ICONS.interclasses = '<path d="M7 4h10v3a5 5 0 0 1-10 0z"/><path d="M7 5H4.5a2.5
 
     function draw() { const T = cur(); if (!T) return home(); frame(T); }
 
+    const delIC = (id, after) => { const L = IC(), i = L.findIndex(x => x.id === id); if (i < 0) return; const T = L[i];
+      if (window.epsGuard && !epsGuard(T, T.nom)) return;
+      const M = T.matches || [], d = M.filter(m => m.done && !m.bye).length;
+      if (!confirm(`Supprimer l'interclasses « ${T.nom} » ?${d ? `\n\n⚠️ ${d} match(s) déjà joué(s) : leurs scores seront perdus.` : ''}\nCette action est définitive.`)) return;
+      L.splice(i, 1); if (curId === id) { try { stopTick(); } catch (e) {} curId = null; } undo = null; commit(); toast('Interclasses supprimé'); after(); };
     /* ----- Accueil : liste + création ----- */
     function home() {
       curId = null; const L = IC().filter(vis).sort((a, b) => (b.created || 0) - (a.created || 0));
       el.innerHTML = `<div class="card"><h3 style="margin-top:0">🏆 Interclasses</h3><p class="muted" style="margin:4px 0 0">Tournoi de sport collectif entre plusieurs classes : équipes, poules, phases finales, terrains, arbitres et classements calculés automatiquement.</p>
           <button class="btn btn-grad btn-block" style="margin-top:12px" id="ic-new" data-prof>＋ Nouvel interclasses</button></div>
         ${L.length ? `<div class="section-title"><h2>Mes interclasses</h2></div>${L.map(T => { const M = T.matches || [], d = M.filter(m => m.done && !m.bye).length, n = M.filter(m => !m.bye).length;
-          return `<div class="list-item" data-open="${T.id}" style="cursor:pointer"><div style="flex:1"><b>${IC_SP[T.sport][1]} ${esc(T.nom)}</b><div class="muted" style="font-size:.82rem">${esc(T.cls.join(', '))} · ${T.teams.length} équipes · ${n ? `${d}/${n} matchs joués` : 'calendrier à générer'}</div></div><span class="chev">›</span></div>`; }).join('')}` : ''}`;
+          return `<div class="list-item" data-open="${T.id}" style="cursor:pointer"><div style="flex:1"><b>${IC_SP[T.sport][1]} ${esc(T.nom)}</b><div class="muted" style="font-size:.82rem">${esc(T.cls.join(', '))} · ${T.teams.length} équipes · ${n ? `${d}/${n} matchs joués` : 'calendrier à générer'}</div></div><button class="btn btn-ghost" data-icdel="${T.id}" data-cfg="bare" style="flex:0 0 auto;padding:6px 10px;margin-right:4px" aria-label="Supprimer">🗑</button><span class="chev">›</span></div>`; }).join('')}` : ''}`;
       el.querySelector('#ic-new').onclick = () => setup();
+      el.querySelectorAll('[data-icdel]').forEach(b => b.onclick = e => { e.stopPropagation(); delIC(b.dataset.icdel, home); });
       el.querySelectorAll('[data-open]').forEach(b => b.onclick = () => { curId = b.dataset.open; tab = (cur().matches || []).length ? 'mt' : 'eq'; draw(); });
     }
 
@@ -239,7 +245,7 @@ ICONS.interclasses = '<path d="M7 4h10v3a5 5 0 0 1-10 0z"/><path d="M7 5H4.5a2.5
             <b style="display:block;margin-top:12px">📊 Points au classement</b><div class="row">${num('ic-pw', c.pw, 'Victoire', 0, 10)}${num('ic-pd', c.pd, 'Nul', 0, 10)}${num('ic-pl', c.pl, 'Défaite', -5, 10)}${num('ic-pf', c.pf, 'Forfait', -5, 10)}</div>
             <div class="row">${num('ic-bo', c.bo, 'Bonus offensif : +1 si victoire d\'au moins', 0, 50, 1, 'écart de buts / points · 0 = sans')}${num('ic-bd', c.bd, 'Bonus défensif : +1 si défaite d\'au plus', 0, 50, 1, '0 = sans')}</div>
             <p class="muted" style="font-size:.78rem;margin:6px 0 0">Départage : points, puis différence, puis ${T.sport === 'volley' ? 'points' : 'buts'} marqués.</p></div>
-          <button class="btn btn-grad btn-block" style="margin-top:12px;padding:16px;font-size:1.1rem" id="ic-ok">${edit ? '💾 Enregistrer les réglages' : '✔ Créer les équipes'}</button>`;
+          <button class="btn btn-grad btn-block" style="margin-top:12px;padding:16px;font-size:1.1rem" id="ic-ok">${edit ? '💾 Enregistrer les réglages' : '✔ Créer les équipes'}</button>${edit ? '<button class="btn btn-ghost btn-block" style="margin-top:10px;color:var(--danger)" id="ic-rmall">🗑 Supprimer cet interclasses</button>' : ''}`;
         const $ = s => el.querySelector(s), keep = () => {
           T.nom = $('#ic-nom').value.trim() || T.nom; const g = (id, k, f = x => x) => { const e = $(id); if (e && e.value !== '') c[k] = f(+e.value); };
           g('#ic-npc', 'npc'); g('#ic-nt', 'nt'); g('#ic-sz', 'sz'); g('#ic-np', 'np'); g('#ic-ter', 'ter'); g('#ic-dur', 'dur'); g('#ic-tg', 'target'); g('#ic-pw', 'pw'); g('#ic-pd', 'pd'); g('#ic-pl', 'pl'); g('#ic-pf', 'pf'); g('#ic-bo', 'bo'); g('#ic-bd', 'bd');
@@ -248,6 +254,7 @@ ICONS.interclasses = '<path d="M7 4h10v3a5 5 0 0 1-10 0z"/><path d="M7 5H4.5a2.5
           if ($('#ic-fin')) c.fin = $('#ic-fin').value === 'auto' ? 'auto' : +$('#ic-fin').value; if ($('#ic-pt')) c.petite = $('#ic-pt').checked; c.arb = $('#ic-arb').checked; };
         el.querySelectorAll('[data-ab]').forEach(b => b.onclick = () => { keep(); const k = b.dataset.ab, a = T.absents || []; T.absents = a.includes(k) ? a.filter(x => x !== k) : [...a, k]; const y = el.scrollTop; render(); el.scrollTop = y; });
         $('#ic-x').onclick = () => edit ? draw() : home();
+        if ($('#ic-rmall')) $('#ic-rmall').onclick = () => delIC(T.id, home);
         el.querySelectorAll('[data-sp]').forEach(b => b.onclick = () => { keep(); T.sport = b.dataset.sp; const d = defCfg(T.sport); c.mode = d.mode; c.dur = d.dur; c.target = d.target; c.btn = d.btn; render(); });
         el.querySelectorAll('[data-cl]').forEach(b => b.onclick = () => { keep(); const k = b.dataset.cl; T.cls = T.cls.includes(k) ? T.cls.filter(x => x !== k) : [...T.cls, k]; render(); });
         el.querySelectorAll('[data-seg]').forEach(s => s.querySelectorAll('[data-v]').forEach(b => b.onclick = () => { keep(); const k = s.dataset.seg, v = b.dataset.v; c[k] = k === 'ar' ? v === '1' : v; render(); }));
