@@ -14,14 +14,37 @@
   const KCOL = { tournoi: '#C9A227', match: '#E0892F', wod: '#E53935', co: '#1B9E5A', combine: '#1E5BD8', duathlon: '#16A3A3', relais: '#8E44AD', cross: '#D64545' };
   const COLS = ['#1E5BD8', '#C9A227', '#1B9E5A', '#E0892F', '#8E44AD', '#D64545', '#0B2A5B', '#16A3A3', '#9C7A1E', '#5B8DEF', '#B0127A', '#4F6D7A'];
   const has = f => typeof f === 'function';
+  const toolOfSport = sp => { try { return typeof matchToolOf === 'function' ? matchToolOf(sp) : 'match'; } catch (e) { return 'match'; } };
+  const KT = { tournoi: null, match: null, wod: 'wod', co: 'co', combine: 'combine', duathlon: 'duathlon', relais: 'relais', cross: 'cross' };
+  const dayS = ts => ts ? new Date(+ts).toDateString() : '';
+  /* événement collectif retenu ? (activité choisie / outils cochés / jour de l'évaluation) */
+  const actValOk = (act, k) => { const [t, sb] = k.split(':'); if (t !== act.tool) return false; if (!act.sport) return true; const VT = (typeof VAL_TOOLS !== 'undefined' && VAL_TOOLS[t]) || {}; return sb ? sb === act.sport : !(VT.sub && VT.sub[act.sport]); };
+  const actById = id => { const m = /^(sp|tl):(.+)$/.exec(id || ''); if (!m) return null; if (m[1] === 'sp') { const t = toolOfSport(m[2]); return { id, sport: m[2], tool: t, tools: [t] }; } return { id, sport: null, tool: m[2], tools: [m[2]] }; };
+  window.fichesActById = actById; window.fichesActValOk = actValOk;
+  function evOk(e, o) {
+    o = o || {}; const act = o.act, tl = o.tools, isSp = e.kind === 'tournoi' || e.kind === 'match', tool = isSp ? toolOfSport(e.sport) : KT[e.kind];
+    if (act) { if (isSp) { if (!act.sport || e.sport !== act.sport) return false; } else if (!(act.tools || []).includes(tool)) return false; }
+    else if (tl && tool && !tl.includes(tool)) return false;
+    if (o.days && o.days.size) { const ds = [e.date]; if (e.tid && Array.isArray(DB.matchs)) DB.matchs.filter(m => m.tid === e.tid).forEach(m => ds.push(m.date)); if (!ds.some(d => o.days.has(dayS(d)))) return false; }
+    return true;
+  }
+  /* poule d'une équipe dans un tournoi : { g, n, rank, pts, level } (level : niveau de jeu de la poule d'après les niveaux de la classe) */
+  function poolOf(T, team) {
+    try { if (!T || !T.rencontres || typeof tStand !== 'function') return null; const fm = (typeof tFmt === 'function' ? tFmt(T) : T.format); if (fm !== 'poule') return null;
+      const rn = T.rencontres.find(r => r.a === team || r.b === team); if (!rn) return null; const g = rn.g || '', st = tStand(T, g), i = st.findIndex(x => x.t === team); if (i < 0) return null;
+      const gs = [...new Set(T.rencontres.map(r => r.g || ''))]; let level = '';
+      if (gs.length > 1 && typeof lvlOf === 'function' && T.classe) { const av = G2 => { const L = (T.teams || []).filter(x => (x.g || '') === G2).flatMap(x => (x.members || []).map(m => lvlOf(T.classe, typeof m === 'object' ? m.n : m))).filter(v => v > 0); return L.length ? L.reduce((a, b) => a + b, 0) / L.length : 0; };
+        const A = gs.map(x => [x, av(x)]); if (A.every(x => x[1] > 0)) { const sorted = A.slice().sort((a, b) => b[1] - a[1]), k = sorted.findIndex(x => x[0] === g); if (sorted[0][1] !== sorted[sorted.length - 1][1]) level = 'niveau ' + (sorted.length - k) + ' sur ' + sorted.length; } }
+      return { g, n: st.length, rank: i + 1, pts: st[i].pts, level, multi: gs.length > 1 }; } catch (e) { return null; }
+  }
 
   /* ---------- Validation enseignant : entrées d'un élève ---------- */
-  function valEntries(cls, n, tools) {
+  function valEntries(cls, n, tools, act) {
     if (!has(window.valCrit) && typeof valCrit !== 'function') return [];
     const V = (DB.valid || {}).v || {}, lv = valLevelOf(cls), out = [];
     Object.keys(V).forEach(k => {
       const W = V[k] && V[k][cls] && V[k][cls][n]; if (!W || !valLvls(W).length) return;
-      const [t, sb] = k.split(':'); if (tools && !tools.includes(t)) return;
+      const [t, sb] = k.split(':'); if (act ? !actValOk(act, k) : tools && !tools.includes(t)) return;
       const T = VAL_TOOLS[t] || { n: t }, ck = valHasSet(k, lv) ? k + '@' + lv : k; let C = []; try { C = valCrit(ck); } catch (e) {} if (!C.length) return;
       const cfg = valCfg(ck), NT = cfg.on ? valNote(C, W, cfg) : null, L = valLvls(W), avg = epsMAvg(L);
       out.push({ k, ck, t, title: T.n + (sb ? ' · ' + ((T.sub && T.sub[sb] && T.sub[sb].n) || sb) : ''), C, W, cfg, NT, L, avg });
@@ -74,8 +97,8 @@
   }
 
   /* ---------- Tournois, matchs, classements… ---------- */
-  function collEntries(cls, n) {
-    const EV = has(window.epsCollectifs) ? window.epsCollectifs(cls) : [];
+  function collEntries(cls, n, o) {
+    const EV = (has(window.epsCollectifs) ? window.epsCollectifs(cls) : []).filter(e => evOk(e, o));
     return EV.map(e => { const rows = e.rows || [], row = rows.find(r => String(r[2] || '').split(',').map(s => s.trim()).includes(n) || String(r[1]) === n); return row ? { e, row, N: rows.length } : null; }).filter(Boolean).sort((a, b) => b.e.date - a.e.date);
   }
   function matchChips(e, team) {
@@ -91,14 +114,16 @@
     const W = M2 ? { V: M2.filter(m => m.r === 'V').length, N: M2.filter(m => m.r === 'N').length, D: M2.filter(m => m.r === 'D').length } : null;
     const outcome = !M2 && e.kind === 'match' ? (/Victoire/.test(rs) ? 'V' : /D[ée]faite/.test(rs) ? 'D' : /Nul/.test(rs) ? 'N' : '') : '';
     const mem = String(row[2] || '').trim();
-    const rankBox = rk != null ? `<div class="rk" style="background:${c}"><span>${medal(rk) || ''}</span><b>${rk}${rk === 1 ? 'er' : 'e'}</b><small>sur ${N}</small></div>` : outcome ? `<div class="rk" style="background:${outcome === 'V' ? '#1B9E5A' : outcome === 'D' ? '#D64545' : '#8A94AA'}"><b>${outcome === 'V' ? 'Victoire' : outcome === 'D' ? 'Défaite' : 'Nul'}</b></div>` : '';
+    const T0 = e.kind === 'tournoi' && e.tid && typeof TR === 'function' ? TR().find(t => t.id === e.tid) : null, PL = T0 ? poolOf(T0, team) : null, NN = PL ? PL.n : N;
+    const rankBox = rk != null ? `<div class="rk" style="background:${c}"><span>${medal(rk) || ''}</span><b>${rk}${rk === 1 ? 'er' : 'e'}</b><small>sur ${NN}${PL && PL.multi ? ' · ' + esc(PL.g || 'poule') : ''}</small></div>` : outcome ? `<div class="rk" style="background:${outcome === 'V' ? '#1B9E5A' : outcome === 'D' ? '#D64545' : '#8A94AA'}"><b>${outcome === 'V' ? 'Victoire' : outcome === 'D' ? 'Défaite' : 'Nul'}</b></div>` : '';
     return `<div class="ev2" style="--c:${c}"><div class="e-top"><span class="e-ic">${e.icon || '🏆'}</span><div class="e-t"><b>${esc(plain(e.title || e.event))}</b><div class="mut">${esc(plain(e.sub || dt(e.date)))}</div></div>${rankBox}</div>
+      ${PL && PL.multi ? `<div class="e-team" style="color:#8E44AD;font-weight:800">🎚 Poule par niveau de jeu : ${esc(PL.g || 'poule')}${PL.level ? ' — ' + esc(PL.level) : ''} · ${PL.rank}${PL.rank === 1 ? 'er' : 'e'} sur ${PL.n}</div>` : ''}
       ${team && team !== x.n ? `<div class="e-team"><b>${esc(team)}</b>${mem ? ` <span class="mut">${esc(mem)}</span>` : ''}</div>` : ''}
       ${M2 ? `<div class="mch">${M2.map(m => `<span class="mc ${m.r}"><b>${m.r}</b> ${m.my}–${m.op}<small>${esc(String(m.opp))}</small></span>`).join('')}</div>
         <div class="wl"><i style="width:${W.V / M2.length * 100}%;background:#1B9E5A"></i><i style="width:${W.N / M2.length * 100}%;background:#8A94AA"></i><i style="width:${W.D / M2.length * 100}%;background:#D64545"></i></div>
         <div class="wlt"><span style="color:#1B9E5A">${W.V} victoire${W.V > 1 ? 's' : ''}</span><span>${W.N} nul${W.N > 1 ? 's' : ''}</span><span style="color:#D64545">${W.D} défaite${W.D > 1 ? 's' : ''}</span></div>` : ''}
       <div class="e-res">${esc(rs)}</div>
-      ${rk != null && N > 1 ? `<div class="pos"><span>1er</span><div><i style="width:${Math.max(6, (N - rk + 1) / N * 100)}%;background:${c}"></i></div><span>${N}e</span></div>` : ''}</div>`;
+      ${rk != null && NN > 1 ? `<div class="pos"><span>1er</span><div><i style="width:${Math.max(6, (NN - rk + 1) / NN * 100)}%;background:${c}"></i></div><span>${NN}e</span></div>` : ''}</div>`;
   }
 
   /* ---------- Résultats des outils ---------- */
@@ -141,27 +166,36 @@
     return m.a === n ? 0 : m.b === n ? 1 : -1; };
   const inCls = (m, cls) => { const T = m.tid && typeof TR === 'function' ? TR().find(t => t.id === m.tid) : null; if (T && T.classe) return T.classe === cls; const st = studentsOf(cls) || []; return [...(m.pa || []), ...(m.pb || [])].some(x => st.includes(x)); };
   const SPN = sp => (window.SPORTS || (typeof SPORTS !== 'undefined' ? SPORTS : {}))[sp]?.name || sp || '';
-  function piesFor(cls, names) {
+  function piesFor(cls, names, o) {
+    o = o || {}; const act = o.act, tl = o.tools, days = o.days && o.days.size ? o.days : null;
+    const okTool = t => (act ? (act.tools || []).includes(t) || act.tool === t : true) && (!tl || tl.includes(t)) && !(act && act.sport && t !== act.tool);
+    const okSport = sp => act ? act.sport === sp : (!tl || tl.includes(toolOfSport(sp)));
+    const inDay = m => !days || days.has(dayS(m.date));
     const out = [], one = names && names.length === 1 ? names[0] : null, who = one ? '' : ' de la classe';
-    const all = (Array.isArray(DB.matchs) ? DB.matchs : []).filter(m => !m.obsOnly);
-    // matchs : sides = (élève → son côté) ou (classe → les deux)
+    const all = (Array.isArray(DB.matchs) ? DB.matchs : []).filter(m => !m.obsOnly && okSport(m.sport) && inDay(m));
+    // matchs : un jeu de camemberts PAR tournoi (ou par sport pour les matchs hors tournoi) ; sides = (élève → son côté) ou (classe → les deux)
     const L = []; all.forEach(m => { if (one) { const t = sideOf(m, one); if (t >= 0) L.push({ m, t }); } else if (inCls(m, cls)) { L.push({ m, t: 0 }); L.push({ m, t: 1 }); } });
-    const bySport = {}; L.forEach(x => (bySport[x.m.sport] = bySport[x.m.sport] || []).push(x));
-    Object.entries(bySport).forEach(([sp, A]) => { const nm = SPN(sp), sfx = Object.keys(bySport).length > 1 ? ' · ' + nm : '';
+    const byG = {}; L.forEach(x => { const k = x.m.tid ? 't:' + x.m.tid : 'libre:' + x.m.sport; (byG[k] = byG[k] || []).push(x); });
+    Object.entries(byG).forEach(([k, A]) => { const sp = A[0].m.sport, nm = SPN(sp), T = k[0] === 't' ? (typeof TR === 'function' ? TR().find(t => t.id === A[0].m.tid) : null) : null;
+      const ctx = T ? `${T.nom || 'Tournoi'} · ${dt(T.date)}` : `${nm} · matchs hors tournoi`;
+      let PL = null; if (T && one) { const sd = A[0].t, mm = A[0].m, team = sd ? mm.b : mm.a; PL = poolOf(T, team); }
+      const pnote = PL ? `${PL.multi ? '🎚 Poule par niveau de jeu : ' + (PL.g || 'poule') + (PL.level ? ' (' + PL.level + ')' : '') + ' · ' : ''}Classement dans la poule : ${PL.rank}${PL.rank === 1 ? 'er' : 'e'} sur ${PL.n} (${PL.pts} pts)` : '';
+      const sfx = ` · ${ctx}${PL && PL.multi ? ' · ' + (PL.g || '') : ''}`;
       const r = { Victoires: 0, Nuls: 0, Défaites: 0 }, pts = { 'Points marqués': 0, 'Points encaissés': 0 }, nb = { 'Points normaux': 0, 'Points bonus': 0 }, ty = {};
       A.forEach(({ m, t }) => { const a = +m.sa || 0, b = +m.sb || 0, my = t ? b : a, op = t ? a : b; if (my > op) r.Victoires++; else if (my < op) r.Défaites++; else r.Nuls++; pts['Points marqués'] += my; pts['Points encaissés'] += op;
         (m.ev || []).filter(e => e.team === t && (e.kind === 'score' || e.kind === 'bonus')).forEach(e => { if (e.kind === 'bonus') nb['Points bonus'] += e.pts || 0; else nb['Points normaux'] += e.pts || 0; const l = typeof epsEvLabel === 'function' ? epsEvLabel(e) : (e.label || 'Point'); ty[l] = (ty[l] || 0) + 1; }); });
-      out.push(mk(`Matchs${sfx} · issues`, r, { Victoires: '#1B9E5A', Nuls: '#8A94AA', Défaites: '#D64545' }));
+      const nM = Math.round(A.length / (one ? 1 : 2));
+      out.push(mk(`Résultats des matchs${sfx}`, r, { Victoires: '#1B9E5A', Nuls: '#8A94AA', Défaites: '#D64545' }, [`${nM} match${nM > 1 ? 's' : ''} joué${nM > 1 ? 's' : ''}`, pnote].filter(Boolean).join(' · ')));
       out.push(mk(`Points marqués / encaissés${sfx}`, pts, { 'Points marqués': '#1B9E5A', 'Points encaissés': '#D64545' }));
       if (nb['Points bonus']) out.push(mk(`Points normaux / bonus${sfx}`, nb, { 'Points normaux': '#1E5BD8', 'Points bonus': '#1B9E5A' }, `${one ? 'Points de son équipe' : 'Points des équipes de la classe'} : ${Math.round(nb['Points bonus'] / ((nb['Points bonus'] + nb['Points normaux']) || 1) * 100)} % de bonus`));
       if (Object.keys(ty).length > 1) out.push(mk(`Types de points marqués${sfx}`, ty, {}, 'Nombre de chaque type (points normaux, bonus +2…)')); });
     // observations individuelles (critères propres au sport : points gagnés, coups gagnants, fautes, tirs…)
-    const ob = {}; all.concat((DB.matchs || []).filter(m => m.obsOnly)).forEach(m => (m.obs || []).forEach(o => { if (!o || !o.name) return; if (one ? o.name !== one : !(studentsOf(cls) || []).includes(o.name)) return; (ob[m.sport] = ob[m.sport] || []).push(o); }));
-    Object.entries(ob).forEach(([sp, os]) => { let crit = []; try { crit = typeof obsCrit === 'function' ? obsCrit(sp) : []; } catch (e) {} if (!crit.length) return; const sum = {}; crit.forEach(([k, l]) => sum[l] = os.reduce((a, o) => a + ((o.c || {})[k] || 0), 0));
-      out.push(mk(`Observations${who} · ${SPN(sp)}`, sum, { 'Faute directe': '#D64545', 'Balle perdue': '#D64545', Faute: '#D64545', 'Touche reçue': '#D64545' }, `${os.length} observation${os.length > 1 ? 's' : ''}`));
-      const tk = os.reduce((a, o) => a + ((o.c || {}).tir || 0), 0), bt = os.reduce((a, o) => a + ((o.c || {}).but || 0), 0); if (tk > 0) out.push(mk(`Réussite aux tirs${who} · ${SPN(sp)}`, { Réussis: Math.min(bt, tk), Ratés: Math.max(0, tk - bt) }, { Réussis: '#1B9E5A', Ratés: '#D64545' }, `${Math.round(Math.min(bt, tk) / tk * 100)} % de réussite`)); });
+    const ob = {}; all.concat((DB.matchs || []).filter(m => m.obsOnly && okSport(m.sport) && inDay(m))).forEach(m => (m.obs || []).forEach(ob0 => { if (!ob0 || !ob0.name) return; if (one ? ob0.name !== one : !(studentsOf(cls) || []).includes(ob0.name)) return; const kk = m.sport + '|' + (m.tid || ''); (ob[kk] = ob[kk] || []).push(ob0); }));
+    Object.entries(ob).forEach(([kk, os]) => { const sp = kk.split('|')[0], tid0 = kk.split('|')[1], T0 = tid0 && typeof TR === 'function' ? TR().find(t => t.id === tid0) : null, who0 = who + (T0 ? ` · ${T0.nom || 'Tournoi'} · ${dt(T0.date)}` : ''); let crit = []; try { crit = typeof obsCrit === 'function' ? obsCrit(sp) : []; } catch (e) {} if (!crit.length) return; const sum = {}; crit.forEach(([k, l]) => sum[l] = os.reduce((a, o) => a + ((o.c || {})[k] || 0), 0));
+      out.push(mk(`Observations${who0} · ${SPN(sp)}`, sum, { 'Faute directe': '#D64545', 'Balle perdue': '#D64545', Faute: '#D64545', 'Touche reçue': '#D64545' }, `${os.length} observation${os.length > 1 ? 's' : ''}`));
+      const tk = os.reduce((a, o) => a + ((o.c || {}).tir || 0), 0), bt = os.reduce((a, o) => a + ((o.c || {}).but || 0), 0); if (tk > 0) out.push(mk(`Réussite aux tirs${who0} · ${SPN(sp)}`, { Réussis: Math.min(bt, tk), Ratés: Math.max(0, tk - bt) }, { Réussis: '#1B9E5A', Ratés: '#D64545' }, `${Math.round(Math.min(bt, tk) / tk * 100)} % de réussite`)); });
     // escalade : poses de pieds / mains (PME), fluidité, rôles, voies
-    const PS = ((DB.escalade || {}).passages || []).filter(p => p.classe === cls && (one ? (p.eleve === one || p.as === one || p.ca === one) : true));
+    const PS = !okTool('escalade') ? [] : ((DB.escalade || {}).passages || []).filter(p => p.classe === cls && (one ? (p.eleve === one || p.as === one || p.ca === one) : true));
     const mine = one ? PS.filter(p => p.eleve === one) : PS;
     if (mine.length) { const pi = mine.reduce((a, p) => a + (p.pieds || 0), 0), pm = mine.reduce((a, p) => a + (p.pme || 0), 0);
       if (pi + pm) out.push(mk(`Escalade${who} · poses de pieds / PME`, { 'Poses de pieds': pi, PME: pm }, { 'Poses de pieds': '#1E5BD8', PME: '#E0892F' }, pm ? `${(pi / pm).toFixed(1).replace('.', ',')} pose de pieds pour 1 PME` : ''));
@@ -172,7 +206,7 @@
       if (one) { const ro = { 'Grimpeur': PS.filter(p => p.eleve === one).length, 'Assureur': PS.filter(p => p.as === one).length, 'Contre-assureur': PS.filter(p => p.ca === one).length }; out.push(mk('Escalade · rôles dans la cordée', ro, { Grimpeur: '#1E5BD8', Assureur: '#E0892F', 'Contre-assureur': '#8E44AD' })); } }
     // autres outils : compteurs paramétrés (« recule 2 · avance 5 », « 8/10 balises »…) additionnés par outil
     const names2 = Object.fromEntries((typeof TOOLS !== 'undefined' ? TOOLS : []).map(t => [t.id, t.name]));
-    const R = (DB.resultats || []).filter(r => r && r.classe === cls && (one ? r.eleve === one : true) && !/^valid\|/.test(String(r.key || '')) && !['escalade', 'match', 'valid', 'co', 'lutte', 'demifond', 'combine', 'duathlon', 'natation', 'wod'].includes(r.tool));
+    const R = (DB.resultats || []).filter(r => r && (!days || days.has(dayS(r.date))) && r.classe === cls && (one ? r.eleve === one : true) && !/^valid\|/.test(String(r.key || '')) && !['escalade', 'match', 'valid', 'co', 'lutte', 'demifond', 'combine', 'duathlon', 'natation', 'wod'].includes(r.tool) && okTool(r.tool));
     const byTool = {}; R.forEach(r => (byTool[names2[r.tool] || r.label || r.tool] = byTool[names2[r.tool] || r.label || r.tool] || []).push(r));
     Object.entries(byTool).forEach(([t, L2]) => { const cnt = {}, fr2 = {};
       L2.forEach(r => String(r.detail || '').split(' · ').forEach(sg => { sg = sg.trim(); let m;
@@ -184,7 +218,7 @@
     /* ---- Outils dédiés : un jeu de camemberts propre à chaque outil (consignes paramétrées de l'enseignant) ---- */
     const sub = (fn) => { try { fn(); } catch (e) { if (window.console) console.warn('pies', e); } };
     const stu = studentsOf(cls) || [], mineN = n => one ? n === one : stu.includes(n);
-    const RT = t => (DB.resultats || []).filter(r => r && r.classe === cls && r.tool === t && (one ? r.eleve === one : true) && !/^valid\|/.test(String(r.key || '')));
+    const RT = t => !okTool(t) ? [] : (DB.resultats || []).filter(r => r && (!days || days.has(dayS(r.date))) && r.classe === cls && r.tool === t && (one ? r.eleve === one : true) && !/^valid\|/.test(String(r.key || '')));
     const num = s => parseFloat(String(s).replace(',', '.').replace('−', '-'));
     // 🏃 Demi-fond : respect du projet, arrêts, % VMA
     sub(() => { const L2 = RT('demifond'); if (!L2.length) return; const pr = { 'Projet respecté': 0, 'Écart modéré': 0, 'Écart important': 0 }, ar = { 'Sans arrêt': 0, '1 arrêt': 0, '2 arrêts ou +': 0 }, vm = {}; let mr = 0, tol = 5;
@@ -208,7 +242,7 @@
       out.push(mk(`Duathlon${who} · points de lancers / tours de course`, ps, { Lancers: '#8E44AD', Tours: '#1E5BD8' }, 'Contribution personnelle'));
       out.push(mk(`Duathlon${who} · épreuves terminées`, tm, { 'Temps d\'équipe complet': '#1B9E5A', 'Étapes incomplètes': '#E0892F' })); });
     // 🧭 Course d'orientation : balises trouvées / manquées (par niveau), erreurs, statut, pénalités
-    sub(() => { const S = ((DB.co || {}).seances || []).filter(s => s.classe === cls); if (!S.length) return; const fm = { 'Balises trouvées': 0, 'Balises manquées': 0 }, nv = {}, nvM = {}, st = {}; let wr = 0, ok = 0;
+    sub(() => { if (!okTool('co')) return; const S = ((DB.co || {}).seances || []).filter(s => s.classe === cls && (!days || days.has(dayS(s.date)))); if (!S.length) return; const fm = { 'Balises trouvées': 0, 'Balises manquées': 0 }, nv = {}, nvM = {}, st = {}; let wr = 0, ok = 0;
       S.forEach(s => { const p = s.parcoursSnap || {}, B = p.balises || []; (s.runs || []).filter(r => r.dep).forEach(r => (r.members || []).filter(mineN).forEach(m => {
         const mine2 = (r.found || []).filter(n => !(r.who || {})[n] || r.who[n] === m); B.forEach(b => { const f = mine2.includes(b.num), k = 'Niveau ' + (b.niv || 1); fm[f ? 'Balises trouvées' : 'Balises manquées']++; if (f) nv[k] = (nv[k] || 0) + 1; else nvM[k] = (nvM[k] || 0) + 1; });
         wr += r.wrong || 0; ok++; })); });
@@ -219,7 +253,7 @@
       out.push(mk(`Orientation${who} · arrivées`, st, { 'Arrivé à temps': '#1B9E5A', 'Hors délai': '#E0892F', 'Non arrivé': '#D64545' }));
       if (wr) out.push(mk(`Orientation${who} · poinçons`, { 'Bonnes balises': fm['Balises trouvées'], 'Mauvaises balises': wr }, { 'Bonnes balises': '#1B9E5A', 'Mauvaises balises': '#D64545' }, 'Erreurs de balise (mauvais symbole / mauvaise pince)')); });
     // 🏊 Natation : épreuves du savoir-nager
-    sub(() => { const A = (DB.asns || {})[cls]; if (!A || typeof ASNS === 'undefined') return; const ep = { Réussies: 0, 'À reprendre': 0, 'Non évaluées': 0 }, per = ASNS.map(() => ({ ok: 0, ko: 0 })), sn = { 'Savoir-nager validé': 0, 'En cours': 0, 'Non commencé': 0 }; let any = false;
+    sub(() => { if (!okTool('natation')) return; const A = (DB.asns || {})[cls]; if (!A || typeof ASNS === 'undefined') return; const ep = { Réussies: 0, 'À reprendre': 0, 'Non évaluées': 0 }, per = ASNS.map(() => ({ ok: 0, ko: 0 })), sn = { 'Savoir-nager validé': 0, 'En cours': 0, 'Non commencé': 0 }; let any = false;
       (one ? [one] : stu).forEach(n => { const r = A[n]; if (!r || !r.r) { if (!one) sn['Non commencé']++; return; } any = true; r.r.forEach((v, i) => { if (v === 1) { ep.Réussies++; per[i].ok++; } else if (v === 0) { ep['À reprendre']++; per[i].ko++; } else ep['Non évaluées']++; });
         if (r.r.every(v => v === 1)) sn['Savoir-nager validé']++; else if (r.r.some(v => v != null)) sn['En cours']++; else sn['Non commencé']++; });
       if (!any) return; const g = { Réussies: '#1B9E5A', 'À reprendre': '#D64545', 'Non évaluées': '#C7CEDB', 'Savoir-nager validé': '#1B9E5A', 'En cours': '#E0892F', 'Non commencé': '#C7CEDB' };
@@ -232,26 +266,46 @@
       const g = { 'Terminé dans le temps': '#1B9E5A', 'Time cap atteint': '#E0892F', 'Non terminé': '#D64545', 'Blocs réalisés': '#1B9E5A', 'Blocs non réalisés': '#D64545', 'Plus vite que prévu': '#1B9E5A', 'Dans le prévu': '#2F6BD8', 'Plus lent que prévu': '#E0892F' };
       out.push(mk(`Crosstraining${who} · séances`, fin, g)); out.push(mk(`Crosstraining${who} · blocs réalisés`, bl, g)); out.push(mk(`Crosstraining${who} · temps réalisé / prévu`, ec, g)); });
     // 🤼 Lutte : issues, formes de corps, défense, pénalités, tombés
-    sub(() => { if (typeof luAgg !== 'function') return; const nm = (one ? [one] : stu), A = luAgg(nm).filter(x => x.c || Object.keys(x.fo).length || Object.keys(x.de).length || x.pen); if (!A.length) return; const sum = f => A.reduce((a, x) => a + (f(x) || 0), 0), mg = k => { const o = {}; A.forEach(x => Object.entries(x[k]).forEach(([l, v]) => o[l] = (o[l] || 0) + v)); return o; };
+    sub(() => { if (!okTool('lutte') || typeof luAgg !== 'function') return; const nm = (one ? [one] : stu), A = luAgg(nm).filter(x => x.c || Object.keys(x.fo).length || Object.keys(x.de).length || x.pen); if (!A.length) return; const sum = f => A.reduce((a, x) => a + (f(x) || 0), 0), mg = k => { const o = {}; A.forEach(x => Object.entries(x[k]).forEach(([l, v]) => o[l] = (o[l] || 0) + v)); return o; };
       out.push(mk(`Lutte${who} · issues des combats`, { Victoires: sum(x => x.v), Nuls: sum(x => x.nul), Défaites: sum(x => x.d) }, { Victoires: '#1B9E5A', Nuls: '#8A94AA', Défaites: '#D64545' }, sum(x => x.tb) ? `${sum(x => x.tb)} tombé${sum(x => x.tb) > 1 ? 's' : ''}` : ''));
       out.push(mk(`Lutte${who} · points marqués / encaissés`, { 'Points marqués': sum(x => x.pm), 'Points encaissés': sum(x => x.pe) }, { 'Points marqués': '#1B9E5A', 'Points encaissés': '#D64545' }));
       out.push(mk(`Lutte${who} · formes de corps`, mg('fo'))); out.push(mk(`Lutte${who} · défense`, mg('de'))); out.push(mk(`Lutte${who} · pénalités`, mg('pl'), { }, 'Pénalités par type')); });
     // 🟢 Niveaux de maîtrise validés par l'enseignant, activité par activité
-    sub(() => { const V = (DB.valid || {}).v || {}; Object.keys(V).forEach(k => { const C = V[k][cls]; if (!C) return; const M = window.EPS_M || [], cnt = {}; M.forEach(m => cnt[m[0]] = 0); let n = 0;
+    sub(() => { const V = (DB.valid || {}).v || {}; Object.keys(V).forEach(k => { const C = V[k][cls]; if (!C) return; if (act ? !actValOk(act, k) : (tl && !tl.includes(k.split(':')[0]))) return; const M = window.EPS_M || [], cnt = {}; M.forEach(m => cnt[m[0]] = 0); let n = 0;
       Object.keys(C).filter(e => one ? e === one : true).forEach(e => (typeof valLvls === 'function' ? valLvls(C[e]) : []).forEach(l => { if (M[l]) { cnt[M[l][0]]++; n++; } })); if (!n) return;
       const base = k.split(':')[0], nmk = (typeof VAL_TOOLS !== 'undefined' && VAL_TOOLS[base] && VAL_TOOLS[base].n) || (names2[base]) || k; const col = {}; M.forEach(m => col[m[0]] = m[1]);
-      out.push(mk(`Maîtrise validée${who} · ${nmk}${k.includes(':') ? ' (' + k.split(':').slice(1).join(' ') + ')' : ''}`, cnt, col, `${n} critère${n > 1 ? 's' : ''} validé${n > 1 ? 's' : ''}`)); }); });
+      out.push(mk(`Maîtrise validée${who} · ${nmk}${act && act.sport ? ' (' + SPN(act.sport) + ')' : ''}${k.includes(':') ? ' (' + k.split(':').slice(1).join(' ') + ')' : ''}`, cnt, col, `${n} critère${n > 1 ? 's' : ''} validé${n > 1 ? 's' : ''}`)); }); });
     return out.filter(P => P.seg.length && P.seg.reduce((a, x) => a + x.v, 0) > 0);
   }
   window.fichesPies = piesFor;
   window.fichesPieHTML = pieSVG;
-  const piesBlock = (cls, names) => { const P = piesFor(cls, names).map(pieSVG).filter(Boolean); return P.length ? `<div class="pies">${P.join('')}</div>` : ''; };
+  const piesBlock = (cls, names, o) => { const P = piesFor(cls, names, o).map(pieSVG).filter(Boolean); return P.length ? `<div class="pies">${P.join('')}</div>` : ''; };
+
+  /* ---------- Activités d'une classe : sport (tournois / matchs / validation du bon outil) ou outil ---------- */
+  function actsFor(cls) {
+    const A = [], vk = valKeys(cls), TN = Object.fromEntries((typeof TOOLS !== 'undefined' ? TOOLS : []).map(t => [t.id, t.name])), sports = {}, claimed = new Set();
+    const addSp = (sp, d) => { if (!sp) return; const x = sports[sp] = sports[sp] || { d: 0 }; x.d = Math.max(x.d, d || 0); };
+    (Array.isArray(DB.matchs) ? DB.matchs : []).forEach(m => { if (m && m.sport && inCls(m, cls)) addSp(m.sport, m.date); });
+    (typeof TR === 'function' ? TR() : []).forEach(t => { if (t && t.sport && t.classe === cls) addSp(t.sport, t.date); });
+    Object.entries(sports).sort((a, b) => b[1].d - a[1].d).forEach(([sp, x]) => { const tool = toolOfSport(sp), VT = (typeof VAL_TOOLS !== 'undefined' && VAL_TOOLS[tool]) || {};
+      const val = vk.filter(k => { const [t, sb] = k.split(':'); return t === tool && (sb ? sb === sp : !(VT.sub && VT.sub[sp])); }); claimed.add(tool);
+      A.push({ id: 'sp:' + sp, label: SPN(sp), icon: tool === 'matchr' ? '🏸' : '🏅', sport: sp, tool, tools: [tool], val, date: x.d }); });
+    const tools = new Set(vk.map(k => k.split(':')[0])); (DB.resultats || []).forEach(r => { if (r && r.classe === cls && r.tool && r.tool !== 'valid' && !/^valid\|/.test(String(r.key || ''))) tools.add(r.tool); });
+    if (((DB.escalade || {}).passages || []).some(p => p.classe === cls)) tools.add('escalade');
+    tools.forEach(t => { if (claimed.has(t) || ['match', 'matchr', 'escrime'].includes(t) && A.some(a => a.tool === t)) return; const VT = (typeof VAL_TOOLS !== 'undefined' && VAL_TOOLS[t]) || {};
+      A.push({ id: 'tl:' + t, label: VT.n || TN[t] || t, icon: '🎯', sport: null, tool: t, tools: [t], val: vk.filter(k => k.split(':')[0] === t) }); });
+    return A;
+  }
+  window.fichesActs = actsFor; window.fichesEvOk = evOk;
+  /* jour(s) de l'évaluation = date(s) de validation enseignant de l'élève pour l'activité */
+  function daysOf(cls, n, act) { const S = new Set(); const V = (DB.valid || {}).v || {}; Object.keys(V).filter(k => actValOk(act, k)).forEach(k => { const W = V[k] && V[k][cls] && V[k][cls][n]; if (W && W._t && +W._t > 1e12) S.add(dayS(W._t)); }); return S; }
 
   /* ---------- Une fiche (une page ou plus) ---------- */
   function ficheHTML(cls, n, o) {
-    const M = Mx(), V = o.val !== false ? valEntries(cls, n, o.tools) : [], C = o.coll !== false ? collEntries(cls, n) : [];
-    const P = o.res !== false ? perfCards(cls, n, o.tools) : '', G = o.gr !== false ? grilleCards(cls, n, o.grilles || (DB.grilles || []).map((_, i) => i)) : '';
-    const PI = o.pie !== false ? piesBlock(cls, [n]) : '';
+    const act = o.act || null, days = act && o.day ? daysOf(cls, n, act) : null, oo = { ...o, days };
+    const M = Mx(), V = o.val !== false ? valEntries(cls, n, o.tools, act) : [], C = o.coll !== false ? collEntries(cls, n, oo) : [];
+    const P = o.res !== false ? perfCards(cls, n, act ? (act.sport ? [] : act.tools) : o.tools) : '', G = o.gr !== false && !act ? grilleCards(cls, n, o.grilles || (DB.grilles || []).map((_, i) => i)) : '';
+    const PI = o.pie !== false ? piesBlock(cls, [n], oo) : '';
     if (!V.length && !C.length && !P && !G && !PI) return '';
     const notes = V.filter(e => e.NT).map(e => e.NT.n20), moy = notes.length ? notes.reduce((a, b) => a + b, 0) / notes.length : null, avgAll = epsMAvg(V.map(e => e.avg).filter(x => x != null));
     const mt = C.map(x => matchChips(x.e, String(x.row[1] || ''))).filter(Boolean).flat(), nV = mt.filter(m => m.r === 'V').length, medals = C.filter(x => typeof x.row[0] === 'number' && x.row[0] <= 3).length;
@@ -305,13 +359,13 @@ h3.st{margin:18px 0 6px;font-size:1.05rem;color:#0B2A5B;border-bottom:3px solid 
   window.fichesPieCSS = CSS.slice(CSS.indexOf('.pies{'), CSS.indexOf('@media print'));
   const namesOf = cls => { const st = (studentsOf(cls) || []).slice(); (DB.resultats || []).forEach(r => { if (r && r.classe === cls && r.eleve && !st.includes(r.eleve)) st.push(r.eleve); }); valKeys(cls).forEach(k => Object.keys(DB.valid.v[k][cls] || {}).forEach(n => { if (!st.includes(n)) st.push(n); })); return st; };
   window.fichesNames = namesOf;
-  window.fichesBodyFor = opt => fichesBody(opt.classes.map(cls => ({ cls, names: namesOf(cls) })), { tools: opt.tools, grilles: opt.grilles, coll: opt.coll !== false });
+  window.fichesBodyFor = opt => fichesBody(opt.classes.map(cls => ({ cls, names: namesOf(cls) })), { tools: opt.tools, grilles: opt.grilles, coll: opt.coll !== false, act: opt.act, day: opt.day });
 
   /* ---------- Bilan de classe : validation enseignant en carte de chaleur ---------- */
   window.bilanValid = (cls, opt = {}) => {
     if (typeof valCrit !== 'function') return '';
     const M = Mx(), st = (studentsOf(cls) || []).slice(), V = (DB.valid || {}).v || {}, lv = valLevelOf(cls); let html = '';
-    valKeys(cls).forEach(k => { const [t, sb] = k.split(':'); if (opt.tools && !opt.tools.includes(t)) return;
+    valKeys(cls).forEach(k => { const [t, sb] = k.split(':'); if (opt.act ? !actValOk(opt.act, k) : opt.tools && !opt.tools.includes(t)) return;
       const D = V[k][cls], names = [...new Set([...st, ...Object.keys(D)])].filter(n => D[n] && valLvls(D[n]).length); if (!names.length) return;
       const T = VAL_TOOLS[t] || { n: t }, ck = valHasSet(k, lv) ? k + '@' + lv : k; let C = []; try { C = valCrit(ck); } catch (e) {} if (!C.length) return;
       const cfg = valCfg(ck), title = T.n + (sb ? ' · ' + ((T.sub && T.sub[sb] && T.sub[sb].n) || sb) : ''), pts = cfg.on;
@@ -330,7 +384,7 @@ h3.st{margin:18px 0 6px;font-size:1.05rem;color:#0B2A5B;border-bottom:3px solid 
     return html;
   };
 
-  window.bilanPies = cls => { const P = piesFor(cls, null).map(pieSVG).filter(Boolean); return P.length ? `<h3><span class="dot" style="background:#8E44AD"></span>🥧 Répartitions de la classe <small>points bonus, consignes, rapports</small></h3><div class="pies">${P.join('')}</div>` : ''; };
+  window.bilanPies = (cls, opt) => { const P = piesFor(cls, null, { tools: opt && opt.tools, act: opt && opt.act }).map(pieSVG).filter(Boolean); return P.length ? `<h3><span class="dot" style="background:#8E44AD"></span>🥧 Répartitions de la classe <small>points bonus, consignes, rapports</small></h3><div class="pies">${P.join('')}</div>` : ''; };
   /* ---------- Fenêtre : choisir classe / élève / contenu, puis aperçu, partage, impression ---------- */
   window.epsShowDoc = (html, name, title) => {
     const v = document.createElement('div'); v.style.cssText = 'position:fixed;inset:0;z-index:310;background:#333;display:flex;flex-direction:column';
@@ -349,25 +403,33 @@ h3.st{margin:18px 0 6px;font-size:1.05rem;color:#0B2A5B;border-bottom:3px solid 
       setTimeout(() => { try { window.print(); } catch (e) { toast('Impression impossible'); } }, 200); };
   };
 
-  window.openFiches = () => {
+  window.openFiches = (pre) => {
+    pre = pre || {};
     const classes = [...new Set([...(DB.classes || []).map(c => c.name), ...(DB.resultats || []).map(r => r && r.classe).filter(Boolean), ...(typeof epsCollClasses === 'function' ? epsCollClasses() : [])])].filter(Boolean);
     if (!classes.length) return toast('Créez d\'abord une classe');
-    let cls = classes.includes(DB.lastClass) ? DB.lastClass : classes[0];
+    let cls = pre.cls && classes.includes(pre.cls) ? pre.cls : classes.includes(DB.lastClass) ? DB.lastClass : classes[0], actId = pre.actId || '', dayOn = pre.day != null ? !!pre.day : true, who0 = pre.who || '';
+    if (!actId && pre.valKey) { const A0 = actsFor(cls).filter(a => a.val.includes(pre.valKey)).sort((a, b) => (b.date || 0) - (a.date || 0))[0]; if (A0) actId = A0.id; }
     const o = document.createElement('div'); o.style.cssText = 'position:fixed;inset:0;z-index:300;background:rgba(0,0,0,.55);display:grid;place-items:center;padding:14px;overflow:auto';
     const chk = (k, l, on = true) => `<label style="display:flex;align-items:center;gap:8px;margin:6px 0;font-weight:700"><input type="checkbox" data-o="${k}" ${on ? 'checked' : ''} style="width:20px;height:20px;margin:0"> ${l}</label>`;
-    const draw = () => { const st = namesOf(cls);
+    const draw = () => { const st = namesOf(cls), AC = actsFor(cls); if (actId && !AC.some(a => a.id === actId)) actId = '';
       o.innerHTML = `<div class="card" style="max-width:420px;width:100%;max-height:92vh;overflow:auto"><h3 style="margin-top:0">🧑‍🎓 Fiches élèves en couleurs</h3>
         <p class="muted" style="font-size:.82rem;margin:0 0 8px">Une fiche visuelle par élève : niveaux de maîtrise validés avec les points, tournois, matchs et classements, résultats des outils. À imprimer, enregistrer en PDF ou envoyer. Rien n'est conservé dans l'appli.</p>
         <label style="margin-top:0">Classe</label><select id="fc">${classes.map(c => `<option ${c === cls ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select>
         <label>Élève</label><select id="fe"><option value="">👥 Toute la classe (${st.length})</option>${st.map(n => `<option>${esc(n)}</option>`).join('')}</select>
+        <label>🎯 Activité</label><select id="fa"><option value="">Toutes les activités</option>${AC.map(a => `<option value="${esc(a.id)}" ${a.id === actId ? 'selected' : ''}>${esc(a.icon + ' ' + a.label)}</option>`).join('')}</select>
+        <div class="muted" style="font-size:.76rem;margin-top:3px">Choisis une activité (ex. Badminton) : la fiche ne contient que sa validation, ses tournois / matchs et ses camemberts.</div>
+        ${actId ? `<label style="display:flex;align-items:center;gap:8px;margin:8px 0 0;font-weight:700"><input type="checkbox" id="fday" ${dayOn ? 'checked' : ''} style="width:20px;height:20px;margin:0"> 📅 Seulement le tournoi / les matchs du jour de l'évaluation <small class="muted">(date de la validation)</small></label>` : ''}
         <b style="display:block;margin-top:12px">Contenu</b>${chk('val', '✅ Validation enseignant (niveaux, points, note)')}${chk('coll', '🏆 Tournois, matchs, classements')}${chk('res', '📈 Résultats des outils')}${chk('pie', '🥧 Camemberts (points bonus, consignes, rapports)')}${chk('gr', '📝 Grilles d\'évaluation')}
         <div class="row" style="margin-top:12px"><button class="btn btn-ghost" data-x>Annuler</button><button class="btn btn-grad" data-go>Créer</button></div></div>`;
-      o.querySelector('#fc').onchange = e => { cls = e.target.value; draw(); };
+      o.querySelector('#fe').value = who0; o.querySelector('#fe').onchange = e => { who0 = e.target.value; };
+      o.querySelector('#fc').onchange = e => { cls = e.target.value; who0 = ''; draw(); };
+      o.querySelector('#fa').onchange = e => { actId = e.target.value; draw(); };
+      if (o.querySelector('#fday')) o.querySelector('#fday').onchange = e => { dayOn = e.target.checked; };
       o.querySelector('[data-x]').onclick = () => o.remove();
-      o.querySelector('[data-go]').onclick = () => { const who = o.querySelector('#fe').value, op = {}; o.querySelectorAll('[data-o]').forEach(x => op[x.dataset.o] = x.checked);
+      o.querySelector('[data-go]').onclick = () => { const who = o.querySelector('#fe').value, op = {}; if (actId) { op.act = actById(actId); op.day = dayOn; } o.querySelectorAll('[data-o]').forEach(x => op[x.dataset.o] = x.checked);
         const names = who ? [who] : namesOf(cls); const html = window.fichesHTML([{ cls, names }], op); o.remove();
         if (!/class="page fiche"/.test(html)) return toast('Aucune donnée pour cette sélection');
-        epsShowDoc(html, `fiches-${(who || cls).replace(/[^\w-]+/g, '-')}-${new Date().toISOString().slice(0, 10)}.html`, who ? '🧑‍🎓 Fiche de ' + who : '🧑‍🎓 Fiches élèves · ' + cls); }; };
+        const al = actId ? (AC.find(a => a.id === actId) || {}).label : ''; epsShowDoc(html, `fiches-${(al ? al + '-' : '')}${(who || cls).replace(/[^\w-]+/g, '-')}-${new Date().toISOString().slice(0, 10)}.html`.replace(/\s+/g, '-'), (who ? '🧑‍🎓 Fiche de ' + who : '🧑‍🎓 Fiches élèves · ' + cls) + (al ? ' · ' + al : '')); }; };
     document.body.appendChild(o); draw();
   };
 })();

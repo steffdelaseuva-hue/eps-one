@@ -18,7 +18,7 @@ function bilanPie(seg, size = 150) {
 function bilanExtras(cls, opt) {
   let html = '', nColl = 0, nGr = 0; const esc2 = esc;
   if (opt.coll && typeof epsCollectifs === 'function') {
-    const E = epsCollectifs(cls).filter(e => e.rows && e.rows.length); nColl = E.length;
+    const E = epsCollectifs(cls).filter(e => e.rows && e.rows.length && (!opt.act || typeof fichesEvOk !== 'function' || fichesEvOk(e, { act: opt.act }))); nColl = E.length;
     if (E.length) {
       const kinds = {}; E.forEach(e => { const k = (typeof epsCollSect === 'function' ? epsCollSect(e.k) : e.k).replace(/^[^\p{L}]+/u, ''); kinds[k] = (kinds[k] || 0) + 1; });
       html += `<h3>Résultats collectifs <small>${E.length} événement${E.length > 1 ? 's' : ''}</small></h3><div class="grid2"><div class="card"><h3 class="nb">Événements par type</h3>${bilanPie(Object.entries(kinds).map(([l, v], i) => ({ l, v, c: BIL_COLS[(i + 5) % BIL_COLS.length] })))}</div></div>`;
@@ -201,7 +201,7 @@ function bilanHTML0(opt) {
   const tint = c => c + '22';
   const clsSections = opt.classes.map(cls => {
     const rs = all.filter(r => r.classe === cls); const st = studentsOf(cls) || [];
-    const ex = bilanExtras(cls, opt), vHTML = vis ? bilanValid(cls, opt) : '', exHTML = vHTML + (typeof bilanPies === 'function' && opt.pie !== false ? bilanPies(cls) : '') + ex.html;
+    const ex = bilanExtras(cls, opt), vHTML = vis ? bilanValid(cls, opt) : '', exHTML = vHTML + (typeof bilanPies === 'function' && opt.pie !== false ? bilanPies(cls, opt) : '') + ex.html;
     const pupils = [...new Set([...st, ...rs.map(r => r.eleve)])].filter(n => rs.some(r => r.eleve === n) || st.includes(n));
     if (!rs.length) return `<section class="page"><h2>${esc(cls)}</h2><p class="mut">${st.length} élève${st.length > 1 ? 's' : ''} · aucun résultat d'outil enregistré.</p>${exHTML}</section>`;
     const byTool = {}; rs.forEach(r => (byTool[tName(r)] = byTool[tName(r)] || []).push(r));
@@ -271,6 +271,7 @@ function openBilan() {
   o.innerHTML = `<div class="card" style="max-width:420px;width:100%;max-height:92vh;overflow:auto"><h3 style="margin-top:0">📊 Exporter un bilan</h3>
     <p class="muted" style="font-size:.82rem;margin:0 0 8px">Un fichier en couleurs (camemberts, tableaux par classe et par outil) à ouvrir, imprimer ou envoyer sur ton ordinateur. Rien n'est conservé dans l'appli.</p>
     <b>Classes</b>${classes.map(c => chk('c', c, c, null)).join('')}
+    <b style="display:block;margin-top:10px">🎯 Activité</b><select id="bil-act" style="margin-top:4px"><option value="">Toutes les activités</option>${(() => { const M = new Map(); classes.forEach(c => (window.fichesActs ? window.fichesActs(c) : []).forEach(a => { if (!M.has(a.id)) M.set(a.id, a); })); return [...M.values()].map(a => `<option value="${esc(a.id)}">${esc(a.icon + ' ' + a.label)}</option>`).join(''); })()}</select><div class="muted" style="font-size:.76rem;margin-top:3px">Choisis une seule activité (ex. Badminton) : le bilan ne contient que celle-ci (validation, tournois, camemberts).</div>
     ${tools.length ? `<b style="display:block;margin-top:10px">Résultats des outils</b>${tools.map(([id, n]) => chk('t', id, n, res.filter(r => r.tool === id).length)).join('')}` : ''}
     ${hasColl ? `<b style="display:block;margin-top:10px">Résultats collectifs</b>${chk('k', 'coll', 'Tournois, matchs, HYROX, C.O. par équipes, relais, cross…', null)}` : ''}
     ${gr.length ? `<b style="display:block;margin-top:10px">Grilles d'évaluation</b>${gr.map(x => chk('g', x.i, x.g.name, null)).join('')}` : ''}
@@ -281,10 +282,10 @@ function openBilan() {
   o.querySelector('[data-x]').onclick = () => o.remove();
   o.querySelector('[data-go]').onclick = async () => {
     const cs = [...o.querySelectorAll('[data-c]:checked')].map(x => x.dataset.c), ts = [...o.querySelectorAll('[data-t]:checked')].map(x => x.dataset.t), coll = !!o.querySelector('[data-k]:checked'), gs = [...o.querySelectorAll('[data-g]:checked')].map(x => +x.dataset.g);
-    if (!cs.length || (!ts.length && !coll && !gs.length)) return toast('Choisissez au moins une classe et un contenu');
-    const fic = !!o.querySelector('[data-f]:checked'), opt0 = { classes: cs, tools: ts, coll, grilles: gs }; let html = bilanHTML(opt0); o.remove();
+    if (!cs.length || (!ts.length && !coll && !gs.length && !(o.querySelector('#bil-act') || {}).value)) return toast('Choisissez au moins une classe et un contenu');
+    const fic = !!o.querySelector('[data-f]:checked'), opt0 = { classes: cs, tools: ts, coll, grilles: gs }, aid = (o.querySelector('#bil-act') || {}).value, A0 = aid && window.fichesActById ? window.fichesActById(aid) : null; if (A0) Object.assign(opt0, { act: A0, tools: A0.tools, coll: true, grilles: [] }); let html = bilanHTML(opt0); o.remove();
     const dd = new Date().toISOString().slice(0, 10); let name = 'bilan-eps-' + dd + '.html', blob = new Blob([html], { type: 'text/html' });
-    const docs = fic ? [{ html, name, blob }, (() => { const h = window.fichesHTML ? window.fichesHTML(cs.map(c => ({ cls: c, names: window.fichesNames(c) })), { tools: ts, grilles: gs, coll }) : bilanHTML({ ...opt0, fiches: true }); return { html: h, name: 'fiches-eleves-' + dd + '.html', blob: new Blob([h], { type: 'text/html' }) }; })()] : null;
+    const docs = fic ? [{ html, name, blob }, (() => { const h = window.fichesHTML ? window.fichesHTML(cs.map(c => ({ cls: c, names: window.fichesNames(c) })), { tools: ts, grilles: gs, coll, act: opt0.act }) : bilanHTML({ ...opt0, fiches: true }); return { html: h, name: 'fiches-eleves-' + dd + '.html', blob: new Blob([h], { type: 'text/html' }) }; })()] : null;
     const v = document.createElement('div'); v.style.cssText = 'position:fixed;inset:0;z-index:300;background:#333;display:flex;flex-direction:column';
     v.innerHTML = `<div style="display:flex;gap:8px;padding:10px;align-items:center;background:var(--grad,#0B2A5B);color:#fff;flex-wrap:wrap"><b style="flex:1">📊 Bilan</b>${fic ? '<button class="btn btn-white" data-d="0" style="outline:3px solid #C9A227">📊 Bilan</button><button class="btn btn-white" data-d="1">📄 Fiches élèves</button>' : ''}<button class="btn btn-white" data-s>📤 Enregistrer / envoyer</button><button class="btn btn-white" data-p>🖨 Imprimer / PDF</button><button class="btn btn-ghost" style="color:#fff" data-x>✕ Fermer</button></div><iframe title="Bilan" style="flex:1;border:0;background:#EEF1F7"></iframe>`;
     document.body.appendChild(v); v.querySelector('iframe').srcdoc = html; v.querySelector('[data-x]').onclick = () => v.remove();

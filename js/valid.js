@@ -86,7 +86,7 @@ function openValid(tool) {
   const draw = () => {
     const st = studentsOf(cls), C = valCrit(KC()), all = valOf(K(), cls); if (si >= st.length) si = 0; const n = st[si], V = all[n] || {};
     const L = valLvls(V), av = epsMAvg(L), cfg = valCfg(KC()), NT = cfg.on ? valNote(C, V, cfg) : null, WT = cfg.on ? valWeights(C, cfg) : null;
-    o.innerHTML = `<div style="display:flex;align-items:center;gap:8px;max-width:900px;margin:0 auto"><h2 style="flex:1;margin:0;font-size:1.15rem">✅ Validation enseignant · ${esc(NM())}</h2><button class="btn btn-ghost" style="flex:0 0 auto" data-q>✕ Fermer</button></div>
+    o.innerHTML = `<div style="display:flex;align-items:center;gap:8px;max-width:900px;margin:0 auto"><h2 style="flex:1;margin:0;font-size:1.15rem">✅ Validation enseignant · ${esc(NM())}</h2><button class="btn btn-grad" style="flex:0 0 auto" data-fx title="Fiche élève de cette activité (validation + tournoi du jour)">📄 Fiches</button><button class="btn btn-ghost" style="flex:0 0 auto" data-q>✕ Fermer</button></div>
       <div style="max-width:900px;margin:10px auto 0">
       <div class="card"><div class="row"><div><label style="margin-top:0">Classe</label><select id="vc">${DB.classes.map(c => `<option ${c.name === cls ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</select></div>
         ${view === 'eleve' ? `<div><label style="margin-top:0">Élève</label><select id="ve">${st.map((x, k) => { const q = epsMAvg(valLvls(all[x])); return `<option value="${k}" ${k === si ? 'selected' : ''}>${q != null ? '✓ ' : ''}${esc(x)}</option>`; }).join('')}</select></div>` : ''}</div>
@@ -127,6 +127,7 @@ function openValid(tool) {
       </div>`;
     const $ = s => o.querySelector(s), A = s => o.querySelectorAll(s), snap = l => { undo = { l, v: JSON.stringify(VD()) }; };
     $('[data-q]').onclick = close;
+    if ($('[data-fx]')) $('[data-fx]').onclick = () => { if (typeof openFiches !== 'function') return toast('Fiches indisponibles'); const who = view === 'eleve' ? st[si] : ''; openFiches({ cls, valKey: K(), who, day: true }); };
     $('#vc').onchange = e => { cls = e.target.value; DB.lastClass = cls; si = 0; save(); draw(); };
     if ($('#ve')) $('#ve').onchange = e => { si = +e.target.value; draw(); };
     A('[data-v]').forEach(b => b.onclick = () => { view = b.dataset.v; if (view === 'crit') clv = valHasSet(K(), valLevelOf(cls)) ? valLevelOf(cls) : clv; draw(); });
