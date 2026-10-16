@@ -18,7 +18,7 @@ function bilanPie(seg, size = 150) {
 function bilanExtras(cls, opt) {
   let html = '', nColl = 0, nGr = 0; const esc2 = esc;
   if (opt.coll && typeof epsCollectifs === 'function') {
-    const E = epsCollectifs(cls).filter(e => e.rows && e.rows.length && (!opt.act || typeof fichesEvOk !== 'function' || fichesEvOk(e, { act: opt.act }))); nColl = E.length;
+    const E = epsCollectifs(cls).filter(e => e.rows && e.rows.length && (typeof fichesEvData !== 'function' || fichesEvData(e)) && (!opt.act || typeof fichesEvOk !== 'function' || fichesEvOk(e, { act: opt.act }))); nColl = E.length;
     if (E.length) {
       const kinds = {}; E.forEach(e => { const k = (typeof epsCollSect === 'function' ? epsCollSect(e.k) : e.k).replace(/^[^\p{L}]+/u, ''); kinds[k] = (kinds[k] || 0) + 1; });
       html += `<h3>Résultats collectifs <small>${E.length} événement${E.length > 1 ? 's' : ''}</small></h3><div class="grid2"><div class="card"><h3 class="nb">Événements par type</h3>${bilanPie(Object.entries(kinds).map(([l, v], i) => ({ l, v, c: BIL_COLS[(i + 5) % BIL_COLS.length] })))}</div></div>`;

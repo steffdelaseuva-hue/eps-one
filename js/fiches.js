@@ -16,13 +16,16 @@
   const has = f => typeof f === 'function';
   const toolOfSport = sp => { try { return typeof matchToolOf === 'function' ? matchToolOf(sp) : 'match'; } catch (e) { return 'match'; } };
   const KT = { tournoi: null, match: null, wod: 'wod', co: 'co', combine: 'combine', duathlon: 'duathlon', relais: 'relais', cross: 'cross' };
+  /* événement collectif sans aucune donnée enregistrée (ex. tournoi dont les matchs ne sont pas arrivés) : à ne pas afficher */
+  const evHasData = e => !(e && e.kind === 'tournoi' && e.tid) || (Array.isArray(DB.matchs) && DB.matchs.some(m => m.tid === e.tid && !m.obsOnly));
+  window.fichesEvData = evHasData;
   const dayS = ts => ts ? new Date(+ts).toDateString() : '';
   /* événement collectif retenu ? (activité choisie / outils cochés / jour de l'évaluation) */
   const actValOk = (act, k) => { const [t, sb] = k.split(':'); if (t !== act.tool) return false; if (!act.sport) return true; const VT = (typeof VAL_TOOLS !== 'undefined' && VAL_TOOLS[t]) || {}; return sb ? sb === act.sport : !(VT.sub && VT.sub[act.sport]); };
   const actById = id => { const m = /^(sp|tl):(.+)$/.exec(id || ''); if (!m) return null; if (m[1] === 'sp') { const t = toolOfSport(m[2]); return { id, sport: m[2], tool: t, tools: [t] }; } return { id, sport: null, tool: m[2], tools: [m[2]] }; };
   window.fichesActById = actById; window.fichesActValOk = actValOk;
   function evOk(e, o) {
-    o = o || {}; const act = o.act, tl = o.tools, isSp = e.kind === 'tournoi' || e.kind === 'match', tool = isSp ? toolOfSport(e.sport) : KT[e.kind];
+    o = o || {}; if (!evHasData(e)) return false; const act = o.act, tl = o.tools, isSp = e.kind === 'tournoi' || e.kind === 'match', tool = isSp ? toolOfSport(e.sport) : KT[e.kind];
     if (act) { if (isSp) { if (!act.sport || e.sport !== act.sport) return false; } else if (!(act.tools || []).includes(tool)) return false; }
     else if (tl && tool && !tl.includes(tool)) return false;
     if (o.days && o.days.size) { const ds = [e.date]; if (e.tid && Array.isArray(DB.matchs)) DB.matchs.filter(m => m.tid === e.tid).forEach(m => ds.push(m.date)); if (!ds.some(d => o.days.has(dayS(d)))) return false; }
@@ -114,7 +117,9 @@
     try { (typeof TR === 'function' ? TR() : []).forEach(T => { if (!T || T.classe !== cls || out.some(x => x.e.tid === T.id)) return; const tm = (T.teams || []).find(t => (t.members || []).includes(n) || t.name === n); if (!tm) return;
       const PL = poolOf(T, tm.name); if (!PL) return; const e = EV.find(x => x.tid === T.id) || (evOk({ kind: 'tournoi', sport: T.sport, tid: T.id, date: T.date }, o) ? { kind: 'tournoi', tid: T.id, sport: T.sport, date: T.date, icon: '🔁', title: T.nom || 'Tournoi', sub: `Championnat (poule) · ${SPN(T.sport)} · ${dt(T.date)}` } : null); if (!e) return;
       out.push({ e, row: [PL.rank || '', tm.name, (tm.members || []).join(', '), ''], N: PL.n }); }); } catch (er) {}
-    return out.sort((a, b) => b.e.date - a.e.date);
+    // tournoi sans aucun match enregistré pour cette équipe (résultats non arrivés) : pas de carte du tout
+    const played = x => x.e.kind !== 'tournoi' || !x.e.tid || (Array.isArray(DB.matchs) && DB.matchs.some(m => m.tid === x.e.tid && !m.obsOnly && (m.a === String(x.row[1]) || m.b === String(x.row[1]))));
+    return out.filter(played).sort((a, b) => b.e.date - a.e.date);
   }
   function matchChips(e, team) {
     if (!e.tid || !Array.isArray(DB.matchs)) return null;
@@ -134,7 +139,6 @@
     const rankBox = rk0 != null && typeof rk0 === 'number' ? `<div class="rk" style="background:${c}"><span>${medal(rk0) || ''}</span><b>${rk0}${rk0 === 1 ? 'er' : 'e'}</b><small>sur ${NN}${PL && PL.multi ? ' · ' + esc(PL.g || 'poule') : ''}</small></div>` : outcome ? `<div class="rk" style="background:${outcome === 'V' ? '#1B9E5A' : outcome === 'D' ? '#D64545' : '#8A94AA'}"><b>${outcome === 'V' ? 'Victoire' : outcome === 'D' ? 'Défaite' : 'Nul'}</b></div>` : '';
     return `<div class="ev2" style="--c:${c}"><div class="e-top"><span class="e-ic">${e.icon || '🏆'}</span><div class="e-t"><b>${esc(plain(e.title || e.event))}</b><div class="mut">${esc(plain(e.sub || dt(e.date)))}</div></div>${rankBox}</div>
       ${PL && PL.multi ? `<div class="e-team" style="color:#8E44AD;font-weight:800">🎚 Poule par niveau de jeu : ${esc(PL.g || 'poule')}${PL.level ? ' — ' + esc(PL.level) : ''}${PL.rank ? ` · ${PL.rank}${PL.rank === 1 ? 'er' : 'e'} sur ${PL.n}` : ''}</div>` : ''}
-      ${PL && !PL.j ? `<div class="e-team" style="color:#D64545;font-weight:800">⚠️ Aucun match enregistré pour cette équipe : pas de classement.</div>` : ''}
       ${team && team !== x.n ? `<div class="e-team"><b>${esc(team)}</b>${mem ? ` <span class="mut">${esc(mem)}</span>` : ''}</div>` : ''}
       ${M2 ? `<div class="mch">${M2.map(m => `<span class="mc ${m.r}"><b>${m.r}</b> ${m.my}–${m.op}<small>${esc(String(m.opp))}</small></span>`).join('')}</div>
         <div class="wl"><i style="width:${W.V / M2.length * 100}%;background:#1B9E5A"></i><i style="width:${W.N / M2.length * 100}%;background:#8A94AA"></i><i style="width:${W.D / M2.length * 100}%;background:#D64545"></i></div>
@@ -273,7 +277,7 @@
     sub(() => { if (!okTool('natation')) return; const A = (DB.asns || {})[cls]; if (!A || typeof ASNS === 'undefined') return; const ep = { Réussies: 0, 'À reprendre': 0, 'Non évaluées': 0 }, per = ASNS.map(() => ({ ok: 0, ko: 0 })), sn = { 'Savoir-nager validé': 0, 'En cours': 0, 'Non commencé': 0 }; let any = false;
       (one ? [one] : stu).forEach(n => { const r = A[n]; if (!r || !r.r) { if (!one) sn['Non commencé']++; return; } any = true; r.r.forEach((v, i) => { if (v === 1) { ep.Réussies++; per[i].ok++; } else if (v === 0) { ep['À reprendre']++; per[i].ko++; } else ep['Non évaluées']++; });
         if (r.r.every(v => v === 1)) sn['Savoir-nager validé']++; else if (r.r.some(v => v != null)) sn['En cours']++; else sn['Non commencé']++; });
-      if (!any) return; const g = { Réussies: '#1B9E5A', 'À reprendre': '#D64545', 'Non évaluées': '#C7CEDB', 'Savoir-nager validé': '#1B9E5A', 'En cours': '#E0892F', 'Non commencé': '#C7CEDB' };
+      if (!any || !(ep.Réussies + ep['À reprendre'])) return; const g = { Réussies: '#1B9E5A', 'À reprendre': '#D64545', 'Non évaluées': '#C7CEDB', 'Savoir-nager validé': '#1B9E5A', 'En cours': '#E0892F', 'Non commencé': '#C7CEDB' };
       out.push(mk(`Natation${who} · épreuves du savoir-nager`, ep, g)); if (!one) { out.push(mk('Natation de la classe · savoir-nager', sn, g)); const w = per.map((x, i) => [ASNS[i], x.ko]).sort((a, b) => b[1] - a[1])[0]; if (w && w[1]) out[out.length - 2].note = `Épreuve la plus échouée : ${w[0]} (${w[1]})`; } });
     // 🏋️ Crosstraining / HYROX : séances terminées dans le temps, blocs réalisés, écart au prévu
     sub(() => { const L2 = RT('wod'); if (!L2.length) return; const fin = { 'Terminé dans le temps': 0, 'Time cap atteint': 0, 'Non terminé': 0 }, bl = { 'Blocs réalisés': 0, 'Blocs non réalisés': 0 }, ec = { 'Plus vite que prévu': 0, 'Dans le prévu': 0, 'Plus lent que prévu': 0 };

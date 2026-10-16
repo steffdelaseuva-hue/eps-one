@@ -4,9 +4,11 @@
    ========================================================= */
 /* Page Ko-fi : laisser vide tant qu'elle n'existe pas (le bouton est alors masqué) */
 const KOFI_URL = 'https://ko-fi.com/epsone';
-const APP_VERSION = '23.57';
+const APP_VERSION = '23.59';
 const APP_URL = 'https://steffdelaseuva-hue.github.io/eps-one/';
 const CHANGELOG = [
+  { v: '23.59', items: ['Fiches et bilans : règle générale — tout ce qui n\'a aucune donnée enregistrée (tournoi sans match arrivé, savoir-nager non évalué…) est masqué, pour tous les outils et toutes les activités, dans les fiches élèves comme dans les bilans de classe.'] },
+  { v: '23.58', items: ['Fiches : un tournoi dont les matchs de l\'élève ne sont pas arrivés (synchronisation) n\'affiche plus aucune carte ni message — rien du tout, la fiche ne montre que ce qui est réellement enregistré.'] },
   { v: '23.57', items: ['Fiches : correction du classement de poule. Une équipe sans aucun match enregistré n\'est plus classée « 1re » : la fiche affiche « Aucun match enregistré ». Le rang, les points et la poule sont recalculés d\'après les rencontres réellement jouées.'] },
   { v: '23.56', items: ['Fiches élèves : bouton « 📦 Créer le ZIP de la classe » — un fichier indépendant par élève (à envoyer un par un), pour une activité choisie ou pour toutes (un dossier par activité, ou une seule fiche complète par élève).'] },
   { v: '23.55', items: ['Fiches et bilans PAR ACTIVITÉ : choisis une seule activité (ex. Badminton) dans « Fiches élèves en couleurs » ou « Exporter un bilan » — plus de natation ni d\'autres outils mélangés ; bouton 📄 Fiches directement dans la validation enseignant de chaque outil (activité, classe et élève déjà choisis).', 'Option « seulement le tournoi du jour de l\'évaluation » (date de la validation). Camemberts par tournoi : nom, date, poule par niveau de jeu (niveau 1, 2, 3…), classement dans la poule (1er sur 4…), victoires, points bonus.'] },
