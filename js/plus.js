@@ -4,9 +4,10 @@
    ========================================================= */
 /* Page Ko-fi : laisser vide tant qu'elle n'existe pas (le bouton est alors masqué) */
 const KOFI_URL = 'https://ko-fi.com/epsone';
-const APP_VERSION = '23.61';
+const APP_VERSION = '23.62';
 const APP_URL = 'https://steffdelaseuva-hue.github.io/eps-one/';
 const CHANGELOG = [
+  { v: '23.62', items: ['Fiches élèves : les tableaux à double entrée tiennent maintenant en entier sur la largeur (écran de téléphone, impression, PDF) — plus de défilement latéral ni de tableau coupé.'] },
   { v: '23.61', items: ['Fiche élève HYROX : la validation enseignant n\'est plus répétée sous le tableau (elle figure déjà en tête de fiche).'] },
   { v: '23.60', items: ['Fiche élève : résultats des outils en TABLEAUX À DOUBLE ENTRÉE (HYROX / crosstraining par bloc et par exercice, duathlon par étape, demi-fond, combiné, orientation…), limités à l\'élève avec le cumul du groupe.', 'HYROX / crosstraining : plus d\'« écart / temps prévu » — on affiche le temps limite (time cap) : « dans le temps limite » ou « temps limite atteint » (fiches, bilans, écran de séance, nouveaux résultats).'] },
   { v: '23.59', items: ['Fiches et bilans : règle générale — tout ce qui n\'a aucune donnée enregistrée (tournoi sans match arrivé, savoir-nager non évalué…) est masqué, pour tous les outils et toutes les activités, dans les fiches élèves comme dans les bilans de classe.'] },
