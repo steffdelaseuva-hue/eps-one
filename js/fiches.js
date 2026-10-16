@@ -29,13 +29,23 @@
     return true;
   }
   /* poule d'une équipe dans un tournoi : { g, n, rank, pts, level } (level : niveau de jeu de la poule d'après les niveaux de la classe) */
+  /* classement d'une poule d'après les RENCONTRES réellement jouées (même barème et mêmes départages que l'appli) */
+  function stand2(T, g) {
+    const P = T.pts || { v: 3, n: 2, d: 1 }, res = tResults(T), rs = T.rencontres.filter(r => (r.g || '') === g), s = {};
+    rs.forEach(r => [r.a, r.b].forEach(x => { if (!s[x]) s[x] = { t: x, j: 0, g: 0, n: 0, p: 0, bp: 0, bc: 0, pts: 0 }; }));
+    rs.forEach(r => { const m = res[r.id], A = s[r.a], B = s[r.b]; if (!m) return; const [x, y] = tScore(r, m);
+      A.j++; B.j++; A.bp += x; A.bc += y; B.bp += y; B.bc += x;
+      if (x > y) { A.g++; B.p++; A.pts += P.v; B.pts += P.d; } else if (x < y) { B.g++; A.p++; B.pts += P.v; A.pts += P.d; } else { A.n++; B.n++; A.pts += P.n; B.pts += P.n; } });
+    return Object.values(s).sort((a, b) => b.pts - a.pts || (b.bp - b.bc) - (a.bp - a.bc) || b.bp - a.bp || a.t.localeCompare(b.t));
+  }
   function poolOf(T, team) {
-    try { if (!T || !T.rencontres || typeof tStand !== 'function') return null; const fm = (typeof tFmt === 'function' ? tFmt(T) : T.format); if (fm !== 'poule') return null;
-      const rn = T.rencontres.find(r => r.a === team || r.b === team); if (!rn) return null; const g = rn.g || '', st = tStand(T, g), i = st.findIndex(x => x.t === team); if (i < 0) return null;
-      const gs = [...new Set(T.rencontres.map(r => r.g || ''))]; let level = '';
-      if (gs.length > 1 && typeof lvlOf === 'function' && T.classe) { const av = G2 => { const L = (T.teams || []).filter(x => (x.g || '') === G2).flatMap(x => (x.members || []).map(m => lvlOf(T.classe, typeof m === 'object' ? m.n : m))).filter(v => v > 0); return L.length ? L.reduce((a, b) => a + b, 0) / L.length : 0; };
-        const A = gs.map(x => [x, av(x)]); if (A.every(x => x[1] > 0)) { const sorted = A.slice().sort((a, b) => b[1] - a[1]), k = sorted.findIndex(x => x[0] === g); if (sorted[0][1] !== sorted[sorted.length - 1][1]) level = 'niveau ' + (sorted.length - k) + ' sur ' + sorted.length; } }
-      return { g, n: st.length, rank: i + 1, pts: st[i].pts, level, multi: gs.length > 1 }; } catch (e) { return null; }
+    try { if (!T || !T.rencontres || typeof tResults !== 'function' || typeof tScore !== 'function') return null; const fm = (typeof tFmt === 'function' ? tFmt(T) : T.format); if (fm !== 'poule') return null;
+      const mine = [...new Set(T.rencontres.filter(r => r.a === team || r.b === team).map(r => r.g || ''))]; if (!mine.length) return null;
+      const C = mine.map(g => { const st = stand2(T, g), i = st.findIndex(x => x.t === team); return { g, st, i, me: st[i] }; }).filter(x => x.me).sort((a, b) => b.me.j - a.me.j)[0]; if (!C) return null;
+      const gs = [...new Set(T.rencontres.map(r => r.g || ''))], memOf = n => { const x = (T.teams || []).find(t => t.name === n); return x ? (x.members || []) : []; }; let level = '';
+      if (gs.length > 1 && typeof lvlOf === 'function' && T.classe) { const av = G2 => { const L = stand2(T, G2).flatMap(x => memOf(x.t).map(m => lvlOf(T.classe, typeof m === 'object' ? m.n : m))).filter(v => v > 0); return L.length ? L.reduce((a, b) => a + b, 0) / L.length : 0; };
+        const A = gs.map(x => [x, av(x)]); if (A.every(x => x[1] > 0)) { const sorted = A.slice().sort((a, b) => b[1] - a[1]), k = sorted.findIndex(x => x[0] === C.g); if (sorted[0][1] !== sorted[sorted.length - 1][1]) level = 'niveau ' + (sorted.length - k) + ' sur ' + sorted.length; } }
+      const me = C.me; return { g: C.g, n: C.st.length, rank: me.j ? C.i + 1 : null, pts: me.pts, V: me.g, N: me.n, D: me.p, diff: me.bp - me.bc, j: me.j, level, multi: gs.length > 1 }; } catch (e) { return null; }
   }
 
   /* ---------- Validation enseignant : entrées d'un élève ---------- */
@@ -99,7 +109,12 @@
   /* ---------- Tournois, matchs, classements… ---------- */
   function collEntries(cls, n, o) {
     const EV = (has(window.epsCollectifs) ? window.epsCollectifs(cls) : []).filter(e => evOk(e, o));
-    return EV.map(e => { const rows = e.rows || [], row = rows.find(r => String(r[2] || '').split(',').map(s => s.trim()).includes(n) || String(r[1]) === n); return row ? { e, row, N: rows.length } : null; }).filter(Boolean).sort((a, b) => b.e.date - a.e.date);
+    const out = EV.map(e => { const rows = e.rows || [], row = rows.find(r => String(r[2] || '').split(',').map(s => s.trim()).includes(n) || String(r[1]) === n); return row ? { e, row, N: rows.length } : null; }).filter(Boolean);
+    // tournoi dont le classement affiché est vide (équipes rangées dans une autre poule que celle des rencontres) : on reconstruit la ligne d'après les rencontres jouées
+    try { (typeof TR === 'function' ? TR() : []).forEach(T => { if (!T || T.classe !== cls || out.some(x => x.e.tid === T.id)) return; const tm = (T.teams || []).find(t => (t.members || []).includes(n) || t.name === n); if (!tm) return;
+      const PL = poolOf(T, tm.name); if (!PL) return; const e = EV.find(x => x.tid === T.id) || (evOk({ kind: 'tournoi', sport: T.sport, tid: T.id, date: T.date }, o) ? { kind: 'tournoi', tid: T.id, sport: T.sport, date: T.date, icon: '🔁', title: T.nom || 'Tournoi', sub: `Championnat (poule) · ${SPN(T.sport)} · ${dt(T.date)}` } : null); if (!e) return;
+      out.push({ e, row: [PL.rank || '', tm.name, (tm.members || []).join(', '), ''], N: PL.n }); }); } catch (er) {}
+    return out.sort((a, b) => b.e.date - a.e.date);
   }
   function matchChips(e, team) {
     if (!e.tid || !Array.isArray(DB.matchs)) return null;
@@ -115,14 +130,16 @@
     const outcome = !M2 && e.kind === 'match' ? (/Victoire/.test(rs) ? 'V' : /D[ée]faite/.test(rs) ? 'D' : /Nul/.test(rs) ? 'N' : '') : '';
     const mem = String(row[2] || '').trim();
     const T0 = e.kind === 'tournoi' && e.tid && typeof TR === 'function' ? TR().find(t => t.id === e.tid) : null, PL = T0 ? poolOf(T0, team) : null, NN = PL ? PL.n : N;
-    const rankBox = rk != null ? `<div class="rk" style="background:${c}"><span>${medal(rk) || ''}</span><b>${rk}${rk === 1 ? 'er' : 'e'}</b><small>sur ${NN}${PL && PL.multi ? ' · ' + esc(PL.g || 'poule') : ''}</small></div>` : outcome ? `<div class="rk" style="background:${outcome === 'V' ? '#1B9E5A' : outcome === 'D' ? '#D64545' : '#8A94AA'}"><b>${outcome === 'V' ? 'Victoire' : outcome === 'D' ? 'Défaite' : 'Nul'}</b></div>` : '';
+    const rk0 = PL ? PL.rank : rk, rs0 = PL ? `${PL.pts} pts · ${PL.V} V ${PL.N} N ${PL.D} D · diff ${PL.diff > 0 ? '+' : ''}${PL.diff}${PL.g ? ' · ' + PL.g : ''}` : rs;
+    const rankBox = rk0 != null && typeof rk0 === 'number' ? `<div class="rk" style="background:${c}"><span>${medal(rk0) || ''}</span><b>${rk0}${rk0 === 1 ? 'er' : 'e'}</b><small>sur ${NN}${PL && PL.multi ? ' · ' + esc(PL.g || 'poule') : ''}</small></div>` : outcome ? `<div class="rk" style="background:${outcome === 'V' ? '#1B9E5A' : outcome === 'D' ? '#D64545' : '#8A94AA'}"><b>${outcome === 'V' ? 'Victoire' : outcome === 'D' ? 'Défaite' : 'Nul'}</b></div>` : '';
     return `<div class="ev2" style="--c:${c}"><div class="e-top"><span class="e-ic">${e.icon || '🏆'}</span><div class="e-t"><b>${esc(plain(e.title || e.event))}</b><div class="mut">${esc(plain(e.sub || dt(e.date)))}</div></div>${rankBox}</div>
-      ${PL && PL.multi ? `<div class="e-team" style="color:#8E44AD;font-weight:800">🎚 Poule par niveau de jeu : ${esc(PL.g || 'poule')}${PL.level ? ' — ' + esc(PL.level) : ''} · ${PL.rank}${PL.rank === 1 ? 'er' : 'e'} sur ${PL.n}</div>` : ''}
+      ${PL && PL.multi ? `<div class="e-team" style="color:#8E44AD;font-weight:800">🎚 Poule par niveau de jeu : ${esc(PL.g || 'poule')}${PL.level ? ' — ' + esc(PL.level) : ''}${PL.rank ? ` · ${PL.rank}${PL.rank === 1 ? 'er' : 'e'} sur ${PL.n}` : ''}</div>` : ''}
+      ${PL && !PL.j ? `<div class="e-team" style="color:#D64545;font-weight:800">⚠️ Aucun match enregistré pour cette équipe : pas de classement.</div>` : ''}
       ${team && team !== x.n ? `<div class="e-team"><b>${esc(team)}</b>${mem ? ` <span class="mut">${esc(mem)}</span>` : ''}</div>` : ''}
       ${M2 ? `<div class="mch">${M2.map(m => `<span class="mc ${m.r}"><b>${m.r}</b> ${m.my}–${m.op}<small>${esc(String(m.opp))}</small></span>`).join('')}</div>
         <div class="wl"><i style="width:${W.V / M2.length * 100}%;background:#1B9E5A"></i><i style="width:${W.N / M2.length * 100}%;background:#8A94AA"></i><i style="width:${W.D / M2.length * 100}%;background:#D64545"></i></div>
         <div class="wlt"><span style="color:#1B9E5A">${W.V} victoire${W.V > 1 ? 's' : ''}</span><span>${W.N} nul${W.N > 1 ? 's' : ''}</span><span style="color:#D64545">${W.D} défaite${W.D > 1 ? 's' : ''}</span></div>` : ''}
-      <div class="e-res">${esc(rs)}</div>
+      <div class="e-res">${esc(rs0)}</div>
       ${rk != null && NN > 1 ? `<div class="pos"><span>1er</span><div><i style="width:${Math.max(6, (NN - rk + 1) / NN * 100)}%;background:${c}"></i></div><span>${NN}e</span></div>` : ''}</div>`;
   }
 
@@ -179,7 +196,7 @@
     Object.entries(byG).forEach(([k, A]) => { const sp = A[0].m.sport, nm = SPN(sp), T = k[0] === 't' ? (typeof TR === 'function' ? TR().find(t => t.id === A[0].m.tid) : null) : null;
       const ctx = T ? `${T.nom || 'Tournoi'} · ${dt(T.date)}` : `${nm} · matchs hors tournoi`;
       let PL = null; if (T && one) { const sd = A[0].t, mm = A[0].m, team = sd ? mm.b : mm.a; PL = poolOf(T, team); }
-      const pnote = PL ? `${PL.multi ? '🎚 Poule par niveau de jeu : ' + (PL.g || 'poule') + (PL.level ? ' (' + PL.level + ')' : '') + ' · ' : ''}Classement dans la poule : ${PL.rank}${PL.rank === 1 ? 'er' : 'e'} sur ${PL.n} (${PL.pts} pts)` : '';
+      const pnote = PL ? `${PL.multi ? '🎚 Poule par niveau de jeu : ' + (PL.g || 'poule') + (PL.level ? ' (' + PL.level + ')' : '') + ' · ' : ''}${PL.rank ? `Classement dans la poule : ${PL.rank}${PL.rank === 1 ? 'er' : 'e'} sur ${PL.n} (${PL.pts} pts)` : 'Aucun match enregistré dans la poule'}` : '';
       const sfx = ` · ${ctx}${PL && PL.multi ? ' · ' + (PL.g || '') : ''}`;
       const r = { Victoires: 0, Nuls: 0, Défaites: 0 }, pts = { 'Points marqués': 0, 'Points encaissés': 0 }, nb = { 'Points normaux': 0, 'Points bonus': 0 }, ty = {};
       A.forEach(({ m, t }) => { const a = +m.sa || 0, b = +m.sb || 0, my = t ? b : a, op = t ? a : b; if (my > op) r.Victoires++; else if (my < op) r.Défaites++; else r.Nuls++; pts['Points marqués'] += my; pts['Points encaissés'] += op;

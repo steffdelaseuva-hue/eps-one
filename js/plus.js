@@ -4,9 +4,10 @@
    ========================================================= */
 /* Page Ko-fi : laisser vide tant qu'elle n'existe pas (le bouton est alors masqué) */
 const KOFI_URL = 'https://ko-fi.com/epsone';
-const APP_VERSION = '23.56';
+const APP_VERSION = '23.57';
 const APP_URL = 'https://steffdelaseuva-hue.github.io/eps-one/';
 const CHANGELOG = [
+  { v: '23.57', items: ['Fiches : correction du classement de poule. Une équipe sans aucun match enregistré n\'est plus classée « 1re » : la fiche affiche « Aucun match enregistré ». Le rang, les points et la poule sont recalculés d\'après les rencontres réellement jouées.'] },
   { v: '23.56', items: ['Fiches élèves : bouton « 📦 Créer le ZIP de la classe » — un fichier indépendant par élève (à envoyer un par un), pour une activité choisie ou pour toutes (un dossier par activité, ou une seule fiche complète par élève).'] },
   { v: '23.55', items: ['Fiches et bilans PAR ACTIVITÉ : choisis une seule activité (ex. Badminton) dans « Fiches élèves en couleurs » ou « Exporter un bilan » — plus de natation ni d\'autres outils mélangés ; bouton 📄 Fiches directement dans la validation enseignant de chaque outil (activité, classe et élève déjà choisis).', 'Option « seulement le tournoi du jour de l\'évaluation » (date de la validation). Camemberts par tournoi : nom, date, poule par niveau de jeu (niveau 1, 2, 3…), classement dans la poule (1er sur 4…), victoires, points bonus.'] },
   { v: '23.54', items: ['Camemberts pour TOUS les outils (fiche élève et bilan de classe) : demi-fond (respect du projet, arrêts, % de VMA), combiné et duathlon (courses terminées, écart au projet, lancers / tours), orientation (balises trouvées / manquées, par niveau, arrivées, erreurs de poinçon), natation (épreuves du savoir-nager), crosstraining / HYROX (séances, blocs réalisés, temps réalisé / prévu), lutte (issues, points, formes de corps, défense, pénalités) et niveaux de maîtrise validés par activité.'] },
