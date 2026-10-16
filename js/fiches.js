@@ -403,6 +403,36 @@ h3.st{margin:18px 0 6px;font-size:1.05rem;color:#0B2A5B;border-bottom:3px solid 
       setTimeout(() => { try { window.print(); } catch (e) { toast('Impression impossible'); } }, 200); };
   };
 
+  /* ---------- ZIP (sans compression) : un fichier HTML indépendant par élève ---------- */
+  const crcT = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+  const crc32 = u => { let c = 0xFFFFFFFF; for (let i = 0; i < u.length; i++) c = crcT[(c ^ u[i]) & 255] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; };
+  function zipBlob(files) {
+    const enc = new TextEncoder(), parts = [], cen = [], d = new Date(); let off = 0;
+    const dd = ((d.getFullYear() - 1980) << 9) | ((d.getMonth() + 1) << 5) | d.getDate(), tm = (d.getHours() << 11) | (d.getMinutes() << 5) | (d.getSeconds() >> 1);
+    files.forEach(f => { const nm = enc.encode(f.name), data = typeof f.data === 'string' ? enc.encode(f.data) : f.data, crc = crc32(data);
+      const h = new DataView(new ArrayBuffer(30)); h.setUint32(0, 0x04034b50, true); h.setUint16(4, 20, true); h.setUint16(6, 0x0800, true); h.setUint16(8, 0, true); h.setUint16(10, tm, true); h.setUint16(12, dd, true); h.setUint32(14, crc, true); h.setUint32(18, data.length, true); h.setUint32(22, data.length, true); h.setUint16(26, nm.length, true); h.setUint16(28, 0, true);
+      parts.push(h.buffer, nm, data);
+      const c = new DataView(new ArrayBuffer(46)); c.setUint32(0, 0x02014b50, true); c.setUint16(4, 20, true); c.setUint16(6, 20, true); c.setUint16(8, 0x0800, true); c.setUint16(10, 0, true); c.setUint16(12, tm, true); c.setUint16(14, dd, true); c.setUint32(16, crc, true); c.setUint32(20, data.length, true); c.setUint32(24, data.length, true); c.setUint16(28, nm.length, true); c.setUint32(42, off, true);
+      cen.push(c.buffer, nm); off += 30 + nm.length + data.length; });
+    const cs = cen.reduce((a, b) => a + b.byteLength, 0), e = new DataView(new ArrayBuffer(22)); e.setUint32(0, 0x06054b50, true); e.setUint16(8, files.length, true); e.setUint16(10, files.length, true); e.setUint32(12, cs, true); e.setUint32(16, off, true);
+    return new Blob([...parts, ...cen, e.buffer], { type: 'application/zip' });
+  }
+  window.epsZipBlob = zipBlob;
+  const safe = x => String(x).replace(/[\\/:*?"<>|]+/g, '-').replace(/\s+/g, ' ').trim();
+  /* fichiers = [{ dir, name, html }] pour une classe : un par élève (et par activité si split) */
+  function fichesFiles(cls, op, split, AC, dayOn) {
+    const out = [], used = new Set(), names = namesOf(cls), add = (dir, n, html) => { if (!/class="page fiche"/.test(html)) return; let f = (dir ? safe(dir) + '/' : '') + safe(n), k = 1; while (used.has(f)) f = f.replace(/( \(\d+\))?$/, ` (${++k})`); used.add(f); out.push({ name: f + '.html', data: html }); };
+    if (split) AC.forEach(a => names.forEach(n => add(a.label, n, window.fichesHTML([{ cls, names: [n] }], { ...op, act: window.fichesActById(a.id), day: false }))));
+    else names.forEach(n => add('', n, window.fichesHTML([{ cls, names: [n] }], op)));
+    return out;
+  }
+  window.fichesZip = (cls, op, split) => { const AC = actsFor(cls), F = fichesFiles(cls, op || {}, !!split, AC); if (!F.length) return null; return { blob: zipBlob(F), n: F.length }; };
+  async function saveZip(blob, name) {
+    const f = new File([blob], name, { type: 'application/zip' });
+    try { if (navigator.canShare && navigator.canShare({ files: [f] })) { await navigator.share({ files: [f], title: name }); return; } } catch (e) { if (e && e.name === 'AbortError') return; }
+    const u = URL.createObjectURL(blob), a = document.createElement('a'); a.href = u; a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(u), 60000); toast('ZIP téléchargé ✔');
+  }
+
   window.openFiches = (pre) => {
     pre = pre || {};
     const classes = [...new Set([...(DB.classes || []).map(c => c.name), ...(DB.resultats || []).map(r => r && r.classe).filter(Boolean), ...(typeof epsCollClasses === 'function' ? epsCollClasses() : [])])].filter(Boolean);
@@ -420,12 +450,19 @@ h3.st{margin:18px 0 6px;font-size:1.05rem;color:#0B2A5B;border-bottom:3px solid 
         <div class="muted" style="font-size:.76rem;margin-top:3px">Choisis une activité (ex. Badminton) : la fiche ne contient que sa validation, ses tournois / matchs et ses camemberts.</div>
         ${actId ? `<label style="display:flex;align-items:center;gap:8px;margin:8px 0 0;font-weight:700"><input type="checkbox" id="fday" ${dayOn ? 'checked' : ''} style="width:20px;height:20px;margin:0"> 📅 Seulement le tournoi / les matchs du jour de l'évaluation <small class="muted">(date de la validation)</small></label>` : ''}
         <b style="display:block;margin-top:12px">Contenu</b>${chk('val', '✅ Validation enseignant (niveaux, points, note)')}${chk('coll', '🏆 Tournois, matchs, classements')}${chk('res', '📈 Résultats des outils')}${chk('pie', '🥧 Camemberts (points bonus, consignes, rapports)')}${chk('gr', '📝 Grilles d\'évaluation')}
+        <div style="margin-top:12px;padding:10px;border:2px dashed var(--line,#C9D3E6);border-radius:12px"><b>📦 Envoyer élève par élève</b>
+          <div class="muted" style="font-size:.78rem;margin:3px 0 6px">Un ZIP avec <b>un fichier indépendant par élève</b> (toute la classe), à envoyer un par un.</div>
+          ${actId ? '' : `<label style="display:flex;align-items:center;gap:8px;margin:4px 0;font-weight:700"><input type="checkbox" id="fsp" checked style="width:20px;height:20px;margin:0"> 📁 Un dossier par activité (sinon : une seule fiche par élève avec tout)</label>`}
+          <button class="btn btn-grad btn-block" data-zip>📦 Créer le ZIP de la classe</button></div>
         <div class="row" style="margin-top:12px"><button class="btn btn-ghost" data-x>Annuler</button><button class="btn btn-grad" data-go>Créer</button></div></div>`;
       o.querySelector('#fe').value = who0; o.querySelector('#fe').onchange = e => { who0 = e.target.value; };
       o.querySelector('#fc').onchange = e => { cls = e.target.value; who0 = ''; draw(); };
       o.querySelector('#fa').onchange = e => { actId = e.target.value; draw(); };
       if (o.querySelector('#fday')) o.querySelector('#fday').onchange = e => { dayOn = e.target.checked; };
       o.querySelector('[data-x]').onclick = () => o.remove();
+      o.querySelector('[data-zip]').onclick = async () => { const op = {}; o.querySelectorAll('[data-o]').forEach(x => op[x.dataset.o] = x.checked); if (actId) { op.act = actById(actId); op.day = dayOn; }
+        const R = window.fichesZip(cls, op, !actId && (o.querySelector('#fsp') || {}).checked); if (!R) return toast('Aucune donnée pour cette sélection');
+        const al = actId ? (AC.find(a => a.id === actId) || {}).label : 'toutes-activites'; o.remove(); await saveZip(R.blob, `fiches-${safe(cls)}-${safe(al).replace(/\s+/g, '-')}-${new Date().toISOString().slice(0, 10)}.zip`); toast(`${R.n} fiche${R.n > 1 ? 's' : ''} dans le ZIP ✔`); };
       o.querySelector('[data-go]').onclick = () => { const who = o.querySelector('#fe').value, op = {}; if (actId) { op.act = actById(actId); op.day = dayOn; } o.querySelectorAll('[data-o]').forEach(x => op[x.dataset.o] = x.checked);
         const names = who ? [who] : namesOf(cls); const html = window.fichesHTML([{ cls, names }], op); o.remove();
         if (!/class="page fiche"/.test(html)) return toast('Aucune donnée pour cette sélection');
