@@ -4,9 +4,11 @@
    ========================================================= */
 /* Page Ko-fi : laisser vide tant qu'elle n'existe pas (le bouton est alors masqué) */
 const KOFI_URL = 'https://ko-fi.com/epsone';
-const APP_VERSION = '23.52';
+const APP_VERSION = '23.54';
 const APP_URL = 'https://steffdelaseuva-hue.github.io/eps-one/';
 const CHANGELOG = [
+  { v: '23.54', items: ['Camemberts pour TOUS les outils (fiche élève et bilan de classe) : demi-fond (respect du projet, arrêts, % de VMA), combiné et duathlon (courses terminées, écart au projet, lancers / tours), orientation (balises trouvées / manquées, par niveau, arrivées, erreurs de poinçon), natation (épreuves du savoir-nager), crosstraining / HYROX (séances, blocs réalisés, temps réalisé / prévu), lutte (issues, points, formes de corps, défense, pénalités) et niveaux de maîtrise validés par activité.'] },
+  { v: '23.53', items: ['Fiches élèves en couleurs (Plus → « Fiches élèves en couleurs » et option dans « Exporter un bilan ») : validation enseignant avec les 4 niveaux de maîtrise, points par critère, note /20 et radar ; tournois, matchs, classements, courses d’équipes de l’élève ; résultats des outils. À imprimer, enregistrer en PDF ou envoyer.', 'Camemberts avec pourcentages (fiche élève et bilan de classe) : matchs gagnés / perdus, points marqués / encaissés, points normaux / bonus et types de points, observations (points gagnés, fautes, réussite aux tirs), escalade (poses de pieds / PME, fluidité, rôles de la cordée), balises trouvées et compteurs paramétrés des autres outils.', 'Bilan de classe : la validation enseignant devient un tableau coloré (élèves × critères, points, niveau, répartition) ; tableaux des outils : fluidité « 3/4 » et temps « 1:05 » bien lus, victoires / défaites / podiums en couleur.'] },
   { v: '23.52', items: ['Interclasses : possibilité de SUPPRIMER un interclasses (🗑 dans la liste et « Supprimer cet interclasses » dans ⚙️ Réglages), même avant la génération du calendrier.'] },
   { v: '23.51', items: ['Escalade : « ▦ Vue d’ensemble (cartes côte à côte) » comme en course d’orientation, 2 à 6 cartes par ligne et un liseré de couleur par carte. Onglet 📋 Passage : plusieurs cordées en parallèle, chacune avec son chrono, son grimpeur / assureur / contre-assureur, sa voie et ses observables. Onglet 👥 Équipes : cartes des équipes côte à côte (voies déjà grimpées aujourd’hui). Réservé à l’enseignant (code).'] },
   { v: '23.50', items: ['Interclasses : constitution MANUELLE des équipes (équipes vides + « À placer », ou compléter au hasard), liste « Absents / dispensés » à exclure dès la création des équipes (le nombre d’élèves par équipe tient compte des exclus) ; absent / dispensé toujours possible en cours de séance.'] },
@@ -566,6 +568,7 @@ function renderPlus() {
       ${item('lock', 'navy', 'Code enseignant', (window.curPin ? curPin() : DB.profPin) ? 'Code défini · protège les réglages des outils' : 'Protéger les réglages des outils face aux élèves', 'openProfPin()')}
       ${item('team', 'grad', 'Équipe EPS · tablettes partagées', window.teamOn && teamOn() ? `Mode Équipe · ${teamProfs().length} enseignant(s)${activeProf() ? ' · ' + esc(activeProf().name) : ''}` : 'Plusieurs collègues sur le même lot de tablettes', 'openTeam()')}
       ${window.isEpsAdmin && window.isEpsAdmin() ? item('lock', 'gold', 'Accès des collègues', 'Valider ou retirer les accès à EPS ONE', 'openAccessAdmin()') : ''}
+      ${item('save', 'gold', 'Fiches élèves en couleurs', 'Validation enseignant, points, tournois, matchs, résultats : une fiche visuelle par élève', 'openFiches()')}
       ${item('save', 'gold', 'Exporter un bilan', 'Résultats par classe et par outil, en couleurs (camemberts)', 'openBilan()')}
       ${item('save', 'navy', 'Espace utilisé', 'Données, photos et vidéos sur cette tablette', 'openStorage()')}
       ${item('restore', 'grad', 'Copies de secours', 'Une copie automatique par jour · récupérer des classes', 'openBackups()')}

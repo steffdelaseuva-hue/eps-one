@@ -116,6 +116,10 @@ function bilanGen(L, color, pupils) {
   const num = s => { const m = /-?\d+(?:[.,]\d+)?/.exec(String(s)); return m ? parseFloat(m[0].replace(',', '.')) : null; };
   const P = L.map(r => { const segs = String(r.detail || '').split(' · ').map(s => s.trim()).filter(Boolean), M = [], notes = []; let grp = '';
     segs.forEach((s, i) => { if (i === 0 && GRP.test(s)) { grp = s; return; }
+      const fq = /^(.*?)[\s:]*(\d+)\s*\/\s*(\d+)$/.exec(s), fq2 = /^(\d+)\s*\/\s*(\d+)\s+(.+)$/.exec(s), tq = /^(.*?)[\s:]*(\d+):(\d{2})(?:[,.](\d+))?$/.exec(s);   // « fluidité 3/4 », « 8/10 balises », « temps 1:05,3 »
+      if (fq2 && fq2[3].length < 26) { M.push({ l: fq2[3].trim(), v: +fq2[1], u: '/' + fq2[2] }); return; }
+      if (fq && fq[1] && fq[1].length < 26) { M.push({ l: fq[1].trim(), v: +fq[2], u: '/' + fq[3] }); return; }
+      if (tq && tq[1] && tq[1].length < 26) { M.push({ l: tq[1].trim(), v: +tq[2] * 60 + parseFloat(tq[3] + (tq[4] ? '.' + tq[4] : '')), u: '', t: s.slice(tq[1].length).replace(/^[\s:]+/, '') }); return; }
       const m = /^(.*?)[\s:]*(-?\d+(?:[.,]\d+)?)\s*(%|pts?|s|m|min|km\/h|tours?)?$/i.exec(s), m2 = /^(-?\d+(?:[.,]\d+)?)\s*(%|pts?|s|m|min|km\/h)?\s+(.+)$/i.exec(s);
       if (m && m[1] && m[1].length < 26) M.push({ l: m[1].trim(), v: parseFloat(m[2].replace(',', '.')), u: m[3] || '' });
       else if (m2 && m2[3].length < 26) M.push({ l: m2[3].trim(), v: parseFloat(m2[1].replace(',', '.')), u: m2[2] || '' });
@@ -123,6 +127,7 @@ function bilanGen(L, color, pupils) {
     const seen = {}; M.forEach(x => { seen[x.l] = (seen[x.l] || 0) + 1; if (seen[x.l] > 1) x.l += ' ' + seen[x.l]; });
     if (!grp) { const q = /([ÉE]quipe\s+[A-Z0-9]+)/.exec(String(r.valeur)); if (q) grp = q[1]; }
     return { r, grp, M, notes }; });
+  const outc = v => { v = String(v); return /^victoire|valid[ée]/i.test(v) ? '#1B9E5A33' : /^d[ée]faite/i.test(v) ? '#D6454533' : /^(nul|observ)/i.test(v) ? '#8A94AA33' : /^1er\b/.test(v) ? '#C9A22744' : /^[23]e\b/.test(v) ? '#C9A22722' : ''; };
   const days = new Set(L.map(r => day(r.date))), multi = days.size > 1;
   const secs = []; P.forEach(p => { const k = (multi && p.grp ? day(p.r.date) : '') + '|' + p.grp; let s = secs.find(x => x.k === k); if (!s) secs.push(s = { k, date: p.r.date, grp: p.grp, rows: [] }); s.rows.push(p); });
   secs.sort((a, b) => a.date - b.date || String(a.grp).localeCompare(String(b.grp), 'fr', { numeric: true }));
@@ -133,12 +138,13 @@ function bilanGen(L, color, pupils) {
     const heat = (v, S) => { if (v == null) return ''; if (S.mx === S.mn) return 'background:#9AA6BF22;'; const t = (v - S.mn) / (S.mx - S.mn), good = S.bad ? 1 - t : t, c = good > .66 ? '#1B9E5A' : good < .34 ? '#D64545' : '#E0A92F'; return `background:${c}${Math.round(24 + good * 40).toString(16).padStart(2, '0')};`; };
     const showD = !s.grp && multi, notes = s.rows.some(p => p.notes.length), base = Math.min(rmn, 0);
     return `<div class="sc"><table class="wt"><tr><th class="l">Élève</th>${showD ? '<th>Date</th>' : ''}<th style="background:${color}">Résultat</th>${ord.map(l => `<th style="background:${color}CC">${esc(l)}</th>`).join('')}${notes ? '<th class="l" style="background:#667">Remarques</th>' : ''}</tr>
-      ${s.rows.map((p, i) => `<tr><td class="l"><b>${esc(p.r.eleve)}</b></td>${showD ? `<td>${dt(p.r.date)}</td>` : ''}<td style="background:${color}22;font-weight:900">${esc(String(p.r.valeur))}${okR && rn[i] != null && rmx > base ? `<div class="mb"><i style="width:${Math.max(4, Math.round((rn[i] - base) / (rmx - base) * 100))}%;background:${color}"></i></div>` : ''}</td>${ord.map(l => { const x = p.M.find(y => y.l === l); return x ? `<td style="${heat(x.v, st[l])}font-weight:800">${x.v}${x.u && !/^tours?$/i.test(x.u) ? ' <small>' + esc(x.u) + '</small>' : ''}</td>` : '<td class="none">–</td>'; }).join('')}${notes ? `<td class="l d">${esc(p.notes.join(' · '))}</td>` : ''}</tr>`).join('')}</table></div>`; };
+      ${s.rows.map((p, i) => `<tr><td class="l"><b>${esc(p.r.eleve)}</b></td>${showD ? `<td>${dt(p.r.date)}</td>` : ''}<td style="background:${outc(p.r.valeur) || color + '22'};font-weight:900">${esc(String(p.r.valeur))}${okR && rn[i] != null && rmx > base ? `<div class="mb"><i style="width:${Math.max(4, Math.round((rn[i] - base) / (rmx - base) * 100))}%;background:${color}"></i></div>` : ''}</td>${ord.map(l => { const x = p.M.find(y => y.l === l); return x ? `<td style="${heat(x.v, st[l])}font-weight:800">${x.t || x.v}${x.u && !/^tours?$/i.test(x.u) ? ' <small>' + esc(x.u) + '</small>' : ''}</td>` : '<td class="none">–</td>'; }).join('')}${notes ? `<td class="l d">${esc(p.notes.join(' · '))}</td>` : ''}</tr>`).join('')}</table></div>`; };
   return secs.map(s => `<div class="wg">${s.grp ? `<div class="wgh"><div><b>${esc(s.grp)}</b>${multi ? ` <span class="mut" style="font-size:.78rem">· ${dt(s.date)}</span>` : ''}<div class="mut" style="font-size:.78rem">${esc([...new Set(s.rows.map(p => p.r.eleve))].join(' · '))}</div></div></div>` : ''}${tbl(s)}</div>`).join('');
 }
 
 /* Fiches individuelles : une page par élève (activités, critères/objectifs, niveaux de maîtrise en couleurs, notes, performances) */
 function bilanFiches(opt) {
+  if (typeof fichesBodyFor === 'function') return fichesBodyFor(opt);
   const fr = x => (Math.round(x * 10) / 10).toString().replace('.', ','), dt = ts => new Date(ts).toLocaleDateString('fr-FR');
   const names = Object.fromEntries(TOOLS.map(t => [t.id, t.name])), M = window.EPS_M;
   const noteCol = n => n >= 16 ? '#1B9E5A' : n >= 11 ? '#2F6BD8' : n >= 6 ? '#E0892F' : '#D64545';
@@ -188,13 +194,14 @@ function bilanHTML(opt) {
 }
 function bilanHTML0(opt) {
   const names = Object.fromEntries(TOOLS.map(t => [t.id, t.name])), tName = r => names[r.tool] || r.label || r.tool || 'Autre';
-  const all = (DB.resultats || []).filter(r => r && r.classe && r.eleve && opt.classes.includes(r.classe) && (!opt.tools || opt.tools.includes(r.tool)));
+  const isVal = r => /^valid\|/.test(String(r.key || '')) || r.tool === 'valid', vis = typeof bilanValid === 'function';
+  const all = (DB.resultats || []).filter(r => r && r.classe && r.eleve && opt.classes.includes(r.classe) && (!opt.tools || opt.tools.includes(r.tool)) && !(vis && isVal(r)));
   const toolList = [...new Set(all.map(tName))].sort((a, b) => a.localeCompare(b, 'fr')), tc = Object.fromEntries(toolList.map((t, i) => [t, BIL_COLS[i % BIL_COLS.length]]));
   const dt = ts => new Date(ts).toLocaleDateString('fr-FR'), today = new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
   const tint = c => c + '22';
   const clsSections = opt.classes.map(cls => {
     const rs = all.filter(r => r.classe === cls); const st = studentsOf(cls) || [];
-    const ex = bilanExtras(cls, opt), exHTML = ex.html;
+    const ex = bilanExtras(cls, opt), vHTML = vis ? bilanValid(cls, opt) : '', exHTML = vHTML + (typeof bilanPies === 'function' && opt.pie !== false ? bilanPies(cls) : '') + ex.html;
     const pupils = [...new Set([...st, ...rs.map(r => r.eleve)])].filter(n => rs.some(r => r.eleve === n) || st.includes(n));
     if (!rs.length) return `<section class="page"><h2>${esc(cls)}</h2><p class="mut">${st.length} élève${st.length > 1 ? 's' : ''} · aucun résultat d'outil enregistré.</p>${exHTML}</section>`;
     const byTool = {}; rs.forEach(r => (byTool[tName(r)] = byTool[tName(r)] || []).push(r));
@@ -245,6 +252,8 @@ table.wt th{font-size:.78rem}th.ex{font-weight:700;font-size:.74rem}table.wt td{
 .fiche{max-width:820px}.fh{background:linear-gradient(120deg,#C9A227,#1E5BD8 60%,#0B2A5B);color:#fff;border-radius:12px;padding:14px 18px;margin-bottom:12px;display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center}.fh h2{font-size:1.6rem}.fbs{display:flex;gap:6px;flex-wrap:wrap}.fb{color:#fff;font-weight:800;font-size:.78rem;border-radius:99px;padding:4px 10px;border:2px solid rgba(255,255,255,.7)}
 .fa{border:1px solid #D9DFEB;border-radius:12px;padding:10px 12px;margin:10px 0;break-inside:avoid}.fah{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:4px;font-size:1.05rem}.fn{color:#fff;font-weight:900;font-size:1.3rem;border-radius:10px;padding:2px 12px}.fn small{font-size:.7rem;opacity:.85}.fgoal{font-size:.8rem;font-weight:700;color:#445;margin:2px 0 6px}
 .lvb{display:flex;gap:3px;justify-content:center}.lvb i{width:26px;height:9px;border-radius:5px;display:block}.lvt{font-size:.74rem;font-weight:800}.fsub{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}.fsub span{border:2px solid;border-radius:99px;padding:2px 10px;font-size:.8rem;font-weight:700}.chip3{display:inline-block;background:#EEF1F7;border-radius:99px;padding:1px 8px;margin:1px;font-size:.76rem;color:#223}
+.cl2 table{border-collapse:collapse;width:100%;font-size:.8rem}.cl2 th,.cl2 td{border:1px solid #DDE3EE;padding:4px 5px;text-align:center}.cl2 th{background:#0B2A5B;color:#fff}.cl2 .l{text-align:left}.cl2 th.v{height:120px;vertical-align:bottom;padding:4px 2px;background:#fff;color:#0E1A33;font-weight:700;font-size:.68rem;width:38px;max-width:38px}.cl2 th.v div{writing-mode:vertical-rl;transform:rotate(180deg);max-height:112px;overflow:hidden;margin:0 auto;line-height:1.1}
+${window.fichesPieCSS || ''}
 @media print{body{background:#fff}.page{box-shadow:none;border-radius:0;margin:0;padding:6mm;max-width:none;page-break-after:always;break-after:page}.page:last-child{page-break-after:auto;break-after:auto}.sc{overflow:visible}tr{break-inside:avoid}@page{size:A4 landscape;margin:8mm}}${opt.fiches ? '@page{size:A4 portrait;margin:8mm}' : ''}
 </style></head><body>${opt.fiches ? bilanFiches(opt) : sum + clsSections}</body></html>`;
 }
@@ -275,7 +284,7 @@ function openBilan() {
     if (!cs.length || (!ts.length && !coll && !gs.length)) return toast('Choisissez au moins une classe et un contenu');
     const fic = !!o.querySelector('[data-f]:checked'), opt0 = { classes: cs, tools: ts, coll, grilles: gs }; let html = bilanHTML(opt0); o.remove();
     const dd = new Date().toISOString().slice(0, 10); let name = 'bilan-eps-' + dd + '.html', blob = new Blob([html], { type: 'text/html' });
-    const docs = fic ? [{ html, name, blob }, (() => { const h = bilanHTML({ ...opt0, fiches: true }); return { html: h, name: 'fiches-eleves-' + dd + '.html', blob: new Blob([h], { type: 'text/html' }) }; })()] : null;
+    const docs = fic ? [{ html, name, blob }, (() => { const h = window.fichesHTML ? window.fichesHTML(cs.map(c => ({ cls: c, names: window.fichesNames(c) })), { tools: ts, grilles: gs, coll }) : bilanHTML({ ...opt0, fiches: true }); return { html: h, name: 'fiches-eleves-' + dd + '.html', blob: new Blob([h], { type: 'text/html' }) }; })()] : null;
     const v = document.createElement('div'); v.style.cssText = 'position:fixed;inset:0;z-index:300;background:#333;display:flex;flex-direction:column';
     v.innerHTML = `<div style="display:flex;gap:8px;padding:10px;align-items:center;background:var(--grad,#0B2A5B);color:#fff;flex-wrap:wrap"><b style="flex:1">📊 Bilan</b>${fic ? '<button class="btn btn-white" data-d="0" style="outline:3px solid #C9A227">📊 Bilan</button><button class="btn btn-white" data-d="1">📄 Fiches élèves</button>' : ''}<button class="btn btn-white" data-s>📤 Enregistrer / envoyer</button><button class="btn btn-white" data-p>🖨 Imprimer / PDF</button><button class="btn btn-ghost" style="color:#fff" data-x>✕ Fermer</button></div><iframe title="Bilan" style="flex:1;border:0;background:#EEF1F7"></iframe>`;
     document.body.appendChild(v); v.querySelector('iframe').srcdoc = html; v.querySelector('[data-x]').onclick = () => v.remove();

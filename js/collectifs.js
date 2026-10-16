@@ -95,7 +95,7 @@ if (!document.getElementById('cl-css')) document.head.insertAdjacentHTML('before
       }
       if (typeof epsMatchesPies === 'function') body += epsPieCard('📊 Synthèse du tournoi', f === 'atp' ? [epsPie(epsSegs(Object.fromEntries(tAtp(t).ranks.map(r => [r.n, r.v]))), 'Victoires'), epsPie(epsSegs(Object.fromEntries(tAtp(t).ranks.map(r => [r.n, Math.round(r.pts)]))), 'Points ATP')] : epsMatchesPies(ms), true);
       body += `<button class="btn btn-ghost btn-block" style="margin-top:10px" data-om="${esc(t.id)}">🏆 Ouvrir dans Gestion de match</button>`;
-      return { kind: 'tournoi', date: last, icon: fmtI(f, t.sport), title: t.nom || 'Tournoi', event: t.nom || 'Tournoi',
+      return { kind: 'tournoi', tid: t.id, date: last, icon: fmtI(f, t.sport), title: t.nom || 'Tournoi', event: t.nom || 'Tournoi',
         sub: `${fmtN(f, t.sport)} · ${esc(sportN(t.sport))} · ${dFr(t.date)}${last > (t.date || 0) && dFr(last) !== dFr(t.date) ? ' → ' + dFr(last) : ''} · ${M.length} ${f === 'atp' ? 'joueurs' : 'équipes'}`,
         lead, body, rows: csvRows(rows) };
     });
