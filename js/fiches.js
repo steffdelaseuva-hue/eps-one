@@ -424,8 +424,9 @@ h3.st{margin:18px 0 6px;font-size:1.05rem;color:#0B2A5B;border-bottom:3px solid 
   window.epsShowDoc = (html, name, title) => {
     const v = document.createElement('div'); v.style.cssText = 'position:fixed;inset:0;z-index:310;background:#333;display:flex;flex-direction:column';
     const blob = new Blob([html], { type: 'text/html' });
-    v.innerHTML = `<div style="display:flex;gap:8px;padding:10px;align-items:center;background:var(--grad,#0B2A5B);color:#fff;flex-wrap:wrap"><b style="flex:1">${esc(title || 'Aperçu')}</b><button class="btn btn-white" data-s>📤 Enregistrer / envoyer</button><button class="btn btn-white" data-p>🖨 Imprimer / PDF</button><button class="btn btn-ghost" style="color:#fff" data-x>✕ Fermer</button></div><iframe title="${esc(title || 'Aperçu')}" style="flex:1;border:0;background:#EEF1F7"></iframe>`;
+    v.innerHTML = `<div style="display:flex;gap:8px;padding:10px;align-items:center;background:var(--grad,#0B2A5B);color:#fff;flex-wrap:wrap"><b style="flex:1">${esc(title || 'Aperçu')}</b><button class="btn btn-white" data-pdf>📄 Enregistrer en PDF</button><button class="btn btn-white" data-s>📤 HTML</button><button class="btn btn-white" data-p>🖨 Imprimer / PDF</button><button class="btn btn-ghost" style="color:#fff" data-x>✕ Fermer</button></div><iframe title="${esc(title || 'Aperçu')}" style="flex:1;border:0;background:#EEF1F7"></iframe>`;
     document.body.appendChild(v); v.querySelector('iframe').srcdoc = html; v.querySelector('[data-x]').onclick = () => v.remove();
+    v.querySelector('[data-pdf]').onclick = e => window.epsSavePdf(html, name, title, e.currentTarget);
     v.querySelector('[data-s]').onclick = async () => {
       const f = new File([blob], name, { type: 'text/html' });
       try { if (navigator.canShare && navigator.canShare({ files: [f] })) { await navigator.share({ files: [f], title }); return; } } catch (e) { if (e && e.name === 'AbortError') return; }
@@ -456,12 +457,17 @@ h3.st{margin:18px 0 6px;font-size:1.05rem;color:#0B2A5B;border-bottom:3px solid 
   const safe = x => String(x).replace(/[\\/:*?"<>|]+/g, '-').replace(/\s+/g, ' ').trim();
   /* fichiers = [{ dir, name, html }] pour une classe : un par élève (et par activité si split) */
   function fichesFiles(cls, op, split, AC, dayOn) {
-    const out = [], used = new Set(), names = namesOf(cls), add = (dir, n, html) => { if (!/class="page fiche"/.test(html)) return; let f = (dir ? safe(dir) + '/' : '') + safe(n), k = 1; while (used.has(f)) f = f.replace(/( \(\d+\))?$/, ` (${++k})`); used.add(f); out.push({ name: f + '.html', data: html }); };
+    const out = [], used = new Set(), names = namesOf(cls), add = (dir, n, html) => { if (!/class="page fiche"/.test(html)) return; let f = (dir ? safe(dir) + '/' : '') + safe(n), k = 1; while (used.has(f)) f = f.replace(/( \(\d+\))?$/, ` (${++k})`); used.add(f); out.push({ name: f, html }); };
     if (split) AC.forEach(a => names.forEach(n => add(a.label, n, window.fichesHTML([{ cls, names: [n] }], { ...op, act: window.fichesActById(a.id), day: false }))));
     else names.forEach(n => add('', n, window.fichesHTML([{ cls, names: [n] }], op)));
     return out;
   }
-  window.fichesZip = (cls, op, split) => { const AC = actsFor(cls), F = fichesFiles(cls, op || {}, !!split, AC); if (!F.length) return null; return { blob: zipBlob(F), n: F.length }; };
+  /* ZIP de vrais PDF (un par élève) ; repli en HTML si le rendu PDF échoue */
+  window.fichesZip = async (cls, op, split, onProg) => { const AC = actsFor(cls), F = fichesFiles(cls, op || {}, !!split, AC); if (!F.length) return null; const out = []; let bad = 0;
+    for (let i = 0; i < F.length; i++) { if (onProg) onProg(i + 1, F.length);
+      try { if (!window.epsPdfFromHtml) throw 0; const b = await window.epsPdfFromHtml(F[i].html); out.push({ name: F[i].name + '.pdf', data: new Uint8Array(await b.arrayBuffer()) }); }
+      catch (e) { bad++; out.push({ name: F[i].name + '.html', data: F[i].html }); } }
+    return { blob: zipBlob(out), n: F.length, bad }; };
   async function saveZip(blob, name) {
     const f = new File([blob], name, { type: 'application/zip' });
     try { if (navigator.canShare && navigator.canShare({ files: [f] })) { await navigator.share({ files: [f], title: name }); return; } } catch (e) { if (e && e.name === 'AbortError') return; }
@@ -496,8 +502,9 @@ h3.st{margin:18px 0 6px;font-size:1.05rem;color:#0B2A5B;border-bottom:3px solid 
       if (o.querySelector('#fday')) o.querySelector('#fday').onchange = e => { dayOn = e.target.checked; };
       o.querySelector('[data-x]').onclick = () => o.remove();
       o.querySelector('[data-zip]').onclick = async () => { const op = {}; o.querySelectorAll('[data-o]').forEach(x => op[x.dataset.o] = x.checked); if (actId) { op.act = actById(actId); op.day = dayOn; }
-        const R = window.fichesZip(cls, op, !actId && (o.querySelector('#fsp') || {}).checked); if (!R) return toast('Aucune donnée pour cette sélection');
-        const al = actId ? (AC.find(a => a.id === actId) || {}).label : 'toutes-activites'; o.remove(); await saveZip(R.blob, `fiches-${safe(cls)}-${safe(al).replace(/\s+/g, '-')}-${new Date().toISOString().slice(0, 10)}.zip`); toast(`${R.n} fiche${R.n > 1 ? 's' : ''} dans le ZIP ✔`); };
+        const btn = o.querySelector('[data-zip]'); btn.disabled = true;
+        const R = await window.fichesZip(cls, op, !actId && (o.querySelector('#fsp') || {}).checked, (i, n) => { btn.textContent = `⏳ Création des PDF ${i}/${n}…`; }); if (!R) { btn.disabled = false; return toast('Aucune donnée pour cette sélection'); }
+        const al = actId ? (AC.find(a => a.id === actId) || {}).label : 'toutes-activites'; o.remove(); await saveZip(R.blob, `fiches-${safe(cls)}-${safe(al).replace(/\s+/g, '-')}-${new Date().toISOString().slice(0, 10)}.zip`); toast(`${R.n} PDF dans le ZIP ✔` + (R.bad ? ` (${R.bad} en HTML)` : '')); };
       o.querySelector('[data-go]').onclick = () => { const who = o.querySelector('#fe').value, op = {}; if (actId) { op.act = actById(actId); op.day = dayOn; } o.querySelectorAll('[data-o]').forEach(x => op[x.dataset.o] = x.checked);
         const names = who ? [who] : namesOf(cls); const html = window.fichesHTML([{ cls, names }], op); o.remove();
         if (!/class="page fiche"/.test(html)) return toast('Aucune donnée pour cette sélection');
