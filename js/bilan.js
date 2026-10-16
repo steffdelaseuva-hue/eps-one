@@ -43,10 +43,11 @@ function bilanExtras(cls, opt) {
 
 
 /* HYROX / Crosstraining : tableaux par groupe (élèves × exercices), couleurs par famille, temps et écart du groupe */
-function bilanWod(cls) {
+function bilanWod(cls, who) {
   if (typeof epsWodSeances !== 'function') return '';
   const S0 = epsWodSeances(cls).sort((a, b) => a.date - b.date); if (!S0.length) return '';
   const S = []; S0.forEach(x => { const k = new Date(x.date).toDateString() + '|' + (x.nom || '') + '|' + x.prevu; let y = S.find(z => z.k === k); if (!y) S.push(y = { ...x, k, groups: [] }); y.groups.push(...x.groups); });   // une tablette par groupe : on réunit les groupes d'une même épreuve du même jour
+  if (who) { S.forEach(y => { y.groups = y.groups.filter(g => (g.members || []).includes(who)); }); for (let i = S.length - 1; i >= 0; i--) if (!S[i].groups.length) S.splice(i, 1); if (!S.length) return ''; }   // fiche élève : seulement son groupe
   const FN = (window.epsWodFam || {}).names || ['Bas du corps', 'Haut du corps', 'Cardio', 'Résistance'], FC = (window.epsWodFam || {}).cols || ['#1FA2E8', '#E53935', '#F4B400', '#43A047'];
   const mm = s => { if (s == null || isNaN(s)) return '–'; const neg = s < 0; s = Math.abs(Math.round(s)); return (neg ? '−' : '') + Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
   const tint = c => c + '26', fcol = f => f == null ? '#6B7280' : FC[f], fnm = f => f == null ? 'RUN / autre' : FN[f];
@@ -59,26 +60,28 @@ function bilanWod(cls) {
     const gs = se.groups.slice().sort(natural);
     const tbl = (g, bl) => { const col = bl.cols, fam = []; col.forEach(c => { const l = fam[fam.length - 1]; if (l && l.f === c.f) l.n++; else fam.push({ f: c.f, n: 1 }); });
       const head = `<tr><th class="l" rowspan="2">Élève</th>${fam.map(x => `<th colspan="${x.n}" style="background:${fcol(x.f)}">${esc(fnm(x.f))}</th>`).join('')}</tr><tr>${col.map(c => `<th class="ex" style="background:${tint(fcol(c.f))};color:#0E1A33">${esc(c.nom)}${c.niv ? ` <small>N${c.niv}</small>` : ''}</th>`).join('')}</tr>`;
-      const rows = bl.rows.map(r => `<tr><td class="l"><b>${esc(r.name)}</b></td>${r.cells.map((x, i) => !x ? '<td class="none">–</td>' : `<td style="background:${tint(fcol(col[i].f))};font-weight:800">${x.done >= x.plan ? x.done + ' ✔' : `<span style="color:#B45309">${x.done}/${x.plan}</span>`}</td>`).join('')}</tr>`).join('');
+      const rows = bl.rows.filter(r => !who || r.name === who).map(r => `<tr><td class="l"><b>${esc(r.name)}</b></td>${r.cells.map((x, i) => !x ? '<td class="none">–</td>' : `<td style="background:${tint(fcol(col[i].f))};font-weight:800">${x.done >= x.plan ? x.done + ' ✔' : `<span style="color:#B45309">${x.done}/${x.plan}</span>`}</td>`).join('')}</tr>`).join('');
       const foot = bl.fam.length ? `<tr class="cum"><td class="l"><b>👥 Cumul du groupe</b></td>${fam.map(x => { const F = bl.fam.find(y => y.f === x.f); return `<td colspan="${x.n}" style="background:${F ? tint(fcol(x.f)) : '#fff'};font-weight:900">${F ? `${F.done} / ${F.target}${F.done >= F.target ? ' ✔' : ''}` : ''}</td>`; }).join('')}</tr>` : '';
       const run = bl.run ? `<div class="mut" style="margin-top:4px">🏃 RUN du groupe : <b>${bl.run.done} / ${bl.run.tot}</b></div>` : '';
       return `<div class="sc"><table class="wt">${head}${rows}${foot}</table></div>${run}`; };
-    const cards = gs.map(g => { const ok = g.ecart != null && g.ecart <= 0;
-      const valRows = g.members.map(n => [n, chips(n)]).filter(x => x[1]);
-      return `<div class="wg"><div class="wgh"><div><b>${esc(g.name)}</b><div class="mut" style="font-size:.78rem">${esc(g.members.join(' · '))}</div></div>
-        <div class="wgt">${g.t != null ? `<span class="tm">⏱ ${mm(g.t)}</span>` : '<span class="tm nt">non terminé</span>'}${g.ecart != null ? `<span class="ec" style="background:${ok ? '#1B9E5A' : '#D64545'}">écart ${g.ecart > 0 ? '+' : ''}${mm(g.ecart)} / ${se.prevu} min</span>` : ''}${g.capped ? '<span class="ec" style="background:#E0892F">⏱ time cap</span>' : ''}</div></div>
+    const over = g => !!g.capped || (g.t != null && se.cap != null && g.t > se.cap * 60);
+    const cards = gs.map(g => {
+      const valRows = g.members.filter(n => !who || n === who).map(n => [n, chips(n)]).filter(x => x[1]);
+      return `<div class="wg"><div class="wgh"><div><b>${esc(g.name)}</b><div class="mut" style="font-size:.78rem">${who ? `groupe de ${g.members.length}` : esc(g.members.join(' · '))}</div></div>
+        <div class="wgt">${g.t != null ? `<span class="tm">⏱ ${mm(g.t)}</span>` : '<span class="tm nt">non terminé</span>'}${g.t != null || g.capped ? `<span class="ec" style="background:${over(g) ? '#D64545' : '#1B9E5A'}">${over(g) ? '⏱ temps limite de ' + se.cap + ' min atteint' : '✅ dans le temps limite (' + se.cap + ' min)'}</span>` : ''}</div></div>
         ${g.blocks.map((b, i) => `${g.blocks.length > 1 ? `<div style="font-weight:800;margin:8px 0 2px">Bloc ${b.k + 1}</div>` : ''}${tbl(g, b)}`).join('')}
         ${valRows.length ? `<div class="vr"><b>✅ Validation enseignant</b>${valRows.map(([n, c]) => `<div><span>${esc(n)}</span><span>${c}</span></div>`).join('')}</div>` : ''}</div>`; }).join('');
     const tg = gs.filter(g => g.t != null), best = tg.length ? tg.slice().sort((a, b) => Math.abs(a.ecart) - Math.abs(b.ecart))[0] : null;
-    const sumT = gs.length > 1 ? `<div class="sc"><table><tr><th class="l">Groupe</th><th>Temps</th><th>Écart / ${se.prevu} min</th></tr>${gs.map(g => `<tr><td class="l"><b>${esc(g.name)}</b> <span class="d">${esc(g.members.join(', '))}</span></td><td>${g.t != null ? mm(g.t) : '–'}${g.capped ? ' ⏱ cap' : ''}</td><td style="background:${g.ecart == null ? '#fff' : g.ecart <= 0 ? '#DDF3E7' : '#FBE0E0'};font-weight:800">${g.ecart != null ? (g.ecart > 0 ? '+' : '') + mm(g.ecart) : '–'}</td></tr>`).join('')}</table></div>` : '';
-    return `<div class="ev" style="border-left-color:#E53935"><div class="evh"><b>${esc(se.nom || 'Épreuve')}</b><span>${new Date(se.date).toLocaleDateString('fr-FR')} · prévu ${se.prevu} min · ${gs.length} groupe${gs.length > 1 ? 's' : ''}</span></div>${sumT}${cards}</div>`; }).join('');
+    const sumT = gs.length > 1 && !who ? `<div class="sc"><table><tr><th class="l">Groupe</th><th>Temps</th><th>Temps limite (${se.cap} min)</th></tr>${gs.map(g => `<tr><td class="l"><b>${esc(g.name)}</b> <span class="d">${esc(g.members.join(', '))}</span></td><td>${g.t != null ? mm(g.t) : '–'}${g.capped ? ' ⏱ cap' : ''}</td><td style="background:${g.t == null && !g.capped ? '#fff' : over(g) ? '#FBE0E0' : '#DDF3E7'};font-weight:800">${g.t == null && !g.capped ? '–' : over(g) ? 'atteint' : 'respecté'}</td></tr>`).join('')}</table></div>` : '';
+    return `<div class="ev" style="border-left-color:#E53935"><div class="evh"><b>${esc(se.nom || 'Épreuve')}</b><span>${new Date(se.date).toLocaleDateString('fr-FR')} · temps limite ${se.cap} min · ${gs.length} groupe${gs.length > 1 ? 's' : ''}</span></div>${sumT}${cards}</div>`; }).join('');
 }
 
 /* Duathlon : un tableau par groupe (élèves × étapes), couleurs par étape, temps et totaux du groupe */
-function bilanDua(cls) {
+function bilanDua(cls, who) {
   const S0 = ((DB.duathlon || {}).seances || []).filter(r => r && r.classe === cls).sort((a, b) => a.date - b.date); if (!S0.length) return '';
   const mm = s => { if (s == null || isNaN(s)) return '–'; s = Math.round(s); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
   const S = []; S0.forEach(x => { const base = String(x.id).split('-')[0]; let y = S.find(z => z.base === base); if (!y) S.push(y = { ...x, base, groups: [] }); y.groups.push(...(x.groups || [])); });
+  if (who) { S.forEach(y => { y.groups = y.groups.filter(g => (g.members || []).includes(who)); }); for (let i = S.length - 1; i >= 0; i--) if (!S[i].groups.length) S.splice(i, 1); if (!S.length) return ''; }
   const SC = ['#1E88E5', '#E8832A', '#43A047'], tint = c => c + '26', nat = (a, b) => String(a.name).localeCompare(String(b.name), 'fr', { numeric: true });
   return S.map(se => { const c = se.cfg || {}, commun = e => Array.isArray(c.tc) ? !!c.tc[e] : e === 2;
     const cols = () => [['pts', '🎯 Pts'], ...(c.optL ? [['inval', '❌ Lancers']] : []), ['tours', '🏃 Tours'], ...(c.optC ? [['penC', '⚠️ Pén.']] : [])];
@@ -94,17 +97,17 @@ function bilanDua(cls) {
     const cards = se.groups.slice().sort(nat).map(g => { const { st, T, part, pts, tours, pen } = tot(g), PM = pm(g, T);
       const head = `<tr><th class="l" rowspan="2">Élève</th>${[0, 1, 2].map(e => `<th colspan="${cs.length}" style="background:${SC[e]}">Étape ${e + 1}${st[e].temps != null ? ` · ⏱ ${mm(st[e].temps)}${st[e].penS ? ` (+${st[e].penS} s)` : ''}` : ''}</th>`).join('')}<th colspan="2" style="background:#0B2A5B">Total élève</th></tr>
         <tr>${[0, 1, 2].map(e => cs.map(([k, l]) => `<th class="ex" style="background:${tint(SC[e])};color:#0E1A33">${l}</th>`).join('')).join('')}<th class="ex" style="background:#E4E9F3;color:#0E1A33">🎯 Pts</th><th class="ex" style="background:#E4E9F3;color:#0E1A33">🏃 Tours</th></tr>`;
-      const rows = g.members.map(n => { let tp = 0, tt = 0, anyT = false; const tds = [0, 1, 2].map(e => { const m = (g.etapes[e].m[n]) || {}; tp += m.pts || 0; if (!commun(e)) { tt += m.tours || 0; anyT = true; }
+      const rows = g.members.filter(n => !who || n === who).map(n => { let tp = 0, tt = 0, anyT = false; const tds = [0, 1, 2].map(e => { const m = (g.etapes[e].m[n]) || {}; tp += m.pts || 0; if (!commun(e)) { tt += m.tours || 0; anyT = true; }
         return cs.map(([k]) => k === 'tours' && commun(e) ? `<td style="background:${tint(SC[e])}" class="d">↓ groupe</td>` : `<td style="background:${tint(SC[e])};font-weight:800;${k === 'inval' || k === 'penC' ? (m[k] ? 'color:#C62828' : 'color:#9AA') : ''}">${m[k] || 0}</td>`).join(''); }).join('');
         return `<tr><td class="l"><b>${esc(n)}</b>${vmaN(g, n) != null ? `<div class="mut" style="font-size:.7rem">VMA ${duaFr(vmaN(g, n))}</div>` : ''}</td>${tds}<td style="font-weight:900">${tp}</td><td style="font-weight:900">${anyT ? tt : '–'}</td></tr>`; }).join('');
       const foot = `<tr class="cum"><td class="l"><b>👥 Groupe</b></td>${[0, 1, 2].map(e => cs.map(([k]) => `<td style="background:${tint(SC[e])};font-weight:900">${st[e][k]}</td>`).join('')).join('')}<td style="font-weight:900">${pts}</td><td style="font-weight:900">${tours}</td></tr>`;
-      return `<div class="wg"><div class="wgh"><div><b>${esc(g.name)}</b><div class="mut" style="font-size:.78rem">${esc(g.members.join(' · '))}</div></div>
+      return `<div class="wg"><div class="wgh"><div><b>${esc(g.name)}</b><div class="mut" style="font-size:.78rem">${who ? `groupe de ${g.members.length}` : esc(g.members.join(' · '))}</div></div>
         <div class="wgt">${T != null ? `<span class="tm">⏱ ${mm(T)}</span>` : `<span class="tm nt">${mm(part)} · incomplet</span>`}${pen ? `<span class="ec" style="background:#E0892F">+${pen} s pénalités</span>` : ''}<span class="ec" style="background:#1B9E5A">${pts} pts · ${tours} tours</span></div></div>
         <div class="wgt" style="margin:4px 0 8px">${pills(PM)}${PM.vReal != null && !PM.manque ? `<span class="mut" style="font-size:.78rem">${duaFr(PM.vReal)} km/h réalisés · VMA moy. ${duaFr(PM.vMoy)}</span>` : ''}</div>
         <div class="sc"><table class="wt">${head}${rows}${foot}</table></div></div>`; }).join('');
     const ranked = se.groups.map(g => { const t = tot(g); const R = pm(g, t.T); return { name: g.name, t: t.T, pts: t.pts, tours: t.tours, pot: R.manque ? null : R.pot, k: R.coef }; });
     const best = Math.min(...ranked.filter(r => r.t != null).map(r => r.t), Infinity);
-    const sum = se.groups.length > 1 ? `<div class="sc"><table><tr><th class="l">Groupe</th><th>Temps total</th><th>Points lancers</th><th>Tours</th><th>⚡ Potentiel VMA</th><th>🎯 Maîtrise</th></tr>${ranked.slice().sort((a, b) => (a.t ?? 1e9) - (b.t ?? 1e9)).map(r => `<tr><td class="l"><b>${esc(r.name)}</b></td><td style="background:${r.t === best ? '#DDF3E7' : '#fff'};font-weight:800">${r.t != null ? mm(r.t) + (r.t === best ? ' 🏆' : '') : '–'}</td><td>${r.pts}</td><td>${r.tours}</td><td>${r.pot != null ? duaFr(r.pot) + ' km/h' : '–'}</td><td style="font-weight:900;color:${mcol(r.k)}">${duaPct(r.k)}</td></tr>`).join('')}</table></div>` : '';
+    const sum = se.groups.length > 1 && !who ? `<div class="sc"><table><tr><th class="l">Groupe</th><th>Temps total</th><th>Points lancers</th><th>Tours</th><th>⚡ Potentiel VMA</th><th>🎯 Maîtrise</th></tr>${ranked.slice().sort((a, b) => (a.t ?? 1e9) - (b.t ?? 1e9)).map(r => `<tr><td class="l"><b>${esc(r.name)}</b></td><td style="background:${r.t === best ? '#DDF3E7' : '#fff'};font-weight:800">${r.t != null ? mm(r.t) + (r.t === best ? ' 🏆' : '') : '–'}</td><td>${r.pts}</td><td>${r.tours}</td><td>${r.pot != null ? duaFr(r.pot) + ' km/h' : '–'}</td><td style="font-weight:900;color:${mcol(r.k)}">${duaPct(r.k)}</td></tr>`).join('')}</table></div>` : '';
     return `<div class="ev" style="border-left-color:#1E88E5"><div class="evh"><b>${esc(se.nom || 'Duathlon')}</b><span>${new Date(se.date).toLocaleDateString('fr-FR')} · ${se.groups.length} groupe${se.groups.length > 1 ? 's' : ''}</span></div>${sum}${cards}</div>`; }).join('');
 }
 

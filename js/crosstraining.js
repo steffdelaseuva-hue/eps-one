@@ -422,7 +422,7 @@ TOOL_IMPL.wod = function (el) {
           <div class="muted" style="font-size:.85rem">${n} / ${tot} étapes réalisées · ${esc(e.nom)}</div>
           ${!g.dep ? '<button class="btn btn-grad btn-block" style="margin-top:12px;font-size:1.2rem;padding:16px" id="gv-go">▶ Départ</button>' : ''}
           ${run ? `<button class="btn ${n === tot ? 'btn-grad' : 'btn-danger'} btn-block" style="margin-top:12px;font-size:1.15rem;padding:14px" id="gv-fin">🏁 Arrivée${n === tot ? ' — tout est fait !' : ''}</button>` : ''}
-          ${g.arr || g.capped ? `<div style="margin-top:10px;font-weight:800">${r.cap ? '⏱ Time cap atteint' : '✅ Épreuve terminée'} · écart ${r.ecart > 0 ? '+' : ''}${mmss(r.ecart)} / ${e.prevu} min</div>` : ''}</div>
+          ${g.arr || g.capped ? `<div style="margin-top:10px;font-weight:800">${r.cap ? '⏱ Time cap atteint' : '✅ Épreuve terminée'} · temps limite : ${e.cap} min</div>` : ''}</div>
         ${nM ? multiHTML(g, i, IT, P, run) : IT.map((ser, k) => { const b = e.blocs[k], done = !!g.splits[k];
           return `<div class="card" style="margin-top:10px${done ? ';border:2px solid #1B9E5A' : ''}"><div style="display:flex;justify-content:space-between;align-items:center"><b>Bloc ${k + 1}</b><span class="muted" style="font-size:.8rem">${done ? '✅ ' + mmss((g.splits[k] - g.dep) / 1000) : WOD_BLOC[b.famille]}</span></div>
             ${ser.map(x => `${ser.length > 1 ? `<div class="muted" style="margin-top:8px;font-size:.8rem;font-weight:800">Série ${x.sr + 1} / ${ser.length}</div>` : ''}
@@ -448,7 +448,7 @@ TOOL_IMPL.wod = function (el) {
         const mine = nM ? profOf(g, nM).map((m, s) => m === n ? s : -1).filter(s => s >= 0) : [];
         saveResult({ tool: 'wod', label: 'Crosstraining / HYROX', classe: rec.classe, eleve: n, key: `wod|${cur.id}|${rec.classe}|${n}`,
           valeur: r.t != null ? mmss(r.t) + (r.cap ? ' (time cap)' : '') : 'non terminé',
-          detail: `${e.nom} · ${g.name}${g.members.length > 1 ? ' (' + g.members.join(', ') + ')' : ''} · écart ${r.ecart != null ? (r.ecart > 0 ? '+' : '') + mmss(r.ecart) : '–'} / ${e.prevu} min · blocs ${g.splits.filter(Boolean).length}/${e.blocs.length}`
+          detail: `${e.nom} · ${g.name}${g.members.length > 1 ? ' (' + g.members.join(', ') + ')' : ''} · temps limite ${e.cap} min ${r.cap ? 'atteint' : 'respecté'} · blocs ${g.splits.filter(Boolean).length}/${e.blocs.length}`
             + (nM ? ` · ${WOD_FMT[nM]}, ${mine.length ? mine.map(s => 'Élève ' + (s + 1)).join(' + ') : 'sans profil'} · ${e.blocs.map((b, k) => synthTxt(g, e, k, n)).join(' | ')}` : '') }); }); });
       DB.wod.current = null; save(); clearInterval(iv); toast('Séance enregistrée ✔'); tab = 'resultats'; frame(); };
     /* ✍️ Saisie des résultats prof (sans lancer l'épreuve) : temps final (ou time cap atteint) */
@@ -484,7 +484,7 @@ TOOL_IMPL.wod = function (el) {
             <div class="muted" style="font-size:.8rem">${nM ? profOf(g, nM).map((m, s) => `<b style="color:${WOD_STU[s]}">É${s + 1}</b> ${m ? esc(m) : '—'}`).join(' · ') : g.members.map(esc).join(', ')}${g.checks && Object.keys(g.checks).length ? ` · ✔ ${progOf(g, e).join(' / ')} étapes` : ''}</div>
             <div class="splits">${e.blocs.map((b, k) => `<button data-sp="${i}-${k}" class="${g.splits[k] ? 'on' : ''}" ${g.dep && !g.arr && !g.capped ? '' : 'disabled'}>Bloc ${k + 1}${g.splits[k] ? ' · ' + mmss((g.splits[k] - g.dep) / 1000) : ''}</button>`).join('')}</div>
             <div class="row" style="margin-top:8px">${g.dep ? '' : `<button class="btn btn-grad" data-go="${i}">▶ Départ</button>`}${g.dep && !g.arr && !g.capped ? `<button class="btn btn-danger" data-fin="${i}">🏁 Arrivée</button>` : ''}${g.arr || g.capped ? `<button class="btn btn-ghost" data-undo="${i}">↺ Annuler l'arrivée</button>` : ''}</div>
-            ${r.t != null ? `<div style="margin-top:6px;font-size:.88rem">Temps réalisé <b>${mmss(r.t)}</b> · écart <b style="color:${r.ecart > 0 ? 'var(--danger)' : 'var(--ok)'}">${r.ecart > 0 ? '+' : ''}${mmss(r.ecart)}</b> par rapport aux ${e.prevu} min ${r.cap ? '· <span class="pill warn">time cap</span>' : ''}</div>` : ''}
+            ${r.t != null ? `<div style="margin-top:6px;font-size:.88rem">Temps réalisé <b>${mmss(r.t)}</b> · temps limite <b style="color:${r.cap ? 'var(--danger)' : 'var(--ok)'}">${e.cap} min ${r.cap ? 'atteint' : 'respecté'}</b> ${r.cap ? '· <span class="pill warn">time cap</span>' : ''}</div>` : ''}
             ${nM ? `<details class="wod-gd" data-gd="${i}" style="margin-top:8px" ${shut.has(i) ? '' : 'open'}><summary style="cursor:pointer;font-weight:800;font-size:.88rem">✔ Suivi par élève · coches et synthèse des blocs</summary><div data-gi="${i}">${multiHTML(g, i, itemsOf(e, g), profOf(g, nM), g.dep && !g.arr && !g.capped)}</div></details>` : ''}</div>`; }).join('')}
         <div class="row" style="margin-top:12px"><button class="btn btn-grad" data-cfg="bare" id="save">💾 Terminer et enregistrer</button><button class="btn btn-ghost" data-cfg="bare" id="cancel">Abandonner</button></div>`;
       const $ = s => box.querySelector(s), all = s => box.querySelectorAll(s), keep = () => save();

@@ -123,11 +123,11 @@ if (!document.getElementById('cl-css')) document.head.insertAdjacentHTML('before
     return G.map(x => { const e = x.list[0].snap, hy = e.sport === 'hyrox', date = Math.max(...x.list.map(s => s.date));
       const L = x.list.flatMap(s => (s.groups || []).map(g => ({ g, r: resOf(g, s.snap) }))).sort((a, b) => (a.r.cap - b.r.cap) || ((a.r.t ?? 1e9) - (b.r.t ?? 1e9)));
       const rows = L.map(({ g, r }, k) => ({ rk: r.t != null ? k + 1 : '', name: g.name, members: g.members || [],
-        res: r.t != null ? `${sec(r.t)}${r.cap ? ' (time cap)' : ''} · écart ${r.ecart > 0 ? '+' : ''}${sec(r.ecart)} / ${e.prevu} min · blocs ${(g.splits || []).filter(Boolean).length}/${(e.blocs || []).length}` : 'non terminé' }));
+        res: r.t != null ? `${sec(r.t)}${r.cap ? ' (temps limite atteint)' : ''} · temps limite ${e.cap} min · blocs ${(g.splits || []).filter(Boolean).length}/${(e.blocs || []).length}` : 'non terminé' }));
       const w = rows.find(r => r.rk === 1);
       return { kind: 'wod', date, icon: '🏋️', own: { arr: () => (DB.wod || {}).seances, recs: x.list }, title: `${hy ? 'HYROX' : 'Crosstraining'} · ${e.nom}`, event: `${hy ? 'HYROX' : 'Crosstraining'} · ${e.nom}`,
         sub: `${dFull(date)} · ${L.length} groupe${L.length > 1 ? 's' : ''} · ${e.prevu} min prévues · cap ${e.cap} min${x.list.length > 1 ? ` · ${x.list.length} tablettes` : ''}`,
-        lead: w ? `🥇 ${w.name} · ${w.res.split(' · ')[0]}` : '', body: rankTable(rows, 'Temps · écart'), rows: csvRows(rows) }; });
+        lead: w ? `🥇 ${w.name} · ${w.res.split(' · ')[0]}` : '', body: rankTable(rows, 'Temps'), rows: csvRows(rows) }; });
   }
 
   /* ================= COURSE D'ORIENTATION (même jour + classe + parcours) ================= */
