@@ -66,7 +66,7 @@ function bilanWod(cls, who) {
       return `<div class="sc"><table class="wt">${head}${rows}${foot}</table></div>${run}`; };
     const over = g => !!g.capped || (g.t != null && se.cap != null && g.t > se.cap * 60);
     const cards = gs.map(g => {
-      const valRows = g.members.filter(n => !who || n === who).map(n => [n, chips(n)]).filter(x => x[1]);
+      const valRows = who ? [] : g.members.map(n => [n, chips(n)]).filter(x => x[1]);   // fiche élève : la validation est déjà en tête de fiche
       return `<div class="wg"><div class="wgh"><div><b>${esc(g.name)}</b><div class="mut" style="font-size:.78rem">${who ? `groupe de ${g.members.length}` : esc(g.members.join(' · '))}</div></div>
         <div class="wgt">${g.t != null ? `<span class="tm">⏱ ${mm(g.t)}</span>` : '<span class="tm nt">non terminé</span>'}${g.t != null || g.capped ? `<span class="ec" style="background:${over(g) ? '#D64545' : '#1B9E5A'}">${over(g) ? '⏱ temps limite de ' + se.cap + ' min atteint' : '✅ dans le temps limite (' + se.cap + ' min)'}</span>` : ''}</div></div>
         ${g.blocks.map((b, i) => `${g.blocks.length > 1 ? `<div style="font-weight:800;margin:8px 0 2px">Bloc ${b.k + 1}</div>` : ''}${tbl(g, b)}`).join('')}
