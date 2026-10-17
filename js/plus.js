@@ -4,9 +4,11 @@
    ========================================================= */
 /* Page Ko-fi : laisser vide tant qu'elle n'existe pas (le bouton est alors masqué) */
 const KOFI_URL = 'https://ko-fi.com/epsone';
-const APP_VERSION = '23.66';
+const APP_VERSION = '23.68';
 const APP_URL = 'https://steffdelaseuva-hue.github.io/eps-one/';
 const CHANGELOG = [
+  { v: '23.68', items: ['Orientation · suivi par élève : les balises non trouvées deviennent un 3e critère (« Non trouvées ») à côté de « Vraies » et « Fausses », dans le tableau, la pastille et le camembert en %.'] },
+  { v: '23.67', items: ['Course d\'orientation · Bilan : nouveau « Suivi par élève » séance par séance — nombre de parcours réalisés, temps de course cumulé (+ RK moyenne quand le parcours a une distance), balises vraies / fausses / non trouvées avec camembert en %, et % du temps prévu (pénalités de temps comprises, et sans pénalités).', 'Le même suivi apparaît sur la fiche élève (et dans son PDF) pour l\'orientation.', 'Correction : la mise en forme des camemberts manquait dans les bilans de classe (légende non stylée).'] },
   { v: '23.66', items: ['Mode Équipe : correction de la v23.65 — une séance en cours est maintenant rendue à son vrai propriétaire d\'après sa classe (et plus d\'après le profil actif de l\'appareil). Les séances déjà attribuées au mauvais enseignant reviennent automatiquement chez leur propriétaire à l\'ouverture de l\'app.'] },
   { v: '23.65', items: ['Mode Équipe : la séance EN COURS (groupes, élèves, épreuve choisie) est désormais rangée au nom de l\'enseignant. Quand un collègue prend l\'appareil et choisit son profil, il ne voit plus ta séance ; tu la retrouves en revenant sur ton profil. Valable pour tous les outils (HYROX, duathlon, combiné, demi-fond, sauvetage, orientation, lutte, escalade, matchs).', 'La carte « ♻️ Séance interrompue » (copie de secours) est aussi propre à chaque enseignant.'] },
   { v: '23.64', items: ['Mode Équipe : les épreuves HYROX / Crosstraining d\'un enseignant ne sont plus visibles ni utilisables par ses collègues (liste des épreuves et choix de l\'épreuve à la préparation).', 'Bouton « 🔒 Réserver à mon profil » pour attribuer d\'un clic tes anciennes épreuves (jusque-là visibles par tous).', 'Toutes les séances enregistrées (HYROX, combiné, demi-fond, duathlon, sauvetage, orientation, résultats) sont marquées au nom de l\'enseignant et masquées aux collègues.'] },

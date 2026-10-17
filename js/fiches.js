@@ -334,7 +334,8 @@
     const M = Mx(), V = o.val !== false ? valEntries(cls, n, o.tools, act) : [], C = o.coll !== false ? collEntries(cls, n, oo) : [];
     const P = o.res !== false ? perfCards(cls, n, act ? (act.sport ? [] : act.tools) : o.tools) : '', G = o.gr !== false && !act ? grilleCards(cls, n, o.grilles || (DB.grilles || []).map((_, i) => i)) : '';
     const PI = o.pie !== false ? piesBlock(cls, [n], oo) : '';
-    if (!V.length && !C.length && !P && !G && !PI) return '';
+    const CO = o.res !== false && window.coSuiviHTML && (!act || (act.tools || []).includes('co') || act.tool === 'co') && (!o.tools || o.tools.includes('co') || act) ? window.coSuiviHTML(cls, n, d => !days || days.has(dayS(d))) : '';
+    if (!V.length && !C.length && !P && !G && !PI && !CO) return '';
     const notes = V.filter(e => e.NT).map(e => e.NT.n20), moy = notes.length ? notes.reduce((a, b) => a + b, 0) / notes.length : null, avgAll = epsMAvg(V.map(e => e.avg).filter(x => x != null));
     const mt = C.map(x => matchChips(x.e, String(x.row[1] || ''))).filter(Boolean).flat(), nV = mt.filter(m => m.r === 'V').length, medals = C.filter(x => typeof x.row[0] === 'number' && x.row[0] <= 3).length;
     const chips = [[V.length, 'activité' + (V.length > 1 ? 's' : '') + ' validée' + (V.length > 1 ? 's' : ''), '#1E5BD8'], moy != null ? [fr(moy), 'note moyenne /20', noteCol(moy)] : null, avgAll != null ? [M[avgAll][2] || M[avgAll][0], 'niveau global', M[avgAll][1]] : null,
@@ -343,6 +344,7 @@
       ${V.length ? `<h3 class="st">✅ Validation de l'enseignant</h3>${valSummary(V)}${V.map(valCard).join('')}` : ''}
       ${C.length ? `<h3 class="st">🏆 Tournois, matchs et classements</h3>${C.map(x => collCard({ ...x, n })).join('')}` : ''}
       ${PI ? `<h3 class="st">🥧 Répartitions en camemberts</h3>${PI}` : ''}
+      ${CO}
       ${P ? `<h3 class="st">📈 Résultats des outils</h3>${P}` : ''}
       ${G ? `<h3 class="st">📝 Évaluations</h3>${G}` : ''}
       <div class="mut" style="font-size:.7rem;margin-top:10px">Édité le ${dt(Date.now())} — EPS ONE</div></section>`;
@@ -391,7 +393,7 @@ h3.st{margin:18px 0 6px;font-size:1.05rem;color:#0B2A5B;border-bottom:3px solid 
   }
   window.fichesHTML = (sel, o = {}) => `<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Fiches élèves ${esc(DB.annee || '')}</title><style>${CSS}</style></head><body>${fichesBody(sel, o) || '<section class="page"><p class="mut">Aucune donnée pour cette sélection (validations, tournois, résultats…).</p></section>'}</body></html>`;
   window.fichesCSS = CSS;
-  window.fichesPieCSS = CSS.slice(CSS.indexOf('.pies{'), CSS.indexOf('@media print'));
+  window.fichesPieCSS = CSS.slice(CSS.indexOf('.pies{'), CSS.indexOf('@media print', CSS.indexOf('.pies{')));
   const namesOf = cls => { const st = (studentsOf(cls) || []).slice(); (DB.resultats || []).forEach(r => { if (r && r.classe === cls && r.eleve && !st.includes(r.eleve)) st.push(r.eleve); }); valKeys(cls).forEach(k => Object.keys(DB.valid.v[k][cls] || {}).forEach(n => { if (!st.includes(n)) st.push(n); })); return st; };
   window.fichesNames = namesOf;
   window.fichesBodyFor = opt => fichesBody(opt.classes.map(cls => ({ cls, names: namesOf(cls) })), { tools: opt.tools, grilles: opt.grilles, coll: opt.coll !== false, act: opt.act, day: opt.day });

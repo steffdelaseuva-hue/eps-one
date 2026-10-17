@@ -630,6 +630,72 @@ function coPrint(ps) {
     const clean = () => { box.remove(); st.remove(); window.removeEventListener('afterprint', clean); }; window.addEventListener('afterprint', clean);
     setTimeout(() => { try { window.print(); } catch (e) { toast('Impression impossible'); } }, 200); };
 }
+/* ---- Calculs de l'outil (au niveau de l'app : utilisés aussi par les fiches élèves sans ouvrir l'outil) ---- */
+function coResult(r, p) {
+  const found = new Set(r.found);
+  const pts = p.balises.filter(b => found.has(b.num)).reduce((a, b) => a + (p.pts[b.niv - 1] || 0), 0);
+  const miss = p.balises.filter(b => b.ob && !found.has(b.num)).length;
+  const temps = r.dep && r.arr ? (r.legs ? legSec(r) : (r.arr - r.dep) / 1000) : null;
+  const limit = (p.alloue + p.ecart) * 60;
+  const overMin = temps != null && p.alloue ? Math.max(0, Math.ceil((temps - limit) / 60)) : 0;
+  const revus = p.type === 'koh' ? Object.values(r.vues || {}).reduce((a, v) => a + Math.max(0, v - 1), 0) : 0;   // Koh-Lanta : indices revus
+  const penS = r.wrong * p.penWrongS + miss * p.penMissS, penP = r.wrong * p.penWrongP + overMin * p.penOverP + revus * (p.kohPen || 0);
+  const km = (p.distance || 0) / 1000, kmE = km + (p.denivOn ? (p.deniv || 0) / 100 : 0);
+  let statut = '';
+  if (temps != null && p.alloue) { const d = temps / 60 - p.alloue; statut = Math.abs(d) <= p.ecart ? '✔ dans l\'écart' : d > 0 ? `hors délai +${Math.ceil(temps / 60 - p.alloue - p.ecart)} min` : 'plus rapide que prévu'; }
+  return { pts, miss, temps, penS, penP, total: temps != null ? temps + penS : null, score: pts - penP, overMin, km, kmE, statut,
+    rk: temps ? mpk(temps, km) : '–', rkE: temps && p.denivOn ? mpk(temps, kmE) : null, vit: temps && km ? (km / (temps / 3600)).toFixed(1).replace('.', ',') + ' km/h' : '–' };
+}
+
+const coResultFor = (r, p, m) => { const W = r.who || {}; return Object.keys(W).length ? coResult({ ...r, found: r.found.filter(n => !W[n] || W[n] === m) }, p) : coResult(r, p); };
+const coDayKey = t => { const d = new Date(t); return d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate(); };
+function coGroupsT(ss) {
+  const G = new Map();
+  ss.forEach(s => { const k = coDayKey(s.date) + '|' + (s.classe || '') + '|' + (s.parcours || s.parcoursSnap.nom);
+    if (!G.has(k)) G.set(k, { recs: [], date: s.date }); const g = G.get(k); g.recs.push(s); g.date = Math.max(g.date, s.date); });
+  return [...G.values()].map(g => { const by = new Map(), rank = r => r.arr ? 2 : r.dep ? 1 : 0;
+    // une même équipe enregistrée par 2 tablettes (ex. tablette d'équipe + tablette enseignant) : on garde la plus complète
+    g.recs.forEach(s => s.runs.forEach(r => { const k = r.name + '|' + r.members.join(','), o = by.get(k); if (!o || rank(r) > rank(o.r)) by.set(k, { r, p: s.parcoursSnap }); }));
+    g.p = g.recs.reduce((a, s) => s.date >= a.date ? s : a).parcoursSnap; g.runs = [...by.values()]; return g; }).sort((a, b) => b.date - a.date);
+}
+
+/* ================= Suivi par élève, séance par séance (bilan de l'outil + fiche élève) =================
+   temps de course cumulés (+ RK quand le parcours a une distance), balises vraies / fausses / non trouvées,
+   nombre de parcours réalisés, % temps réalisé / temps prévu (avec pénalités de temps) */
+window.coSuivi = (cls, name, okDate) => {
+  const S0 = (window.teamFilter ? teamFilter(DB.co.seances) : DB.co.seances).filter(x => (x.classe || '—') === cls && (!okDate || okDate(x.date)));
+  const rows = []; let cum = 0;
+  coGroupsT(S0).sort((a, b) => a.date - b.date).forEach(g => { const e = g.runs.find(({ r }) => r.dep && (r.members || []).includes(name)); if (!e) return;
+    const { r, p: q } = e, x = coResultFor(r, q, name), fd = (r.found || []).filter(n => !(r.who || {})[n] || r.who[n] === name), tot = (q.balises || []).length, al = q.alloue || 0;
+    if (x.temps != null) cum += x.temps;
+    rows.push({ date: g.date, nom: q.nom, v: fd.length, f: r.wrong || 0, nt: Math.max(0, tot - fd.length), tot, temps: x.temps, penS: x.penS || 0, total: x.total, cum: x.temps != null ? cum : null,
+      km: x.km, rk: x.temps && x.km ? x.rk : null, al, ecart: q.ecart || 0, pct: x.temps != null && al ? x.temps / (al * 60) * 100 : null, pctP: x.total != null && al ? x.total / (al * 60) * 100 : null,
+      arr: !!r.arr, score: x.score, penP: x.penP || 0 }); });
+  if (!rows.length) return null;
+  const T = rows.filter(r => r.temps != null), P = rows.filter(r => r.total != null && r.al), K = T.filter(r => r.km > 0);
+  return { rows, n: rows.length, nPar: new Set(rows.map(r => r.nom)).size, temps: T.reduce((a, r) => a + r.temps, 0), pen: rows.reduce((a, r) => a + r.penS, 0),
+    v: rows.reduce((a, r) => a + r.v, 0), f: rows.reduce((a, r) => a + r.f, 0), nt: rows.reduce((a, r) => a + r.nt, 0), tot: rows.reduce((a, r) => a + r.tot, 0),
+    rkSec: K.reduce((a, r) => a + r.temps, 0), rkKm: K.reduce((a, r) => a + r.km, 0),
+    pctP: P.length ? P.reduce((a, r) => a + r.total, 0) / P.reduce((a, r) => a + r.al * 60, 0) * 100 : null,
+    pct: P.length ? P.reduce((a, r) => a + r.temps, 0) / P.reduce((a, r) => a + r.al * 60, 0) * 100 : null };
+};
+window.coSuiviHTML = (cls, name, okDate) => {
+  const D = window.coSuivi(cls, name, okDate); if (!D) return '';
+  const e = esc, pc = x => x == null ? '–' : Math.round(x) + ' %', col = (r, v) => v == null ? '#667' : v <= 100 ? '#1B9E5A' : v <= 100 + (r.al ? r.ecart / r.al * 100 : 0) ? '#E0892F' : '#D64545';
+  const rate = D.v + D.f + D.nt ? Math.round(D.v / (D.v + D.f + D.nt) * 100) : null;
+  const pie = D.v + D.f + D.nt && window.fichesPieHTML ? window.fichesPieHTML({ t: 'Balises : vraies / fausses / non trouvées', note: `${D.v} vraie${D.v > 1 ? 's' : ''} · ${D.f} fausse${D.f > 1 ? 's' : ''} · ${D.nt} non trouvée${D.nt > 1 ? 's' : ''}`, seg: [{ l: 'Vraies', v: D.v, c: '#1B9E5A' }, { l: 'Fausses', v: D.f, c: '#D64545' }, { l: 'Non trouvées', v: D.nt, c: '#8A94A8' }].filter(x => x.v > 0) }) : '';
+  const chip = (v, l, c) => `<div style="background:${c};color:#fff;border-radius:12px;padding:8px 6px;text-align:center"><b style="display:block;font-size:1.1rem">${e(String(v))}</b><span style="font-size:.68rem;opacity:.95">${e(l)}</span></div>`;
+  return `<style>.cs{background:#fff;color:#0E1A33;border:1px solid #D9DFEB;border-radius:14px;padding:12px;margin:10px 0;text-align:left}.cs h3{margin:0 0 8px;font-size:1.02rem}.cs .kp2{display:grid;grid-template-columns:repeat(auto-fit,minmax(104px,1fr));gap:6px;margin:8px 0}.cs table{border-collapse:collapse;width:100%;table-layout:fixed;font-size:.74rem}.cs th,.cs td{border:1px solid #DDE3EE;padding:4px 3px;text-align:center;overflow-wrap:break-word;color:#0E1A33}.cs th{background:#0B2A5B;color:#fff!important;overflow-wrap:normal;font-size:.6rem;line-height:1.15}.cs td.l{text-align:left}.cs small{display:block;color:#667;font-size:.66rem}.cs tfoot td{background:#EEF1F7;font-weight:800}.cs .pies{display:flex;flex-wrap:wrap;gap:10px;margin-top:10px}${window.fichesPieCSS || ''}@media (max-width:640px){.cs table{font-size:.62rem}.cs th,.cs td{padding:3px 2px}}</style>
+  <div class="cs"><h3>🧭 Suivi séance par séance · ${e(name)}</h3>
+    <div class="kp2">${chip(D.n, `parcours réalisé${D.n > 1 ? 's' : ''}${D.nPar < D.n ? ` (${D.nPar} différent${D.nPar > 1 ? 's' : ''})` : ''}`, '#1E5BD8')}${chip(hms(D.temps), 'temps de course cumulé', '#0B2A5B')}${D.rkKm > 0 ? chip(mpk(D.rkSec, D.rkKm).replace(' /km', ''), 'RK moyenne (min/km)', '#16A3A3') : ''}${chip(`${D.v} / ${D.f} / ${D.nt}`, 'vraies / fausses / non trouvées', rate == null || rate >= 80 ? '#1B9E5A' : rate >= 50 ? '#E0892F' : '#D64545')}${D.pctP != null ? chip(pc(D.pctP), 'du temps prévu (pénalités incluses)', D.pctP <= 100 ? '#1B9E5A' : '#E0892F') : ''}</div>
+    <table><colgroup><col style="width:18%"><col style="width:16%"><col style="width:17%"><col style="width:13%"><col style="width:11%"><col style="width:11%"><col style="width:14%"></colgroup><tr><th>Séance</th><th>Balises<br>vraies / fausses / non tr.</th><th>Temps<br>course</th><th>Cumul</th><th>RK</th><th>Prévu</th><th>%<br>prévu</th></tr>
+    ${D.rows.map(r => `<tr><td class="l"><b>${new Date(r.date).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })}</b><small>${e(r.nom)}</small></td><td><b style="color:#1B9E5A">${r.v}</b> / <b style="color:#D64545">${r.f}</b> / ${r.nt}<small>sur ${r.tot}</small></td><td>${r.temps != null ? `<b>${hms(r.temps)}</b>${r.penS ? `<small>+${hms(r.penS)} pén.</small>` : ''}` : '<small>non arrivé</small>'}</td><td>${r.cum != null ? hms(r.cum) : '–'}</td><td>${r.rk ? r.rk.replace(' /km', '') : '–'}</td><td>${r.al ? r.al + ' min' : '–'}</td><td>${r.pctP != null ? `<b style="color:${col(r, r.pctP)}">${pc(r.pctP)}</b>${r.penS ? `<small>sans pén. ${pc(r.pct)}</small>` : ''}` : '–'}</td></tr>`).join('')}
+    <tfoot><tr><td class="l">Total</td><td>${D.v} / ${D.f} / ${D.nt}</td><td>${hms(D.temps)}${D.pen ? `<small>+${hms(D.pen)} pén.</small>` : ''}</td><td>${hms(D.temps)}</td><td>${D.rkKm > 0 ? mpk(D.rkSec, D.rkKm).replace(' /km', '') : '–'}</td><td></td><td>${pc(D.pctP)}</td></tr></tfoot></table>
+    <p style="font-size:.7rem;color:#667;margin:6px 0 0">Balises <b style="color:#1B9E5A">vraies</b> · <b style="color:#D64545">fausses</b> (mauvais poinçon / symbole) · <b style="color:#667">non trouvées</b>. % prévu = (temps de course + pénalités de temps) ÷ temps attribué. RK = minutes par km (parcours avec distance).</p>
+    ${pie ? `<div class="pies">${pie}</div>` : ''}</div>`;
+};
+
+
 TOOL_IMPL.co = function (el) {
   let tab = DB.co.current || partToday('co').length || partRecoverHTML('co') ? 'seance' : 'parcours';
   const P = id => DB.co.parcours.find(p => p.id === id);
@@ -942,24 +1008,10 @@ TOOL_IMPL.co = function (el) {
   }
 
   /* ================= 2. SÉANCE ================= */
-  function result(r, p) {
-    const found = new Set(r.found);
-    const pts = p.balises.filter(b => found.has(b.num)).reduce((a, b) => a + (p.pts[b.niv - 1] || 0), 0);
-    const miss = p.balises.filter(b => b.ob && !found.has(b.num)).length;
-    const temps = r.dep && r.arr ? (r.legs ? legSec(r) : (r.arr - r.dep) / 1000) : null;
-    const limit = (p.alloue + p.ecart) * 60;
-    const overMin = temps != null && p.alloue ? Math.max(0, Math.ceil((temps - limit) / 60)) : 0;
-    const revus = p.type === 'koh' ? Object.values(r.vues || {}).reduce((a, v) => a + Math.max(0, v - 1), 0) : 0;   // Koh-Lanta : indices revus
-    const penS = r.wrong * p.penWrongS + miss * p.penMissS, penP = r.wrong * p.penWrongP + overMin * p.penOverP + revus * (p.kohPen || 0);
-    const km = (p.distance || 0) / 1000, kmE = km + (p.denivOn ? (p.deniv || 0) / 100 : 0);
-    let statut = '';
-    if (temps != null && p.alloue) { const d = temps / 60 - p.alloue; statut = Math.abs(d) <= p.ecart ? '✔ dans l\'écart' : d > 0 ? `hors délai +${Math.ceil(temps / 60 - p.alloue - p.ecart)} min` : 'plus rapide que prévu'; }
-    return { pts, miss, temps, penS, penP, total: temps != null ? temps + penS : null, score: pts - penP, overMin, km, kmE, statut,
-      rk: temps ? mpk(temps, km) : '–', rkE: temps && p.denivOn ? mpk(temps, kmE) : null, vit: temps && km ? (km / (temps / 3600)).toFixed(1).replace('.', ',') + ' km/h' : '–' };
-  }
+  function result(r, p) { return coResult(r, p); }
 
   // réseau en groupe : chaque élève garde les obligatoires du groupe + les facultatives qui lui sont attribuées (ou au groupe)
-  const resultFor = (r, p, m) => { const W = r.who || {}; return Object.keys(W).length ? result({ ...r, found: r.found.filter(n => !W[n] || W[n] === m) }, p) : result(r, p); };
+  const resultFor = (r, p, m) => coResultFor(r, p, m);
   /* ---- Séance partagée avec les autres tablettes (modèle sans résultats) ---- */
   const pub = (cur, create) => { if (cur.joined || cur.profOnly) return; const p = P(cur.parcours) || cur.psnap; if (!p) return;
     const indiv = cur.runs.every(r => r.members.length === 1 && r.name === r.members[0]);
@@ -1226,16 +1278,8 @@ TOOL_IMPL.co = function (el) {
 
   /* Fusion d'affichage : séances enregistrées sur plusieurs tablettes (même jour + classe + parcours) = une seule séance.
      Les enregistrements restent séparés dans DB.co.seances (sync par id sans risque). */
-  const dayKey = t => { const d = new Date(t); return d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate(); };
-  function coGroups(ss) {
-    const G = new Map();
-    ss.forEach(s => { const k = dayKey(s.date) + '|' + (s.classe || '') + '|' + (s.parcours || s.parcoursSnap.nom);
-      if (!G.has(k)) G.set(k, { recs: [], date: s.date }); const g = G.get(k); g.recs.push(s); g.date = Math.max(g.date, s.date); });
-    return [...G.values()].map(g => { const by = new Map(), rank = r => r.arr ? 2 : r.dep ? 1 : 0;
-      // une même équipe enregistrée par 2 tablettes (ex. tablette d'équipe + tablette enseignant) : on garde la plus complète
-      g.recs.forEach(s => s.runs.forEach(r => { const k = r.name + '|' + r.members.join(','), o = by.get(k); if (!o || rank(r) > rank(o.r)) by.set(k, { r, p: s.parcoursSnap }); }));
-      g.p = g.recs.reduce((a, s) => s.date >= a.date ? s : a).parcoursSnap; g.runs = [...by.values()]; return g; }).sort((a, b) => b.date - a.date);
-  }
+  const dayKey = t => coDayKey(t);
+  function coGroups(ss) { return coGroupsT(ss); }
 
   function prepare(box) {
     if (!DB.co.parcours.length) { box.innerHTML = '<div class="card empty">Créez d\'abord un parcours dans l\'onglet 🗺 Parcours.</div>'; partMount(box, 'co', sp => join(box, sp)); return; }
@@ -1352,12 +1396,15 @@ TOOL_IMPL.co = function (el) {
         <div class="section-title"><h2>Cumul des séances (${gs.length})</h2><button class="link" id="exp">Exporter CSV</button></div>
         <div class="card sheet-table"><table><tr><th>Élève</th><th>Séances</th><th>Distance</th><th>Temps</th><th>RK moyen</th><th>Balises</th><th>Points</th></tr>
           ${rows.map(([n, a]) => `<tr><td><b>${esc(n)}</b></td><td>${a.n}</td><td>${a.km.toFixed(2).replace('.', ',')} km</td><td>${hms(a.t)}</td><td>${mpk(a.t, a.km)}</td><td>${a.bal}</td><td><b>${a.pts}</b></td></tr>`).join('')}</table></div>
+        <div class="section-title"><h2>Suivi par élève</h2></div>
+        <div class="card"><select id="bs"><option value="">Choisir un élève…</option>${rows.map(([n]) => `<option>${esc(n)}</option>`).join('')}</select></div><div id="suivi"></div>
         <div class="section-title"><h2>Séances</h2></div>
         <div class="card" style="padding:0">${gs.map((g, gi) => { const p = g.p, fin = g.runs.filter(({ r }) => r.arr).length, grp = g.runs.some(({ r }) => r.members.length > 1), n = g.runs.length;
           return `<div class="list-item"><div style="flex:1"><b>${new Date(g.date).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })} · ${esc(p.nom)}${cls !== '—' ? ' · ' + esc(cls) : ''} · ${n} ${grp ? 'équipe' : 'élève'}${n > 1 ? 's' : ''}${g.recs.length > 1 ? ` (${g.recs.length} tablettes)` : ''}</b><div class="muted">${CO_TYPES[p.type][0]} · ${fin} arrivé${fin > 1 ? 's' : ''}</div></div><button class="btn btn-ghost" data-v="${gi}">👁</button><button class="btn btn-ghost" data-cfg="bare" data-x="${gi}">🗑</button></div>`; }).join('')}</div>
         <div id="det"></div>`;
       const $ = s => box.querySelector(s);
       $('#bc').onchange = () => { cls = $('#bc').value; draw(); };
+      $('#bs').onchange = () => { $('#suivi').innerHTML = $('#bs').value ? window.coSuiviHTML(cls, $('#bs').value) : ''; if ($('#bs').value) $('#suivi').scrollIntoView({ behavior: 'smooth' }); };
       box.querySelectorAll('[data-x]').forEach(b => b.onclick = () => { const g = gs[+b.dataset.x];
         if (!confirm(g.recs.length > 1 ? `Supprimer cette séance ? (${g.recs.length} enregistrements de tablettes seront supprimés)` : 'Supprimer cette séance ?')) return;
         g.recs.forEach(s => { const A0 = DB.co.seances, i = A0.indexOf(s); if (i >= 0) { window.epsItemDeleted && epsItemDeleted('co', s.id); A0.splice(i, 1); } }); save(); bilan(box); });
