@@ -16,6 +16,17 @@ ICONS.team = '<circle cx="9" cy="8" r="3.2"/><path d="M3 19.5c0-3.3 2.7-6 6-6s6 
   const teamOn = () => !!(DB.team && DB.team.on && teamProfs().length);
   const activeProf = () => teamOn() ? teamProfs().find(p => p.id === ls.get(ACT)) || null : null;
   const seeAll = () => ls.get(ALL) === '1';
+  /* Séances EN COURS (propres à l'appareil, jamais synchronisées) : rangées au nom de l'enseignant qui change de profil,
+     et restituées quand il revient → un collègue sur le même appareil ne voit ni les groupes ni les élèves de l'autre. */
+  const STK = 'epsone_cur_stash', CURS = [['co', 'current'], ['duathlon', 'current'], ['combine', 'current'], ['demifond', 'current'], ['sauvetage', 'current'], ['wod', 'current'], ['lutte', 'current'], ['escalade', 'defi'], ['top', 'matchTeams']];
+  const swapCur = to => { const from = ls.get(ACT) || '_', dst = to || '_'; if (from === dst) return;
+    let S; try { S = JSON.parse(localStorage.getItem(STK)) || {}; } catch (e) { S = {}; }
+    const host = t => t === 'top' ? DB : DB[t], mine = S[from] = {};
+    CURS.forEach(([t, f]) => { const o = host(t); if (o && typeof o === 'object' && o[f] != null) { mine[t + '.' + f] = o[f]; } if (o && typeof o === 'object') delete o[f]; });
+    const nxt = S[dst] || {}; delete S[dst];
+    CURS.forEach(([t, f]) => { const v = nxt[t + '.' + f]; if (v == null) return; if (t === 'top') DB[f] = v; else { if (!DB[t] || typeof DB[t] !== 'object') DB[t] = {}; DB[t][f] = v; } });
+    try { localStorage.setItem(STK, JSON.stringify(S)); } catch (e) {}
+    try { save(); } catch (e) {} };
   Object.assign(window, { teamOn, teamProfs, activeProf, teamProfOf: () => (activeProf() || {}).id });
 
   /* ---------- Vue filtrée de DB.classes / favs / recent ---------- */
@@ -139,7 +150,7 @@ ICONS.team = '<circle cx="9" cy="8" r="3.2"/><path d="M3 19.5c0-3.3 2.7-6 6-6s6 
 
   /* ---------- « Qui fait cours ? » ---------- */
   const choose = (p, done) => {
-    const ok = () => { ls.set(ACT, p.id); window.profUnlock && profUnlock(); document.getElementById('who-ov')?.remove(); refresh(); toast(`👤 ${p.name} : vos classes et vos favoris`); done && done(); };
+    const ok = () => { swapCur(p.id); ls.set(ACT, p.id); window.profUnlock && profUnlock(); document.getElementById('who-ov')?.remove(); refresh(); toast(`👤 ${p.name} : vos classes et vos favoris`); done && done(); };
     if (p.pin && activeProf() === p && window.profUnlocked && profUnlocked()) return ok();
     if (p.pin) pinPad('ask', ok, `Code de ${p.name}`, { hash: p.pin });
     else pinPad('new', ok, '', { newTitle: `${p.name} : choisissez votre code`, newHint: 'Votre code perso à 4 chiffres : il ouvre votre espace et protège vos réglages.', onSet: h => { p.pin = h; save(); } });
@@ -206,7 +217,7 @@ ICONS.team = '<circle cx="9" cy="8" r="3.2"/><path d="M3 19.5c0-3.3 2.7-6 6-6s6 
         if (teamProfs().length === 1) return toast('Il faut au moins un enseignant (ou désactivez le mode Équipe)');
         if (!confirm(`Retirer ${p.name} de l'équipe ?\nSes ${nbCls(p)} classe(s) restent et deviennent communes à toute l'équipe.`)) return;
         (dbGet('classes') || []).forEach(c => { if (c.prof === p.id) delete c.prof; });
-        DB.team.profs = teamProfs().filter(x => x !== p); if (ls.get(ACT) === p.id) ls.set(ACT, ''); save(); refresh(); panel(); });
+        DB.team.profs = teamProfs().filter(x => x !== p); if (ls.get(ACT) === p.id) { swapCur(''); ls.set(ACT, ''); } save(); refresh(); panel(); });
       $('#tm-who').onclick = () => openWho(() => panel());
       $('#tm-all').onchange = e => { ls.set(ALL, e.target.checked ? '1' : ''); refresh(); toast(e.target.checked ? 'Toutes les classes de l\'équipe' : 'Seulement les classes de l\'enseignant'); };
       $('#tm-off').onclick = () => { if (!confirm('Désactiver le mode Équipe ?\nToutes les classes redeviennent visibles. Les enseignants et le rattachement des classes sont conservés si vous le réactivez.')) return;

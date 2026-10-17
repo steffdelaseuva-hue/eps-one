@@ -115,7 +115,7 @@ function partOutboxCard(host, tool, list, restore) {
    permet de la reprendre et d'enregistrer les résultats.
    ========================================================= */
 const PART_BAK_TOOLS = ['wod', 'duathlon', 'combine', 'co', 'demifond', 'sauvetage'];
-const partBakKey = k => 'epsone_bak_' + k;
+const partBakKey = k => { const tp = window.teamProfOf && teamProfOf(); return 'epsone_bak_' + k + (tp ? '_' + tp : ''); };   // Mode Équipe : une copie de secours par enseignant
 const partBakGet = k => { try { return JSON.parse(localStorage.getItem(partBakKey(k)) || 'null'); } catch (e) { return null; } };
 let _partBakT = null;
 function partBackupNow() {

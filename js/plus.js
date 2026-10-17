@@ -4,9 +4,10 @@
    ========================================================= */
 /* Page Ko-fi : laisser vide tant qu'elle n'existe pas (le bouton est alors masqué) */
 const KOFI_URL = 'https://ko-fi.com/epsone';
-const APP_VERSION = '23.64';
+const APP_VERSION = '23.65';
 const APP_URL = 'https://steffdelaseuva-hue.github.io/eps-one/';
 const CHANGELOG = [
+  { v: '23.65', items: ['Mode Équipe : la séance EN COURS (groupes, élèves, épreuve choisie) est désormais rangée au nom de l\'enseignant. Quand un collègue prend l\'appareil et choisit son profil, il ne voit plus ta séance ; tu la retrouves en revenant sur ton profil. Valable pour tous les outils (HYROX, duathlon, combiné, demi-fond, sauvetage, orientation, lutte, escalade, matchs).', 'La carte « ♻️ Séance interrompue » (copie de secours) est aussi propre à chaque enseignant.'] },
   { v: '23.64', items: ['Mode Équipe : les épreuves HYROX / Crosstraining d\'un enseignant ne sont plus visibles ni utilisables par ses collègues (liste des épreuves et choix de l\'épreuve à la préparation).', 'Bouton « 🔒 Réserver à mon profil » pour attribuer d\'un clic tes anciennes épreuves (jusque-là visibles par tous).', 'Toutes les séances enregistrées (HYROX, combiné, demi-fond, duathlon, sauvetage, orientation, résultats) sont marquées au nom de l\'enseignant et masquées aux collègues.'] },
   { v: '23.63', items: ['Vrais PDF : le ZIP de la classe contient maintenant un fichier PDF par élève (et non plus du HTML), pour une activité ou toutes les activités/outils.', 'Bouton « 📄 Enregistrer en PDF » sur les fiches élèves ET sur les bilans de classe (tous les outils) : pages A4, cartes jamais coupées, tableaux entiers.', 'Les bilans de classe sortent en PDF paysage ; les fiches élèves en portrait.'] },
   { v: '23.62', items: ['Fiches élèves : les tableaux à double entrée tiennent maintenant en entier sur la largeur (écran de téléphone, impression, PDF) — plus de défilement latéral ni de tableau coupé.'] },
