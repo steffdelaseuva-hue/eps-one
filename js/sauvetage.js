@@ -617,7 +617,7 @@ TOOL_IMPL.sauvetage = function (el) {
     if (!done.length) return toast('Aucun résultat saisi');
     if (C.live && C.live.st !== 'done' && !confirm('L\'épreuve n\'est pas terminée. Enregistrer quand même les étapes terminées ?')) return;
     const rec = dfClone({ ...C, groups: done }); rec.id = C.id + '-' + Math.random().toString(36).slice(2, 6); ['live', 'undo', 'only', 'joined'].forEach(k => delete rec[k]);
-    D.seances.push(rec); D.current = null; save(); window.syncFlush && window.syncFlush(); toast('Séance de sauvetage enregistrée ✔'); tab = 'res'; openRec = rec.id; frame();
+    D.seances.push((window.epsTg ? epsTg(rec) : rec)); D.current = null; save(); window.syncFlush && window.syncFlush(); toast('Séance de sauvetage enregistrée ✔'); tab = 'res'; openRec = rec.id; frame();
   }
 
   /* ---------- Résultats ---------- */

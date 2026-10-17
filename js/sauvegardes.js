@@ -11,7 +11,7 @@ const lastClass = () => (DB.classes.find(c => c.name === DB.lastClass) || DB.cla
 function saveResult(r) {
   const o = { date: Date.now(), ...r }; const tp = window.teamProfOf && teamProfOf(); if (tp && !o.prof) o.prof = tp;   // mode Équipe : enseignant qui a saisi
   if (r.key) { o.id = 'r:' + r.key; const i = DB.resultats.findIndex(x => x.id === o.id || x.key === r.key); if (i >= 0) { DB.resultats[i] = o; save(); window.syncFlush && window.syncFlush(); return 'maj'; } }
-  DB.resultats.push(o); save(); window.syncFlush && window.syncFlush(); return 'new';
+  if (window.epsTg && !o.prof) epsTg(o); DB.resultats.push(o); save(); window.syncFlush && window.syncFlush(); return 'new';
 }
 
 /* Carte à ajouter en bas d'un outil.

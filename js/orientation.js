@@ -996,7 +996,7 @@ TOOL_IMPL.co = function (el) {
     // 🔁 Nouveau parcours après l'arrivée : la course terminée est enregistrée, l'équipe repart sur un autre parcours
     const again = (i, redraw) => { const r = cur.runs[i], pp = pOf(r);
       const rec = { ...cur, id: cur.id + '-' + Math.random().toString(36).slice(2, 6), parcours: baseOf(r).id, runs: [JSON.parse(JSON.stringify(r))], parcoursSnap: coLite(pp) };
-      ['only', 'joined', 'psnap', 'profOnly'].forEach(k => delete rec[k]); DB.co.seances.push(rec); coResults(rec);
+      ['only', 'joined', 'psnap', 'profOnly'].forEach(k => delete rec[k]); DB.co.seances.push((window.epsTg ? epsTg(rec) : rec)); coResults(rec);
       Object.assign(r, { dep: null, arr: null, found: [], wrong: 0, sel: [], done: (r.done || 0) + 1 }); delete r.tries; delete r.auto; delete r.legs; delete r.nx; delete r.who; delete r.vues; save(); toast(`Course enregistrée ✔ · ${r.name} : choisissez le nouveau parcours`); redraw(); };
     /* ---- Allers-retours (étoile, papillon, relais) ---- */
     const legGo = r => { const pp = pOf(r), nx = legNext(r, pp); if (!nx.length) return false; const t = Date.now(), w = legWho(r, pp); if (!r.dep) r.dep = t;
@@ -1139,7 +1139,7 @@ TOOL_IMPL.co = function (el) {
       const by = new Map(); (tab1 ? [tab1] : cur.runs).forEach(r => { const pp = pOf(r); if (!by.has(pp.id)) by.set(pp.id, { pp, base: baseOf(r).id, runs: [] }); by.get(pp.id).runs.push(r); });
       by.forEach(({ pp, base, runs }) => { if (!runs.some(r => r.dep) && by.size > 1) return;
         const rec = { ...cur, id: cur.id + '-' + Math.random().toString(36).slice(2, 6), parcours: base, runs, parcoursSnap: coLite(pp) }; ['only', 'joined', 'psnap', 'profOnly'].forEach(k => delete rec[k]);
-        DB.co.seances.push(rec); coResults(rec); });
+        DB.co.seances.push((window.epsTg ? epsTg(rec) : rec)); coResults(rec); });
       DB.co.current = null; save(); toast('Séance enregistrée ✔'); tabs(true); tab = 'bilan'; frame(); };
     const RUNCOL = ['#E53935', '#1E88E5', '#43A047', '#FB8C00', '#8E24AA', '#00ACC1', '#F4B400', '#D81B60', '#6D4C41', '#3949AB', '#7CB342', '#546E7A'];   // liseré de couleur propre à chaque carte
     let ovw = false; try { ovw = localStorage.getItem('epsone_co_vue') === 'cartes'; } catch (e) {}   // vue propre à l'appareil

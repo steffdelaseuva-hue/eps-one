@@ -185,12 +185,15 @@ TOOL_IMPL.wod = function (el) {
 
   /* ================= 1. ÉPREUVES ================= */
   function listEp(box) {
-    box.innerHTML = `<div class="card" style="padding:0">${DB.wod.epreuves.length ? DB.wod.epreuves.map((e, i) => `<div class="list-item"><div style="flex:1"><b>${esc(e.nom)}</b><div class="muted">${summaryOf(e)}</div></div>
+    const VIS = DB.wod.epreuves.map((e, i) => [e, i]).filter(([e]) => !window.teamSees || teamSees(e));   // Mode Équipe : pas les épreuves d'un collègue
+    const FREE = window.teamOn && teamOn() && window.activeProf && activeProf() ? DB.wod.epreuves.filter(e => !e.prof) : [];
+    box.innerHTML = `${FREE.length ? `<div class="card" style="border:2px solid #B8912A;margin-bottom:12px"><b>🔒 ${FREE.length} épreuve${FREE.length > 1 ? 's' : ''} visible${FREE.length > 1 ? 's' : ''} par tous les enseignants</b><p class="muted" style="font-size:.84rem;margin:6px 0 8px">Réserve-les à ton profil : tes collègues ne les verront plus.</p><button class="btn btn-grad btn-block" data-resv>🔒 Les réserver à ${esc(activeProf().name)}</button></div>` : ''}<div class="card" style="padding:0">${VIS.length ? VIS.map(([e, i]) => `<div class="list-item"><div style="flex:1"><b>${esc(e.nom)}</b><div class="muted">${summaryOf(e)}</div></div>
       <button class="btn btn-ghost" data-cfg="bare" data-e="${i}">✏️</button><button class="btn btn-ghost" data-cfg="bare" data-c="${i}" title="Dupliquer">⧉</button></div>`).join('') : '<div class="empty">Aucune épreuve. Créez la première !</div>'}</div>
       <button class="btn btn-grad btn-block" data-cfg style="margin-top:12px" id="new">＋ Créer une épreuve</button>`;
+    const rv = box.querySelector('[data-resv]'); if (rv) rv.onclick = () => { const me = activeProf(), go = () => { FREE.forEach(e => e.prof = me.id); save(); toast('🔒 Épreuves réservées à ' + me.name); listEp(box); }; if (me.pin && typeof pinPad === 'function') pinPad('ask', go, `Code de ${me.name}`, { hash: me.pin }); else go(); };
     box.querySelector('#new').onclick = () => editEp(box, null);
     box.querySelectorAll('[data-e]').forEach(b => b.onclick = () => editEp(box, +b.dataset.e));
-    box.querySelectorAll('[data-c]').forEach(b => b.onclick = () => { const c = JSON.parse(JSON.stringify(DB.wod.epreuves[+b.dataset.c])); c.id = wid(); c.nom += ' (copie)'; DB.wod.epreuves.push(c); save(); listEp(box); });
+    box.querySelectorAll('[data-c]').forEach(b => b.onclick = () => { const c = JSON.parse(JSON.stringify(DB.wod.epreuves[+b.dataset.c])); delete c.prof; if (window.epsTg) epsTg(c); c.id = wid(); c.nom += ' (copie)'; DB.wod.epreuves.push(c); save(); listEp(box); });
   }
   const newBloc = (sport, i) => ({ famille: i % 4, series: sport === 'hyrox' ? 1 : 3, ex: [{ nom: ['Air squats', 'Pompes sur box', 'Jumping jacks', 'Mountain climbers'][i % 4], reps: 10, niv: 1 }],
     run: sport === 'hyrox', runType: 'm', runVal: sport === 'hyrox' ? 400 : 200 });
@@ -314,7 +317,7 @@ TOOL_IMPL.wod = function (el) {
           if (bad.length && !confirm(`La somme des répétitions des élèves ne correspond pas à l'objectif du groupe :\n${bad.join('\n')}\n\nEnregistrer quand même ?`)) return;
           e.blocs.forEach(b => b.ex = wodClone(b.pe[0])); }                          // repli : plan de l'Élève 1
         else e.blocs.forEach(b => { delete b.pe; delete b.obj; });
-        DB.wod.customEx = custom; if (idx != null) DB.wod.epreuves[idx] = e; else DB.wod.epreuves.push(e); save(); toast('Épreuve enregistrée ✔'); listEp(box); };
+        DB.wod.customEx = custom; if (idx != null) DB.wod.epreuves[idx] = e; else DB.wod.epreuves.push(window.epsTg ? epsTg(e) : e); save(); toast('Épreuve enregistrée ✔'); listEp(box); };
     };
     draw();
   }
@@ -439,7 +442,7 @@ TOOL_IMPL.wod = function (el) {
     const saveSeance = () => { if (cur.groups.some(g => g.dep && !g.arr && !g.capped) && !confirm('Certains groupes n\'ont pas terminé. Enregistrer quand même ?')) return;
       // seuls les groupes partis sont enregistrés (une tablette par groupe → pas de lignes vides)
       const done = cur.groups.filter(g => g.dep); if (!done.length) return toast('Aucun groupe n\'est parti');
-      const rec = { ...cur, id: cur.id + Math.random().toString(36).slice(2, 5), groups: done }; delete rec.only; delete rec.joined;
+      const rec = { ...cur, id: cur.id + Math.random().toString(36).slice(2, 5), groups: done }; delete rec.only; delete rec.joined; if (window.epsTg && !rec.prof) epsTg(rec);
       DB.wod.seances.push(rec);
       // synthèse « Résultats des élèves » : une ligne par élève
       const nM = wodMulti(e);
@@ -522,12 +525,13 @@ TOOL_IMPL.wod = function (el) {
 
   let wodManual = false;
   function prepare(box) {
-    if (!DB.wod.epreuves.length) { box.innerHTML = '<div class="card empty">Créez d\'abord une épreuve dans l\'onglet 🏋️ Épreuves.</div>'; partMount(box, 'wod', p => join(box, p)); return; }
-    let mode = 'grp', sel = DB.wod.epreuves[0].id;
+    const EPS = window.teamFilter ? teamFilter(DB.wod.epreuves) : DB.wod.epreuves;
+    if (!EPS.length) { box.innerHTML = '<div class="card empty">Créez d\'abord une épreuve dans l\'onglet 🏋️ Épreuves.</div>'; partMount(box, 'wod', p => join(box, p)); return; }
+    let mode = 'grp', sel = EPS[0].id;
     const draw = () => {
-      const ep = E(sel) || DB.wod.epreuves[0], fmt = ep.format || 0, md = fmt === 1 ? 'indiv' : fmt >= 2 ? 'grp' : mode;   // le format de l'épreuve impose l'organisation
+      const ep = EPS.find(e => e.id === sel) || EPS[0], fmt = ep.format || 0, md = fmt === 1 ? 'indiv' : fmt >= 2 ? 'grp' : mode;   // le format de l'épreuve impose l'organisation
       box.innerHTML = `<div class="card" data-cfg><h3>Nouvelle séance</h3>
-        <label>Épreuve</label><select id="ep">${DB.wod.epreuves.map(e => `<option value="${e.id}" ${e.id === ep.id ? 'selected' : ''}>${esc(e.nom)} — ${e.format ? WOD_FMT[e.format] + ' · ' : ''}${e.sport === 'hyrox' ? 'HYROX' : 'Crosstraining'}</option>`).join('')}</select>
+        <label>Épreuve</label><select id="ep">${EPS.map(e => `<option value="${e.id}" ${e.id === ep.id ? 'selected' : ''}>${esc(e.nom)} — ${e.format ? WOD_FMT[e.format] + ' · ' : ''}${e.sport === 'hyrox' ? 'HYROX' : 'Crosstraining'}</option>`).join('')}</select>
         ${fmt ? `<div class="pill" style="margin-top:10px;display:inline-block">Format de l'épreuve : <b>${WOD_FMT[fmt]}</b>${fmt >= 2 ? ` · groupes de ${fmt} (Élève 1 à ${fmt})` : ' · un élève = une fiche'}</div>`
           : `<label>Organisation</label><div class="seg"><button data-md="indiv" class="${md === 'indiv' ? 'on' : ''}">Individuel</button><button data-md="grp" class="${md === 'grp' ? 'on' : ''}">Groupes<br><small style="font-weight:600;opacity:.85">duo · trio · quatuor</small></button></div>`}
         <label>Déroulement</label><div class="seg"><button data-wm="live" class="${wodManual ? '' : 'on'}">⏱ Séance en direct (tablettes)</button><button data-wm="man" class="${wodManual ? 'on' : ''}">${SP_BTN.replace(' (', '<br><small>(').replace(')', ')</small>')}</button></div>

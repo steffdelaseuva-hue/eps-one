@@ -407,7 +407,7 @@ TOOL_IMPL.combine = function (el) {
       if (S.only != null && done.some(g => g.eleves.some(e => R.some((r, k) => { const x = cbX(e, k); return r.k === 'dist' && x && x.dep && !x.arr; }))) && !confirm('Tout le monde n\'est pas arrivé. Enregistrer quand même ?')) return;
       const rec = { ...S, id: S.id + '-' + Math.random().toString(36).slice(2, 6), groups: done }; ['only', 'joined', 'tl'].forEach(k => delete rec[k]);   // id unique par tablette (fusion de synchro par id)
       rec.groups = JSON.parse(JSON.stringify(done)); rec.groups.forEach(g => delete g.tl);
-      DB.combine.seances.push(rec); DB.combine.current = null; vk = null;
+      DB.combine.seances.push((window.epsTg ? epsTg(rec) : rec)); DB.combine.current = null; vk = null;
       // synthèse « Résultats des élèves » : une ligne par élève ayant des résultats
       done.forEach(g => g.eleves.filter(hasData).forEach(e => saveResult({ tool: 'combine', label: 'Combiné athlétique', classe: S.classe, eleve: e.nom, ...resTxt(c, e, grp ? g.name : '') })));
       save(); clearInterval(iv); toast('Épreuve enregistrée ✔'); tab = 'bilan'; frame(); };

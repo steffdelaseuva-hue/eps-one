@@ -177,7 +177,7 @@ TOOL_IMPL.duathlon = function (el) {
       const done = C.groups.filter(hasData); if (!done.length) return toast('Aucun groupe n\'a de résultat');
       if (C.only != null && done.some(g => g.etapes.some(E => E.dep && !E.arr)) && !confirm('Une étape n\'est pas terminée (pas d\'arrivée). Enregistrer quand même ?')) return;
       const rec = { ...C, id: C.id + '-' + Math.random().toString(36).slice(2, 6), groups: done }; delete rec.only; delete rec.prof; delete rec.joined;   // id unique par tablette (fusion de synchro par id)
-      D.seances.push(rec); const wasGroup = C.only != null; D.current = null;
+      D.seances.push((window.epsTg ? epsTg(rec) : rec)); const wasGroup = C.only != null; D.current = null;
       if (typeof partOutboxAdd === 'function') partOutboxAdd('duathlon', rec, `${done.map(g => g.name).join(', ')} · ${C.nom}`);
       // synthèse « Résultats des élèves » : une ligne par élève des groupes enregistrés
       done.forEach(g => { const T = totalOf(c, g), R = potOf(C, g, T), vt = R.manque ? ' · VMA manquante' : ` · potentiel VMA ${duaFr(R.pot)} km/h${R.coef != null ? ` · coef. maîtrise ${duaPct(R.coef)} (${duaFr(R.vReal)} km/h sur ${duaFr((c.dist || DUA_DIST) / 1000, 2)} km)` : ''}`; g.members.forEach(n => { const P = [0, 1, 2].reduce((a, e) => { const m = g.etapes[e].m[n] || {}; a.pts += m.pts || 0; a.tours += duaCommun(c, e) ? (g.etapes[e].tc || 0) : (m.tours || 0); return a; }, { pts: 0, tours: 0 });
