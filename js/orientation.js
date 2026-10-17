@@ -668,7 +668,12 @@ window.coSuivi = (cls, name, okDate) => {
   coGroupsT(S0).sort((a, b) => a.date - b.date).forEach(g => { const e = g.runs.find(({ r }) => r.dep && (r.members || []).includes(name)); if (!e) return;
     const { r, p: q } = e, x = coResultFor(r, q, name), fd = (r.found || []).filter(n => !(r.who || {})[n] || r.who[n] === name), tot = (q.balises || []).length, al = q.alloue || 0;
     if (x.temps != null) cum += x.temps;
-    rows.push({ date: g.date, nom: q.nom, v: fd.length, f: r.wrong || 0, nt: Math.max(0, tot - fd.length), tot, temps: x.temps, penS: x.penS || 0, total: x.total, cum: x.temps != null ? cum : null,
+    /* chaque balise du parcours est dans UNE seule case : vraie (validée) · fausse (dernier symbole / poinçon faux) · non trouvée → vraies + fausses + non trouvées = nombre de balises */
+      const T = r.tries || {}, A = r.auto || {}, nf = Math.max(0, tot - fd.length); let fx = 0;
+      (q.balises || []).forEach(b => { if (fd.includes(b.num)) return; const c = T[b.num]; if (A[b.num] === 'ko' || (c && c !== 'V' && c !== b.code)) fx++; });
+      if (!Object.keys(T).length && !Object.keys(A).length) fx = r.wrong || 0;   // pas de détail par balise : on rattache les erreurs aux balises non validées
+      fx = Math.min(fx, nf);
+      rows.push({ date: g.date, nom: q.nom, v: fd.length, f: fx, nt: nf - fx, err: r.wrong || 0, tot, temps: x.temps, penS: x.penS || 0, total: x.total, cum: x.temps != null ? cum : null,
       km: x.km, rk: x.temps && x.km ? x.rk : null, al, ecart: q.ecart || 0, pct: x.temps != null && al ? x.temps / (al * 60) * 100 : null, pctP: x.total != null && al ? x.total / (al * 60) * 100 : null,
       arr: !!r.arr, score: x.score, penP: x.penP || 0 }); });
   if (!rows.length) return null;
@@ -691,7 +696,7 @@ window.coSuiviHTML = (cls, name, okDate) => {
     <table><colgroup><col style="width:18%"><col style="width:16%"><col style="width:17%"><col style="width:13%"><col style="width:11%"><col style="width:11%"><col style="width:14%"></colgroup><tr><th>Séance</th><th>Balises<br>vraies / fausses / non tr.</th><th>Temps<br>course</th><th>Cumul</th><th>RK</th><th>Prévu</th><th>%<br>prévu</th></tr>
     ${D.rows.map(r => `<tr><td class="l"><b>${new Date(r.date).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })}</b><small>${e(r.nom)}</small></td><td><b style="color:#1B9E5A">${r.v}</b> / <b style="color:#D64545">${r.f}</b> / ${r.nt}<small>sur ${r.tot}</small></td><td>${r.temps != null ? `<b>${hms(r.temps)}</b>${r.penS ? `<small>+${hms(r.penS)} pén.</small>` : ''}` : '<small>non arrivé</small>'}</td><td>${r.cum != null ? hms(r.cum) : '–'}</td><td>${r.rk ? r.rk.replace(' /km', '') : '–'}</td><td>${r.al ? r.al + ' min' : '–'}</td><td>${r.pctP != null ? `<b style="color:${col(r, r.pctP)}">${pc(r.pctP)}</b>${r.penS ? `<small>sans pén. ${pc(r.pct)}</small>` : ''}` : '–'}</td></tr>`).join('')}
     <tfoot><tr><td class="l">Total</td><td>${D.v} / ${D.f} / ${D.nt}</td><td>${hms(D.temps)}${D.pen ? `<small>+${hms(D.pen)} pén.</small>` : ''}</td><td>${hms(D.temps)}</td><td>${D.rkKm > 0 ? mpk(D.rkSec, D.rkKm).replace(' /km', '') : '–'}</td><td></td><td>${pc(D.pctP)}</td></tr></tfoot></table>
-    <p style="font-size:.7rem;color:#667;margin:6px 0 0">Balises <b style="color:#1B9E5A">vraies</b> · <b style="color:#D64545">fausses</b> (mauvais poinçon / symbole) · <b style="color:#667">non trouvées</b>. % prévu = (temps de course + pénalités de temps) ÷ temps attribué. RK = minutes par km (parcours avec distance).</p>
+    <p style="font-size:.7rem;color:#667;margin:6px 0 0">Chaque balise est comptée une seule fois : <b style="color:#1B9E5A">vraie</b> (validée), <b style="color:#D64545">fausse</b> (le poinçon / symbole relevé était faux) ou <b style="color:#667">non trouvée</b>. % prévu = (temps de course + pénalités de temps) ÷ temps attribué. RK = minutes par km (parcours avec distance).</p>
     ${pie ? `<div class="pies">${pie}</div>` : ''}</div>`;
 };
 
