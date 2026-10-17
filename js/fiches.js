@@ -335,7 +335,8 @@
     const P = o.res !== false ? perfCards(cls, n, act ? (act.sport ? [] : act.tools) : o.tools) : '', G = o.gr !== false && !act ? grilleCards(cls, n, o.grilles || (DB.grilles || []).map((_, i) => i)) : '';
     const PI = o.pie !== false ? piesBlock(cls, [n], oo) : '';
     const CO = o.res !== false && window.coSuiviHTML && (!act || (act.tools || []).includes('co') || act.tool === 'co') && (!o.tools || o.tools.includes('co') || act) ? window.coSuiviHTML(cls, n, d => !days || days.has(dayS(d))) : '';
-    if (!V.length && !C.length && !P && !G && !PI && !CO) return '';
+    const ES = o.res !== false && window.escSuiviHTML && (!act || (act.tools || []).includes('escalade') || act.tool === 'escalade') && (!o.tools || o.tools.includes('escalade') || act) ? window.escSuiviHTML(cls, n, d => !days || days.has(dayS(d)), { noDup: o.pie !== false }) : '';
+    if (!V.length && !C.length && !P && !G && !PI && !CO && !ES) return '';
     const notes = V.filter(e => e.NT).map(e => e.NT.n20), moy = notes.length ? notes.reduce((a, b) => a + b, 0) / notes.length : null, avgAll = epsMAvg(V.map(e => e.avg).filter(x => x != null));
     const mt = C.map(x => matchChips(x.e, String(x.row[1] || ''))).filter(Boolean).flat(), nV = mt.filter(m => m.r === 'V').length, medals = C.filter(x => typeof x.row[0] === 'number' && x.row[0] <= 3).length;
     const chips = [[V.length, 'activité' + (V.length > 1 ? 's' : '') + ' validée' + (V.length > 1 ? 's' : ''), '#1E5BD8'], moy != null ? [fr(moy), 'note moyenne /20', noteCol(moy)] : null, avgAll != null ? [M[avgAll][2] || M[avgAll][0], 'niveau global', M[avgAll][1]] : null,
@@ -345,6 +346,7 @@
       ${C.length ? `<h3 class="st">🏆 Tournois, matchs et classements</h3>${C.map(x => collCard({ ...x, n })).join('')}` : ''}
       ${PI ? `<h3 class="st">🥧 Répartitions en camemberts</h3>${PI}` : ''}
       ${CO}
+      ${ES}
       ${P ? `<h3 class="st">📈 Résultats des outils</h3>${P}` : ''}
       ${G ? `<h3 class="st">📝 Évaluations</h3>${G}` : ''}
       <div class="mut" style="font-size:.7rem;margin-top:10px">Édité le ${dt(Date.now())} — EPS ONE</div></section>`;

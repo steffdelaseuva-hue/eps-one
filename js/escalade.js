@@ -50,6 +50,93 @@ function escReadPhoto(file) {
   });
 }
 
+/* ================= Suivi par élève + classements (bilan de l'outil, fiche élève, séance) =================
+   voies réalisées · difficulté (cotation) · % de voies proposées réalisées · poses de pieds / PME (moins = mieux) · temps · fluidité · rôles de cordée */
+const escDayKey = t => { const d = new Date(t); return d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate(); };
+const escCi = c => ESC_COT.indexOf(c);
+const escCotLabel = i => i == null || isNaN(i) ? '–' : ESC_COT[Math.max(0, Math.min(ESC_COT.length - 1, Math.round(i)))];
+const escPass = (cls, okDate) => ((window.teamFilter ? teamFilter((DB.escalade || {}).passages || []) : ((DB.escalade || {}).passages || []))).filter(p => p.classe === cls && (!okDate || okDate(p.date)));
+const escMean = a => a.length ? a.reduce((x, y) => x + y, 0) / a.length : null;
+/* statistiques d'un ensemble de passages (un élève, un jour, une équipe…) */
+function escStats(L) {
+  const nV = ((DB.escalade || {}).voies || []).length, ci = L.map(p => escCi(p.cot)).filter(i => i >= 0), n = L.length, nDist = new Set(L.map(p => p.voie)).size;
+  const tp = L.filter(p => p.temps != null && !isNaN(p.temps)).map(p => +p.temps), fl = L.filter(p => p.flu).map(p => +p.flu), lv = {};
+  L.forEach(p => { const k = String(p.cot || '?')[0]; lv[k] = (lv[k] || 0) + 1; });
+  return { n, nDist, nV, pctPrev: nV ? Math.min(100, nDist / nV * 100) : null, cotMax: ci.length ? Math.max(...ci) : null, cotMoy: escMean(ci), tTot: tp.reduce((a, b) => a + b, 0), tMoy: escMean(tp), nT: tp.length,
+    pieds: L.reduce((a, p) => a + (p.pieds || 0), 0), pme: L.reduce((a, p) => a + (p.pme || 0), 0), piedsV: n ? L.reduce((a, p) => a + (p.pieds || 0), 0) / n : null, pmeV: n ? L.reduce((a, p) => a + (p.pme || 0), 0) / n : null,
+    flu: escMean(fl), nTete: L.filter(p => p.mode === 'tete').length, lv };
+}
+window.escSuivi = (cls, name, okDate) => {
+  const A = escPass(cls, okDate), L = A.filter(p => p.eleve === name); if (!L.length) return null;
+  const days = new Map(); L.forEach(p => { const k = escDayKey(p.date); (days.get(k) || days.set(k, []).get(k)).push(p); });
+  const rows = [...days.values()].sort((a, b) => a[0].date - b[0].date).map(g => ({ date: g[0].date, ...escStats(g) }));
+  const as = A.filter(p => p.as === name).length, ca = A.filter(p => p.ca === name).length;
+  return { rows, ...escStats(L), nSeances: rows.length, as, ca, roles: as + ca };
+};
+const ESC_CRIT = [
+  { k: 'n', l: 'Voies réalisées', dir: -1, val: D => D.n, cell: D => `<b>${D.n}</b><small>${D.nDist} différente${D.nDist > 1 ? 's' : ''}</small>` },
+  { k: 'cot', l: 'Difficulté (cotation max)', dir: -1, val: D => D.cotMax == null ? null : D.cotMax + (D.cotMoy || 0) / 100, cell: D => D.cotMax == null ? '–' : `<b>${escCotLabel(D.cotMax)}</b><small>moy. ${escCotLabel(D.cotMoy)}</small>` },
+  { k: 'prev', l: '% voies proposées réalisées', dir: -1, val: D => D.pctPrev, cell: D => D.pctPrev == null ? '–' : `<b>${Math.round(D.pctPrev)} %</b><small>${D.nDist}/${D.nV}</small>` },
+  { k: 'pieds', l: 'Poses de pieds / voie', dir: 1, val: D => D.piedsV, cell: D => D.piedsV == null ? '–' : `<b>${D.piedsV.toFixed(1).replace('.', ',')}</b><small>${D.pieds} au total</small>` },
+  { k: 'pme', l: 'PME / voie', dir: 1, val: D => D.pmeV, cell: D => D.pmeV == null ? '–' : `<b>${D.pmeV.toFixed(1).replace('.', ',')}</b><small>${D.pme} au total</small>` },
+  { k: 'temps', l: 'Temps de grimpe / voie', dir: 1, val: D => D.tMoy, cell: D => D.tMoy == null ? '–' : `<b>${escTime(D.tMoy)}</b>` },
+  { k: 'flu', l: 'Fluidité moyenne', dir: -1, val: D => D.flu, cell: D => D.flu == null ? '–' : `<b>${D.flu.toFixed(1).replace('.', ',')}</b><small>sur 4</small>` },
+  { k: 'roles', l: 'Rôles de cordée (assureur + contre-assureur)', dir: -1, val: D => D.roles, cell: D => `<b>${D.roles || 0}</b><small>${D.as || 0} assureur · ${D.ca || 0} c.-assureur</small>` }];
+/* classement CUMULÉ d'un élève dans sa classe (toutes les séances) */
+window.escClassCumul = (cls, name, okDate) => {
+  const names = [...new Set(escPass(cls, okDate).map(p => p.eleve))], M = {};
+  names.forEach(n => { const D = window.escSuivi(cls, n, okDate); if (D) M[n] = D; });
+  if (!M[name]) return [];
+  const C = [...ESC_CRIT, { k: 'seances', l: 'Séances', dir: -1, val: D => D.nSeances }];
+  return C.map(c => { const vals = {}; Object.keys(M).forEach(n => vals[n] = c.val(M[n])); const me = M[name], f1 = x => x == null ? '–' : x.toFixed(1).replace('.', ','), txt = ({
+      n: () => `${me.n} voie${me.n > 1 ? 's' : ''} (${me.nDist} différente${me.nDist > 1 ? 's' : ''})`, cot: () => `max ${escCotLabel(me.cotMax)} · moy. ${escCotLabel(me.cotMoy)}`, prev: () => `${Math.round(me.pctPrev)} % (${me.nDist}/${me.nV} voies)`,
+      pieds: () => `${f1(me.piedsV)} / voie (${me.pieds} au total)`, pme: () => `${f1(me.pmeV)} / voie (${me.pme} au total)`, temps: () => escTime(me.tMoy) + ' / voie', flu: () => `${f1(me.flu)} sur 4`,
+      roles: () => `${me.as} assureur · ${me.ca} contre-assureur`, seances: () => `${me.nSeances} séance${me.nSeances > 1 ? 's' : ''}` })[c.k]();
+    return { l: c.l, rank: coRankOf(vals, name, c.dir), of: Object.values(vals).filter(x => x != null && !isNaN(x)).length, txt }; }).filter(c => c.rank != null);
+};
+window.escSuiviHTML = (cls, name, okDate, opt) => {
+  opt = opt || {}; const D = window.escSuivi(cls, name, okDate); if (!D) return '';
+  const e = esc, f1 = x => x == null ? '–' : x.toFixed(1).replace('.', ','), pc = x => x == null ? '–' : Math.round(x) + ' %';
+  const chip = (v, l, c) => `<div style="background:${c};color:#fff;border-radius:12px;padding:8px 6px;text-align:center"><b style="display:block;font-size:1.1rem">${e(String(v))}</b><span style="font-size:.68rem;opacity:.95">${e(l)}</span></div>`;
+  let CL = []; try { CL = window.escClassCumul(cls, name, okDate); } catch (er) {}
+  const medal = r => r === 1 ? '#C9A227' : r === 2 ? '#7F8AA0' : r === 3 ? '#B87333' : '#1E5BD8';
+  const lvC = { 3: '#3BA55C', 4: '#2F6FE0', 5: '#D9A21B', 6: '#D8433B' }, pies = [];
+  if (window.fichesPieHTML) {
+    if (D.nV) pies.push(window.fichesPieHTML({ t: 'Voies proposées : réalisées / restantes', note: `${D.nDist} voie${D.nDist > 1 ? 's' : ''} différente${D.nDist > 1 ? 's' : ''} sur ${D.nV} proposée${D.nV > 1 ? 's' : ''}`, seg: [{ l: 'Réalisées', v: D.nDist, c: '#1B9E5A' }, { l: 'Restantes', v: Math.max(0, D.nV - D.nDist), c: '#8A94A8' }].filter(x => x.v > 0) }));
+    if (!opt.noDup) {
+      if (D.pieds + D.pme) pies.push(window.fichesPieHTML({ t: 'Poses de pieds / PME', note: `${D.pieds} poses de pieds · ${D.pme} PME`, seg: [{ l: 'Poses de pieds', v: D.pieds, c: '#1E5BD8' }, { l: 'PME', v: D.pme, c: '#E0892F' }].filter(x => x.v > 0) }));
+      const seg = Object.keys(D.lv).sort().map(k => ({ l: 'Voies ' + k + 'x', v: D.lv[k], c: lvC[k] || '#888' })); if (seg.length > 1) pies.push(window.fichesPieHTML({ t: 'Difficulté des voies réalisées', note: `cotation max ${escCotLabel(D.cotMax)} · moyenne ${escCotLabel(D.cotMoy)}`, seg })); } }
+  return `<style>${typeof CO_CSS !== 'undefined' ? CO_CSS : ''}</style>
+    <div class="cs"><h3>🧗 Suivi séance par séance · ${e(name)}</h3>
+      <div class="kp2">${chip(D.nSeances, 'séance' + (D.nSeances > 1 ? 's' : ''), '#1E5BD8')}${chip(D.n, `voie${D.n > 1 ? 's' : ''} réalisée${D.n > 1 ? 's' : ''} (${D.nDist} différente${D.nDist > 1 ? 's' : ''})`, '#0B2A5B')}${chip(escCotLabel(D.cotMax), `cotation max · moy. ${escCotLabel(D.cotMoy)}`, '#D9A21B')}${D.pctPrev != null ? chip(pc(D.pctPrev), 'des voies proposées réalisées', D.pctPrev >= 80 ? '#1B9E5A' : D.pctPrev >= 50 ? '#E0892F' : '#D64545') : ''}${D.nT ? chip(escTime(D.tMoy), 'temps moyen / voie', '#16A3A3') : ''}${chip(`${f1(D.piedsV)} · ${f1(D.pmeV)}`, 'poses de pieds · PME / voie', '#8E44AD')}${D.flu != null ? chip(f1(D.flu) + ' / 4', 'fluidité moyenne', '#2F6BD8') : ''}</div>
+      <table><colgroup><col style="width:15%"><col style="width:13%"><col style="width:15%"><col style="width:15%"><col style="width:14%"><col style="width:16%"><col style="width:12%"></colgroup><tr><th>Séance</th><th>Voies</th><th>Cotation<br>max / moy.</th><th>% voies<br>proposées</th><th>Temps<br>moy./voie</th><th>Pieds · PME<br>moy./voie</th><th>Fluid.</th></tr>
+      ${D.rows.map(r => `<tr><td class="l"><b>${new Date(r.date).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })}</b></td><td><b>${r.n}</b><small>${r.nDist} diff.</small></td><td><b>${escCotLabel(r.cotMax)}</b><small>${escCotLabel(r.cotMoy)}</small></td><td>${r.pctPrev != null ? `<b>${pc(r.pctPrev)}</b><small>${r.nDist}/${r.nV}</small>` : '–'}</td><td>${r.tMoy != null ? escTime(r.tMoy) : '–'}</td><td>${f1(r.piedsV)} · ${f1(r.pmeV)}</td><td>${r.flu != null ? f1(r.flu) : '–'}</td></tr>`).join('')}
+      <tfoot><tr><td class="l">Total</td><td>${D.n}<small>${D.nDist} diff.</small></td><td>${escCotLabel(D.cotMax)}<small>${escCotLabel(D.cotMoy)}</small></td><td>${pc(D.pctPrev)}</td><td>${D.nT ? escTime(D.tMoy) : '–'}</td><td>${f1(D.piedsV)} · ${f1(D.pmeV)}</td><td>${D.flu != null ? f1(D.flu) : '–'}</td></tr></tfoot></table>
+      <p style="font-size:.7rem;color:#667;margin:6px 0 0">Poses de pieds et PME : moins il y en a, mieux c'est (moyenne par voie). % voies proposées = voies différentes réalisées ÷ voies créées dans l'outil. Cotation moyenne arrondie.${D.roles ? ` Rôles de cordée : ${D.as} assureur · ${D.ca} contre-assureur.` : ''}</p>
+      ${CL.length ? `<h4 style="margin:12px 0 6px;font-size:.92rem">🏅 Classement dans la classe</h4><div class="kp2">${CL.map(c => `<div style="background:${medal(c.rank)};color:#fff;border-radius:12px;padding:8px 6px;text-align:center"><b style="display:block;font-size:1.1rem">${coOrd(c.rank)} / ${c.of}</b><span style="font-size:.68rem;opacity:.95;display:block">${e(c.l)}</span><span style="font-size:.64rem;opacity:.9;display:block;margin-top:2px">${e(c.txt)}</span></div>`).join('')}</div>` : ''}
+      ${pies.length ? `<div class="pies">${pies.join('')}</div>` : ''}</div>`;
+};
+/* classements d'une séance (= un jour de classe) : élèves, et équipes quand la classe en a */
+window.escSeanceClassHTML = (cls, dayKey, sortK) => {
+  const A = escPass(cls).filter(p => escDayKey(p.date) === dayKey); if (!A.length) return '';
+  const byN = {}; A.forEach(p => (byN[p.eleve] = byN[p.eleve] || []).push(p));
+  const roles = n => A.filter(p => p.as === n || p.ca === n).length;
+  const ind = Object.entries(byN).map(([n, L]) => ({ name: n, sub: '', D: { ...escStats(L), roles: roles(n), as: A.filter(p => p.as === n).length, ca: A.filter(p => p.ca === n).length } }));
+  const TM = (((DB.escalade || {}).equipes || {})[cls] || []).filter(t => (t.members || []).some(m => byN[m]));
+  const grs = TM.map(t => { const L = (t.members || []).flatMap(m => byN[m] || []), r = (t.members || []).reduce((a, m) => a + roles(m), 0); return { name: t.name, sub: (t.members || []).join(', '), D: { ...escStats(L), roles: r, as: 0, ca: 0 } }; });
+  const crit = ESC_CRIT.find(c => c.k === sortK) || ESC_CRIT[0];
+  const table = (L, titre, isG) => { if (!L.length) return '';
+    const R = {}; ESC_CRIT.forEach(c => { const o = {}; L.forEach((x, i) => o[i] = c.val(x.D)); R[c.k] = L.map((x, i) => coRankOf(o, i, c.dir)); });
+    const ord = L.map((x, i) => i).sort((a, b) => (R[crit.k][a] ?? 1e9) - (R[crit.k][b] ?? 1e9) || (R.n[a] ?? 1e9) - (R.n[b] ?? 1e9));
+    return `<h4>${titre}</h4><div style="overflow-x:auto"><table style="table-layout:auto"><tr><th>${isG ? 'Équipe' : 'Élève'}</th>${ESC_CRIT.map(c => `<th${c.k === crit.k ? ' style="background:#C9A227"' : ''}>${c.l}</th>`).join('')}</tr>
+      ${ord.map(i => { const x = L[i]; return `<tr><td class="l"><b>${esc(x.name)}</b>${x.sub ? `<small>${esc(x.sub)}</small>` : ''}</td>${ESC_CRIT.map(c => `<td>${c.cell(x.D)}<br>${coRg(R[c.k][i])}</td>`).join('')}</tr>`; }).join('')}</table></div>`; };
+  return `<style>${typeof CO_CSS !== 'undefined' ? CO_CSS : ''}</style><div class="cs cr2"><h3>🏅 Classements de la séance du ${new Date(A[0].date).toLocaleDateString('fr-FR')}</h3>
+    <label style="font-size:.8rem">Classer par : <select data-crit>${ESC_CRIT.map(c => `<option value="${c.k}" ${c.k === crit.k ? 'selected' : ''}>${c.l}</option>`).join('')}</select></label>
+    ${grs.length ? table(grs, '👥 Classement par équipes', true) : ''}${table(ind, '🧑‍🎓 Classement des élèves')}
+    <p style="font-size:.7rem;color:#667;margin:6px 0 0">Rang calculé pour chaque critère (ex æquo : même rang). Poses de pieds, PME et temps : moins = mieux (moyenne par voie). Les équipes cumulent les passages de leurs membres.</p></div>`;
+};
+window.escSeanceClassMount = (host, cls, dayKey) => { if (!host) return; let k = 'n'; const draw = () => { host.innerHTML = window.escSeanceClassHTML(cls, dayKey, k); const sel = host.querySelector('[data-crit]'); if (sel) sel.onchange = () => { k = sel.value; draw(); }; }; draw(); };
+
 TOOL_IMPL.escalade = function (el) {
   DB.escalade = Object.assign({ voies: [], passages: [], defis: [], equipes: {} }, DB.escalade || {});
   const E = liveDB(() => DB.escalade);   // toujours l'objet synchronisé actuel
@@ -474,10 +561,15 @@ TOOL_IMPL.escalade = function (el) {
         const L = Object.entries(c).sort((x, y) => x[0].localeCompare(y[0], 'fr')); if (!L.length || !pool.some(p => p.as || p.ca)) return '';
         return `<div class="section-title"><h2>🪢 Rôles dans la cordée</h2></div><div class="card sheet-table"><table><tr><th>Élève</th><th>🧗 Grimpeur</th><th>🪢 Assureur</th><th>🤝 Contre-assureur</th></tr>
           ${L.map(([n, v]) => `<tr><td><b>${esc(n)}</b></td><td>${v.g}</td><td>${v.a}</td><td>${v.c}</td></tr>`).join('')}</table></div>`; })()}
+      ${(() => { const cl = f.cls || (pool.length ? pool[pool.length - 1].classe : ''); if (!cl) return ''; const P2 = pool.filter(p => p.classe === cl), nm = [...new Set(P2.map(p => p.eleve))].sort((a, b) => a.localeCompare(b, 'fr')), dk = [...new Map(P2.map(p => [escDayKey(p.date), p.date])).entries()].sort((a, b) => b[1] - a[1]);
+        return `<div class="section-title"><h2>Suivi par élève · ${esc(cl)}</h2></div><div class="card"><select id="esel"><option value="">Choisir un élève…</option>${nm.map(n => `<option>${esc(n)}</option>`).join('')}</select></div><div id="esuivi"></div>
+        <div class="section-title"><h2>Classements d'une séance</h2></div><div class="card"><select id="esday">${dk.map(([k, d]) => `<option value="${k}">${new Date(d).toLocaleDateString('fr-FR', { weekday: 'long', day: '2-digit', month: '2-digit' })}</option>`).join('')}</select></div><div id="esclm"></div>`; })()}
       <div class="section-title"><h2>Passages (${rows.length})</h2><button class="link" id="exp">Exporter CSV</button></div>
       <div class="card sheet-table">${rows.length ? rowsTable(rows, true) : '<div class="empty">Aucun passage enregistré.</div>'}</div>`;
     const $ = s => box.querySelector(s);
     $('#fc').onchange = e => { f.cls = e.target.value; f.el = ''; resultats(box); };
+    { const cl = f.cls || (pool.length ? pool[pool.length - 1].classe : ''); const es = $('#esel'); if (es) es.onchange = () => { $('#esuivi').innerHTML = es.value ? window.escSuiviHTML(cl, es.value) : ''; if (es.value) $('#esuivi').scrollIntoView({ behavior: 'smooth' }); };
+      const ed = $('#esday'); if (ed) { const m = () => window.escSeanceClassMount($('#esclm'), cl, ed.value); ed.onchange = m; m(); } }
     $('#fe').onchange = e => { f.el = e.target.value; resultats(box); };
     $('#fv').onchange = e => { f.voie = e.target.value; resultats(box); };
     box.querySelectorAll('[data-x]').forEach(b => b.onclick = () => { if (!confirm('Supprimer ce passage ?')) return; const i = E.passages.findIndex(p => p.id === b.dataset.x); if (i >= 0) E.passages.splice(i, 1); save(); resultats(box); });

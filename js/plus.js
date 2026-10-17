@@ -4,9 +4,10 @@
    ========================================================= */
 /* Page Ko-fi : laisser vide tant qu'elle n'existe pas (le bouton est alors masqué) */
 const KOFI_URL = 'https://ko-fi.com/epsone';
-const APP_VERSION = '23.70';
+const APP_VERSION = '23.71';
 const APP_URL = 'https://steffdelaseuva-hue.github.io/eps-one/';
 const CHANGELOG = [
+  { v: '23.71', items: ['Escalade · Résultats : « Suivi par élève » séance par séance — voies réalisées, cotation max / moyenne, % de voies proposées réalisées, temps moyen par voie, poses de pieds et PME par voie, fluidité, rôles de cordée — avec camemberts en %.', 'Escalade · fiche élève : le même suivi + « Classement dans la classe » (rang sur N) pour chaque critère, dans l\'écran et dans le PDF.', 'Escalade · « Classements d\'une séance » : rang de chaque élève (et de chaque équipe quand la classe en a) sur 8 critères, avec choix du critère de tri.'] },
   { v: '23.70', items: ['Orientation · fiche élève : « Classement dans la classe » (rang sur N) par temps moyen par parcours, % de balises vraies (avec % fausses / non trouvées), nombre de balises vraies, RK et nombre de parcours réalisés.', 'Orientation · fin de séance et bilan de chaque séance : « Classements de la séance » avec rang pour chacun des 5 critères et choix du critère de tri.', 'Quand la séance est en groupes : classement par groupes (avec les membres) en plus du classement des élèves.'] },
   { v: '23.69', items: ['Orientation · suivi par élève : correction du décompte des balises. Chaque balise du parcours est maintenant comptée une seule fois (vraie, fausse ou non trouvée), donc vraies + fausses + non trouvées = nombre de balises du parcours (avant : « 5 / 2 / 4 sur 9 »).'] },
   { v: '23.68', items: ['Orientation · suivi par élève : les balises non trouvées deviennent un 3e critère (« Non trouvées ») à côté de « Vraies » et « Fausses », dans le tableau, la pastille et le camembert en %.'] },
