@@ -4,9 +4,10 @@
    ========================================================= */
 /* Page Ko-fi : laisser vide tant qu'elle n'existe pas (le bouton est alors masqué) */
 const KOFI_URL = 'https://ko-fi.com/epsone';
-const APP_VERSION = '23.69';
+const APP_VERSION = '23.70';
 const APP_URL = 'https://steffdelaseuva-hue.github.io/eps-one/';
 const CHANGELOG = [
+  { v: '23.70', items: ['Orientation · fiche élève : « Classement dans la classe » (rang sur N) par temps moyen par parcours, % de balises vraies (avec % fausses / non trouvées), nombre de balises vraies, RK et nombre de parcours réalisés.', 'Orientation · fin de séance et bilan de chaque séance : « Classements de la séance » avec rang pour chacun des 5 critères et choix du critère de tri.', 'Quand la séance est en groupes : classement par groupes (avec les membres) en plus du classement des élèves.'] },
   { v: '23.69', items: ['Orientation · suivi par élève : correction du décompte des balises. Chaque balise du parcours est maintenant comptée une seule fois (vraie, fausse ou non trouvée), donc vraies + fausses + non trouvées = nombre de balises du parcours (avant : « 5 / 2 / 4 sur 9 »).'] },
   { v: '23.68', items: ['Orientation · suivi par élève : les balises non trouvées deviennent un 3e critère (« Non trouvées ») à côté de « Vraies » et « Fausses », dans le tableau, la pastille et le camembert en %.'] },
   { v: '23.67', items: ['Course d\'orientation · Bilan : nouveau « Suivi par élève » séance par séance — nombre de parcours réalisés, temps de course cumulé (+ RK moyenne quand le parcours a une distance), balises vraies / fausses / non trouvées avec camembert en %, et % du temps prévu (pénalités de temps comprises, et sans pénalités).', 'Le même suivi apparaît sur la fiche élève (et dans son PDF) pour l\'orientation.', 'Correction : la mise en forme des camemberts manquait dans les bilans de classe (légende non stylée).'] },

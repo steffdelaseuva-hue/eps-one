@@ -659,30 +659,49 @@ function coGroupsT(ss) {
     g.p = g.recs.reduce((a, s) => s.date >= a.date ? s : a).parcoursSnap; g.runs = [...by.values()]; return g; }).sort((a, b) => b.date - a.date);
 }
 
-/* ================= Suivi par élève, séance par séance (bilan de l'outil + fiche élève) =================
-   temps de course cumulés (+ RK quand le parcours a une distance), balises vraies / fausses / non trouvées,
-   nombre de parcours réalisés, % temps réalisé / temps prévu (avec pénalités de temps) */
+/* ================= Suivi par élève, séance par séance + classements (bilan de l'outil, fiche élève, fin de séance) ================= */
+const CO_CSS = `.cs{background:#fff;color:#0E1A33;border:1px solid #D9DFEB;border-radius:14px;padding:12px;margin:10px 0;text-align:left}.cs h3{margin:0 0 8px;font-size:1.02rem}.cs .kp2{display:grid;grid-template-columns:repeat(auto-fit,minmax(104px,1fr));gap:6px;margin:8px 0}.cs table{border-collapse:collapse;width:100%;table-layout:fixed;font-size:.74rem}.cs th,.cs td{border:1px solid #DDE3EE;padding:4px 3px;text-align:center;overflow-wrap:break-word;color:#0E1A33}.cs th{background:#0B2A5B;color:#fff!important;overflow-wrap:normal;font-size:.6rem;line-height:1.15}.cs td.l{text-align:left}.cs small{display:block;color:#667;font-size:.66rem}.cs tfoot td{background:#EEF1F7;font-weight:800}.cs .pies{display:flex;flex-wrap:wrap;gap:10px;margin-top:10px}${window.fichesPieCSS || ''}@media (max-width:640px){.cs table{font-size:.62rem}.cs th,.cs td{padding:3px 2px}}.cr2 .rg{display:inline-block;min-width:26px;border-radius:99px;padding:1px 7px;font-weight:900;font-size:.72rem;background:#EEF1F7;color:#0E1A33}.cr2 .rg.p1{background:#C9A227;color:#fff}.cr2 .rg.p2{background:#9AA5B8;color:#fff}.cr2 .rg.p3{background:#B87333;color:#fff}.cr2 h4{margin:10px 0 6px;font-size:.92rem}.cr2 select{max-width:100%}`;
+/* une course (équipe si name = null) → toutes les valeurs utiles ; chaque balise est comptée une seule fois : vraie · fausse · non trouvée */
+const coRunRow = (r, q, name, date) => {
+  const x = name != null ? coResultFor(r, q, name) : coResult(r, q), fd = name != null ? (r.found || []).filter(n => !(r.who || {})[n] || r.who[n] === name) : (r.found || []), tot = (q.balises || []).length, al = q.alloue || 0;
+  const T = r.tries || {}, A = r.auto || {}, nf = Math.max(0, tot - fd.length); let fx = 0;
+  (q.balises || []).forEach(b => { if (fd.includes(b.num)) return; const c = T[b.num]; if (A[b.num] === 'ko' || (c && c !== 'V' && c !== b.code)) fx++; });
+  if (!Object.keys(T).length && !Object.keys(A).length) fx = r.wrong || 0;   // pas de détail par balise : erreurs rattachées aux balises non validées
+  fx = Math.min(fx, nf);
+  return { date, nom: q.nom, v: fd.length, f: fx, nt: nf - fx, err: r.wrong || 0, tot, temps: x.temps, penS: x.penS || 0, total: x.total, km: x.km, rk: x.temps && x.km ? x.rk : null, rkS: x.temps && x.km ? x.temps / x.km : null,
+    al, ecart: q.ecart || 0, pct: x.temps != null && al ? x.temps / (al * 60) * 100 : null, pctP: x.total != null && al ? x.total / (al * 60) * 100 : null, arr: !!r.arr, score: x.score, penP: x.penP || 0,
+    pctV: tot ? fd.length / tot * 100 : null, pctF: tot ? fx / tot * 100 : null, pctN: tot ? (nf - fx) / tot * 100 : null };
+};
+const coS0 = (cls, okDate) => (window.teamFilter ? teamFilter(DB.co.seances) : DB.co.seances).filter(x => (x.classe || '—') === cls && (!okDate || okDate(x.date)));
 window.coSuivi = (cls, name, okDate) => {
-  const S0 = (window.teamFilter ? teamFilter(DB.co.seances) : DB.co.seances).filter(x => (x.classe || '—') === cls && (!okDate || okDate(x.date)));
   const rows = []; let cum = 0;
-  coGroupsT(S0).sort((a, b) => a.date - b.date).forEach(g => { const e = g.runs.find(({ r }) => r.dep && (r.members || []).includes(name)); if (!e) return;
-    const { r, p: q } = e, x = coResultFor(r, q, name), fd = (r.found || []).filter(n => !(r.who || {})[n] || r.who[n] === name), tot = (q.balises || []).length, al = q.alloue || 0;
-    if (x.temps != null) cum += x.temps;
-    /* chaque balise du parcours est dans UNE seule case : vraie (validée) · fausse (dernier symbole / poinçon faux) · non trouvée → vraies + fausses + non trouvées = nombre de balises */
-      const T = r.tries || {}, A = r.auto || {}, nf = Math.max(0, tot - fd.length); let fx = 0;
-      (q.balises || []).forEach(b => { if (fd.includes(b.num)) return; const c = T[b.num]; if (A[b.num] === 'ko' || (c && c !== 'V' && c !== b.code)) fx++; });
-      if (!Object.keys(T).length && !Object.keys(A).length) fx = r.wrong || 0;   // pas de détail par balise : on rattache les erreurs aux balises non validées
-      fx = Math.min(fx, nf);
-      rows.push({ date: g.date, nom: q.nom, v: fd.length, f: fx, nt: nf - fx, err: r.wrong || 0, tot, temps: x.temps, penS: x.penS || 0, total: x.total, cum: x.temps != null ? cum : null,
-      km: x.km, rk: x.temps && x.km ? x.rk : null, al, ecart: q.ecart || 0, pct: x.temps != null && al ? x.temps / (al * 60) * 100 : null, pctP: x.total != null && al ? x.total / (al * 60) * 100 : null,
-      arr: !!r.arr, score: x.score, penP: x.penP || 0 }); });
+  coGroupsT(coS0(cls, okDate)).sort((a, b) => a.date - b.date).forEach(g => { const e = g.runs.find(({ r }) => r.dep && (r.members || []).includes(name)); if (!e) return; rows.push(coRunRow(e.r, e.p, name, g.date)); });
   if (!rows.length) return null;
+  rows.forEach(r => { if (r.temps != null) { cum += r.temps; r.cum = cum; } else r.cum = null; });
   const T = rows.filter(r => r.temps != null), P = rows.filter(r => r.total != null && r.al), K = T.filter(r => r.km > 0);
-  return { rows, n: rows.length, nPar: new Set(rows.map(r => r.nom)).size, temps: T.reduce((a, r) => a + r.temps, 0), pen: rows.reduce((a, r) => a + r.penS, 0),
+  return { rows, n: rows.length, nT: T.length, nPar: new Set(rows.map(r => r.nom)).size, temps: T.reduce((a, r) => a + r.temps, 0), pen: rows.reduce((a, r) => a + r.penS, 0),
     v: rows.reduce((a, r) => a + r.v, 0), f: rows.reduce((a, r) => a + r.f, 0), nt: rows.reduce((a, r) => a + r.nt, 0), tot: rows.reduce((a, r) => a + r.tot, 0),
     rkSec: K.reduce((a, r) => a + r.temps, 0), rkKm: K.reduce((a, r) => a + r.km, 0),
     pctP: P.length ? P.reduce((a, r) => a + r.total, 0) / P.reduce((a, r) => a + r.al * 60, 0) * 100 : null,
     pct: P.length ? P.reduce((a, r) => a + r.temps, 0) / P.reduce((a, r) => a + r.al * 60, 0) * 100 : null };
+};
+/* rang « à égalité » : 1, 2, 2, 4… ; dir = 1 (plus petit = mieux) ou −1 (plus grand = mieux) ; valeurs null ignorées */
+const coRankOf = (vals, me, dir) => { const v = vals[me]; if (v == null || isNaN(v)) return null; const L = Object.values(vals).filter(x => x != null && !isNaN(x)); return 1 + L.filter(x => dir > 0 ? x < v - 1e-9 : x > v + 1e-9).length; };
+const coOrd = n => n == null ? '–' : n === 1 ? '1er' : n + 'e';
+const coRg = n => n == null ? '–' : `<span class="rg${n <= 3 ? ' p' + n : ''}">${coOrd(n)}</span>`;
+/* classement CUMULÉ d'un élève dans sa classe (toutes les séances) */
+window.coClassCumul = (cls, name, okDate) => {
+  const names = [...new Set(coS0(cls, okDate).flatMap(s => (s.runs || []).filter(r => r.dep).flatMap(r => r.members || [])))], M = {};
+  names.forEach(n => { const D = window.coSuivi(cls, n, okDate); if (D) M[n] = D; });
+  if (!M[name]) return [];
+  const pick = f => { const o = {}; Object.keys(M).forEach(n => o[n] = f(M[n])); return o; };
+  const C = [
+    { l: 'Temps moyen par parcours', dir: 1, vals: pick(D => D.nT ? D.temps / D.nT : null), txt: D => D.nT ? hms(D.temps / D.nT) : '–' },
+    { l: '% de balises vraies', dir: -1, vals: pick(D => D.tot ? D.v / D.tot * 100 : null), txt: D => D.tot ? `${Math.round(D.v / D.tot * 100)} % vraies · ${Math.round(D.f / D.tot * 100)} % fausses · ${Math.round(D.nt / D.tot * 100)} % non trouvées` : '–' },
+    { l: 'Nombre de balises vraies', dir: -1, vals: pick(D => D.v), txt: D => D.v + ' balise' + (D.v > 1 ? 's' : '') + ' vraie' + (D.v > 1 ? 's' : '') },
+    { l: 'RK (min/km)', dir: 1, vals: pick(D => D.rkKm > 0 ? D.rkSec / D.rkKm : null), txt: D => D.rkKm > 0 ? hms(D.rkSec / D.rkKm) + ' /km' : '–' },
+    { l: 'Parcours réalisés', dir: -1, vals: pick(D => D.n), txt: D => D.n + ' parcours' }];
+  return C.map(c => ({ l: c.l, rank: coRankOf(c.vals, name, c.dir), of: Object.values(c.vals).filter(x => x != null && !isNaN(x)).length, txt: c.txt(M[name]) })).filter(c => c.rank != null);
 };
 window.coSuiviHTML = (cls, name, okDate) => {
   const D = window.coSuivi(cls, name, okDate); if (!D) return '';
@@ -690,16 +709,44 @@ window.coSuiviHTML = (cls, name, okDate) => {
   const rate = D.v + D.f + D.nt ? Math.round(D.v / (D.v + D.f + D.nt) * 100) : null;
   const pie = D.v + D.f + D.nt && window.fichesPieHTML ? window.fichesPieHTML({ t: 'Balises : vraies / fausses / non trouvées', note: `${D.v} vraie${D.v > 1 ? 's' : ''} · ${D.f} fausse${D.f > 1 ? 's' : ''} · ${D.nt} non trouvée${D.nt > 1 ? 's' : ''}`, seg: [{ l: 'Vraies', v: D.v, c: '#1B9E5A' }, { l: 'Fausses', v: D.f, c: '#D64545' }, { l: 'Non trouvées', v: D.nt, c: '#8A94A8' }].filter(x => x.v > 0) }) : '';
   const chip = (v, l, c) => `<div style="background:${c};color:#fff;border-radius:12px;padding:8px 6px;text-align:center"><b style="display:block;font-size:1.1rem">${e(String(v))}</b><span style="font-size:.68rem;opacity:.95">${e(l)}</span></div>`;
-  return `<style>.cs{background:#fff;color:#0E1A33;border:1px solid #D9DFEB;border-radius:14px;padding:12px;margin:10px 0;text-align:left}.cs h3{margin:0 0 8px;font-size:1.02rem}.cs .kp2{display:grid;grid-template-columns:repeat(auto-fit,minmax(104px,1fr));gap:6px;margin:8px 0}.cs table{border-collapse:collapse;width:100%;table-layout:fixed;font-size:.74rem}.cs th,.cs td{border:1px solid #DDE3EE;padding:4px 3px;text-align:center;overflow-wrap:break-word;color:#0E1A33}.cs th{background:#0B2A5B;color:#fff!important;overflow-wrap:normal;font-size:.6rem;line-height:1.15}.cs td.l{text-align:left}.cs small{display:block;color:#667;font-size:.66rem}.cs tfoot td{background:#EEF1F7;font-weight:800}.cs .pies{display:flex;flex-wrap:wrap;gap:10px;margin-top:10px}${window.fichesPieCSS || ''}@media (max-width:640px){.cs table{font-size:.62rem}.cs th,.cs td{padding:3px 2px}}</style>
-  <div class="cs"><h3>🧭 Suivi séance par séance · ${e(name)}</h3>
-    <div class="kp2">${chip(D.n, `parcours réalisé${D.n > 1 ? 's' : ''}${D.nPar < D.n ? ` (${D.nPar} différent${D.nPar > 1 ? 's' : ''})` : ''}`, '#1E5BD8')}${chip(hms(D.temps), 'temps de course cumulé', '#0B2A5B')}${D.rkKm > 0 ? chip(mpk(D.rkSec, D.rkKm).replace(' /km', ''), 'RK moyenne (min/km)', '#16A3A3') : ''}${chip(`${D.v} / ${D.f} / ${D.nt}`, 'vraies / fausses / non trouvées', rate == null || rate >= 80 ? '#1B9E5A' : rate >= 50 ? '#E0892F' : '#D64545')}${D.pctP != null ? chip(pc(D.pctP), 'du temps prévu (pénalités incluses)', D.pctP <= 100 ? '#1B9E5A' : '#E0892F') : ''}</div>
-    <table><colgroup><col style="width:18%"><col style="width:16%"><col style="width:17%"><col style="width:13%"><col style="width:11%"><col style="width:11%"><col style="width:14%"></colgroup><tr><th>Séance</th><th>Balises<br>vraies / fausses / non tr.</th><th>Temps<br>course</th><th>Cumul</th><th>RK</th><th>Prévu</th><th>%<br>prévu</th></tr>
-    ${D.rows.map(r => `<tr><td class="l"><b>${new Date(r.date).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })}</b><small>${e(r.nom)}</small></td><td><b style="color:#1B9E5A">${r.v}</b> / <b style="color:#D64545">${r.f}</b> / ${r.nt}<small>sur ${r.tot}</small></td><td>${r.temps != null ? `<b>${hms(r.temps)}</b>${r.penS ? `<small>+${hms(r.penS)} pén.</small>` : ''}` : '<small>non arrivé</small>'}</td><td>${r.cum != null ? hms(r.cum) : '–'}</td><td>${r.rk ? r.rk.replace(' /km', '') : '–'}</td><td>${r.al ? r.al + ' min' : '–'}</td><td>${r.pctP != null ? `<b style="color:${col(r, r.pctP)}">${pc(r.pctP)}</b>${r.penS ? `<small>sans pén. ${pc(r.pct)}</small>` : ''}` : '–'}</td></tr>`).join('')}
-    <tfoot><tr><td class="l">Total</td><td>${D.v} / ${D.f} / ${D.nt}</td><td>${hms(D.temps)}${D.pen ? `<small>+${hms(D.pen)} pén.</small>` : ''}</td><td>${hms(D.temps)}</td><td>${D.rkKm > 0 ? mpk(D.rkSec, D.rkKm).replace(' /km', '') : '–'}</td><td></td><td>${pc(D.pctP)}</td></tr></tfoot></table>
-    <p style="font-size:.7rem;color:#667;margin:6px 0 0">Chaque balise est comptée une seule fois : <b style="color:#1B9E5A">vraie</b> (validée), <b style="color:#D64545">fausse</b> (le poinçon / symbole relevé était faux) ou <b style="color:#667">non trouvée</b>. % prévu = (temps de course + pénalités de temps) ÷ temps attribué. RK = minutes par km (parcours avec distance).</p>
-    ${pie ? `<div class="pies">${pie}</div>` : ''}</div>`;
+  let CL = []; try { CL = window.coClassCumul(cls, name, okDate); } catch (er) {}
+  const medal = r => r === 1 ? '#C9A227' : r === 2 ? '#7F8AA0' : r === 3 ? '#B87333' : '#1E5BD8';
+  return `<style>${CO_CSS}</style>
+    <div class="cs"><h3>🧭 Suivi séance par séance · ${e(name)}</h3>
+      <div class="kp2">${chip(D.n, `parcours réalisé${D.n > 1 ? 's' : ''}${D.nPar < D.n ? ` (${D.nPar} différent${D.nPar > 1 ? 's' : ''})` : ''}`, '#1E5BD8')}${chip(hms(D.temps), 'temps de course cumulé', '#0B2A5B')}${D.rkKm > 0 ? chip(mpk(D.rkSec, D.rkKm).replace(' /km', ''), 'RK moyenne (min/km)', '#16A3A3') : ''}${chip(`${D.v} / ${D.f} / ${D.nt}`, 'vraies / fausses / non trouvées', rate == null || rate >= 80 ? '#1B9E5A' : rate >= 50 ? '#E0892F' : '#D64545')}${D.pctP != null ? chip(pc(D.pctP), 'du temps prévu (pénalités incluses)', D.pctP <= 100 ? '#1B9E5A' : '#E0892F') : ''}</div>
+      <table><colgroup><col style="width:18%"><col style="width:16%"><col style="width:17%"><col style="width:13%"><col style="width:11%"><col style="width:11%"><col style="width:14%"></colgroup><tr><th>Séance</th><th>Balises<br>vraies / fausses / non tr.</th><th>Temps<br>course</th><th>Cumul</th><th>RK</th><th>Prévu</th><th>%<br>prévu</th></tr>
+      ${D.rows.map(r => `<tr><td class="l"><b>${new Date(r.date).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })}</b><small>${e(r.nom)}</small></td><td><b style="color:#1B9E5A">${r.v}</b> / <b style="color:#D64545">${r.f}</b> / ${r.nt}<small>sur ${r.tot}</small></td><td>${r.temps != null ? `<b>${hms(r.temps)}</b>${r.penS ? `<small>+${hms(r.penS)} pén.</small>` : ''}` : '<small>non arrivé</small>'}</td><td>${r.cum != null ? hms(r.cum) : '–'}</td><td>${r.rk ? r.rk.replace(' /km', '') : '–'}</td><td>${r.al ? r.al + ' min' : '–'}</td><td>${r.pctP != null ? `<b style="color:${col(r, r.pctP)}">${pc(r.pctP)}</b>${r.penS ? `<small>sans pén. ${pc(r.pct)}</small>` : ''}` : '–'}</td></tr>`).join('')}
+      <tfoot><tr><td class="l">Total</td><td>${D.v} / ${D.f} / ${D.nt}</td><td>${hms(D.temps)}${D.pen ? `<small>+${hms(D.pen)} pén.</small>` : ''}</td><td>${hms(D.temps)}</td><td>${D.rkKm > 0 ? mpk(D.rkSec, D.rkKm).replace(' /km', '') : '–'}</td><td></td><td>${pc(D.pctP)}</td></tr></tfoot></table>
+      <p style="font-size:.7rem;color:#667;margin:6px 0 0">Chaque balise est comptée une seule fois : <b style="color:#1B9E5A">vraie</b> (validée), <b style="color:#D64545">fausse</b> (le poinçon / symbole relevé était faux) ou <b style="color:#667">non trouvée</b>. % prévu = (temps de course + pénalités de temps) ÷ temps attribué. RK = minutes par km (parcours avec distance).</p>
+      ${CL.length ? `<h4 style="margin:12px 0 6px;font-size:.92rem">🏅 Classement dans la classe</h4><div class="kp2">${CL.map(c => `<div style="background:${medal(c.rank)};color:#fff;border-radius:12px;padding:8px 6px;text-align:center"><b style="display:block;font-size:1.1rem">${coOrd(c.rank)} / ${c.of}</b><span style="font-size:.68rem;opacity:.95;display:block">${e(c.l)}</span><span style="font-size:.64rem;opacity:.9;display:block;margin-top:2px">${e(c.txt)}</span></div>`).join('')}</div>` : ''}
+      ${pie ? `<div class="pies">${pie}</div>` : ''}</div>`;
 };
-
+/* classements d'une séance : élèves, et groupes quand la séance se fait en groupes. g = { date, recs:[{classe}], runs:[{ r, p }] } (séance enregistrée ou en cours) */
+const CO_CRIT = [
+  { k: 'temps', l: 'Temps de course', dir: 1, val: e => e.row.temps, cell: e => e.row.temps != null ? `<b>${hms(e.row.temps)}</b>${e.row.penS ? `<small>+${hms(e.row.penS)} pén.</small>` : ''}` : '<small>non arrivé</small>' },
+  { k: 'pctV', l: '% balises vraies / fausses / non trouvées', dir: -1, val: e => e.row.pctV, cell: e => e.row.tot ? `<b style="color:#1B9E5A">${Math.round(e.row.pctV)} %</b><small><span style="color:#D64545">${Math.round(e.row.pctF)} %</span> / ${Math.round(e.row.pctN)} %</small>` : '–' },
+  { k: 'v', l: 'Nombre de balises vraies', dir: -1, val: e => e.row.v, cell: e => `<b>${e.row.v}</b><small>sur ${e.row.tot}</small>` },
+  { k: 'rk', l: 'RK', dir: 1, val: e => e.row.rkS, cell: e => e.row.rk ? e.row.rk.replace(' /km', '') : '–' },
+  { k: 'n', l: 'Parcours réalisés', dir: -1, val: e => e.nCum, cell: e => '<b>' + e.nCum + '</b>' }];
+window.coSeanceClassHTML = (g, sortK) => {
+  const cls = (g.recs && g.recs[0] && g.recs[0].classe) || '—', S = coGroupsT(coS0(cls)).filter(x => x.date <= g.date + 1), runs = g.runs.filter(({ r }) => r.dep);
+  if (!runs.length) return '';
+  const nCum = n => S.filter(x => x.runs.some(({ r }) => r.dep && (r.members || []).includes(n))).length + (g.live && !S.some(x => coDayKey(x.date) === coDayKey(g.date) && x.runs.some(({ r }) => (r.members || []).includes(n))) ? 1 : 0);
+  const grp = runs.some(({ r }) => (r.members || []).length > 1 || r.name !== (r.members || [])[0]);
+  const ind = runs.flatMap(({ r, p }) => (r.members || []).map(m => ({ name: m, sub: '', row: coRunRow(r, p, m, g.date), nCum: nCum(m) })));
+  const grs = grp ? runs.map(({ r, p }) => ({ name: r.name, sub: (r.members || []).join(', '), row: coRunRow(r, p, null, g.date), nCum: Math.max(...(r.members || [r.name]).map(nCum), 1) })) : [];
+  const crit = CO_CRIT.find(c => c.k === sortK) || CO_CRIT[0];
+  const table = (L, titre) => { if (!L.length) return '';
+    const R = {}; CO_CRIT.forEach(c => { const o = {}; L.forEach((x, i) => o[i] = c.val(x)); R[c.k] = L.map((x, i) => coRankOf(o, i, c.dir)); });
+    const ord = L.map((x, i) => i).sort((a, b) => (R[crit.k][a] ?? 1e9) - (R[crit.k][b] ?? 1e9) || (R.pctV[a] ?? 1e9) - (R.pctV[b] ?? 1e9));
+    return `<h4>${titre}</h4><table style="table-layout:auto"><tr><th>${grp && L === grs ? 'Groupe' : 'Élève'}</th>${CO_CRIT.map(c => `<th${c.k === crit.k ? ' style="background:#C9A227"' : ''}>${c.l}</th>`).join('')}</tr>
+      ${ord.map(i => { const x = L[i]; return `<tr><td class="l"><b>${esc(x.name)}</b>${x.sub ? `<small>${esc(x.sub)}</small>` : ''}</td>${CO_CRIT.map(c => `<td>${c.cell(x)}<br>${coRg(R[c.k][i])}</td>`).join('')}</tr>`; }).join('')}</table>`; };
+  return `<style>${CO_CSS}</style><div class="cs cr2"><h3>🏅 Classements de la séance</h3>
+    <label style="font-size:.8rem">Classer par : <select data-crit>${CO_CRIT.map(c => `<option value="${c.k}" ${c.k === crit.k ? 'selected' : ''}>${c.l}</option>`).join('')}</select></label>
+    ${grp ? table(grs, '👥 Classement par groupes') : ''}${table(ind, grp ? '🧑‍🎓 Classement des élèves' : '🧑‍🎓 Classement des élèves')}
+    <p style="font-size:.7rem;color:#667;margin:6px 0 0">Le rang est calculé pour chaque critère (ex æquo : même rang). Temps et RK : plus petit = mieux. Parcours réalisés : cumul jusqu'à cette séance.</p></div>`;
+};
+window.coSeanceClassMount = (host, g) => { if (!host) return; let k = 'temps'; const draw = () => { host.innerHTML = window.coSeanceClassHTML(g, k); const sel = host.querySelector('[data-crit]'); if (sel) sel.onchange = () => { k = sel.value; draw(); }; }; draw(); };
 
 TOOL_IMPL.co = function (el) {
   let tab = DB.co.current || partToday('co').length || partRecoverHTML('co') ? 'seance' : 'parcours';
@@ -1225,9 +1272,10 @@ TOOL_IMPL.co = function (el) {
             <div style="display:flex;align-items:center;gap:8px;margin-top:8px;font-size:.85rem"><span>Mauvaises balises :</span><button class="btn btn-ghost" style="padding:5px 12px" data-wm="${i}">−</button><b>${r.wrong}</b><button class="btn btn-ghost" style="padding:5px 12px" data-wp="${i}">+</button></div>
             ${pOf(r).type === 'koh' && Object.keys(r.vues || {}).length ? `<div class="muted" style="margin-top:6px;font-size:.78rem">🏝 Indices vus : ${Object.entries(r.vues).map(([n, v]) => `balise ${n} × ${v}`).join(' · ')}</div>` : ''}
             <div class="muted" style="margin-top:6px;font-size:.8rem">${r.found.length}/${pOf(r).balises.length} balises · <b style="color:var(--text)">${x.score} pts</b>${x.penP ? ` (−${x.penP})` : ''}${x.miss ? ` · ${x.miss} oblig. manquante(s)` : ''}${x.temps != null ? ` · RK ${x.rk}${x.penS ? ` · pénalités +${hms(x.penS)}` : ''}${x.statut ? ' · ' + x.statut : ''}` : ''}</div></div>`).join('')}</div>
-        <div class="section-title"><h2>Classement</h2></div>${ranking(rs, p)}
+        <div class="section-title"><h2>Classement</h2></div>${ranking(rs, p)}<div id="clsm"></div>
         <div class="row" style="margin-top:12px"><button class="btn btn-grad" data-cfg="bare" id="save">💾 Terminer et enregistrer la séance</button><button class="btn btn-ghost" data-cfg="bare" id="cancel">Abandonner</button></div>`;
       const $ = s => box.querySelector(s), keep = () => save();
+      try { const hm = $('#clsm'); if (hm && cur.runs.some(r => r.dep)) coSeanceClassMount(hm, { date: Date.now(), live: true, recs: [{ classe: cur.classe || '' }], runs: cur.runs.filter(r => r.dep).map(r => ({ r, p: pOf(r) })) }); } catch (er) {}
       $('#all').onclick = () => { const t = Date.now(), w = cur.runs.filter(r => !r.dep && needSel(r)); cur.runs.forEach(r => { if (!r.dep && !needSel(r)) { if (isLegRun(r, pOf(r))) legGo(r); else r.dep = t; } }); if (w.length) toast(`${w.length} équipe(s) doivent d'abord choisir leurs balises`); beep(1300, .4); keep(); draw(); };
       $('#edg').onclick = () => { const indiv = cur.runs.every(r => r.members.length === 1 && r.name === r.members[0]);
         editGroupsPanel(indiv ? 'Participants' : 'Groupes de la séance', { cls: cur.classe, indiv, list: () => cur.runs, names: r => r.members,
@@ -1414,7 +1462,7 @@ TOOL_IMPL.co = function (el) {
         if (!confirm(g.recs.length > 1 ? `Supprimer cette séance ? (${g.recs.length} enregistrements de tablettes seront supprimés)` : 'Supprimer cette séance ?')) return;
         g.recs.forEach(s => { const A0 = DB.co.seances, i = A0.indexOf(s); if (i >= 0) { window.epsItemDeleted && epsItemDeleted('co', s.id); A0.splice(i, 1); } }); save(); bilan(box); });
       box.querySelectorAll('[data-v]').forEach(b => b.onclick = () => { const g = gs[+b.dataset.v], p = g.p;
-        $('#det').innerHTML = `<div class="section-title"><h2>${new Date(g.date).toLocaleDateString('fr-FR')} — ${esc(p.nom)}${g.recs.length > 1 ? ` <small class="muted">(${g.recs.length} tablettes)</small>` : ''}</h2></div>${ranking(g.runs.map(({ r, p: q }) => ({ r, x: result(r, q) })), p)}`; $('#det').scrollIntoView({ behavior: 'smooth' }); });
+        $('#det').innerHTML = `<div class="section-title"><h2>${new Date(g.date).toLocaleDateString('fr-FR')} — ${esc(p.nom)}${g.recs.length > 1 ? ` <small class="muted">(${g.recs.length} tablettes)</small>` : ''}</h2></div>${ranking(g.runs.map(({ r, p: q }) => ({ r, x: result(r, q) })), p)}<div id="clsm"></div>`; try { coSeanceClassMount($('#clsm'), g); } catch (er) {} $('#det').scrollIntoView({ behavior: 'smooth' }); });
       $('#exp').onclick = () => download(`course-orientation-${cls}.csv`, csv([
         ['Date', 'Parcours', 'Type', 'Participant', 'Membres', 'Départ', 'Arrivée', 'Temps réalisé', 'Balises trouvées', 'Mauvaises balises', 'Oblig. manquantes', 'Points', 'Pénalités temps', 'Temps total', 'Distance (km)', 'RK', 'Vitesse', 'Statut'],
         ...ss.flatMap(s => s.runs.map(r => { const p = s.parcoursSnap, x = result(r, p);
