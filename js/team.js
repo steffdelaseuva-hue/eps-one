@@ -19,14 +19,27 @@ ICONS.team = '<circle cx="9" cy="8" r="3.2"/><path d="M3 19.5c0-3.3 2.7-6 6-6s6 
   /* Séances EN COURS (propres à l'appareil, jamais synchronisées) : rangées au nom de l'enseignant qui change de profil,
      et restituées quand il revient → un collègue sur le même appareil ne voit ni les groupes ni les élèves de l'autre. */
   const STK = 'epsone_cur_stash', CURS = [['co', 'current'], ['duathlon', 'current'], ['combine', 'current'], ['demifond', 'current'], ['sauvetage', 'current'], ['wod', 'current'], ['lutte', 'current'], ['escalade', 'defi'], ['top', 'matchTeams']];
-  const swapCur = to => { const from = ls.get(ACT) || '_', dst = to || '_'; if (from === dst) return;
-    let S; try { S = JSON.parse(localStorage.getItem(STK)) || {}; } catch (e) { S = {}; }
-    const host = t => t === 'top' ? DB : DB[t], mine = S[from] = {};
-    CURS.forEach(([t, f]) => { const o = host(t); if (o && typeof o === 'object' && o[f] != null) { mine[t + '.' + f] = o[f]; } if (o && typeof o === 'object') delete o[f]; });
+  const loadS = () => { try { return JSON.parse(localStorage.getItem(STK)) || {}; } catch (e) { return {}; } }, saveS = S => { try { localStorage.setItem(STK, JSON.stringify(S)); } catch (e) {} };
+  const host = t => t === 'top' ? DB : DB[t];
+  /* à qui appartient une séance en cours ? : son marquage, sinon le propriétaire de sa classe, sinon celui qui la détient */
+  const ownerOf = (v, dflt) => { if (!v || typeof v !== 'object') return dflt; const ids = new Set(teamProfs().map(x => x.id)); if (v.prof && ids.has(v.prof)) return v.prof;
+    const raw = Array.isArray(RAW.classes) ? RAW.classes : []; for (const n of String(v.classe || v.cls || '').split(/\s*[,+·/]\s*/).filter(Boolean)) { const c = raw.find(k => k.name === n); if (c && c.prof && ids.has(c.prof)) return c.prof; } return dflt; };
+  /* remet chaque séance en cours chez son propriétaire (vivante si c'est le profil actif, sinon rangée) — corrige aussi les séances mal rangées */
+  const reconcile = () => { if (!teamOn()) return; const p = ls.get(ACT) || '_', S = loadS(); let ch = false;
+    const items = []; CURS.forEach(([t, f], i) => { const o = host(t); if (o && typeof o === 'object' && o[f] != null) items.push({ i, t, f, v: o[f], h: p, live: true }); });
+    Object.keys(S).forEach(h => Object.keys(S[h] || {}).forEach(k => { const i = CURS.findIndex(([t, f]) => t + '.' + f === k); if (i >= 0) items.push({ i, t: CURS[i][0], f: CURS[i][1], v: S[h][k], h, live: false, k }); }));
+    items.forEach(it => { const ow = ownerOf(it.v, it.h); if (ow === it.h) return; ch = true;
+      if (it.live) delete host(it.t)[it.f]; else delete S[it.h][it.k];
+      if (ow === p) { const o = it.t === 'top' ? DB : (DB[it.t] = DB[it.t] && typeof DB[it.t] === 'object' ? DB[it.t] : {}); if (o[it.f] == null) { o[it.f] = it.v; return; } }
+      (S[ow] = S[ow] || {})[it.t + '.' + it.f] = it.v; });
+    if (ch) { saveS(S); try { save(); } catch (e) {} } };
+  const swapCur = to => { reconcile(); const from = ls.get(ACT) || '_', dst = to || '_'; if (from === dst) return;
+    const S = loadS(), mine = S[from] = S[from] || {};
+    CURS.forEach(([t, f]) => { const o = host(t); if (o && typeof o === 'object') { if (o[f] != null) mine[t + '.' + f] = o[f]; delete o[f]; } });
     const nxt = S[dst] || {}; delete S[dst];
     CURS.forEach(([t, f]) => { const v = nxt[t + '.' + f]; if (v == null) return; if (t === 'top') DB[f] = v; else { if (!DB[t] || typeof DB[t] !== 'object') DB[t] = {}; DB[t][f] = v; } });
-    try { localStorage.setItem(STK, JSON.stringify(S)); } catch (e) {}
-    try { save(); } catch (e) {} };
+    saveS(S); try { save(); } catch (e) {} };
+  window.teamReconcile = reconcile; [0, 800, 2500].forEach(ms => setTimeout(() => { try { reconcile(); } catch (e) {} }, ms));
   Object.assign(window, { teamOn, teamProfs, activeProf, teamProfOf: () => (activeProf() || {}).id });
 
   /* ---------- Vue filtrée de DB.classes / favs / recent ---------- */
