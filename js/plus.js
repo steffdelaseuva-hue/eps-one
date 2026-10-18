@@ -4,9 +4,10 @@
    ========================================================= */
 /* Page Ko-fi : laisser vide tant qu'elle n'existe pas (le bouton est alors masqué) */
 const KOFI_URL = 'https://ko-fi.com/epsone';
-const APP_VERSION = '23.77';
+const APP_VERSION = '23.78';
 const APP_URL = 'https://steffdelaseuva-hue.github.io/eps-one/';
 const CHANGELOG = [
+  { v: '23.78', items: ['Plus · « Sauvegarde dans mon Nuage » : crée un fichier de sauvegarde daté et ouvre le menu de partage (Fichiers / Nextcloud) pour le ranger dans le Nuage Apps Éducation ; rappel de la dernière sauvegarde ; restauration depuis un fichier. Précise que ce n\'est pas une synchronisation entre tablettes.'] },
   { v: '23.77', items: ['Relais : la carte « Suivi par élève » en bas de page est retirée (le suivi est dans « 📊 Bilan » en haut → fiches élèves).'] },
   { v: '23.76', items: ['Tous les outils qui enregistrent des résultats (Relais, Orientation, Escalade, Combiné, Duathlon, Demi-fond, Sauvetage, Natation, Crosstraining / HYROX, Lutte, Rugby…) : bouton « 📊 Bilan » en haut de l\'outil → fiches élèves en PDF (un élève ou ZIP de la classe) et bilan de classe en PDF, limités à cet outil. L\'onglet « Plus » reste inchangé (tous outils).'] },
   { v: '23.75', items: ['Équipes · les prénoms des élèves (Léa D. · Tom M.) sont maintenant affichés sous le nom de chaque équipe / groupe partout où l\'écran n\'affichait que « Équipe 1, Équipe 2… » : demi-fond (relais par groupes), escalade (cordées en cours), relais, et dans les tableaux de tournoi / poules quand les équipes sont composées depuis une classe.'] },
@@ -467,6 +468,37 @@ function memStats() {
   try { const co = DB.co || {}, len = m => m && m.img ? m.img.length * 2 : 0; o.maps = (co.lieux || []).reduce((a, l) => a + len(l.map), 0) + (co.parcours || []).reduce((a, q) => a + len(q.map), 0); } catch (e) {}
   o.main = Math.max(0, o.main - o.maps); o.total = o.main + o.maps + o.sync + o.other; return o;
 }
+/* ☁️ Sauvegarde manuelle dans le Nuage (Apps Éducation) ou tout autre espace : fichier JSON daté, menu de partage de l'appareil.
+   Ce n'est PAS une synchronisation : le Nuage n'autorise pas les connexions automatiques depuis une application web. */
+function openNuageBackup() {
+  openPanel('Sauvegarde dans mon Nuage', el => {
+    const last = () => { const t = (DB.tablette || {}).nuageLast; if (!t) return '<b>Aucune sauvegarde faite depuis cet appareil.</b>'; const j = Math.floor((Date.now() - t) / 864e5);
+      return `Dernière sauvegarde : <b>${new Date(t).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}</b>${j >= 7 ? ` <span style="color:#D64545;font-weight:800">(il y a ${j} jours : pensez à en refaire une)</span>` : j === 0 ? ' (aujourd\'hui)' : ` (il y a ${j} jour${j > 1 ? 's' : ''})`}`; };
+    el.innerHTML = `<div class="card" style="border:2px solid #E0892F"><b>⚠️ Ce n'est pas une synchronisation</b>
+        <p style="margin:6px 0 0;font-size:.9rem">Cette sauvegarde est un <b>fichier</b> que vous rangez dans votre Nuage (Apps Éducation) ou ailleurs. Elle <b>ne synchronise pas</b> les tablettes entre elles : chaque tablette garde ses propres données. Pour partager les données entre plusieurs tablettes, utilisez plutôt Dropbox ou Google Drive (ou Équipe EPS).</p></div>
+      <div class="card" style="margin-top:12px"><b>📤 Faire une sauvegarde</b>
+        <p class="muted" style="margin:6px 0 0;font-size:.85rem">Un fichier <b>EPS-ONE-sauvegarde-date.json</b> est créé avec toutes les données de cet appareil (classes, élèves, résultats, séances…).</p>
+        <p id="nb-last" style="margin:8px 0 0;font-size:.88rem">${last()}</p>
+        <button class="btn btn-grad btn-block" style="margin-top:10px;padding:14px" id="nb-go">📤 Créer la sauvegarde et l'envoyer au Nuage</button></div>
+      <div class="card" style="margin-top:12px"><b>Comment l'enregistrer dans le Nuage ?</b>
+        <ol style="margin:6px 0 0 18px;padding:0;font-size:.88rem;line-height:1.5"><li><b>iPad / iPhone</b> : dans le menu qui s'ouvre, choisissez <i>Enregistrer dans Fichiers</i>, puis le dossier de votre Nuage (l'app <b>Nextcloud</b> doit être installée et connectée). Ou choisissez directement l'app Nextcloud si elle apparaît.</li>
+          <li><b>Ordinateur</b> : le fichier est téléchargé ; glissez-le dans le dossier synchronisé de votre Nuage (ou déposez-le sur le site du Nuage).</li>
+          <li><b>Android</b> : menu de partage → Nextcloud.</li></ol>
+        <p class="muted" style="margin:8px 0 0;font-size:.8rem">Aide pour connecter votre compte Apps Éducation au Nuage : portail.apps.education.fr → « Le nuage ».</p></div>
+      <div class="card" style="margin-top:12px"><b>📥 Restaurer une sauvegarde</b>
+        <p class="muted" style="margin:6px 0 0;font-size:.85rem">Sur la tablette à restaurer : récupérez le fichier depuis le Nuage (app Fichiers / Nextcloud), puis choisissez-le ici. Les données de l'appareil sont remplacées par celles du fichier.</p>
+        <button class="btn btn-ghost btn-block" style="margin-top:10px" id="nb-imp">📥 Choisir un fichier de sauvegarde</button></div>`;
+    el.querySelector('#nb-imp').onclick = () => { const i = document.getElementById('imp'); if (i) i.click(); else toast('Importer : Plus → Importer une sauvegarde'); };
+    el.querySelector('#nb-go').onclick = async () => {
+      try { window.saveNow && saveNow(); } catch (e) {}
+      const name = 'EPS-ONE-sauvegarde-' + new Date().toISOString().slice(0, 10) + '.json', blob = new Blob([JSON.stringify(DB, null, 2)], { type: 'application/json' });
+      const f = new File([blob], name, { type: 'application/json' }); let done = false;
+      try { if (navigator.canShare && navigator.canShare({ files: [f] })) { await navigator.share({ files: [f], title: 'Sauvegarde EPS ONE' }); done = true; } } catch (e) { if (e && e.name === 'AbortError') return; }
+      if (!done) { const u = URL.createObjectURL(blob), a = document.createElement('a'); a.href = u; a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(u), 60000); toast('Fichier téléchargé : rangez-le dans votre Nuage'); }
+      DB.tablette = DB.tablette || {}; DB.tablette.nuageLast = Date.now(); save(); el.querySelector('#nb-last').innerHTML = last();
+    };
+  });
+}
 function openStorage() {
   openPanel('Espace utilisé', el => {
     el.innerHTML = `<div class="card"><div id="mem-g"></div><button class="btn btn-ghost btn-block" style="margin-top:12px" onclick="exportData()">💾 Exporter une sauvegarde</button></div>
@@ -595,6 +627,7 @@ function renderPlus() {
       ${item('save', 'gold', 'Exporter un bilan', 'Résultats par classe et par outil, en couleurs (camemberts)', 'openBilan()')}
       ${item('save', 'navy', 'Espace utilisé', 'Données, photos et vidéos sur cette tablette', 'openStorage()')}
       ${item('restore', 'grad', 'Copies de secours', 'Une copie automatique par jour · récupérer des classes', 'openBackups()')}
+      ${item('share', 'blue', 'Sauvegarde dans mon Nuage', 'Fichier à ranger dans le Nuage Apps Éducation (pas de synchronisation)', 'openNuageBackup()')}
       ${item('save', 'blue', 'Exporter mes données', 'Fichier de sauvegarde JSON', 'exportData()')}
       ${item('restore', 'blue', 'Importer une sauvegarde', 'Restaurer depuis un fichier JSON', "document.getElementById('imp').click()")}
       ${item('share', 'grad', 'Partager l\'app', 'QR code et lien', 'openShare()')}
