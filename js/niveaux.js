@@ -179,7 +179,7 @@ function composerCard(el, { id, modes, target, before, onTeams, minPerLevel, due
       const ta = el.querySelector(target); ta.value = teams.map(t => t.name).join('\n');
       wrap.querySelector(`#${id}-compo`).innerHTML = `<details class="card" open style="margin-bottom:12px"><summary style="font-weight:800;cursor:pointer">Composition des équipes</summary>${teamsHTML(teams, o.withLevels)}</details>`;
       wrap.querySelector('details').open = false;
-      onTeams && onTeams(teams, o); toast('Équipes prêtes ✔');
+      onTeams && onTeams(teams, o); toast(`Équipes prêtes ✔ · ${teams.length} équipe${teams.length > 1 ? 's' : ''}`);
     } });
 }
 
