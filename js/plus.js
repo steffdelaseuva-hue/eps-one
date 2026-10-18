@@ -4,9 +4,12 @@
    ========================================================= */
 /* Page Ko-fi : laisser vide tant qu'elle n'existe pas (le bouton est alors masqué) */
 const KOFI_URL = 'https://ko-fi.com/epsone';
-const APP_VERSION = '23.81';
+const APP_VERSION = '23.84';
 const APP_URL = 'https://steffdelaseuva-hue.github.io/eps-one/';
 const CHANGELOG = [
+  { v: '23.84', items: ['Plus · Espace utilisé : « 🗂 Voir les données stockées » liste ce que l\'appli garde sur la tablette (résultats, tournois, relais, suivi, séances…) avec le nombre d\'éléments et la taille, et permet de vider une rubrique ou un détail, avec sauvegarde automatique avant.', 'Correction : les fichiers de mise à jour (sw.js, version.json) des versions 23.81 à 23.83 étaient vides ; ils sont rétablis.'] },
+  { v: '23.83', items: ['Confidentialité & RGPD : reformulation de la mention sur les statistiques de visite (GoatCounter).'] },
+  { v: '23.82', items: ['Confidentialité & RGPD : la mention GoatCounter est raccourcie en une ligne (statistiques de visite anonymes, uniquement sur le site publié).'] },
   { v: '23.81', items: ['Statistiques de visite anonymes (GoatCounter) sur le site publié uniquement : nombre de visites, sans cookie ni donnée personnelle. Mention ajoutée dans Confidentialité & RGPD.'] },
   { v: '23.80', items: ['Suppression en masse des résultats : bouton « 🗑 Supprimer en masse » dans « Résultats des élèves » et « Résultats collectifs » (classe, activité, période, avec sauvegarde automatique avant), et « 🗑 Supprimer les résultats de cet outil… » dans le bouton 📊 Bilan de chaque outil.'] },
   { v: '23.79', items: ['Plus · « Fiches élèves en couleurs » et « Exporter un bilan » sont fusionnés en une seule entrée « Bilans & fiches élèves » (fiche par élève cochée par défaut).'] },
@@ -437,7 +440,7 @@ function openPrivacy() {
           <li>Vous pouvez à tout moment <b>supprimer toutes vos données en ligne</b> (Plus → Stockage & synchronisation) : la synchronisation s'arrête et les données restent seulement sur l'appareil.</li>
           <li><b>Conseil</b> : en mode synchronisé, préférez <b>prénom + initiale</b> pour les élèves. Pour toute question sur l'usage d'outils numériques avec des données d'élèves, votre établissement reste l'interlocuteur de référence.</li></ul>
         <h3>📊 Statistiques de visite</h3>
-        <ul><li>Sur le site publié, un compteur anonyme (<b>GoatCounter</b>) compte le nombre de visites de l'application. <b>Aucun cookie</b>, aucune adresse IP conservée, <b>aucune donnée de l'app</b> (classes, élèves, résultats…) n'est envoyée : seulement le fait qu'une page a été ouverte, avec le type d'appareil et le pays.</li></ul>
+        <ul><li><b>Mesure d'audience</b> : le nombre de visites est compté de façon anonyme avec <b>GoatCounter</b>, sans cookie, et seulement sur le site publié (steffdelaseuva-hue.github.io). Rien de ce que vous saisissez dans l'app n'est transmis.</li></ul>
         <h3>📷 Caméra, photos et vidéos</h3>
         <ul><li><b>Vidéo différée, photo-finish, scan des dossards</b> : la caméra n'est utilisée que pendant que l'outil est ouvert ; les images restent en mémoire vive, ne sont jamais enregistrées ni envoyées.</li>
           <li><b>Vidéos</b> ajoutées en danse, gym ou acrosport : enregistrées <b>uniquement sur l'appareil</b>, jamais envoyées en ligne.</li>
@@ -509,6 +512,8 @@ function openStorage() {
     el.innerHTML = `<div class="card"><div id="mem-g"></div><button class="btn btn-ghost btn-block" style="margin-top:12px" onclick="exportData()">💾 Exporter une sauvegarde</button></div>
       <p class="muted" style="margin:12px 4px;font-size:.82rem">Les photos (acrosport, gym, escalade, danse) et les vidéos sont rangées à part : elles ne remplissent pas cet espace. Les cartes de course d'orientation, elles, y sont comprises .</p>`;
     memGauge(el.querySelector('#mem-g'));
+    el.insertAdjacentHTML('beforeend', '<div class="card" style="margin-top:12px"><b>🗂 Données stockées</b><p class="muted" style="margin:6px 0 0;font-size:.85rem">Voir ce que l\'appli garde (résultats, tournois, relais, suivi…) et vider ce que vous voulez.</p><button class="btn btn-grad btn-block" style="margin-top:10px" id="mem-data">🗂 Voir les données stockées</button></div>');
+    el.querySelector('#mem-data').onclick = () => openStoredData();
   });
 }
 /* Réduit les cartes de C.O. (≤ 1200 px, JPEG) pour libérer de la place */
