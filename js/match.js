@@ -488,7 +488,8 @@ TOOL_IMPL.match = function (el, grp = 'col') {
     if ($('#tl-bk')) $('#tl-bk').onclick = () => { keep(); tview(S.tid); };
     el.querySelectorAll('[data-tv]').forEach(b => b.onclick = () => { keep(); tview(b.dataset.tv); });
     el.querySelectorAll('[data-trst]').forEach(b => b.onclick = () => { const L = Array.isArray(DB.tournoisDel) ? DB.tournoisDel : [], x = L.find(y => y.id === b.dataset.trst); if (!x) return;
-      DB.tournoisDel = L.filter(y => y.id !== x.id); const r = { ...x }; delete r.delDate; delete r.fin; TR().push(r); save(); toast(`« ${r.nom} » restauré ✔`); keep(); tview(r.id); });
+      DB.tournoisDel = L.filter(y => y.id !== x.id); const r = { ...x }; delete r.delDate; delete r.fin; TR().push(r); save(); window.syncFlush && window.syncFlush(); toast(`« ${r.nom} » restauré ✔ (dans « Tournois en cours »)`);
+      try { keep(); tview(r.id); } catch (err) { try { setup(); } catch (e2) {} } });
     if ($('#atp-new')) $('#atp-new').onclick = () => { keep(); if (!encOk()) return; unlinkT(); createAtp({ cls: T() ? T().cls : '' }); };
     wireTeams();
     mountRLA();
@@ -1289,7 +1290,7 @@ TOOL_IMPL.match = function (el, grp = 'col') {
     el.querySelectorAll('[data-rgn]').forEach(b => b.onclick = () => rgSet(R => { R.obsN = +b.dataset.rgn; }));
     $('#t-fin').onclick = () => { const T0 = TR().find(x => x.id === t.id); if (!T0) return; T0.fin = !T0.fin; save(); toast(T0.fin ? 'Tournoi terminé ✔ (réouvrable)' : 'Tournoi rouvert ✔'); tview(t.id); };
     $('#t-del').onclick = () => { if (!confirm(`Supprimer le tournoi « ${t.nom} » sur toutes les tablettes ?\nLes matchs enregistrés restent dans l'historique. Il pourra être restauré.`)) return;
-      const T0 = TR().find(x => x.id === t.id); if (T0) DB.tournoisDel = [...(Array.isArray(DB.tournoisDel) ? DB.tournoisDel : []), { ...JSON.parse(JSON.stringify(T0)), delDate: Date.now() }].slice(-15);
+      const T0 = TR().find(x => x.id === t.id); if (T0) DB.tournoisDel = [...(Array.isArray(DB.tournoisDel) ? DB.tournoisDel : []), { ...JSON.parse(JSON.stringify(T0)), delDate: Date.now() }].slice(-30);
       DB.tournois = TR().filter(x => x.id !== t.id); if (S.tid === t.id) unlinkT(); save(); toast('Tournoi supprimé (restaurable)'); setup(); };
   }
 

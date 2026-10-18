@@ -4,9 +4,11 @@
    ========================================================= */
 /* Page Ko-fi : laisser vide tant qu'elle n'existe pas (le bouton est alors masqué) */
 const KOFI_URL = 'https://ko-fi.com/epsone';
-const APP_VERSION = '23.86';
+const APP_VERSION = '23.88';
 const APP_URL = 'https://steffdelaseuva-hue.github.io/eps-one/';
 const CHANGELOG = [
+  { v: '23.88', items: ['Corbeille des tournois : tout tournoi supprimé depuis « Résultats collectifs » ou « Supprimer en masse » est désormais conservé dans « 📁 Tournois terminés · ♻️ supprimés » (30 derniers) et peut être restauré ; la restauration ne se bloque plus si le tournoi ne peut pas s\'ouvrir.'] },
+  { v: '23.87', items: ['Plus · Espace utilisé · « Supprimer des données » : trois familles seulement — équipes et groupes créés, bilans et résultats, séances terminées — avec le détail et le nombre d\'éléments. Les classes, réglages et séances en cours ne sont jamais touchés.'] },
   { v: '23.86', items: ['Réparation : les groupes préparés / équipes composées vidés en {} bloquaient l\'ouverture du Duathlon et des outils de duel ; ils sont maintenant nettoyés automatiquement. Si un outil plante, l\'appli tente la réparation puis affiche la cause en clair.'] },
   { v: '23.85', items: ['Réparation : les outils Duathlon, Combiné, Demi-fond, HYROX et Sauvetage qui ne s\'ouvraient plus après un vidage depuis « Données stockées » se rouvrent (séance en cours remise à zéro). « Données stockées » ne vide plus que les listes de données (séances, résultats, courses, passages…), jamais les réglages ni la séance en cours.'] },
   { v: '23.84', items: ['Plus · Espace utilisé : « 🗂 Voir les données stockées » liste ce que l\'appli garde sur la tablette (résultats, tournois, relais, suivi, séances…) avec le nombre d\'éléments et la taille, et permet de vider une rubrique ou un détail, avec sauvegarde automatique avant.', 'Correction : les fichiers de mise à jour (sw.js, version.json) des versions 23.81 à 23.83 étaient vides ; ils sont rétablis.'] },
@@ -514,7 +516,7 @@ function openStorage() {
     el.innerHTML = `<div class="card"><div id="mem-g"></div><button class="btn btn-ghost btn-block" style="margin-top:12px" onclick="exportData()">💾 Exporter une sauvegarde</button></div>
       <p class="muted" style="margin:12px 4px;font-size:.82rem">Les photos (acrosport, gym, escalade, danse) et les vidéos sont rangées à part : elles ne remplissent pas cet espace. Les cartes de course d'orientation, elles, y sont comprises .</p>`;
     memGauge(el.querySelector('#mem-g'));
-    el.insertAdjacentHTML('beforeend', '<div class="card" style="margin-top:12px"><b>🗂 Données stockées</b><p class="muted" style="margin:6px 0 0;font-size:.85rem">Voir ce que l\'appli garde (résultats, tournois, relais, suivi…) et vider ce que vous voulez.</p><button class="btn btn-grad btn-block" style="margin-top:10px" id="mem-data">🗂 Voir les données stockées</button></div>');
+    el.insertAdjacentHTML('beforeend', '<div class="card" style="margin-top:12px"><b>🗑 Supprimer des données</b><p class="muted" style="margin:6px 0 0;font-size:.85rem">Vider les équipes et groupes créés, les bilans et résultats, ou les séances terminées.</p><button class="btn btn-grad btn-block" style="margin-top:10px" id="mem-data">🗑 Choisir ce qu\'il faut supprimer</button></div>');
     el.querySelector('#mem-data').onclick = () => openStoredData();
   });
 }

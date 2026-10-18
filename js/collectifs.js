@@ -283,7 +283,7 @@ if (!document.getElementById('cl-css')) document.head.insertAdjacentHTML('before
         $('#cl-del').onclick = () => { const E = selOK.filter(e => sel.has(key(e))); if (!E.length) return;
           const nr = E.reduce((a, e) => a + e.own.recs.length, 0), kinds = [...new Set(E.map(e => ACT[e.kind]))].join(', ');
           if (!confirm(`Supprimer ${E.length} résultat${E.length > 1 ? 's' : ''} collectif${E.length > 1 ? 's' : ''} (${kinds})${nr > E.length ? ` — ${nr} enregistrements de tablettes` : ''} ?\nIls seront aussi effacés de leur outil, sur toutes les tablettes synchronisées.`)) return;
-          E.forEach(e => { const A = e.own.arr(); if (!Array.isArray(A)) return; e.own.recs.forEach(r => { const i = A.indexOf(r); if (i >= 0) A.splice(i, 1); }); });
+          E.forEach(e => { const A = e.own.arr(); if (!Array.isArray(A)) return; e.own.recs.forEach(r => { const i = A.indexOf(r); if (i >= 0) { if (A === DB.tournois && window.epsTrashTournoi) epsTrashTournoi(r); A.splice(i, 1); } }); });
           sel.clear(); multi = false; save(); window.syncFlush && window.syncFlush(); toast(`${E.length} résultat${E.length > 1 ? 's' : ''} supprimé${E.length > 1 ? 's' : ''}`); draw(); };
         upd();
       }

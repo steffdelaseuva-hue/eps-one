@@ -49,7 +49,7 @@
         if (f.bak) { try { const u = URL.createObjectURL(new Blob([JSON.stringify(DB, null, 2)], { type: 'application/json' })), a = document.createElement('a');
           a.href = u; a.download = 'EPS-ONE-avant-suppression-' + new Date().toISOString().slice(0, 10) + '.json'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(u), 60000); } catch (e) {} }
         const S = new Set(res); for (let i = DB.resultats.length - 1; i >= 0; i--) if (S.has(DB.resultats[i])) DB.resultats.splice(i, 1);
-        ev.forEach(e => { const A = e.own.arr(); if (!Array.isArray(A)) return; e.own.recs.forEach(r => { const i = A.indexOf(r); if (i >= 0) A.splice(i, 1); }); });
+        ev.forEach(e => { const A = e.own.arr(); if (!Array.isArray(A)) return; e.own.recs.forEach(r => { const i = A.indexOf(r); if (i >= 0) { if (A === DB.tournois && window.epsTrashTournoi) epsTrashTournoi(r); A.splice(i, 1); } }); });
         save(); window.syncFlush && window.syncFlush(); close(); toast(`${tot} enregistrement${tot > 1 ? 's' : ''} supprimé${tot > 1 ? 's' : ''}`); if (typeof onDone === 'function') onDone();
       };
     };

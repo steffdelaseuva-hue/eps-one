@@ -20,6 +20,9 @@
   const DICT = new Set(['vma', 'groupes', 'pl', 'evals', 'passages']);   // dictionnaires de DONNÉES (jamais les réglages « cfg » ni la séance en cours « current »)
   const delOK = (k, v) => Array.isArray(v) || (v && typeof v === 'object' && DICT.has(k));
   /* 🩹 Réparation : une séance en cours « current » vidée en {} (ancienne version 23.84) empêche l'ouverture de plusieurs outils → on la remet à null */
+  /* ♻️ Corbeille des tournois : tout tournoi supprimé (quel que soit le chemin) y est conservé pour pouvoir le restaurer */
+  window.epsTrashTournoi = function (t) { try { if (!t || !t.id) return; const L = Array.isArray(DB.tournoisDel) ? DB.tournoisDel : [];
+    DB.tournoisDel = [...L.filter(x => x && x.id !== t.id), { ...JSON.parse(JSON.stringify(t)), delDate: Date.now() }].slice(-30); } catch (e) {} };
   window.epsRepairData = function () { let n = 0;
     try { Object.keys(DB).forEach(k => { const v = DB[k]; if (!v || typeof v !== 'object' || Array.isArray(v)) return;
       if (v.current && typeof v.current === 'object' && !Array.isArray(v.current) && !Object.keys(v.current).length) { v.current = null; n++; }
@@ -47,30 +50,44 @@
       try { toast('⚠️ Cet outil n\'a pas pu s\'ouvrir : ' + String(err && err.message || err).slice(0, 90)); } catch (e4) {}
       try { console.error('openTool', id, err); } catch (e5) {} }
   };
+  /* ---- 3 familles seulement, listées explicitement : jamais de réglages, de classes ni de séance en cours ---- */
+  const arr = (o, k) => (o && Array.isArray(o[k])) ? o[k] : [];
+  const obj = k => DB[k] && typeof DB[k] === 'object' && !Array.isArray(DB[k]) ? DB[k] : null;
+  const A = (label, get, clr) => ({ label, get, clr });
+  const listOf = (k, label) => A(label, () => arr(DB, k).length, () => { if (Array.isArray(DB[k])) DB[k] = []; });
+  const subOf = (k, sub, label) => A(label, () => arr(obj(k), sub).length, () => { const o = obj(k); if (o && Array.isArray(o[sub])) o[sub] = []; });
+  const CATS = [
+    { id: 'eq', ico: '👥', title: 'Équipes et groupes créés', sub: 'Les équipes / groupes préparés dans les outils (relais, duathlon, tournois, duels…). Les classes et les listes d\'élèves ne sont pas touchées.',
+      items: [A('Équipes et groupes préparés', () => Object.keys(DB.prepGroups || {}).length, () => { DB.prepGroups = {}; })] },
+    { id: 'res', ico: '📊', title: 'Bilans et résultats', sub: 'Les résultats enregistrés (élèves et collectifs) : ce sont eux qui alimentent les bilans et les fiches élèves.',
+      items: [listOf('resultats', 'Résultats des élèves'), listOf('matchs', 'Matchs'), A('Tournois (restaurables depuis la corbeille de l\'outil)', () => arr(DB, 'tournois').length, () => { (DB.tournois || []).slice().forEach(t => epsTrashTournoi(t)); DB.tournois = []; }),
+        subOf('escalade', 'passages', 'Escalade : passages'), subOf('lutte', 'combats', 'Lutte : combats'), subOf('parkour', 'evals', 'Parkour : évaluations'), subOf('rugbyLA', 'obs', 'Rugby : observations'),
+        A('Évaluations saisies dans les grilles', () => (DB.grilles || []).reduce((a, g) => a + Object.keys((g && g.evals) || {}).length, 0), () => (DB.grilles || []).forEach(g => { if (g && g.evals) g.evals = {}; }))] },
+    { id: 'sea', ico: '🏁', title: 'Séances terminées', sub: 'Les séances enregistrées de chaque outil. La séance en cours n\'est jamais supprimée.',
+      items: [subOf('relais', 'courses', 'Relais : courses'), subOf('duathlon', 'seances', 'Duathlon : séances'), subOf('combine', 'seances', 'Combiné athlétique : séances'), subOf('demifond', 'seances', 'Demi-fond : séances'),
+        subOf('co', 'seances', 'Course d\'orientation : séances'), subOf('sauvetage', 'seances', 'Sauvetage : séances'), subOf('wod', 'seances', 'HYROX / Crosstraining : séances'), subOf('lutte', 'seances', 'Lutte : séances'),
+        listOf('interclasses', 'Interclasses')] }
+  ];
   window.openStoredData = function () {
-    openPanel('Données stockées', el => {
+    openPanel('Supprimer des données', el => {
       let bak = true;
       const draw = () => {
-        const R = rows(), tot = R.reduce((a, r) => a + r.z, 0);
-        el.innerHTML = `<div class="card"><b>🗂 Ce que l'appli garde sur cette tablette</b>
-          <p class="muted" style="margin:6px 0 0;font-size:.85rem">Touchez 🗑 pour vider une rubrique (le contenu est définitivement effacé). Les classes et listes d'élèves ne sont pas listées ici : elles se gèrent dans l'outil Classes ou dans « Nouvelle année scolaire ».</p>
+        el.innerHTML = `<div class="card"><b>🗑 Que voulez-vous supprimer ?</b>
+          <p class="muted" style="margin:6px 0 0;font-size:.85rem">Trois familles seulement. Les classes, les listes d'élèves, les réglages et les séances en cours ne sont jamais touchés. La suppression est définitive, y compris sur les tablettes synchronisées.</p>
           <label style="display:flex;align-items:center;gap:8px;margin:10px 0 0;font-weight:700"><input type="checkbox" id="dn-b" ${bak ? 'checked' : ''} style="width:20px;height:20px;margin:0"> Télécharger une sauvegarde avant de supprimer</label></div>
-          ${R.length ? R.map((r, i) => `<div class="card" style="margin-top:10px"><div style="display:flex;align-items:center;gap:10px"><div style="flex:1;min-width:0"><b>${esc(nm(r.k))}</b><div class="muted" style="font-size:.8rem">${r.n} élément${r.n > 1 ? 's' : ''} · ${ko(r.z)}</div></div>
-              <button class="btn btn-danger" data-cfg="bare" data-d="${i}" style="padding:8px 12px">🗑 Tout vider</button></div>
-            ${r.subs.length > 1 || (r.subs.length === 1 && !Array.isArray(DB[r.k])) ? `<details style="margin-top:8px"><summary class="muted" style="font-size:.82rem;cursor:pointer">Détail (${r.subs.length})</summary>${r.subs.map((s, j) => `<div style="display:flex;align-items:center;gap:10px;margin-top:8px;padding-top:8px;border-top:1px solid var(--line)"><div style="flex:1;min-width:0"><b style="font-size:.9rem">${esc(subLab(r.k, s.s))}</b><div class="muted" style="font-size:.78rem">${s.n} élément${s.n > 1 ? 's' : ''} · ${ko(s.z)}</div></div><button class="btn btn-ghost" data-cfg="bare" data-d="${i}" data-s="${j}" style="padding:7px 10px;color:#D64545">🗑</button></div>`).join('')}</details>` : ''}</div>`).join('')
-            : '<div class="card empty" style="margin-top:10px">Aucune donnée à afficher.</div>'}
-          <p class="muted" style="margin:12px 4px;font-size:.8rem">Total des rubriques listées : <b>${ko(tot)}</b>. Les photos et vidéos sont rangées à part (voir « Espace utilisé »).</p>`;
+          ${CATS.map(c => { const L = c.items.map(it => ({ it, n: it.get() })).filter(x => x.n > 0), tot = L.reduce((a, x) => a + x.n, 0);
+            return `<div class="card" style="margin-top:12px"><b style="font-size:1.05rem">${c.ico} ${esc(c.title)}</b><p class="muted" style="margin:4px 0 0;font-size:.82rem">${esc(c.sub)}</p>
+              ${L.length ? `<ul style="margin:8px 0 0 18px;padding:0;font-size:.88rem;line-height:1.5">${L.map(x => `<li>${esc(x.it.label)} : <b>${x.n}</b></li>`).join('')}</ul>
+                <button class="btn btn-danger btn-block" data-cfg="bare" data-c="${c.id}" style="margin-top:10px">🗑 Vider « ${esc(c.title)} » (${tot})</button>`
+              : '<div class="muted" style="margin-top:8px;font-size:.85rem">✔ Rien à supprimer.</div>'}</div>`; }).join('')}`;
         el.querySelector('#dn-b').onchange = e => { bak = e.target.checked; };
-        el.querySelectorAll('[data-d]').forEach(b => b.onclick = () => {
-          const r = R[+b.dataset.d], sub = b.dataset.s != null ? r.subs[+b.dataset.s] : null, what = sub ? `« ${subLab(r.k, sub.s)} » de « ${nm(r.k)} »` : `« ${nm(r.k)} »`, n = sub ? sub.n : r.n;
-          if (!confirm(`Vider ${what} (${n} élément${n > 1 ? 's' : ''}) ?\nCette suppression est définitive, sur toutes les tablettes synchronisées.`)) return;
+        el.querySelectorAll('[data-c]').forEach(b => b.onclick = () => {
+          const c = CATS.find(x => x.id === b.dataset.c), L = c.items.map(it => ({ it, n: it.get() })).filter(x => x.n > 0); if (!L.length) return;
+          if (!confirm(`Supprimer définitivement :\n${L.map(x => '• ' + x.it.label + ' (' + x.n + ')').join('\n')}\n\nCela se répercute sur les tablettes synchronisées.`)) return;
           if (bak) backup();
-          const v = DB[r.k];
-          if (sub) v[sub.s] = empty(v[sub.s]);
-          else if (Array.isArray(v)) DB[r.k] = [];
-          else if (ROOTDICT.has(r.k)) DB[r.k] = {};
-          else Object.keys(v).forEach(s => { if (delOK(s, v[s])) v[s] = empty(v[s]); else if (s === 'current' && v[s]) v[s] = null; });
-          save(); window.syncFlush && window.syncFlush(); toast('Rubrique vidée'); draw();
+          L.forEach(x => { try { x.it.clr(); } catch (e) {} });
+          try { window.epsRepairData(); } catch (e) {}
+          save(); window.syncFlush && window.syncFlush(); toast('Données supprimées'); draw();
         });
       };
       draw();
