@@ -4,9 +4,10 @@
    ========================================================= */
 /* Page Ko-fi : laisser vide tant qu'elle n'existe pas (le bouton est alors masqué) */
 const KOFI_URL = 'https://ko-fi.com/epsone';
-const APP_VERSION = '23.79';
+const APP_VERSION = '23.80';
 const APP_URL = 'https://steffdelaseuva-hue.github.io/eps-one/';
 const CHANGELOG = [
+  { v: '23.80', items: ['Suppression en masse des résultats : bouton « 🗑 Supprimer en masse » dans « Résultats des élèves » et « Résultats collectifs » (classe, activité, période, avec sauvegarde automatique avant), et « 🗑 Supprimer les résultats de cet outil… » dans le bouton 📊 Bilan de chaque outil.'] },
   { v: '23.79', items: ['Plus · « Fiches élèves en couleurs » et « Exporter un bilan » sont fusionnés en une seule entrée « Bilans & fiches élèves » (fiche par élève cochée par défaut).'] },
   { v: '23.78', items: ['Plus · « Sauvegarde dans mon Nuage » : crée un fichier de sauvegarde daté et ouvre le menu de partage (Fichiers / Nextcloud) pour le ranger dans le Nuage Apps Éducation ; rappel de la dernière sauvegarde ; restauration depuis un fichier. Précise que ce n\'est pas une synchronisation entre tablettes.'] },
   { v: '23.77', items: ['Relais : la carte « Suivi par élève » en bas de page est retirée (le suivi est dans « 📊 Bilan » en haut → fiches élèves).'] },
