@@ -290,7 +290,7 @@ TOOL_IMPL.escalade = function (el) {
   const ccInner = (t, c, cls) => { const M = t.members, o = M.filter(n => n !== c.gw), RC = roleCnt(cls), V = E.voies.find(w => w.id === c.voie), img = DB[escImgKey(V.id)];
     const opt = (n, k, sel) => `<option value="${esc(n)}" ${n === sel ? 'selected' : ''}>${esc(n)} (${(RC[n] || {})[k] || 0})</option>`;
     const cnt = (k, l) => `<div class="ec-cnt"><span>${l}</span><button data-m="${k}">−</button><b data-n="${k}">${c[k]}</b><button data-p="${k}">＋1</button></div>`;
-    return `<div class="ec-h"><b>${esc(t.name)}</b><span class="ec-t" data-ct="${esc(ccKey(cls, t))}">${escTime(csec(c))}</span></div>
+    return `<div class="ec-h"><b>${esc(t.name)}</b><span class="ec-t" data-ct="${esc(ccKey(cls, t))}">${escTime(csec(c))}</span></div>${window.epsMemLine ? window.epsMemLine(M, 'margin:-2px 0 6px') : ''}
       <label>🧗 Grimpeur</label><select data-f="gw">${M.map(n => opt(n, 'g', c.gw)).join('')}</select>
       <div class="ec-pair"><div><label>🪢 Assureur</label><select data-f="as">${o.map(n => opt(n, 'a', c.as)).join('') || '<option value="">—</option>'}</select></div>
         <div><label>🤝 Contre-ass.</label><select data-f="ca"><option value="">— aucun —</option>${o.filter(n => n !== c.as).map(n => opt(n, 'c', c.ca)).join('')}</select></div></div>

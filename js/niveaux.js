@@ -201,6 +201,8 @@ TOOL_IMPL.poule = function (el) {
     <div class="row"><div><label>Victoire</label><input id="pv" type="number" value="3"></div><div><label>Nul</label><input id="pn" type="number" value="2"></div><div><label>Défaite</label><input id="pd" type="number" value="1"></div></div>
     <button class="btn btn-grad btn-block" style="margin-top:12px" id="gen">🔁 Générer les rencontres</button></div><div id="out"></div>`;
   const $ = s => el.querySelector(s);
+  let fromC = false; el.addEventListener('click', ev => { if (ev.target.closest('#cpoule-go,#cpoule-use')) fromC = true; }); $('#pl').addEventListener('input', () => { fromC = false; });
+  const mem = nm => fromC && window.epsPrepMembers ? window.epsMemLine(window.epsPrepMembers('cpoule', (el.querySelector('#cpoule-cls') || {}).value, nm)) : '';
   const groupOf = t => (/^Niveau\s*(\d)/i.exec(t) || [])[1] ? 'Poule niveau ' + /^Niveau\s*(\d)/i.exec(t)[1] : '';
   const gen = () => {
     teams = namesFrom('pl'); if (teams.length < 2) return toast('Au moins 2 équipes');
@@ -230,8 +232,8 @@ TOOL_IMPL.poule = function (el) {
     const groups = [...new Set(matches.map(m => m.g))];
     $('#out').innerHTML = groups.map(g => {
       const rk = table(g), ms = matches.map((m, i) => ({ ...m, i })).filter(m => m.g === g);
-      return `<div class="section-title"><h2>${g ? esc(g) + ' — classement' : 'Classement'}</h2></div><div class="card" style="overflow:auto"><table><tr><th>#</th><th>Équipe</th><th>Pts</th><th>J</th><th>G</th><th>N</th><th>P</th><th>Diff</th></tr>${rk.map((r, i) => `<tr><td>${i + 1}</td><td><b>${esc(r.t)}</b></td><td><b>${r.pts}</b></td><td>${r.j}</td><td>${r.g}</td><td>${r.n}</td><td>${r.p}</td><td>${r.bp - r.bc}</td></tr>`).join('')}</table></div>
-      <div class="section-title"><h2>${g ? esc(g) + ' — rencontres' : 'Rencontres'}</h2></div><div class="card" style="padding:0">${ms.map(m => `<div class="list-item"><span class="muted" style="width:34px">T${m.round}</span><span style="flex:1;text-align:right">${esc(m.a)}</span><input data-m="${m.i}" data-k="sa" type="number" value="${m.sa}" style="width:58px;text-align:center"><input data-m="${m.i}" data-k="sb" type="number" value="${m.sb}" style="width:58px;text-align:center"><span style="flex:1">${esc(m.b)}</span></div>`).join('')}</div>`;
+      return `<div class="section-title"><h2>${g ? esc(g) + ' — classement' : 'Classement'}</h2></div><div class="card" style="overflow:auto"><table><tr><th>#</th><th>Équipe</th><th>Pts</th><th>J</th><th>G</th><th>N</th><th>P</th><th>Diff</th></tr>${rk.map((r, i) => `<tr><td>${i + 1}</td><td><b>${esc(r.t)}</b>${mem(r.t)}</td><td><b>${r.pts}</b></td><td>${r.j}</td><td>${r.g}</td><td>${r.n}</td><td>${r.p}</td><td>${r.bp - r.bc}</td></tr>`).join('')}</table></div>
+      <div class="section-title"><h2>${g ? esc(g) + ' — rencontres' : 'Rencontres'}</h2></div><div class="card" style="padding:0">${ms.map(m => `<div class="list-item"><span class="muted" style="width:34px">T${m.round}</span><span style="flex:1;text-align:right">${esc(m.a)}${mem(m.a)}</span><input data-m="${m.i}" data-k="sa" type="number" value="${m.sa}" style="width:58px;text-align:center"><input data-m="${m.i}" data-k="sb" type="number" value="${m.sb}" style="width:58px;text-align:center"><span style="flex:1">${esc(m.b)}${mem(m.b)}</span></div>`).join('')}</div>`;
     }).join('');
     $('#out').querySelectorAll('[data-m]').forEach(inp => inp.onchange = () => { matches[inp.dataset.m][inp.dataset.k] = inp.value; draw(); });
   };

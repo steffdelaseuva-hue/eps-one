@@ -531,7 +531,7 @@ TOOL_IMPL.demifond = function (el) {
     const b = c.bip || (c.bip = { mode: 'off', n: 30, v: 10 });
     let grid = '';
     if (obs || c.grp === 1 || c.org !== 'groupe') grid = `<div class="df-grid">${runners.map(card).join('')}</div>`;
-    else C.groups.forEach((g, gi) => { const R = runners.filter(r => r.gi === gi); if (!R.length) return; grid += `<div class="df-gh">${esc(g.name)}${c.org === 'relais' ? ' <span class="muted" style="font-weight:600">· relais</span>' : ''}</div><div class="df-grid" style="margin-top:6px">${R.map(card).join('')}</div>`; });
+    else C.groups.forEach((g, gi) => { const R = runners.filter(r => r.gi === gi); if (!R.length) return; grid += `<div class="df-gh">${esc(g.name)}${c.org === 'relais' ? ' <span class="muted" style="font-weight:600">· relais</span>' : ''}${window.epsMemLine ? window.epsMemLine(g.members, 'margin-top:2px') : ''}</div><div class="df-grid" style="margin-top:6px">${R.map(card).join('')}</div>`; });
     const nextNames = nextRun != null && c.grp > 1 && c.org === 'relais' ? C.groups.filter((g, gi) => !obs || gi === C.only).map(g => `${esc(g.name)} : ${esc(g.members[dfRelay(g, nextRun)] || '—')}`).join(' · ') : '';
     box.innerHTML = `<div class="${obs ? 'df-obs' : ''}">
       ${obs ? `<div class="card" style="text-align:center;margin-bottom:10px"><div style="font-weight:900;font-size:1.25rem">${esc(obs.name)}</div>${c.grp > 1 ? `<div class="muted">${obs.members.map(esc).join(', ')}</div>` : ''}</div>` : `<div class="muted" style="margin:0 2px 6px"><b style="color:var(--text)">${esc(C.nom)}</b> · ${dfFormat(c)}${nV > 1 ? ` · vague ${L.w + 1}/${nV}` : ''}</div>`}
