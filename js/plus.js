@@ -4,9 +4,10 @@
    ========================================================= */
 /* Page Ko-fi : laisser vide tant qu'elle n'existe pas (le bouton est alors masqué) */
 const KOFI_URL = 'https://ko-fi.com/epsone';
-const APP_VERSION = '23.94';
+const APP_VERSION = '23.95';
 const APP_URL = 'https://steffdelaseuva-hue.github.io/eps-one/';
 const CHANGELOG = [
+  { v: '23.95', items: ['Titres raccourcis dans la barre du haut : « Match · Collectifs » et « Match · Raquette ».', 'Barre du haut des outils : le titre ne s\'écrase plus en colonne étroite quand plusieurs boutons sont présents (taille adaptée sur téléphone).'] },
   { v: '23.91', items: ['Mode Équipe EPS : tous les boutons de suppression (en masse, « Supprimer des données », « 🧹 Terminé ») ne suppriment que les données de l\'enseignant actif (et celles sans propriétaire), jamais celles d\'un collègue.'] },
   { v: '23.90', items: ['Dans tous les outils qui gardent des séances ou des résultats (relais, duathlon, combiné, demi-fond, C.O., sauvetage, HYROX, lutte, escalade, parkour, rugby, natation, interclasses, gestion de match collectifs / raquette / escrime) : bouton « 🧹 Terminé » ou, dans « 📊 Bilan », « Supprimer ce qui est terminé… » pour vider séances, tournois terminés, matchs et résultats de l\'outil (sauvegarde avant).'] },
   { v: '23.89', items: ['Gestion de match · « 📁 Tournois terminés · ♻️ supprimés » : « ✕ » pour supprimer définitivement un tournoi de la corbeille, « 🗑 Vider la corbeille » et « 🗑 Supprimer tous les tournois terminés » pour ne pas laisser la liste s\'allonger.'] },
