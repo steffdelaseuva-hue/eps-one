@@ -16,12 +16,14 @@
   const ko = n => n >= 1048576 ? (n / 1048576).toFixed(1) + ' Mo' : Math.max(1, Math.round(n / 1024)) + ' Ko';
   const cnt = v => Array.isArray(v) ? v.length : (v && typeof v === 'object') ? Object.keys(v).length : 0;
   const empty = v => Array.isArray(v) ? [] : {};
+  const ROOTDICT = new Set(['prepGroups', 'niveaux', 'suivi', 'oublis', 'asns', 'gym', 'acro']);   // dictionnaires {classe/id: données} : se vident en {} entier
   const DICT = new Set(['vma', 'groupes', 'pl', 'evals', 'passages']);   // dictionnaires de DONNÉES (jamais les réglages « cfg » ni la séance en cours « current »)
   const delOK = (k, v) => Array.isArray(v) || (v && typeof v === 'object' && DICT.has(k));
   /* 🩹 Réparation : une séance en cours « current » vidée en {} (ancienne version 23.84) empêche l'ouverture de plusieurs outils → on la remet à null */
   window.epsRepairData = function () { let n = 0;
     try { Object.keys(DB).forEach(k => { const v = DB[k]; if (!v || typeof v !== 'object' || Array.isArray(v)) return;
       if (v.current && typeof v.current === 'object' && !Array.isArray(v.current) && !Object.keys(v.current).length) { v.current = null; n++; }
+      if (ROOTDICT.has(k)) Object.keys(v).forEach(x => { const e = v[x]; if (e && typeof e === 'object' && !Array.isArray(e) && !Object.keys(e).length) { delete v[x]; n++; } });
       if (k === 'combine' && v.cfg && typeof v.cfg === 'object' && !Object.keys(v.cfg).length) { v.cfg = null; n++; } });
       if (n) save(); } catch (e) {} return n; };
   window.epsRepairData();
@@ -30,11 +32,21 @@
   const subLab = (k, s) => (Array.isArray(DB[k]) ? s : (SUB[s] || s));
   function rows() {
     return Object.keys(DB).filter(k => !HIDE.has(k) && !isBig(k) && container(DB[k]) && cnt(DB[k]) > 0).map(k => {
-      const v = DB[k], subs = Array.isArray(v) ? [] : Object.keys(v).filter(s => delOK(s, v[s]) && cnt(v[s]) > 0).map(s => ({ s, n: cnt(v[s]), z: size(v[s]) }));
+      const v = DB[k]; if (ROOTDICT.has(k)) return { k, n: cnt(v), z: size(v), subs: [] };
+      const subs = Array.isArray(v) ? [] : Object.keys(v).filter(s => delOK(s, v[s]) && cnt(v[s]) > 0).map(s => ({ s, n: cnt(v[s]), z: size(v[s]) }));
       return { k, n: Array.isArray(v) ? v.length : subs.reduce((a, x) => a + x.n, 0), z: Array.isArray(v) ? size(v) : subs.reduce((a, x) => a + x.z, 0), subs }; }).filter(r => r.n > 0).sort((a, b) => b.z - a.z);
   }
   function backup() { try { const u = URL.createObjectURL(new Blob([JSON.stringify(DB, null, 2)], { type: 'application/json' })), a = document.createElement('a');
     a.href = u; a.download = 'EPS-ONE-avant-suppression-' + new Date().toISOString().slice(0, 10) + '.json'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(u), 60000); } catch (e) {} }
+  /* Si un outil plante à l'ouverture : on tente la réparation des données puis on réessaie une fois ; sinon message clair */
+  const o0 = window.openTool;
+  if (typeof o0 === 'function') window.openTool = openTool = function (id) {
+    try { return o0.apply(this, arguments); }
+    catch (err) { let fixed = 0; try { fixed = window.epsRepairData(); } catch (e2) {}
+      if (fixed) { try { return o0.apply(this, arguments); } catch (e3) { err = e3; } }
+      try { toast('⚠️ Cet outil n\'a pas pu s\'ouvrir : ' + String(err && err.message || err).slice(0, 90)); } catch (e4) {}
+      try { console.error('openTool', id, err); } catch (e5) {} }
+  };
   window.openStoredData = function () {
     openPanel('Données stockées', el => {
       let bak = true;
@@ -56,6 +68,7 @@
           const v = DB[r.k];
           if (sub) v[sub.s] = empty(v[sub.s]);
           else if (Array.isArray(v)) DB[r.k] = [];
+          else if (ROOTDICT.has(r.k)) DB[r.k] = {};
           else Object.keys(v).forEach(s => { if (delOK(s, v[s])) v[s] = empty(v[s]); else if (s === 'current' && v[s]) v[s] = null; });
           save(); window.syncFlush && window.syncFlush(); toast('Rubrique vidée'); draw();
         });

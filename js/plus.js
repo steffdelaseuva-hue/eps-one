@@ -4,9 +4,10 @@
    ========================================================= */
 /* Page Ko-fi : laisser vide tant qu'elle n'existe pas (le bouton est alors masqué) */
 const KOFI_URL = 'https://ko-fi.com/epsone';
-const APP_VERSION = '23.85';
+const APP_VERSION = '23.86';
 const APP_URL = 'https://steffdelaseuva-hue.github.io/eps-one/';
 const CHANGELOG = [
+  { v: '23.86', items: ['Réparation : les groupes préparés / équipes composées vidés en {} bloquaient l\'ouverture du Duathlon et des outils de duel ; ils sont maintenant nettoyés automatiquement. Si un outil plante, l\'appli tente la réparation puis affiche la cause en clair.'] },
   { v: '23.85', items: ['Réparation : les outils Duathlon, Combiné, Demi-fond, HYROX et Sauvetage qui ne s\'ouvraient plus après un vidage depuis « Données stockées » se rouvrent (séance en cours remise à zéro). « Données stockées » ne vide plus que les listes de données (séances, résultats, courses, passages…), jamais les réglages ni la séance en cours.'] },
   { v: '23.84', items: ['Plus · Espace utilisé : « 🗂 Voir les données stockées » liste ce que l\'appli garde sur la tablette (résultats, tournois, relais, suivi, séances…) avec le nombre d\'éléments et la taille, et permet de vider une rubrique ou un détail, avec sauvegarde automatique avant.', 'Correction : les fichiers de mise à jour (sw.js, version.json) des versions 23.81 à 23.83 étaient vides ; ils sont rétablis.'] },
   { v: '23.83', items: ['Confidentialité & RGPD : reformulation de la mention sur les statistiques de visite (GoatCounter).'] },
