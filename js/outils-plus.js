@@ -603,12 +603,6 @@ relais(el) {
         <span style="font-weight:800;font-variant-numeric:tabular-nums;white-space:nowrap">${t.total ? fmt(t.total) : `<span class="muted">${t.legs.length}/${g.legs} relais</span>`}</span></div>`).join('')}</div>`).join('') : '';
     h.querySelectorAll('[data-hx]').forEach(b => b.onclick = () => groupCsv(G[b.dataset.hx]));
     h.querySelectorAll('[data-hc]').forEach(sm => sm.onclick = () => { const host = h.querySelector(`[data-hch="${sm.dataset.hc}"]`); if (host && !host.dataset.on) { host.dataset.on = 1; window.relSeanceClassMount(host, G[sm.dataset.hc]); } });
-    { const cl = [...new Set(DB.relais.courses.filter(c => c.classe && (!window.teamSees || teamSees(c))).map(c => c.classe))];
-      if (cl.length) { const sv = document.createElement('div'); sv.className = 'card'; sv.style.marginTop = '12px';
-        sv.innerHTML = `<h3 style="margin-top:0">🧑‍🎓 Suivi par élève (séance par séance)</h3><div class="row"><div><label>Classe</label><select id="rsc">${cl.map(c => `<option>${esc(c)}</option>`).join('')}</select></div><div><label>Élève</label><select id="rss"></select></div></div><div id="rsb"></div>`;
-        h.appendChild(sv); const fillS = () => { const c = sv.querySelector('#rsc').value, ns = [...new Set(relGroups(c).flatMap(g => g.teams.flatMap(t => t.members || [])))].sort((a, b) => a.localeCompare(b, 'fr')); sv.querySelector('#rss').innerHTML = ns.length ? ns.map(n => `<option>${esc(n)}</option>`).join('') : '<option value="">Aucun élève rattaché aux équipes</option>'; showS(); };
-        const showS = () => { const c = sv.querySelector('#rsc').value, n = sv.querySelector('#rss').value; sv.querySelector('#rsb').innerHTML = n ? window.relSuiviHTML(c, n) : '<p class="muted">Composez les équipes depuis une classe pour suivre chaque élève.</p>'; };
-        sv.querySelector('#rsc').onchange = fillS; sv.querySelector('#rss').onchange = showS; fillS(); } }
     h.querySelectorAll('[data-hd]').forEach(b => b.onclick = () => { const g = G[b.dataset.hd], ids = new Set(g.recs.map(r => r.id));
       if (!confirm(`Supprimer la course du ${frDate(g.date)}${g.classe ? ' (' + g.classe + ')' : ''} ?`)) return;
       DB.relais.courses = DB.relais.courses.filter(r => !ids.has(r.id)); Object.keys(saved).forEach(k => ids.has(saved[k]) && delete saved[k]);

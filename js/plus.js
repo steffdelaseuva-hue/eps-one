@@ -4,9 +4,10 @@
    ========================================================= */
 /* Page Ko-fi : laisser vide tant qu'elle n'existe pas (le bouton est alors masqué) */
 const KOFI_URL = 'https://ko-fi.com/epsone';
-const APP_VERSION = '23.76';
+const APP_VERSION = '23.77';
 const APP_URL = 'https://steffdelaseuva-hue.github.io/eps-one/';
 const CHANGELOG = [
+  { v: '23.77', items: ['Relais : la carte « Suivi par élève » en bas de page est retirée (le suivi est dans « 📊 Bilan » en haut → fiches élèves).'] },
   { v: '23.76', items: ['Tous les outils qui enregistrent des résultats (Relais, Orientation, Escalade, Combiné, Duathlon, Demi-fond, Sauvetage, Natation, Crosstraining / HYROX, Lutte, Rugby…) : bouton « 📊 Bilan » en haut de l\'outil → fiches élèves en PDF (un élève ou ZIP de la classe) et bilan de classe en PDF, limités à cet outil. L\'onglet « Plus » reste inchangé (tous outils).'] },
   { v: '23.75', items: ['Équipes · les prénoms des élèves (Léa D. · Tom M.) sont maintenant affichés sous le nom de chaque équipe / groupe partout où l\'écran n\'affichait que « Équipe 1, Équipe 2… » : demi-fond (relais par groupes), escalade (cordées en cours), relais, et dans les tableaux de tournoi / poules quand les équipes sont composées depuis une classe.'] },
   { v: '23.74', items: ['Relais · « ✏️ Modifier les équipes / élèves » en cours de séance (élève blessé, absent, changement d\'équipe, nouvelle équipe) sans quitter la séance.', 'Relais · chaque course est enregistrée : automatiquement dès que toutes les équipes ont fini, et « 🔁 Enregistrer et recommencer (mêmes équipes) » remet les chronos à zéro sans refaire les équipes ; l\'historique et le suivi par élève comptent chaque course (course 1, 2, 3…).', 'Relais · les prénoms des élèves (Léa D. · Tom M.) sont affichés sous le nom de chaque équipe, le relayeur en course est en gras.'] },
