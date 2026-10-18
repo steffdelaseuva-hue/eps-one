@@ -4,9 +4,10 @@
    ========================================================= */
 /* Page Ko-fi : laisser vide tant qu'elle n'existe pas (le bouton est alors masqué) */
 const KOFI_URL = 'https://ko-fi.com/epsone';
-const APP_VERSION = '23.78';
+const APP_VERSION = '23.79';
 const APP_URL = 'https://steffdelaseuva-hue.github.io/eps-one/';
 const CHANGELOG = [
+  { v: '23.79', items: ['Plus · « Fiches élèves en couleurs » et « Exporter un bilan » sont fusionnés en une seule entrée « Bilans & fiches élèves » (fiche par élève cochée par défaut).'] },
   { v: '23.78', items: ['Plus · « Sauvegarde dans mon Nuage » : crée un fichier de sauvegarde daté et ouvre le menu de partage (Fichiers / Nextcloud) pour le ranger dans le Nuage Apps Éducation ; rappel de la dernière sauvegarde ; restauration depuis un fichier. Précise que ce n\'est pas une synchronisation entre tablettes.'] },
   { v: '23.77', items: ['Relais : la carte « Suivi par élève » en bas de page est retirée (le suivi est dans « 📊 Bilan » en haut → fiches élèves).'] },
   { v: '23.76', items: ['Tous les outils qui enregistrent des résultats (Relais, Orientation, Escalade, Combiné, Duathlon, Demi-fond, Sauvetage, Natation, Crosstraining / HYROX, Lutte, Rugby…) : bouton « 📊 Bilan » en haut de l\'outil → fiches élèves en PDF (un élève ou ZIP de la classe) et bilan de classe en PDF, limités à cet outil. L\'onglet « Plus » reste inchangé (tous outils).'] },
@@ -623,8 +624,7 @@ function renderPlus() {
       ${item('lock', 'navy', 'Code enseignant', (window.curPin ? curPin() : DB.profPin) ? 'Code défini · protège les réglages des outils' : 'Protéger les réglages des outils face aux élèves', 'openProfPin()')}
       ${item('team', 'grad', 'Équipe EPS · tablettes partagées', window.teamOn && teamOn() ? `Mode Équipe · ${teamProfs().length} enseignant(s)${activeProf() ? ' · ' + esc(activeProf().name) : ''}` : 'Plusieurs collègues sur le même lot de tablettes', 'openTeam()')}
       ${window.isEpsAdmin && window.isEpsAdmin() ? item('lock', 'gold', 'Accès des collègues', 'Valider ou retirer les accès à EPS ONE', 'openAccessAdmin()') : ''}
-      ${item('save', 'gold', 'Fiches élèves en couleurs', 'Validation enseignant, points, tournois, matchs, résultats : une fiche visuelle par élève', 'openFiches()')}
-      ${item('save', 'gold', 'Exporter un bilan', 'Résultats par classe et par outil, en couleurs (camemberts)', 'openBilan()')}
+      ${item('save', 'gold', 'Bilans & fiches élèves', 'Résultats par classe et par outil (camemberts) + une fiche en couleurs par élève, en PDF', 'openBilan({ fiches: true })')}
       ${item('save', 'navy', 'Espace utilisé', 'Données, photos et vidéos sur cette tablette', 'openStorage()')}
       ${item('restore', 'grad', 'Copies de secours', 'Une copie automatique par jour · récupérer des classes', 'openBackups()')}
       ${item('share', 'blue', 'Sauvegarde dans mon Nuage', 'Fichier à ranger dans le Nuage Apps Éducation (pas de synchronisation)', 'openNuageBackup()')}
