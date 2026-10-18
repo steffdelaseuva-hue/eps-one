@@ -4,9 +4,14 @@
    ========================================================= */
 /* Page Ko-fi : laisser vide tant qu'elle n'existe pas (le bouton est alors masqué) */
 const KOFI_URL = 'https://ko-fi.com/epsone';
-const APP_VERSION = '23.88';
+const APP_VERSION = '23.93';
 const APP_URL = 'https://steffdelaseuva-hue.github.io/eps-one/';
 const CHANGELOG = [
+  { v: '23.93', items: ['Statistiques : le bouton visible est retiré ; l\'exclusion de ses propres visites se fait par 5 appuis rapides sur la ligne de version en bas de l\'onglet Plus (réservé à l\'administrateur).'] },
+  { v: '23.92', items: ['Plus · Confidentialité & RGPD : bouton « 🚫 Ne pas compter mes visites sur cet appareil » (statistiques GoatCounter), utilisable aussi depuis l\'icône de l\'écran d\'accueil.'] },
+  { v: '23.91', items: ['Mode Équipe EPS : tous les boutons de suppression (en masse, « Supprimer des données », « 🧹 Terminé ») ne suppriment que les données de l\'enseignant actif (et celles sans propriétaire), jamais celles d\'un collègue.'] },
+  { v: '23.90', items: ['Dans tous les outils qui gardent des séances ou des résultats (relais, duathlon, combiné, demi-fond, C.O., sauvetage, HYROX, lutte, escalade, parkour, rugby, natation, interclasses, gestion de match collectifs / raquette / escrime) : bouton « 🧹 Terminé » ou, dans « 📊 Bilan », « Supprimer ce qui est terminé… » pour vider séances, tournois terminés, matchs et résultats de l\'outil (sauvegarde avant).'] },
+  { v: '23.89', items: ['Gestion de match · « 📁 Tournois terminés · ♻️ supprimés » : « ✕ » pour supprimer définitivement un tournoi de la corbeille, « 🗑 Vider la corbeille » et « 🗑 Supprimer tous les tournois terminés » pour ne pas laisser la liste s\'allonger.'] },
   { v: '23.88', items: ['Corbeille des tournois : tout tournoi supprimé depuis « Résultats collectifs » ou « Supprimer en masse » est désormais conservé dans « 📁 Tournois terminés · ♻️ supprimés » (30 derniers) et peut être restauré ; la restauration ne se bloque plus si le tournoi ne peut pas s\'ouvrir.'] },
   { v: '23.87', items: ['Plus · Espace utilisé · « Supprimer des données » : trois familles seulement — équipes et groupes créés, bilans et résultats, séances terminées — avec le détail et le nombre d\'éléments. Les classes, réglages et séances en cours ne sont jamais touchés.'] },
   { v: '23.86', items: ['Réparation : les groupes préparés / équipes composées vidés en {} bloquaient l\'ouverture du Duathlon et des outils de duel ; ils sont maintenant nettoyés automatiquement. Si un outil plante, l\'appli tente la réparation puis affiche la cause en clair.'] },
@@ -660,7 +665,7 @@ function renderPlus() {
       ${item('calendar', 'gold', 'Nouvelle année scolaire', `Année en cours : ${esc(DB.annee)} · archiver ou repartir à zéro`, 'openNewYear()')}
       ${item('trash', 'navy', '<span style="color:var(--danger)">Tout effacer</span>', 'Supprime toutes les données de cet appareil', 'resetAll()')}
     </div>
-    <p class="muted" style="text-align:center;margin:22px 0 6px">EPS ONE · v${APP_VERSION} · by <b>Steff64</b></p>`;
+    <p class="muted" style="text-align:center;margin:22px 0 6px;-webkit-user-select:none;user-select:none" onclick="window.epsStatsTap && epsStatsTap()">EPS ONE · v${APP_VERSION} · by <b>Steff64</b></p>`;
 }
 const renderPlusYear = renderPlus;
 

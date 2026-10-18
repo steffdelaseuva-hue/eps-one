@@ -5,6 +5,7 @@
    ========================================================= */
 (function () {
   const DAY = 864e5;
+  const see = x => { try { return !window.teamSees || teamSees(x); } catch (e) { return true; } };   // Mode Équipe : jamais les données d'un collègue
   const toolName = id => ((typeof TOOLS !== 'undefined' ? TOOLS : []).find(t => t.id === id) || {}).name || id;
   const KIND = { tournoi: '🏆 Tournois', match: '⚔️ Matchs', wod: '🏋️ HYROX / Crosstraining', co: '🧭 Course d\'orientation', combine: '🏃 Combiné athlétique', duathlon: '🥏 Duathlon athlétique', relais: '🔁 Relais', cross: '🏁 Cross du collège' };
   const classes = () => { const s = new Set([...(DB.classes || []).map(c => c.name), ...(DB.resultats || []).map(r => r && r.classe).filter(Boolean)]);
@@ -12,9 +13,9 @@
   const startOfToday = () => { const d = new Date(); d.setHours(0, 0, 0, 0); return d.getTime(); };
   function periodOk(p, d) { d = d || 0; if (p === 'today') return d >= startOfToday(); if (p === '30') return d < Date.now() - 30 * DAY; if (p === '90') return d < Date.now() - 90 * DAY; return true; }
   function collect(f) {
-    const res = f.eleves ? (DB.resultats || []).filter(r => r && (f.cls === '*' || r.classe === f.cls) && (!f.act || r.tool === f.act) && periodOk(f.per, r.date)) : [];
+    const res = f.eleves ? (DB.resultats || []).filter(r => r && (f.cls === '*' || r.classe === f.cls) && (!f.act || r.tool === f.act) && periodOk(f.per, r.date) && see(r)) : [];
     const ev = []; if (f.coll && window.epsCollectifs) { const seen = new Set();
-      (f.cls === '*' ? classes() : [f.cls]).forEach(c => { try { epsCollectifs(c).forEach(e => { if (!e.own || !e.own.recs || !e.own.recs.length) return; const k = e.own.recs[0]; if (seen.has(k)) return;
+      (f.cls === '*' ? classes() : [f.cls]).forEach(c => { if (!see(c)) return; try { epsCollectifs(c).forEach(e => { if (!e.own || !e.own.recs || !e.own.recs.length) return; const k = e.own.recs[0]; if (seen.has(k) || !e.own.recs.every(see)) return;
         if ((!f.act || e.kind === f.act) && periodOk(f.per, e.date)) { seen.add(k); ev.push(e); } }); } catch (err) {} }); }
     return { res, ev };
   }
@@ -28,7 +29,7 @@
     const draw = () => {
       const { res, ev } = collect(f), nr = ev.reduce((a, e) => a + e.own.recs.length, 0), tot = res.length + ev.length;
       o.innerHTML = `<div class="card" style="max-width:440px;width:100%;max-height:94vh;overflow:auto"><h3 style="margin-top:0">🗑 Supprimer en masse</h3>
-        <p class="muted" style="font-size:.82rem;margin:0 0 8px">Choisissez ce qu'il faut effacer. La suppression est définitive et se répercute sur les tablettes synchronisées.</p>
+        <p class="muted" style="font-size:.82rem;margin:0 0 8px">Choisissez ce qu'il faut effacer. La suppression est définitive et se répercute sur les tablettes synchronisées.</p>${(DB.team && DB.team.on) ? '<p class="muted" style="font-size:.8rem;margin:0 0 8px">👥 Mode Équipe : seules vos données sont concernées, jamais celles d\'un collègue.</p>' : ''}
         <label style="margin-top:0">Classe</label><select id="pg-c"><option value="*" ${f.cls === '*' ? 'selected' : ''}>Toutes les classes</option>${cl.map(c => `<option ${c === f.cls ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select>
         <label>Activité / outil</label><select id="pg-a"><option value="">Toutes les activités</option>${acts().map(([k, n]) => `<option value="${esc(k)}" ${k === f.act ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select>
         <label>Période</label><select id="pg-p">${[['all', 'Tout (toutes les dates)'], ['today', 'Aujourd\'hui seulement'], ['30', 'Plus de 30 jours'], ['90', 'Plus de 90 jours']].map(([k, n]) => `<option value="${k}" ${k === f.per ? 'selected' : ''}>${n}</option>`).join('')}</select>
