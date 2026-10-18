@@ -4,9 +4,10 @@
    ========================================================= */
 /* Page Ko-fi : laisser vide tant qu'elle n'existe pas (le bouton est alors masqué) */
 const KOFI_URL = 'https://ko-fi.com/epsone';
-const APP_VERSION = '23.80';
+const APP_VERSION = '23.81';
 const APP_URL = 'https://steffdelaseuva-hue.github.io/eps-one/';
 const CHANGELOG = [
+  { v: '23.81', items: ['Statistiques de visite anonymes (GoatCounter) sur le site publié uniquement : nombre de visites, sans cookie ni donnée personnelle. Mention ajoutée dans Confidentialité & RGPD.'] },
   { v: '23.80', items: ['Suppression en masse des résultats : bouton « 🗑 Supprimer en masse » dans « Résultats des élèves » et « Résultats collectifs » (classe, activité, période, avec sauvegarde automatique avant), et « 🗑 Supprimer les résultats de cet outil… » dans le bouton 📊 Bilan de chaque outil.'] },
   { v: '23.79', items: ['Plus · « Fiches élèves en couleurs » et « Exporter un bilan » sont fusionnés en une seule entrée « Bilans & fiches élèves » (fiche par élève cochée par défaut).'] },
   { v: '23.78', items: ['Plus · « Sauvegarde dans mon Nuage » : crée un fichier de sauvegarde daté et ouvre le menu de partage (Fichiers / Nextcloud) pour le ranger dans le Nuage Apps Éducation ; rappel de la dernière sauvegarde ; restauration depuis un fichier. Précise que ce n\'est pas une synchronisation entre tablettes.'] },
@@ -435,6 +436,8 @@ function openPrivacy() {
           <li><b>Chiffrement de bout en bout aussi avec Google Drive et Dropbox</b> (recommandé : Plus → Stockage & synchronisation → « 🔒 Chiffrer mes données ») : avec une <b>phrase de chiffrement</b> choisie par l'enseignant, les données sont chiffrées sur l'appareil (AES-256) avant l'envoi. Google ou Dropbox ne stockent que du contenu illisible. La phrase est saisie une fois sur chaque appareil et n'est jamais envoyée ; en cas d'oubli, les données du cloud deviennent illisibles, celles des appareils sont conservées.</li>
           <li>Vous pouvez à tout moment <b>supprimer toutes vos données en ligne</b> (Plus → Stockage & synchronisation) : la synchronisation s'arrête et les données restent seulement sur l'appareil.</li>
           <li><b>Conseil</b> : en mode synchronisé, préférez <b>prénom + initiale</b> pour les élèves. Pour toute question sur l'usage d'outils numériques avec des données d'élèves, votre établissement reste l'interlocuteur de référence.</li></ul>
+        <h3>📊 Statistiques de visite</h3>
+        <ul><li>Sur le site publié, un compteur anonyme (<b>GoatCounter</b>) compte le nombre de visites de l'application. <b>Aucun cookie</b>, aucune adresse IP conservée, <b>aucune donnée de l'app</b> (classes, élèves, résultats…) n'est envoyée : seulement le fait qu'une page a été ouverte, avec le type d'appareil et le pays.</li></ul>
         <h3>📷 Caméra, photos et vidéos</h3>
         <ul><li><b>Vidéo différée, photo-finish, scan des dossards</b> : la caméra n'est utilisée que pendant que l'outil est ouvert ; les images restent en mémoire vive, ne sont jamais enregistrées ni envoyées.</li>
           <li><b>Vidéos</b> ajoutées en danse, gym ou acrosport : enregistrées <b>uniquement sur l'appareil</b>, jamais envoyées en ligne.</li>
