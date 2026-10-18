@@ -1073,7 +1073,7 @@ TOOL_IMPL.co = function (el) {
     DB.co.current = { id: sp.id, date: Date.now(), parcours: T.parcours, psnap: T.psnap, classe: T.classe, gap: T.gap || 60, joined: true, ctl: T.ctl || coCtl(),
       runs: T.runs.map(r => ({ name: r.name, members: [...r.members], pc: r.pc || null, libre: r.libre || 0, choix: r.choix || 0, sel: [], dep: null, arr: null, found: [], wrong: 0 })) };
     save(); const cur = DB.co.current;
-    partPickGroup(box, cur.runs, i => { if (!DB.co.current) return prepare(box); cur.only = i; save(); seance(box); }, !!sp.indiv); };
+    partPickGroup(box, cur.runs, i => { if (!DB.co.current) return prepare(box); cur.only = i; cur.teams = null; save(); seance(box); }, !!sp.indiv, ids => { if (!DB.co.current) return prepare(box); cur.only = null; cur.teams = ids; save(); seance(box); }); };
 
   function seance(box) {
     const cur = DB.co.current;
@@ -1100,7 +1100,7 @@ TOOL_IMPL.co = function (el) {
     // 🔁 Nouveau parcours après l'arrivée : la course terminée est enregistrée, l'équipe repart sur un autre parcours
     const again = (i, redraw) => { const r = cur.runs[i], pp = pOf(r);
       const rec = { ...cur, id: cur.id + '-' + Math.random().toString(36).slice(2, 6), parcours: baseOf(r).id, runs: [JSON.parse(JSON.stringify(r))], parcoursSnap: coLite(pp) };
-      ['only', 'joined', 'psnap', 'profOnly'].forEach(k => delete rec[k]); DB.co.seances.push((window.epsTg ? epsTg(rec) : rec)); coResults(rec);
+      ['only', 'teams', 'joined', 'psnap', 'profOnly'].forEach(k => delete rec[k]); DB.co.seances.push((window.epsTg ? epsTg(rec) : rec)); coResults(rec);
       Object.assign(r, { dep: null, arr: null, found: [], wrong: 0, sel: [], done: (r.done || 0) + 1 }); delete r.tries; delete r.auto; delete r.legs; delete r.nx; delete r.who; delete r.vues; save(); toast(`Course enregistrée ✔ · ${r.name} : choisissez le nouveau parcours`); redraw(); };
     /* ---- Allers-retours (étoile, papillon, relais) ---- */
     const legGo = r => { const pp = pOf(r), nx = legNext(r, pp); if (!nx.length) return false; const t = Date.now(), w = legWho(r, pp); if (!r.dep) r.dep = t;
@@ -1235,14 +1235,15 @@ TOOL_IMPL.co = function (el) {
         ${L.map(b => { const ok = T[b.num] === b.code; return `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-top:1px solid var(--line)"><b style="min-width:84px">Balise ${b.num}</b>
           <div style="text-align:center;flex:0 0 auto"><div class="muted" style="font-size:.7rem">${ctl === 'dessin' ? 'mon dessin' : 'mon choix'}</div>${isPat(T[b.num]) ? patSVG(T[b.num], 44) : '<span style="font-size:1.6rem">❓</span>'}</div>
           <div style="text-align:center;flex:0 0 auto"><div class="muted" style="font-size:.7rem">attendu</div>${ok || (typeof profUnlocked === 'function' && profUnlocked()) ? patSVG(b.code, 44) : '<span style="display:grid;place-items:center;width:44px;height:44px;border:1.5px dashed var(--line);border-radius:6px">🔒</span>'}</div><b style="margin-left:auto;font-size:1.3rem;color:${ok ? '#1B9E5A' : '#D64545'}">${ok ? '✓' : '✗'}</b></div>`; }).join('')}</div>`; };
-    const saveSeance = () => { const tab1 = cur.only != null && cur.runs[cur.only];
-      if (!tab1 && cur.runs.some(r => r.dep && !r.arr) && !confirm('Certains élèves ne sont pas arrivés. Enregistrer quand même ?')) return;
+    const mine = () => cur.teams && cur.teams.length ? cur.teams.map(i => cur.runs[i]).filter(Boolean) : null;
+    const saveSeance = () => { const tab1 = cur.only != null && cur.runs[cur.only], tabN = !tab1 && mine();
+      if (!tab1 && (tabN || cur.runs).some(r => r.dep && !r.arr) && !confirm('Certains élèves ne sont pas arrivés. Enregistrer quand même ?')) return;
       // tablette d'une équipe : seule SA course est enregistrée (pas de lignes vides pour les autres)
       // id unique par tablette (fusion de synchro par id) ; regroupées à l'affichage (même jour + classe + parcours)
       // une fiche par parcours (les équipes peuvent courir des parcours différents)
-      const by = new Map(); (tab1 ? [tab1] : cur.runs).forEach(r => { const pp = pOf(r); if (!by.has(pp.id)) by.set(pp.id, { pp, base: baseOf(r).id, runs: [] }); by.get(pp.id).runs.push(r); });
+      const by = new Map(); (tab1 ? [tab1] : tabN || cur.runs).forEach(r => { const pp = pOf(r); if (!by.has(pp.id)) by.set(pp.id, { pp, base: baseOf(r).id, runs: [] }); by.get(pp.id).runs.push(r); });
       by.forEach(({ pp, base, runs }) => { if (!runs.some(r => r.dep) && by.size > 1) return;
-        const rec = { ...cur, id: cur.id + '-' + Math.random().toString(36).slice(2, 6), parcours: base, runs, parcoursSnap: coLite(pp) }; ['only', 'joined', 'psnap', 'profOnly'].forEach(k => delete rec[k]);
+        const rec = { ...cur, id: cur.id + '-' + Math.random().toString(36).slice(2, 6), parcours: base, runs, parcoursSnap: coLite(pp) }; ['only', 'teams', 'joined', 'psnap', 'profOnly'].forEach(k => delete rec[k]);
         DB.co.seances.push((window.epsTg ? epsTg(rec) : rec)); coResults(rec); });
       DB.co.current = null; save(); toast('Séance enregistrée ✔'); tabs(true); tab = 'bilan'; frame(); };
     const RUNCOL = ['#E53935', '#1E88E5', '#43A047', '#FB8C00', '#8E24AA', '#00ACC1', '#F4B400', '#D81B60', '#6D4C41', '#3949AB', '#7CB342', '#546E7A'];   // liseré de couleur propre à chaque carte
@@ -1251,15 +1252,15 @@ TOOL_IMPL.co = function (el) {
     const draw = () => {
       if (cur.only != null && cur.runs[cur.only]) return drawGroup();
       tabs(true);
-      const rs = cur.runs.map(r => ({ r, x: result(r, pOf(r)) }));
+      const vis = mine(), rs = cur.runs.map((r, i) => ({ r, x: result(r, pOf(r)), i })).filter(o => !vis || cur.teams.includes(o.i));
       box.innerHTML = `<div class="card"><div style="display:flex;justify-content:space-between;gap:8px;align-items:center"><div><b>${esc(p.nom)}</b><div class="muted">${esc(cur.classe || '')} · ${CO_TYPES[p.type][0]} · ${p.balises.length} balises${p.alloue ? ` · ${p.alloue} min ± ${p.ecart}` : ''}</div></div><div class="run-t" id="now">${clock(Date.now())}</div></div>
           <div style="margin-top:6px;font-size:.8rem;font-weight:700">${CO_ORG(p)}${coMapOf(p) ? ' <button class="link" id="smap">🗺 Carte</button>' : ''}${coAideList(p).length ? ' <button class="link" id="said">🔎 Photos / définitions</button>' : ''}${p.type === 'koh' && p.balises.some(coKohOk) ? `<div class="bal-chips" style="margin-top:6px">${p.balises.filter(coKohOk).map((b, k) => `<button data-kt="${b.num}">🏝 Indice ${k + 1} · balise ${b.num}</button>`).join('')}${coKohMap(p).length ? '<button id="skdir">🧭 Correspondances</button>' : ''}</div>` : ''}</div>
           <div class="row" style="margin-top:10px"><button class="btn btn-grad" id="all">🚩 Départ groupé</button><button class="btn btn-ghost btn-block" data-cfg="bare" style="margin-top:8px" id="edg">✏️ Modifier les groupes / participants (absent, blessé…)</button><div data-cfg="bare" style="display:flex;gap:6px;align-items:center;flex:1.3"><input id="gap" type="number" value="${cur.gap || 60}" style="width:70px;padding:8px"><button class="btn btn-ghost" id="stag" style="padding:9px 8px;font-size:.8rem">Départs échelonnés (s)</button></div></div>
           ${cur.runs.length > 1 ? `<div class="co-vw" data-cfg="bare"><button data-vw="l" class="${ovw ? '' : 'on'}">☰ Liste</button><button data-vw="c" class="${ovw ? 'on' : ''}">▦ Vue d'ensemble (cartes côte à côte)</button></div>${ovw ? `<div class="co-vw" data-cfg="bare" style="margin-top:6px"><span style="align-self:center;font-weight:800;font-size:.82rem">Cartes par ligne</span>${[2, 3, 4, 5, 6].map(n => `<button data-cl="${n}" class="${ocols === n ? 'on' : ''}">${n}</button>`).join('')}</div>` : ''}` : ''}
           <p class="muted" style="margin:8px 0 0;font-size:.8rem">Balises : touchez un numéro trouvé (souligné rouge = obligatoire).</p>
           ${cur.profOnly ? '<p class="muted" style="margin:8px 0 0;font-size:.8rem">📋 Suivi enseignant uniquement : les élèves courent sans tablette ; arrêtez le temps à leur retour puis touchez « 🔎 Contrôler le carton » pour vérifier leur coupon papier.</p>' : ''}
-          ${cur.runs.length > 1 && !cur.profOnly ? `<div data-cfg="bare"><label>📱 Tablette d'une équipe (les élèves ne verront que leur équipe)</label><select id="only"><option value="">Toutes</option>${cur.runs.map((r, i) => `<option value="${i}">${esc(r.name)}</option>`).join('')}</select></div>` : ''}</div>
-        <div class="co-grid ${ovw && cur.runs.length > 1 ? 'on cc cc' + ocols : ''}" style="--cc:${ocols}">${rs.map(({ r, x }, i) => `<div class="run ${r.arr ? 'fin' : r.dep ? 'go' : ''}" style="--rc:${RUNCOL[i % RUNCOL.length]}"><div class="run-h"><b>${esc(r.name)}</b><span class="run-t" data-live="${i}">${r.dep ? hms(elapsed(r)) : '0:00'}</span></div>
+          ${cur.runs.length > 1 && !cur.profOnly ? `<div data-cfg="bare"><label>📱 Tablette d'une équipe (les élèves ne verront que leur équipe)</label><select id="only"><option value="">Toutes</option>${cur.runs.map((r, i) => `<option value="${i}">${esc(r.name)}</option>`).join('')}</select>${cur.runs.length > 2 ? '<button class="btn btn-ghost btn-block" id="multi" style="margin-top:8px">☑ Plusieurs équipes sur cette tablette</button>' : ''}</div>` : ''}${vis ? `<div style="margin-top:8px;padding:8px 10px;border-radius:10px;background:var(--grad-soft);font-size:.85rem">📱 Cette tablette suit : <b>${vis.map(r => esc(r.name)).join(', ')}</b> <button class="link" id="alltm">👩‍🏫 Toutes les équipes</button> <button class="link" id="chgtm">✏️ Changer</button></div>` : ''}</div>
+        <div class="co-grid ${ovw && cur.runs.length > 1 ? 'on cc cc' + ocols : ''}" style="--cc:${ocols}">${rs.map(({ r, x, i }) => `<div class="run ${r.arr ? 'fin' : r.dep ? 'go' : ''}" style="--rc:${RUNCOL[i % RUNCOL.length]}"><div class="run-h"><b>${esc(r.name)}</b><span class="run-t" data-live="${i}">${r.dep ? hms(elapsed(r)) : '0:00'}</span></div>
             ${r.members.length > 1 || r.name !== r.members[0] ? `<div class="muted" style="font-size:.8rem">${r.members.map(esc).join(', ')}</div>` : ''}
             ${isLegRun(r, pOf(r)) ? (!r.dep && (r.choix || r.libre || (DB.co.parcours.length > 1 && cur.runs.length <= 12)) ? pcPick(r, i) + (r.libre ? selPick(r, i) : '') : '') + legBox(r, i, pOf(r), false) : `<div class="co-times"><div><label style="margin:0 0 3px">Départ</label>${r.dep ? `<input type="time" step="1" data-cfg="bare" data-dep="${i}" value="${new Date(r.dep).toTimeString().slice(0, 8)}">` : `<button class="btn btn-grad btn-block" data-go="${i}">▶ Départ${r.plan ? ' ' + clock(r.plan).slice(0, 5) : ''}</button>`}</div>
               <div><label style="margin:0 0 3px">Arrivée</label>${r.arr ? `<input type="time" step="1" data-cfg="bare" data-arr="${i}" value="${new Date(r.arr).toTimeString().slice(0, 8)}">` : `<button class="btn ${r.dep ? 'btn-danger' : 'btn-ghost'} btn-block" data-fin="${i}" ${r.dep ? '' : 'disabled'}>🏁 Arrivée</button>`}</div></div>
@@ -1275,8 +1276,8 @@ TOOL_IMPL.co = function (el) {
         <div class="section-title"><h2>Classement</h2></div>${ranking(rs, p)}<div id="clsm"></div>
         <div class="row" style="margin-top:12px"><button class="btn btn-grad" data-cfg="bare" id="save">💾 Terminer et enregistrer la séance</button><button class="btn btn-ghost" data-cfg="bare" id="cancel">Abandonner</button></div>`;
       const $ = s => box.querySelector(s), keep = () => save();
-      try { const hm = $('#clsm'); if (hm && cur.runs.some(r => r.dep)) coSeanceClassMount(hm, { date: Date.now(), live: true, recs: [{ classe: cur.classe || '' }], runs: cur.runs.filter(r => r.dep).map(r => ({ r, p: pOf(r) })) }); } catch (er) {}
-      $('#all').onclick = () => { const t = Date.now(), w = cur.runs.filter(r => !r.dep && needSel(r)); cur.runs.forEach(r => { if (!r.dep && !needSel(r)) { if (isLegRun(r, pOf(r))) legGo(r); else r.dep = t; } }); if (w.length) toast(`${w.length} équipe(s) doivent d'abord choisir leurs balises`); beep(1300, .4); keep(); draw(); };
+      try { const hm = $('#clsm'); if (hm && cur.runs.some(r => r.dep)) coSeanceClassMount(hm, { date: Date.now(), live: true, recs: [{ classe: cur.classe || '' }], runs: (mine() || cur.runs).filter(r => r.dep).map(r => ({ r, p: pOf(r) })) }); } catch (er) {}
+      $('#all').onclick = () => { const t = Date.now(), vs = mine() || cur.runs, w = vs.filter(r => !r.dep && needSel(r)); vs.forEach(r => { if (!r.dep && !needSel(r)) { if (isLegRun(r, pOf(r))) legGo(r); else r.dep = t; } }); if (w.length) toast(`${w.length} équipe(s) doivent d'abord choisir leurs balises`); beep(1300, .4); keep(); draw(); };
       $('#edg').onclick = () => { const indiv = cur.runs.every(r => r.members.length === 1 && r.name === r.members[0]);
         editGroupsPanel(indiv ? 'Participants' : 'Groupes de la séance', { cls: cur.classe, indiv, list: () => cur.runs, names: r => r.members,
           take: (r, n) => { r.members.splice(r.members.indexOf(n), 1); return indiv ? { dep: r.dep, arr: r.arr, found: r.found, wrong: r.wrong, plan: r.plan } : null; },
@@ -1297,7 +1298,10 @@ TOOL_IMPL.co = function (el) {
       box.querySelectorAll('[data-b]').forEach(b => b.onclick = () => { const r = cur.runs[+b.dataset.b], n = +b.dataset.n; r.found = r.found.includes(n) ? r.found.filter(x => x !== n) : [...r.found, n]; keep(); draw(); });
       box.querySelectorAll('[data-wp]').forEach(b => b.onclick = () => { cur.runs[+b.dataset.wp].wrong++; keep(); draw(); });
       box.querySelectorAll('[data-wm]').forEach(b => b.onclick = () => { const r = cur.runs[+b.dataset.wm]; r.wrong = Math.max(0, r.wrong - 1); keep(); draw(); });
-      if ($('#only')) $('#only').onchange = ev => { if (ev.target.value === '') return; cur.only = +ev.target.value; keep(); draw(); };
+      if ($('#only')) $('#only').onchange = ev => { if (ev.target.value === '') return; cur.only = +ev.target.value; cur.teams = null; keep(); draw(); };
+      const pickTm = () => partPickGroup(box, cur.runs, i => { cur.only = i; cur.teams = null; keep(); draw(); }, cur.runs.every(r => r.members.length === 1 && r.name === r.members[0]), ids => { cur.only = null; cur.teams = ids; keep(); draw(); });
+      if ($('#multi')) $('#multi').onclick = pickTm; if ($('#chgtm')) $('#chgtm').onclick = pickTm;
+      if ($('#alltm')) $('#alltm').onclick = () => { if (!confirm('Passer en mode enseignant (toutes les équipes) ?')) return; cur.teams = null; keep(); draw(); };
       box.querySelectorAll('[data-cl]').forEach(b => b.onclick = () => { ocols = +b.dataset.cl; try { localStorage.setItem('epsone_co_cols', String(ocols)); } catch (e) {} draw(); });
       box.querySelectorAll('[data-vw]').forEach(b => b.onclick = () => { ovw = b.dataset.vw === 'c'; try { localStorage.setItem('epsone_co_vue', ovw ? 'cartes' : 'liste'); } catch (e) {} draw(); });
       $('#save').onclick = saveSeance;

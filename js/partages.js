@@ -63,12 +63,24 @@ function partMount(box, tool, onJoin) {
 }
 
 /* Choix du groupe suivi par cette tablette, juste après « Rejoindre » */
-function partPickGroup(box, groups, onPick, indiv) {
-  box.innerHTML = `<div class="card" style="text-align:center"><div style="font-weight:900;font-size:1.3rem">📱 ${indiv ? 'Quel élève' : 'Quel groupe'} suit cette tablette ?</div>
-      <p class="muted" style="margin:6px 0 0">Les élèves ne verront que ${indiv ? 'leur fiche' : 'leur groupe'}. Le « 🔒 Mode enseignant » permet de revenir à tous les groupes.</p></div>
-    ${groups.map((g, i) => `<button class="btn btn-grad btn-block" data-pg="${i}" style="margin-top:10px;padding:16px;font-size:1.2rem;text-align:left;display:block">${esc(g.name)}${!indiv && g.members && g.members.length ? `<div style="font-size:.85rem;font-weight:600;opacity:.9">${g.members.map(esc).join(', ')}</div>` : ''}</button>`).join('')}
+function partPickGroup(box, groups, onPick, indiv, onMulti) {
+  let multi = false, sel = [];
+  const draw = () => {
+    box.innerHTML = `<div class="card" style="text-align:center"><div style="font-weight:900;font-size:1.3rem">📱 ${multi ? (indiv ? 'Quels élèves' : 'Quels groupes') + ' sur cette tablette ?' : (indiv ? 'Quel élève' : 'Quel groupe') + ' suit cette tablette ?'}</div>
+      <p class="muted" style="margin:6px 0 0">${multi ? 'Cochez tous ceux qui utilisent cette tablette (jusqu\'à plusieurs), puis validez.' : `Les élèves ne verront que ${indiv ? 'leur fiche' : 'leur groupe'}. Le « 🔒 Mode enseignant » permet de revenir à tous les groupes.`}</p></div>
+    ${groups.map((g, i) => `<button class="btn ${multi && !sel.includes(i) ? 'btn-ghost' : 'btn-grad'} btn-block" data-pg="${i}" style="margin-top:10px;padding:16px;font-size:1.2rem;text-align:left;display:block">${multi ? (sel.includes(i) ? '☑ ' : '☐ ') : ''}${esc(g.name)}${!indiv && g.members && g.members.length ? `<div style="font-size:.85rem;font-weight:600;opacity:.9">${g.members.map(esc).join(', ')}</div>` : ''}</button>`).join('')}
+    ${multi ? `<button class="btn btn-grad btn-block" id="pg-ok" style="margin-top:14px;padding:16px;font-size:1.1rem" ${sel.length ? '' : 'disabled'}>✔ Valider (${sel.length})</button>`
+      : (onMulti && groups.length > 2 ? `<button class="btn btn-ghost btn-block" id="pg-multi" style="margin-top:14px;padding:16px;font-size:1.1rem">☑ Plusieurs ${indiv ? 'élèves' : 'groupes'} sur cette tablette</button>` : '')}
     <button class="btn btn-ghost btn-block" data-cfg="bare" data-pg="" style="margin-top:14px;padding:16px;font-size:1.1rem">👩‍🏫 Tous les ${indiv ? 'élèves' : 'groupes'} (tablette enseignant)</button>`;
-  box.querySelectorAll('[data-pg]').forEach(b => b.onclick = () => onPick(b.dataset.pg === '' ? null : +b.dataset.pg));
+    box.querySelectorAll('[data-pg]').forEach(b => b.onclick = () => {
+      if (b.dataset.pg === '') return onPick(null);
+      const i = +b.dataset.pg;
+      if (!multi) return onPick(i);
+      sel = sel.includes(i) ? sel.filter(x => x !== i) : [...sel, i].sort((a, b) => a - b); draw(); });
+    const m = box.querySelector('#pg-multi'); if (m) m.onclick = () => { multi = true; draw(); };
+    const ok = box.querySelector('#pg-ok'); if (ok) ok.onclick = () => { if (!sel.length) return; sel.length === 1 ? onPick(sel[0]) : onMulti(sel); };
+  };
+  draw();
 }
 
 /* =========================================================
