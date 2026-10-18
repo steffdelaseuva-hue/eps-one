@@ -507,11 +507,11 @@ h3.st{margin:18px 0 6px;font-size:1.05rem;color:#0B2A5B;border-bottom:3px solid 
       o.querySelector('#fa').onchange = e => { actId = e.target.value; draw(); };
       if (o.querySelector('#fday')) o.querySelector('#fday').onchange = e => { dayOn = e.target.checked; };
       o.querySelector('[data-x]').onclick = () => o.remove();
-      o.querySelector('[data-zip]').onclick = async () => { const op = {}; o.querySelectorAll('[data-o]').forEach(x => op[x.dataset.o] = x.checked); if (actId) { op.act = actById(actId); op.day = dayOn; }
+      o.querySelector('[data-zip]').onclick = async () => { const op = {}; o.querySelectorAll('[data-o]').forEach(x => op[x.dataset.o] = x.checked); if (actId) { op.act = actById(actId); op.day = dayOn; } else if (pre.tools) op.tools = pre.tools;
         const btn = o.querySelector('[data-zip]'); btn.disabled = true;
         const R = await window.fichesZip(cls, op, !actId && (o.querySelector('#fsp') || {}).checked, (i, n) => { btn.textContent = `⏳ Création des PDF ${i}/${n}…`; }); if (!R) { btn.disabled = false; return toast('Aucune donnée pour cette sélection'); }
         const al = actId ? (AC.find(a => a.id === actId) || {}).label : 'toutes-activites'; o.remove(); await saveZip(R.blob, `fiches-${safe(cls)}-${safe(al).replace(/\s+/g, '-')}-${new Date().toISOString().slice(0, 10)}.zip`); toast(`${R.n} PDF dans le ZIP ✔` + (R.bad ? ` (${R.bad} en HTML)` : '')); };
-      o.querySelector('[data-go]').onclick = () => { const who = o.querySelector('#fe').value, op = {}; if (actId) { op.act = actById(actId); op.day = dayOn; } o.querySelectorAll('[data-o]').forEach(x => op[x.dataset.o] = x.checked);
+      o.querySelector('[data-go]').onclick = () => { const who = o.querySelector('#fe').value, op = {}; if (actId) { op.act = actById(actId); op.day = dayOn; } o.querySelectorAll('[data-o]').forEach(x => op[x.dataset.o] = x.checked); if (!actId && pre.tools) op.tools = pre.tools;
         const names = who ? [who] : namesOf(cls); const html = window.fichesHTML([{ cls, names }], op); o.remove();
         if (!/class="page fiche"/.test(html)) return toast('Aucune donnée pour cette sélection');
         const al = actId ? (AC.find(a => a.id === actId) || {}).label : ''; epsShowDoc(html, `fiches-${(al ? al + '-' : '')}${(who || cls).replace(/[^\w-]+/g, '-')}-${new Date().toISOString().slice(0, 10)}.html`.replace(/\s+/g, '-'), (who ? '🧑‍🎓 Fiche de ' + who : '🧑‍🎓 Fiches élèves · ' + cls) + (al ? ' · ' + al : '')); }; };

@@ -261,7 +261,8 @@ ${window.fichesPieCSS || ''}
 </style></head><body>${opt.fiches ? bilanFiches(opt) : sum + clsSections}</body></html>`;
 }
 
-function openBilan() {
+function openBilan(pre) {
+  pre = pre || {};
   const res = (DB.resultats || []).filter(r => r && r.classe && r.eleve);
   const gr = (DB.grilles || []).map((g, i) => ({ g, i })).filter(x => Object.values(x.g.evals || {}).some(E => Object.values(E || {}).some(e => e && Object.keys(e).length)));
   const hasColl = typeof epsCollClasses === 'function' ? epsCollClasses().some(c => epsCollectifs(c).some(e => e.rows && e.rows.length)) : false;
@@ -282,6 +283,11 @@ function openBilan() {
     <div class="row" style="margin-top:12px"><button class="btn btn-ghost" data-x>Annuler</button><button class="btn btn-grad" data-go>Créer le bilan</button></div>
     </div>`;
   document.body.appendChild(o);
+  if (pre.cls || pre.tools) {   // ouvert depuis un outil : classe et outil déjà cochés, le reste décoché
+    o.querySelectorAll('[data-c]').forEach(x => { x.checked = !pre.cls || x.dataset.c === pre.cls; });
+    if (pre.tools) { o.querySelectorAll('[data-t]').forEach(x => { x.checked = pre.tools.includes(x.dataset.t); }); o.querySelectorAll('[data-g]').forEach(x => { x.checked = false; }); }
+    const k = o.querySelector('[data-k]'); if (k) k.checked = !!pre.coll; const f = o.querySelector('[data-f]'); if (f) f.checked = !!pre.fiches;
+  }
   o.querySelector('[data-x]').onclick = () => o.remove();
   o.querySelector('[data-go]').onclick = async () => {
     const cs = [...o.querySelectorAll('[data-c]:checked')].map(x => x.dataset.c), ts = [...o.querySelectorAll('[data-t]:checked')].map(x => x.dataset.t), coll = !!o.querySelector('[data-k]:checked'), gs = [...o.querySelectorAll('[data-g]:checked')].map(x => +x.dataset.g);
