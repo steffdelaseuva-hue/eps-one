@@ -4,7 +4,7 @@
    ========================================================= */
 /* Page Ko-fi : laisser vide tant qu'elle n'existe pas (le bouton est alors masqué) */
 const KOFI_URL = 'https://ko-fi.com/epsone';
-const APP_VERSION = '23.95';
+const APP_VERSION = '23.96';
 const APP_URL = 'https://steffdelaseuva-hue.github.io/eps-one/';
 const CHANGELOG = [
   { v: '23.95', items: ['Titres raccourcis dans la barre du haut : « Match · Collectifs » et « Match · Raquette ».', 'Barre du haut des outils : le titre ne s\'écrase plus en colonne étroite quand plusieurs boutons sont présents (taille adaptée sur téléphone).'] },
