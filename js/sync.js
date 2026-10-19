@@ -560,7 +560,25 @@ function drawPanel(el) {
 window.openSync = () => openPanel('Stockage & synchronisation', el => {
   el.insertAdjacentHTML('beforeend', SYNC_INTRO() + '<div class="section-title"><h2>☁️ Compte EPS ONE</h2></div>');
   const d = document.createElement('div'); el.appendChild(d); drawPanel(d);
-  if (window.cloudRender && window.EPS_CLOUDS && window.EPS_CLOUDS().length) { el.insertAdjacentHTML('beforeend', '<div class="section-title"><h2>☁️ Mon propre cloud</h2></div><p class="muted" style="margin:-4px 4px 8px;font-size:.82rem">👥 Équipe avec des tablettes partagées : <b>Dropbox conseillé</b> (la connexion reste active durablement), avec un compte commun à l\'équipe. Voir Plus → Équipe EPS.</p>'); const g = document.createElement('div'); el.appendChild(g); window.cloudRender(g); } });
+  { const has = window.cloudRender && window.EPS_CLOUDS && window.EPS_CLOUDS().length;
+    el.insertAdjacentHTML('beforeend', '<div class="section-title"><h2>☁️ Mon propre cloud</h2></div>' + (has ? '<p class="muted" style="margin:-4px 4px 8px;font-size:.82rem">👥 Équipe avec des tablettes partagées : <b>Dropbox conseillé</b> (la connexion reste active durablement), avec un compte commun à l\'équipe. Voir Plus → Équipe EPS.</p>' : ''));
+    const g = document.createElement('div'); el.appendChild(g); if (has) window.cloudRender(g);
+    const mk = html => { const d = document.createElement('div'); d.style.marginTop = '10px'; d.innerHTML = html; return d; };
+    const nc = mk(`<div class="card"><h3><img src="icons/appseducation.png" alt="" style="width:1.5em;height:1.5em;vertical-align:-.4em;margin-right:4px">Nuage Apps Éducation</h3>
+      <p style="margin:6px 0;line-height:1.45">Sauvegarde <b>manuelle</b> dans un <b>fichier</b> que vous rangez dans votre Nuage académique. Rien n'est envoyé automatiquement : par défaut, tout reste sur l'appareil.</p>
+      <p class="muted" style="margin:0;font-size:.82rem">⚠️ Ce n'est pas une synchronisation entre tablettes (pour cela : Dropbox, Google Drive ou compte EPS ONE).</p>
+      <div style="display:flex;gap:10px;align-items:center;margin-top:10px;padding:10px;border-radius:12px;background:rgba(30,91,216,.08)"><img src="icons/nextcloud.png" alt="Nextcloud" style="width:44px;height:44px;flex:0 0 auto;border-radius:10px"><div style="font-size:.85rem;line-height:1.4">Sur tablette ou téléphone, installez d'abord l'app gratuite <b>Nextcloud</b> (le Nuage Apps Éducation en est un). <a href="#" id="nc-inst" style="font-weight:800">Installer l'app Nextcloud →</a></div></div>
+      <button class="btn btn-grad btn-block" style="margin-top:10px" id="nc-go">📤 Sauvegarder dans mon Nuage</button></div>`);
+    const ic = mk(`<div class="card"><h3><img src="icons/icloud.png" alt="" style="width:1.5em;height:1.5em;vertical-align:-.4em;margin-right:4px;object-fit:contain">iCloud Drive</h3>
+      <p style="margin:6px 0;line-height:1.45">Sauvegarde <b>manuelle</b> dans un <b>fichier</b> rangé dans votre iCloud Drive (iPad, iPhone, Mac). Rien n'est envoyé automatiquement : par défaut, tout reste sur l'appareil.</p>
+      <p class="muted" style="margin:0;font-size:.82rem">⚠️ Ce n'est pas une synchronisation entre tablettes.</p>
+      <button class="btn btn-grad btn-block" style="margin-top:10px" id="ic-go">📤 Sauvegarder dans iCloud</button></div>`);
+    g.appendChild(ic);   // iCloud Drive : dernière ligne de « Mon propre cloud »
+    el.insertAdjacentHTML('beforeend', '<div class="section-title"><h2>🏫 Portail Apps Éducation</h2></div>'); el.appendChild(nc);
+    nc.querySelector('#nc-inst').onclick = ev => { ev.preventDefault(); if (typeof epsNextcloudInstall === 'function') epsNextcloudInstall(); };
+    nc.querySelector('#nc-go').onclick = () => { if (typeof openNuageBackup === 'function') openNuageBackup(); };
+    ic.querySelector('#ic-go').onclick = () => { if (typeof openNuageBackup === 'function') openNuageBackup('icloud'); }; }
+});
 // Outils partagés avec le module Google Drive
 window.EPS_SYNC_LIB = { merge3: (...a) => merge3(...a), mergeData: (...a) => mergeData(...a), outb: (...a) => outb(...a), withLocal: (...a) => withLocal(...a), hash: x => hash(x), syncKeys: () => syncKeys(), jeq: (a, b) => jeq(a, b),
   accessOK: () => accessOK(), gate: () => gate(), stopFirebase: () => { unsub && unsub(); unsub = null; clearTimeout(pushTimer); pushTimer = null; }, resumeFirebase: () => { if (S.user && syncAllowed()) resumeSync(); }, refreshUI: () => refreshUI() };

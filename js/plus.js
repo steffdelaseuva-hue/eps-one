@@ -4,9 +4,10 @@
    ========================================================= */
 /* Page Ko-fi : laisser vide tant qu'elle n'existe pas (le bouton est alors masqué) */
 const KOFI_URL = 'https://ko-fi.com/epsone';
-const APP_VERSION = '23.96';
+const APP_VERSION = '23.103';
 const APP_URL = 'https://steffdelaseuva-hue.github.io/eps-one/';
 const CHANGELOG = [
+  { v: '23.103', items: ['Stockage & synchronisation : iCloud Drive ajouté à la rubrique « Mon propre cloud » et nouvelle rubrique « Portail Apps Éducation » (Nuage) ; l\'aide « Comment ça marche ? » revient à 6 étapes, le bouton de l\'étape 3 devient « Stockage et/ou synchronisation ».'] },
   { v: '23.95', items: ['Titres raccourcis dans la barre du haut : « Match · Collectifs » et « Match · Raquette ».', 'Barre du haut des outils : le titre ne s\'écrase plus en colonne étroite quand plusieurs boutons sont présents (taille adaptée sur téléphone).'] },
   { v: '23.91', items: ['Mode Équipe EPS : tous les boutons de suppression (en masse, « Supprimer des données », « 🧹 Terminé ») ne suppriment que les données de l\'enseignant actif (et celles sans propriétaire), jamais celles d\'un collègue.'] },
   { v: '23.90', items: ['Dans tous les outils qui gardent des séances ou des résultats (relais, duathlon, combiné, demi-fond, C.O., sauvetage, HYROX, lutte, escalade, parkour, rugby, natation, interclasses, gestion de match collectifs / raquette / escrime) : bouton « 🧹 Terminé » ou, dans « 📊 Bilan », « Supprimer ce qui est terminé… » pour vider séances, tournois terminés, matchs et résultats de l\'outil (sauvegarde avant).'] },
@@ -486,24 +487,41 @@ function memStats() {
 }
 /* ☁️ Sauvegarde manuelle dans le Nuage (Apps Éducation) ou tout autre espace : fichier JSON daté, menu de partage de l'appareil.
    Ce n'est PAS une synchronisation : le Nuage n'autorise pas les connexions automatiques depuis une application web. */
-function openNuageBackup() {
-  openPanel('Sauvegarde dans mon Nuage', el => {
+/* Ouvre la page d'installation de l'app Nextcloud adaptée à l'appareil (App Store, Google Play ou site officiel) */
+window.epsNextcloudInstall = () => {
+  const ua = navigator.userAgent || '', ios = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1), and = /Android/.test(ua);
+  const url = ios ? 'https://apps.apple.com/app/nextcloud/id1125420102' : and ? 'https://play.google.com/store/apps/details?id=com.nextcloud.client' : 'https://nextcloud.com/install/#install-clients';
+  window.open(url, '_blank', 'noopener');
+};
+function openNuageBackup(kind) {
+  const ic = kind === 'icloud';
+  openPanel(ic ? 'Sauvegarde dans iCloud' : 'Sauvegarde dans mon Nuage', el => {
     const last = () => { const t = (DB.tablette || {}).nuageLast; if (!t) return '<b>Aucune sauvegarde faite depuis cet appareil.</b>'; const j = Math.floor((Date.now() - t) / 864e5);
       return `Dernière sauvegarde : <b>${new Date(t).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}</b>${j >= 7 ? ` <span style="color:#D64545;font-weight:800">(il y a ${j} jours : pensez à en refaire une)</span>` : j === 0 ? ' (aujourd\'hui)' : ` (il y a ${j} jour${j > 1 ? 's' : ''})`}`; };
+    const where = ic ? `<div class="card" style="margin-top:12px"><div style="display:flex;gap:10px;align-items:center"><img src="icons/icloud.png" alt="iCloud" style="width:44px;height:44px;flex:0 0 auto;object-fit:contain"><b>Ranger le fichier dans iCloud Drive</b></div>
+        <ol style="margin:8px 0 0 18px;padding:0;font-size:.88rem;line-height:1.5"><li><b>iPad / iPhone</b> : dans le menu qui s'ouvre, choisissez <i>Enregistrer dans Fichiers</i>, puis <b>iCloud Drive</b> et un dossier de votre choix.</li>
+          <li><b>Mac</b> : le fichier est téléchargé ; glissez-le dans <i>iCloud Drive</i> (Finder).</li>
+          <li><b>Windows / autre</b> : déposez-le sur <b>icloud.com</b> → Drive.</li></ol>
+        <p class="muted" style="margin:8px 0 0;font-size:.8rem">iCloud est surtout pratique avec des appareils Apple. Il faut un identifiant Apple et de la place libre dans iCloud.</p>
+        <button class="btn btn-ghost btn-block" style="margin-top:8px" id="nb-files" hidden>📂 Ouvrir l'app Fichiers</button></div>` : `<div class="card" style="margin-top:12px"><b>Où l'enregistrer ?</b>
+        <div style="margin-top:10px;padding:10px 12px;border-radius:12px;background:rgba(30,91,216,.08)"><div style="display:flex;gap:10px;align-items:center"><img src="icons/nextcloud.png" alt="Nextcloud" style="width:44px;height:44px;flex:0 0 auto;border-radius:10px"><b>Ranger le fichier dans le Nuage depuis une tablette ou un téléphone</b></div>
+        <p style="margin:6px 0 0;font-size:.85rem;line-height:1.45">Il faut d'abord installer l'app gratuite <b>Nextcloud</b> (le Nuage Apps Éducation est un Nextcloud). Ouvrez-la, choisissez <i>Se connecter</i> et saisissez l'adresse <b>https://nuage13.apps.education.fr</b> (selon votre académie, l'adresse peut différer : voir portail.apps.education.fr → « Le nuage »). Ensuite, « Enregistrer dans Fichiers » proposera votre Nuage.</p>
+        <button class="btn btn-ghost btn-block" style="margin-top:8px" onclick="epsNextcloudInstall()">📲 Installer l'app Nextcloud</button></div>
+        <ol style="margin:6px 0 0 18px;padding:0;font-size:.88rem;line-height:1.5"><li><b>iPad / iPhone</b> : dans le menu qui s'ouvre, choisissez <i>Enregistrer dans Fichiers</i>, puis <b>iCloud Drive</b> ou le dossier de votre Nuage (l'app <b>Nextcloud</b> doit être installée et connectée). Ou choisissez directement l'app Nextcloud si elle apparaît.</li>
+          <li><b>Ordinateur</b> : le fichier est téléchargé ; glissez-le dans le dossier synchronisé de votre Nuage (ou déposez-le sur le site du Nuage).</li>
+          <li><b>Android</b> : menu de partage → Nextcloud.</li></ol>
+        <p class="muted" style="margin:8px 0 0;font-size:.8rem">Aide pour connecter votre compte Apps Éducation au Nuage : portail.apps.education.fr → « Le nuage ».</p></div>`;
     el.innerHTML = `<div class="card" style="border:2px solid #E0892F"><b>⚠️ Ce n'est pas une synchronisation</b>
-        <p style="margin:6px 0 0;font-size:.9rem">Cette sauvegarde est un <b>fichier</b> que vous rangez dans votre Nuage (Apps Éducation) ou ailleurs. Elle <b>ne synchronise pas</b> les tablettes entre elles : chaque tablette garde ses propres données. Pour partager les données entre plusieurs tablettes, utilisez plutôt Dropbox ou Google Drive (ou Équipe EPS).</p></div>
+        <p style="margin:6px 0 0;font-size:.9rem">Cette sauvegarde est un <b>fichier</b> que vous rangez dans votre Nuage (Apps Éducation), dans iCloud Drive ou ailleurs. Elle <b>ne synchronise pas</b> les tablettes entre elles : chaque tablette garde ses propres données. Pour partager les données entre plusieurs tablettes, utilisez plutôt Dropbox ou Google Drive (ou Équipe EPS).</p></div>
       <div class="card" style="margin-top:12px"><b>📤 Faire une sauvegarde</b>
         <p class="muted" style="margin:6px 0 0;font-size:.85rem">Un fichier <b>EPS-ONE-sauvegarde-date.json</b> est créé avec toutes les données de cet appareil (classes, élèves, résultats, séances…).</p>
         <p id="nb-last" style="margin:8px 0 0;font-size:.88rem">${last()}</p>
-        <button class="btn btn-grad btn-block" style="margin-top:10px;padding:14px" id="nb-go">📤 Créer la sauvegarde et l'envoyer au Nuage</button></div>
-      <div class="card" style="margin-top:12px"><b>Comment l'enregistrer dans le Nuage ?</b>
-        <ol style="margin:6px 0 0 18px;padding:0;font-size:.88rem;line-height:1.5"><li><b>iPad / iPhone</b> : dans le menu qui s'ouvre, choisissez <i>Enregistrer dans Fichiers</i>, puis le dossier de votre Nuage (l'app <b>Nextcloud</b> doit être installée et connectée). Ou choisissez directement l'app Nextcloud si elle apparaît.</li>
-          <li><b>Ordinateur</b> : le fichier est téléchargé ; glissez-le dans le dossier synchronisé de votre Nuage (ou déposez-le sur le site du Nuage).</li>
-          <li><b>Android</b> : menu de partage → Nextcloud.</li></ol>
-        <p class="muted" style="margin:8px 0 0;font-size:.8rem">Aide pour connecter votre compte Apps Éducation au Nuage : portail.apps.education.fr → « Le nuage ».</p></div>
+        <button class="btn btn-grad btn-block" style="margin-top:10px;padding:14px" id="nb-go">${ic ? '📤 Créer la sauvegarde et l\'envoyer vers iCloud' : '📤 Créer la sauvegarde et l\'envoyer au Nuage'}</button></div>
+      ${where}
       <div class="card" style="margin-top:12px"><b>📥 Restaurer une sauvegarde</b>
-        <p class="muted" style="margin:6px 0 0;font-size:.85rem">Sur la tablette à restaurer : récupérez le fichier depuis le Nuage (app Fichiers / Nextcloud), puis choisissez-le ici. Les données de l'appareil sont remplacées par celles du fichier.</p>
+        <p class="muted" style="margin:6px 0 0;font-size:.85rem">Sur la tablette à restaurer : ${ic ? 'récupérez le fichier depuis iCloud Drive (app Fichiers)' : 'récupérez le fichier depuis le Nuage (app Fichiers / Nextcloud)'}, puis choisissez-le ici. Les données de l'appareil sont remplacées par celles du fichier.</p>
         <button class="btn btn-ghost btn-block" style="margin-top:10px" id="nb-imp">📥 Choisir un fichier de sauvegarde</button></div>`;
+    { const fb = el.querySelector('#nb-files'); if (fb && (/iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1))) { fb.hidden = false; fb.onclick = () => { location.href = 'shareddocuments://'; }; } }
     el.querySelector('#nb-imp').onclick = () => { const i = document.getElementById('imp'); if (i) i.click(); else toast('Importer : Plus → Importer une sauvegarde'); };
     el.querySelector('#nb-go').onclick = async () => {
       try { window.saveNow && saveNow(); } catch (e) {}
@@ -644,7 +662,7 @@ function renderPlus() {
       ${item('save', 'gold', 'Bilans & fiches élèves', 'Résultats par classe et par outil (camemberts) + une fiche en couleurs par élève, en PDF', 'openBilan({ fiches: true })')}
       ${item('save', 'navy', 'Espace utilisé', 'Données, photos et vidéos sur cette tablette', 'openStorage()')}
       ${item('restore', 'grad', 'Copies de secours', 'Une copie automatique par jour · récupérer des classes', 'openBackups()')}
-      ${item('share', 'blue', 'Sauvegarde dans mon Nuage', 'Fichier à ranger dans le Nuage Apps Éducation (pas de synchronisation)', 'openNuageBackup()')}
+      ${item('share', 'blue', 'Sauvegarde Nuage ou iCloud', 'Fichier à ranger dans le Nuage Apps Éducation ou iCloud Drive (pas de synchronisation)', 'openNuageBackup()')}
       ${item('save', 'blue', 'Exporter mes données', 'Fichier de sauvegarde JSON', 'exportData()')}
       ${item('restore', 'blue', 'Importer une sauvegarde', 'Restaurer depuis un fichier JSON', "document.getElementById('imp').click()")}
       ${item('share', 'grad', 'Partager l\'app', 'QR code et lien', 'openShare()')}
@@ -682,7 +700,7 @@ window.openHowTo = to => openPanel('Comment ça marche ?', el => {
   el.innerHTML = `<p style="margin:0 0 4px;line-height:1.5">EPS ONE réunit vos outils de cours dans une seule app, <b>sans compte obligatoire</b> et <b>sans publicité</b>. En 6 étapes :</p>
     ${step(1, '📥 Importez ou créez vos classes', 'Fichier Pronote / ENT (CSV ou Excel) ou saisie à la main. Rangez-les en <b>classes EPS</b>, <b>UNSS / AS</b> ou <b>autres classes</b> (cross).', b('📥 Mes classes', "openImportClasses()"))}
     ${step(2, '🧰 Utilisez les outils', 'Chronos, matchs, cross, HYROX, acrosport, gym, demi-fond… Vos classes sont déjà dedans : choisissez la classe, les élèves et les groupes apparaissent.', b('Ouvrir les OUTILS →', "closeTool();go('outils')"))}
-    ${step(3, '📶 Hors ligne ou en synchro entre tablettes', 'Sans réseau, tout fonctionne et reste sur l\'appareil. Avec la synchronisation (votre cloud ou un compte EPS ONE), chaque groupe peut avoir sa tablette et les résultats arrivent en direct sur la vôtre.', b('🔄 Synchronisation', "openSync()"))}
+    ${step(3, '📶 Hors ligne ou en synchro entre tablettes', 'Sans réseau, tout fonctionne et reste sur l\'appareil. Avec la synchronisation (votre cloud ou un compte EPS ONE), chaque groupe peut avoir sa tablette et les résultats arrivent en direct sur la vôtre. Vous pouvez aussi sauvegarder un fichier dans votre <b>Nuage Apps Éducation</b> ou dans <b>iCloud</b> (sans synchronisation).', b('🔄 Stockage et/ou synchronisation', "openSync()"))}
     <div id="howto-equipe">${step(4, '👥 Équipe EPS · tablettes partagées', 'Plusieurs collègues sur le <b>même lot de tablettes</b>, avec un seul compte pour l\'équipe (Dropbox conseillé). En début de cours, chacun touche <b>son nom</b> (« Qui fait cours ? ») et tape <b>son code</b> : il retrouve ses classes et ses favoris, sans se déconnecter. Un collègue seul dans son établissement n\'en a pas besoin.', b('👥 Régler l\'équipe', "openTeam()"))}</div>
     ${step(5, '🔒 Confiez les tablettes aux élèves', 'Créez votre <b>code enseignant</b> : les élèves utilisent les outils (chronos, coches, projets…) mais ne peuvent pas modifier vos réglages. Le bouton 🔒/🔓 en haut verrouille avant de passer la tablette.', b('🔒 Code enseignant', "openProfPin()"))}
     ${step(6, '📊 Retrouvez les résultats', 'Les résultats de chaque outil arrivent dans <b>Résultats des élèves</b> (individuel) et <b>Résultats collectifs</b> (groupes, tournois), exportables en CSV.', b('📊 Résultats des élèves', "openTool('resultats')"))}
