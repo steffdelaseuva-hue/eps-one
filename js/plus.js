@@ -4,9 +4,11 @@
    ========================================================= */
 /* Page Ko-fi : laisser vide tant qu'elle n'existe pas (le bouton est alors masqué) */
 const KOFI_URL = 'https://ko-fi.com/epsone';
-const APP_VERSION = '23.103';
+const APP_VERSION = '23.105';
 const APP_URL = 'https://steffdelaseuva-hue.github.io/eps-one/';
 const CHANGELOG = [
+  { v: '23.105', items: ['Nuage Apps Éducation : badge vert « ✓ conseillé · stockage portail académique » et cadre vert, comme Dropbox.'] },
+  { v: '23.104', items: ['Stockage & synchronisation : 4e tuile « Nuage Apps Éducation » dans « Les modes de stockage » ; la carte Nuage Apps Éducation remonte en 2e place de « Mon propre cloud », juste sous Dropbox.'] },
   { v: '23.103', items: ['Stockage & synchronisation : iCloud Drive ajouté à la rubrique « Mon propre cloud » et nouvelle rubrique « Portail Apps Éducation » (Nuage) ; l\'aide « Comment ça marche ? » revient à 6 étapes, le bouton de l\'étape 3 devient « Stockage et/ou synchronisation ».'] },
   { v: '23.95', items: ['Titres raccourcis dans la barre du haut : « Match · Collectifs » et « Match · Raquette ».', 'Barre du haut des outils : le titre ne s\'écrase plus en colonne étroite quand plusieurs boutons sont présents (taille adaptée sur téléphone).'] },
   { v: '23.91', items: ['Mode Équipe EPS : tous les boutons de suppression (en masse, « Supprimer des données », « 🧹 Terminé ») ne suppriment que les données de l\'enseignant actif (et celles sans propriétaire), jamais celles d\'un collègue.'] },
