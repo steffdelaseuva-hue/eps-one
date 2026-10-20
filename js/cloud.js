@@ -149,6 +149,7 @@
           ${P.rec ? '<p style="margin:4px 0 0;font-size:.85rem;color:#1E9E5A;font-weight:700">Connexion durable (plusieurs mois) : le plus simple pour plusieurs appareils.</p>' : P.id === 'gdrive' ? '<p class="muted" style="margin:4px 0 0;font-size:.82rem">ℹ️ Google limite la connexion à 1 h : elle est renouvelée au premier toucher dans l\'app (une fenêtre Google peut s\'ouvrir un instant).</p>' : ''}
           <p style="margin:6px 0;line-height:1.45">Enregistrez et synchronisez vos données sur <b>votre ${P.name}</b> (plusieurs tablettes, fusion en fin de cours), sans passer par le serveur d'EPS ONE.</p>
           <p class="muted" style="margin:0;font-size:.82rem">${P.scopeTxt}</p>
+          <p style="margin:6px 0 0;font-size:.85rem">🔒 <b>Chiffrement de bout en bout</b> (recommandé) : après la connexion, choisissez une phrase de chiffrement ; ${P.name} ne stockera que du contenu illisible.</p>
           ${C.err ? `<p style="color:var(--danger);font-size:.85rem">${esc(C.err)}</p>` : ''}
           ${other ? `<p class="muted" style="margin:8px 0 0;font-size:.82rem">⏸ Arrêtez d'abord ${other.P.name} pour choisir ce service.</p>` : `<button class="btn btn-grad btn-block" style="margin-top:10px" id="cl-on">Se connecter avec ${P.name}</button>`}</div>`;
       const $ = q => host.querySelector(q);
