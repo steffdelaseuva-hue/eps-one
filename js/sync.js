@@ -572,6 +572,7 @@ window.openSync = () => openPanel('Stockage & synchronisation', el => {
       <button class="btn btn-grad btn-block" style="margin-top:10px" id="nc-go">📤 Sauvegarder dans mon Nuage</button></div>`);
     const ic = mk(`<div class="card"><h3><img src="icons/icloud.png" alt="" style="width:1.5em;height:1.5em;vertical-align:-.4em;margin-right:4px;object-fit:contain">iCloud Drive</h3>
       <p style="margin:6px 0;line-height:1.45">Sauvegarde <b>manuelle</b> dans un <b>fichier</b> rangé dans votre iCloud Drive (iPad, iPhone, Mac). Rien n'est envoyé automatiquement : par défaut, tout reste sur l'appareil.</p>
+      <p style="margin:0 0 6px;font-size:.85rem">🔒 Fichier <b>chiffré de bout en bout</b> avec votre mot de passe.</p>
       <p class="muted" style="margin:0;font-size:.82rem">⚠️ Ce n'est pas une synchronisation entre tablettes.</p>
       <button class="btn btn-grad btn-block" style="margin-top:10px" id="ic-go">📤 Sauvegarder dans iCloud</button></div>`);
     g.insertBefore(nc, g.children[1] || null);   // Nuage Apps Éducation : 2e place, juste sous Dropbox

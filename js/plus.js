@@ -4,9 +4,10 @@
    ========================================================= */
 /* Page Ko-fi : laisser vide tant qu'elle n'existe pas (le bouton est alors masqué) */
 const KOFI_URL = 'https://ko-fi.com/epsone';
-const APP_VERSION = '23.105';
+const APP_VERSION = '23.106';
 const APP_URL = 'https://steffdelaseuva-hue.github.io/eps-one/';
 const CHANGELOG = [
+  { v: '23.106', items: ['Sauvegarde iCloud chiffrée de bout en bout : le fichier est chiffré sur l\'appareil (AES-256) avec un mot de passe choisi au moment de la sauvegarde, et demandé à la restauration. La sauvegarde Nuage Apps Éducation reste inchangée.'] },
   { v: '23.105', items: ['Nuage Apps Éducation : badge vert « ✓ conseillé · stockage portail académique » et cadre vert, comme Dropbox.'] },
   { v: '23.104', items: ['Stockage & synchronisation : 4e tuile « Nuage Apps Éducation » dans « Les modes de stockage » ; la carte Nuage Apps Éducation remonte en 2e place de « Mon propre cloud », juste sous Dropbox.'] },
   { v: '23.103', items: ['Stockage & synchronisation : iCloud Drive ajouté à la rubrique « Mon propre cloud » et nouvelle rubrique « Portail Apps Éducation » (Nuage) ; l\'aide « Comment ça marche ? » revient à 6 étapes, le bouton de l\'étape 3 devient « Stockage et/ou synchronisation ».'] },
@@ -495,6 +496,18 @@ window.epsNextcloudInstall = () => {
   const url = ios ? 'https://apps.apple.com/app/nextcloud/id1125420102' : and ? 'https://play.google.com/store/apps/details?id=com.nextcloud.client' : 'https://nextcloud.com/install/#install-clients';
   window.open(url, '_blank', 'noopener');
 };
+/* 🔒 Chiffrement des sauvegardes iCloud : AES-256-GCM, clé tirée du mot de passe (PBKDF2, 210 000 itérations, sel aléatoire).
+   Le fichier reste un .json, mais ne contient que du contenu illisible sans le mot de passe. */
+const BK_TE = new TextEncoder(), BK_TD = new TextDecoder();
+const bkB64 = u => { let s = ''; for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000)); return btoa(s); };
+const bkUnB64 = b => Uint8Array.from(atob(b), c => c.charCodeAt(0));
+async function bkKey(pw, salt) { const base = await crypto.subtle.importKey('raw', BK_TE.encode(pw), 'PBKDF2', false, ['deriveKey']);
+  return crypto.subtle.deriveKey({ name: 'PBKDF2', salt, iterations: 210000, hash: 'SHA-256' }, base, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']); }
+window.epsEncryptBackup = async (str, pw) => { const salt = crypto.getRandomValues(new Uint8Array(16)), iv = crypto.getRandomValues(new Uint8Array(12));
+  const ct = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, await bkKey(pw, salt), BK_TE.encode(str)));
+  return JSON.stringify({ epsone: 'sauvegarde-chiffree', v: 1, alg: 'AES-256-GCM/PBKDF2-SHA256-210000', salt: bkB64(salt), iv: bkB64(iv), data: bkB64(ct) }); };
+window.epsIsEncryptedBackup = o => !!(o && o.epsone === 'sauvegarde-chiffree' && o.data);
+window.epsDecryptBackup = async (o, pw) => BK_TD.decode(await crypto.subtle.decrypt({ name: 'AES-GCM', iv: bkUnB64(o.iv) }, await bkKey(pw, bkUnB64(o.salt)), bkUnB64(o.data)));
 function openNuageBackup(kind) {
   const ic = kind === 'icloud';
   openPanel(ic ? 'Sauvegarde dans iCloud' : 'Sauvegarde dans mon Nuage', el => {
@@ -516,21 +529,31 @@ function openNuageBackup(kind) {
     el.innerHTML = `<div class="card" style="border:2px solid #E0892F"><b>⚠️ Ce n'est pas une synchronisation</b>
         <p style="margin:6px 0 0;font-size:.9rem">Cette sauvegarde est un <b>fichier</b> que vous rangez dans votre Nuage (Apps Éducation), dans iCloud Drive ou ailleurs. Elle <b>ne synchronise pas</b> les tablettes entre elles : chaque tablette garde ses propres données. Pour partager les données entre plusieurs tablettes, utilisez plutôt Dropbox ou Google Drive (ou Équipe EPS).</p></div>
       <div class="card" style="margin-top:12px"><b>📤 Faire une sauvegarde</b>
-        <p class="muted" style="margin:6px 0 0;font-size:.85rem">Un fichier <b>EPS-ONE-sauvegarde-date.json</b> est créé avec toutes les données de cet appareil (classes, élèves, résultats, séances…).</p>
+        <p class="muted" style="margin:6px 0 0;font-size:.85rem">Un fichier <b>EPS-ONE-sauvegarde-${ic ? 'iCloud-' : ''}date.json</b> est créé avec toutes les données de cet appareil (classes, élèves, résultats, séances…).</p>
+        ${ic ? `<div style="margin-top:10px;padding:10px 12px;border-radius:12px;background:rgba(30,158,90,.10)"><b>🔒 Fichier chiffré de bout en bout</b>
+          <p style="margin:6px 0 0;font-size:.85rem;line-height:1.45">Le fichier est <b>chiffré sur cet appareil</b> (AES-256) avec le mot de passe choisi ci-dessous, avant d'aller dans iCloud. Ni Apple ni personne d'autre ne peut le lire sans ce mot de passe.</p>
+          <input id="nb-p1" type="password" placeholder="Mot de passe de la sauvegarde" autocomplete="new-password" style="margin-top:8px">
+          <input id="nb-p2" type="password" placeholder="Confirmer le mot de passe" autocomplete="new-password" style="margin-top:6px">
+          <p class="muted" style="margin:6px 0 0;font-size:.8rem">⚠️ Notez-le bien : il sera demandé pour restaurer. <b>Mot de passe oublié = sauvegarde illisible.</b></p></div>` : ''}
         <p id="nb-last" style="margin:8px 0 0;font-size:.88rem">${last()}</p>
         <button class="btn btn-grad btn-block" style="margin-top:10px;padding:14px" id="nb-go">${ic ? '📤 Créer la sauvegarde et l\'envoyer vers iCloud' : '📤 Créer la sauvegarde et l\'envoyer au Nuage'}</button></div>
       ${where}
       <div class="card" style="margin-top:12px"><b>📥 Restaurer une sauvegarde</b>
-        <p class="muted" style="margin:6px 0 0;font-size:.85rem">Sur la tablette à restaurer : ${ic ? 'récupérez le fichier depuis iCloud Drive (app Fichiers)' : 'récupérez le fichier depuis le Nuage (app Fichiers / Nextcloud)'}, puis choisissez-le ici. Les données de l'appareil sont remplacées par celles du fichier.</p>
+        <p class="muted" style="margin:6px 0 0;font-size:.85rem">Sur la tablette à restaurer : ${ic ? 'récupérez le fichier depuis iCloud Drive (app Fichiers)' : 'récupérez le fichier depuis le Nuage (app Fichiers / Nextcloud)'}, puis choisissez-le ici. Les données de l'appareil sont remplacées par celles du fichier.${ic ? ' Le mot de passe de la sauvegarde vous sera demandé.' : ''}</p>
         <button class="btn btn-ghost btn-block" style="margin-top:10px" id="nb-imp">📥 Choisir un fichier de sauvegarde</button></div>`;
     { const fb = el.querySelector('#nb-files'); if (fb && (/iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1))) { fb.hidden = false; fb.onclick = () => { location.href = 'shareddocuments://'; }; } }
     el.querySelector('#nb-imp').onclick = () => { const i = document.getElementById('imp'); if (i) i.click(); else toast('Importer : Plus → Importer une sauvegarde'); };
     el.querySelector('#nb-go').onclick = async () => {
       try { window.saveNow && saveNow(); } catch (e) {}
-      const name = 'EPS-ONE-sauvegarde-' + new Date().toISOString().slice(0, 10) + '.json', blob = new Blob([JSON.stringify(DB, null, 2)], { type: 'application/json' });
+      let payload = JSON.stringify(DB, null, 2);
+      if (ic) { const p1 = el.querySelector('#nb-p1').value, p2 = el.querySelector('#nb-p2').value;
+        if (p1.length < 6) { toast('Choisissez un mot de passe (6 caractères minimum)'); return; }
+        if (p1 !== p2) { toast('Les deux mots de passe ne correspondent pas'); return; }
+        try { payload = await epsEncryptBackup(payload, p1); } catch (e) { toast('Chiffrement impossible sur cet appareil'); return; } }
+      const name = 'EPS-ONE-sauvegarde-' + (ic ? 'iCloud-' : '') + new Date().toISOString().slice(0, 10) + '.json', blob = new Blob([payload], { type: 'application/json' });
       const f = new File([blob], name, { type: 'application/json' }); let done = false;
       try { if (navigator.canShare && navigator.canShare({ files: [f] })) { await navigator.share({ files: [f], title: 'Sauvegarde EPS ONE' }); done = true; } } catch (e) { if (e && e.name === 'AbortError') return; }
-      if (!done) { const u = URL.createObjectURL(blob), a = document.createElement('a'); a.href = u; a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(u), 60000); toast('Fichier téléchargé : rangez-le dans votre Nuage'); }
+      if (!done) { const u = URL.createObjectURL(blob), a = document.createElement('a'); a.href = u; a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(u), 60000); toast(ic ? 'Fichier chiffré téléchargé : rangez-le dans iCloud Drive' : 'Fichier téléchargé : rangez-le dans votre Nuage'); }
       DB.tablette = DB.tablette || {}; DB.tablette.nuageLast = Date.now(); save(); el.querySelector('#nb-last').innerHTML = last();
     };
   });

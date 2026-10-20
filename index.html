@@ -781,7 +781,7 @@ function exportData(){
 }
 function importData(inp){
   const f=inp.files[0];if(!f)return;const r=new FileReader();
-  r.onload=()=>{try{const d=JSON.parse(r.result);DB=Object.assign({favs:[],recent:[],classes:[],dispenses:[],oublis:{},journal:[],grilles:[],suivi:{},debrief:[],annee:DB.annee},d);window.teamInstall&&teamInstall();save();renderHome();toast('Données restaurées ✔');if(typeof renderPlusYear==='function')renderPlusYear();}catch(e){toast('Fichier invalide');}inp.value='';};
+  r.onload=async()=>{try{let d=JSON.parse(r.result);if(window.epsIsEncryptedBackup&&epsIsEncryptedBackup(d)){const pw=prompt('🔒 Sauvegarde chiffrée : saisissez son mot de passe');if(!pw){inp.value='';return;}try{d=JSON.parse(await epsDecryptBackup(d,pw));}catch(e){toast('Mot de passe incorrect : rien n\'a été modifié');inp.value='';return;}}DB=Object.assign({favs:[],recent:[],classes:[],dispenses:[],oublis:{},journal:[],grilles:[],suivi:{},debrief:[],annee:DB.annee},d);window.teamInstall&&teamInstall();save();renderHome();toast('Données restaurées ✔');if(typeof renderPlusYear==='function')renderPlusYear();}catch(e){toast('Fichier invalide');}inp.value='';};
   r.readAsText(f);
 }
 function resetAll(){ if(confirm('Effacer toutes les données (classes, favoris…) ?')){DB={favs:[],recent:[],classes:[],dispenses:[],oublis:{},journal:[],grilles:[],suivi:{},debrief:[],annee:DB.annee};window.teamInstall&&teamInstall();save();renderHome();toast('Données effacées');} }
