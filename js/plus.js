@@ -4,9 +4,11 @@
    ========================================================= */
 /* Page Ko-fi : laisser vide tant qu'elle n'existe pas (le bouton est alors masqué) */
 const KOFI_URL = 'https://ko-fi.com/epsone';
-const APP_VERSION = '23.108';
+const APP_VERSION = '23.110';
 const APP_URL = 'https://steffdelaseuva-hue.github.io/eps-one/';
 const CHANGELOG = [
+  { v: '23.110', items: ['Gymnastique et Acrosport : bouton ✅ Validation enseignant en haut (critères, note sur 20, poids) ; les éléments / pyramides validés dans l\'enchaînement y sont copiés d\'office pour chaque élève du groupe, modifiables ensuite.', 'Gymnastique et Acrosport : bouton 📊 Bilan en haut (fiches élèves PDF / ZIP, bilan de la classe).'] },
+  { v: '23.109', items: ['Parkour : la fluidité ne se valide plus élément par élément, seulement dans « 🌊 Fluidité de l\'enchaînement ».', 'Parkour : bouton ✅ Validation enseignant en haut (critères, note sur 20, poids) ; les éléments évalués et la fluidité y sont copiés d\'office, modifiables ensuite.', 'Parkour : bouton 📊 Bilan en haut (fiches élèves PDF / ZIP, bilan de la classe).'] },
   { v: '23.108', items: ['Cartes Dropbox et Google Drive : mention « 🔒 Chiffrement de bout en bout (recommandé) » visible dès avant la connexion.'] },
   { v: '23.107', items: ['Confidentialité & RGPD : iCloud Drive ajouté aux paragraphes « Mon cloud » et « Chiffrement de bout en bout ».'] },
   { v: '23.106', items: ['Sauvegarde iCloud chiffrée de bout en bout : le fichier est chiffré sur l\'appareil (AES-256) avec un mot de passe choisi au moment de la sauvegarde, et demandé à la restauration. La sauvegarde Nuage Apps Éducation reste inchangée.'] },

@@ -538,6 +538,18 @@ function acroEditor(src, onSave) {
   draw();
 }
 
+/* Copie d'office des pyramides validées de l'enchaînement vers ✅ Validation enseignant + résultats (📊 Bilan) */
+function acroSync(cls) {
+  if (!cls) return false; const gs = ((DB.acro || {}).groupes || {})[cls] || [], items = {}; let ch = false;
+  gs.forEach(g => (g.seq || []).forEach(it => { if (it.t !== 'fig' || it.m == null) return; const f = acroFind(it.fig); if (!f) return;
+    const x = { id: 'ac' + it.fig, n: `Pyramides · ${f.n} (niv. ${acroNiv(f)})`, v: it.m, s: `${it.m}|${it.mt || 0}`, t: it.mt || 0, f };
+    (g.members || []).forEach(n => { const L = items[n] = items[n] || [], j = L.findIndex(y => y.id === x.id); if (j < 0) L.push(x); else if (x.t >= L[j].t) L[j] = x; }); }));
+  const names = [...new Set([...(typeof studentsOf === 'function' ? studentsOf(cls) : []), ...Object.keys(items)])];
+  if (typeof valCopy === 'function' && valCopy('acrosport', cls, items, names)) ch = true;
+  names.forEach(n => { const L = items[n] || [], av = L.length ? epsMAvg(L.map(x => x.v)) : null;
+    const r = { key: `acro-ench|${cls}|${n}`, tool: 'acrosport', label: 'Acrosport · enchaînement', classe: cls, eleve: n, valeur: av == null ? '' : `${EPS_M[av][0]} · ${L.length} pyramide${L.length > 1 ? 's' : ''}`, detail: L.map(x => `${x.f.n} : ${EPS_M[x.v][2]}`).join(' · ') };
+    if (typeof epsUpsertResult === 'function' && epsUpsertResult(r)) ch = true; });
+  return ch; }
 TOOL_IMPL.acrosport = function (el) {
   DB.acro = DB.acro || { groupes: {} };
   const A = liveDB(() => DB.acro);
@@ -551,6 +563,7 @@ TOOL_IMPL.acrosport = function (el) {
   if (G()) tab = 'enchainement';
 
   function frame() {
+    if (acroSync(cls)) save();
     const gs = cls ? groups() : []; if (gi >= gs.length) gi = 0;
     el.innerHTML = `${DB.classes.length ? `<div class="card"><div class="row"><div data-cfg="bare"><label style="margin-top:0">Classe</label><select id="acl">${DB.classes.map(c => `<option ${c.name === cls ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</select></div>
         <div><label style="margin-top:0">Groupe</label><select id="agr">${gs.length ? gs.map((g, k) => `<option value="${k}" ${k === gi ? 'selected' : ''}>${esc(g.name)} (${g.seq.length})</option>`).join('') : '<option>— aucun groupe —</option>'}</select></div></div></div>` : ''}
@@ -806,7 +819,7 @@ TOOL_IMPL.acrosport = function (el) {
     $('#areq').ontoggle = e => { reqOpen = e.target.open; };
     $('#arnb').onchange = e => setR('nb', Math.max(1, Math.min(20, +e.target.value || 1))); $('#armx').onchange = e => setR('max', e.target.value);
     [['ardu', 'duo'], ['artr', 'trio'], ['arqu', 'quat'], ['arre', 'ren']].forEach(([id, k]) => { $('#' + id).onchange = e => setR(k, Math.max(0, Math.min(10, +e.target.value || 0))); });
-    if ($('#amclr')) $('#amclr').onclick = () => { if (!confirm('Effacer la validation de toutes les figures ?')) return; g.seq.forEach(it => delete it.m); save(); tabEnch(box); };
+    if ($('#amclr')) $('#amclr').onclick = () => { if (!confirm('Effacer la validation de toutes les figures ?')) return; g.seq.forEach(it => delete it.m); acroSync(cls); save(); tabEnch(box); };
     if ($('#aclr')) $('#aclr').onclick = () => { if (!confirm(`Vider l'enchaînement de ${g.name} ?`)) return; clearImgs([g]); g.seq = []; save(); frame(); };
   }
   function present(g) {
@@ -820,7 +833,7 @@ TOOL_IMPL.acrosport = function (el) {
         ${!li ? `<div style="margin-top:12px" data-cfg="bare"><div class="muted" style="font-size:.78rem;font-weight:800;margin-bottom:4px">✅ Validation de l'enseignant</div>${epsMBar(it.m, 'data-pm')}</div>` : ''}
         <div class="row" style="margin-top:12px"><button class="btn btn-ghost" id="pp" ${k ? '' : 'disabled'}>← Précédente</button><button class="btn btn-grad" id="pn" ${k < g.seq.length - 1 ? '' : 'disabled'}>Suivante →</button></div>`;
       o.querySelector('#pq').onclick = () => { o.remove(); frame(); };
-      o.querySelectorAll('[data-pm]').forEach(b => b.onclick = () => { const v = +b.dataset.pm; if (it.m === v) delete it.m; else it.m = v; save(); if (it.m != null && k < g.seq.length - 1) setTimeout(() => { k++; show(); }, 250); else show(); });
+      o.querySelectorAll('[data-pm]').forEach(b => b.onclick = () => { const v = +b.dataset.pm; if (it.m === v) delete it.m; else it.m = v; it.mt = Date.now(); acroSync(cls); save(); if (it.m != null && k < g.seq.length - 1) setTimeout(() => { k++; show(); }, 250); else show(); });
       if (o.querySelector('#pv')) o.querySelector('#pv').onclick = () => acroVideo(li);
       epsVidHydrate(o);
       o.querySelector('#pp').onclick = () => { k--; show(); }; o.querySelector('#pn').onclick = () => { k++; show(); }; };

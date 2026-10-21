@@ -420,6 +420,19 @@ window.epsMBar = window.epsMBar || ((cur, attr) => `<div data-cfg="bare" style="
 window.epsMTag = window.epsMTag || (m => m == null ? '' : `<span style="display:inline-block;padding:2px 8px;border-radius:99px;font-size:.7rem;font-weight:800;color:#fff;background:${EPS_M[m][1]}">${EPS_M[m][2]}</span>`);
 window.epsMAvg = window.epsMAvg || (L => { const v = L.filter(x => x != null); return v.length ? Math.round(v.reduce((a, b) => a + b, 0) / v.length) : null; });
 
+/* Copie d'office des éléments validés (enchaînements de groupe et individuels) vers ✅ Validation enseignant + résultats (📊 Bilan) */
+const GYM_SEC = { av: 'Tourner avant', ar: 'Tourner arrière', rv: 'Se renverser', lat: 'Renversement latéral', vol: 'Voler', vrot: 'Voler et tourner' };
+function gymSync(cls) {
+  if (!cls) return false; const Gd = gymDB(), gs = [...(Gd.groupes[cls] || []), ...Object.values((Gd.indiv || {})[cls] || {})], items = {}, info = {}; let ch = false;
+  gs.forEach(g => (g.seq || []).forEach(it => { if (it.t !== 'el' || it.m == null) return; const e = gymFind(it.el); if (!e) return;
+    const x = { id: 'gy' + it.el, n: `${GYM_SEC[e.fam] || 'Gym'} · ${e.lvl} – ${e.n}`, v: it.m, s: `${it.m}|${it.mt || 0}`, t: it.mt || 0, e };
+    (g.members || []).forEach(n => { const L = items[n] = items[n] || [], j = L.findIndex(y => y.id === x.id); if (j < 0) L.push(x); else if (x.t >= L[j].t) L[j] = x; }); }));
+  const names = [...new Set([...(typeof studentsOf === 'function' ? studentsOf(cls) : []), ...Object.keys(items)])];
+  if (typeof valCopy === 'function' && valCopy('gym', cls, items, names)) ch = true;
+  names.forEach(n => { const L = items[n] || [], av = L.length ? epsMAvg(L.map(x => x.v)) : null, pts = L.reduce((a, x) => a + gymPts(x.e.lvl), 0);
+    const r = { key: `gym-ench|${cls}|${n}`, tool: 'gym', label: 'Gymnastique · enchaînement', classe: cls, eleve: n, valeur: av == null ? '' : `${EPS_M[av][0]} · ${L.length} élément${L.length > 1 ? 's' : ''} · ${pts} pt${pts > 1 ? 's' : ''}`, detail: L.map(x => `${x.e.lvl} – ${x.e.n} : ${EPS_M[x.v][2]}`).join(' · ') };
+    if (typeof epsUpsertResult === 'function' && epsUpsertResult(r)) ch = true; });
+  return ch; }
 TOOL_IMPL.gym = function (el) {
   const Gd = gymDB(), F = Gd.filt;
   const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
@@ -437,6 +450,7 @@ TOOL_IMPL.gym = function (el) {
   const clearImgs = list => list.forEach(g => g.seq.forEach(it => { if (it.img) DB[gymImgKey(it.img)] = null; if (it.vid) epsVidDel(it.vid); }));
 
   function frame() {
+    if (gymSync(cls)) save();
     const gs = cls ? groups() : []; if (gi >= gs.length) gi = 0;
     const stl = cls ? studentsOf(cls) : []; if (ind && !stl.includes(ind)) ind = null; if (!ind && !gs.length && stl.length) ind = stl[0];
     const IA = cls ? Gd.indiv[cls] || {} : {};
@@ -706,7 +720,7 @@ TOOL_IMPL.gym = function (el) {
     box.querySelectorAll('[data-dn]').forEach(b => b.onclick = () => mv(+b.dataset.dn, 1));
     box.querySelectorAll('[data-rm]').forEach(b => b.onclick = () => { if (!confirm('Retirer cet élément de l\'enchaînement ?')) return; const [x] = g.seq.splice(+b.dataset.rm, 1); if (x.img) DB[gymImgKey(x.img)] = null; if (x.vid) epsVidDel(x.vid); save(); frame(); });
     if ($('#gyplay')) $('#gyplay').onclick = () => present(g);
-    if ($('#gymclr')) $('#gymclr').onclick = () => { if (!confirm('Effacer la validation de tous les éléments ?')) return; g.seq.forEach(it => delete it.m); save(); tabEnch(box); };
+    if ($('#gymclr')) $('#gymclr').onclick = () => { if (!confirm('Effacer la validation de tous les éléments ?')) return; g.seq.forEach(it => delete it.m); gymSync(cls); save(); tabEnch(box); };
     if ($('#gyclr')) $('#gyclr').onclick = () => { if (!confirm(`Vider l'enchaînement de ${g.name} ?`)) return; clearImgs([g]); g.seq = []; save(); frame(); };
   }
   function present(g) {
@@ -722,7 +736,7 @@ TOOL_IMPL.gym = function (el) {
         <div style="margin-top:12px" data-cfg="bare"><div class="muted" style="font-size:.78rem;font-weight:800;margin-bottom:4px">✅ Validation de l'enseignant</div>${epsMBar(it.m, 'data-pm')}</div>
         <div class="row" style="margin-top:12px"><button class="btn btn-ghost" id="pp" ${k ? '' : 'disabled'}>← Précédent</button><button class="btn btn-grad" id="pn" ${k < g.seq.length - 1 ? '' : 'disabled'}>Suivant →</button></div>`;
       o.querySelector('#pq').onclick = () => { o.remove(); frame(); };
-      o.querySelectorAll('[data-pm]').forEach(b => b.onclick = () => { const v = +b.dataset.pm; if (it.m === v) delete it.m; else it.m = v; save(); if (it.m != null && k < g.seq.length - 1) setTimeout(() => { k++; show(); }, 250); else show(); });
+      o.querySelectorAll('[data-pm]').forEach(b => b.onclick = () => { const v = +b.dataset.pm; if (it.m === v) delete it.m; else it.m = v; it.mt = Date.now(); gymSync(cls); save(); if (it.m != null && k < g.seq.length - 1) setTimeout(() => { k++; show(); }, 250); else show(); });
       if (o.querySelector('#pv')) o.querySelector('#pv').onclick = () => acroVideo({ n: e.n, url });
       epsVidHydrate(o);
       o.querySelector('#pp').onclick = () => { k--; show(); }; o.querySelector('#pn').onclick = () => { k++; show(); }; };

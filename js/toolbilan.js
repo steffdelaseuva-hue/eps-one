@@ -4,7 +4,7 @@
    Les bilans de l'onglet « Plus » restent inchangés (toutes activités).
    ========================================================= */
 (function () {
-  const IDS = ['co', 'combine', 'duathlon', 'escalade', 'lutte', 'natation', 'relais', 'demifond', 'sauvetage', 'wod', 'chronos12', 'rugbyla', 'cross'];
+  const IDS = ['co', 'combine', 'duathlon', 'escalade', 'lutte', 'natation', 'relais', 'demifond', 'sauvetage', 'wod', 'chronos12', 'rugbyla', 'cross', 'parkour', 'gym', 'acrosport'];
   const hasBil = id => IDS.includes(id), hasClean = id => (window.epsCleanTools ? epsCleanTools() : []).includes(id);
   const tname = id => ((typeof TOOLS !== 'undefined' ? TOOLS : []).find(t => t.id === id) || {}).name || id;
   const classes = () => [...new Set([...(DB.classes || []).map(c => c.name), ...(DB.resultats || []).map(r => r && r.classe).filter(Boolean)])].filter(Boolean);

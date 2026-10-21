@@ -27,6 +27,9 @@ const VAL_TOOLS = {
   sauvetage: { n: 'Sauvetage aquatique', c: [], sug: ['Entrée dans l\'eau adaptée', 'Recherche, immersion, remontée du mannequin', 'Remorquage, maintien des voies respiratoires', 'Passage des obstacles', 'Gestion de l\'effort', 'Sécurité, communication'] },
   wod: { n: 'Crosstraining / HYROX', c: [], sug: ['Placement et postures sécuritaires', 'Amplitude des mouvements', 'Respect du nombre de répétitions', 'Gestion de l\'effort, récupération', 'Coopération dans le groupe', 'Rôle de juge / coach'] },
   cross: { n: 'Cross du collège', c: [], sug: ['Allure régulière', 'Respect de son projet', 'Gestion de l\'effort', 'Engagement jusqu\'à l\'arrivée'] },
+  parkour: { n: 'Parkour', c: [], prep: cls => { if (typeof pkSync === 'function' && pkSync(cls)) save(); } },   // éléments validés + fluidité copiés d'office depuis l'outil Parkour
+  gym: { n: 'Gymnastique', c: [], prep: cls => { if (typeof gymSync === 'function' && gymSync(cls)) save(); } },   // éléments validés de l'enchaînement copiés d'office
+  acrosport: { n: 'Acrosport', c: [], prep: cls => { if (typeof acroSync === 'function' && acroSync(cls)) save(); } },   // pyramides validées de l'enchaînement copiées d'office
   co: { n: 'Course d\'orientation', c: ['Orienter la carte', 'Lire les symboles, la légende', 'Choisir un itinéraire', 'Se situer en permanence', 'Gérer son allure', 'Contrôler / poinçonner', 'Respect des consignes de sécurité'] }
 };
 const valSplit = n => { const m = /^([^·]{2,20}) · (.+)$/.exec(n); return m ? [m[1].trim(), m[2]] : [null, n]; };
@@ -64,11 +67,38 @@ const valNote = (C, W, cfg) => { const w = valWeights(C, cfg), obs = C.filter(c 
   const sub = {}; valGroups(C).forEach(g => { const o = g.items.filter(c => valPt(c.id, W, cfg) != null), d = o.reduce((a, c) => a + w[c.id], 0); if (o.length) sub[g.sec] = o.reduce((a, c) => a + w[c.id] * valPt(c.id, W, cfg), 0) / d; });
   return { n: obs.length, tot: C.length, n20: den > 0 ? obs.reduce((a, c) => a + w[c.id] * valPt(c.id, W, cfg), 0) / den : 0, sub }; };
 const valLvls = o => Object.keys(o || {}).filter(k => k[0] !== '_').map(k => o[k]).filter(x => x != null);
+/* Enregistre / met à jour / retire (valeur vide) un résultat sans sauvegarder à chaque fois ; renvoie true si quelque chose a changé */
+function epsUpsertResult(o) { DB.resultats = DB.resultats || []; const id = 'r:' + o.key, i = DB.resultats.findIndex(x => x && (x.id === id || x.key === o.key));
+  if (!o.valeur) { if (i >= 0) { DB.resultats.splice(i, 1); return true; } return false; }
+  if (i >= 0) { const p = DB.resultats[i]; if (p.valeur === o.valeur && p.detail === o.detail && p.label === o.label) return false; DB.resultats[i] = { ...p, ...o, id, date: Date.now() }; return true; }
+  const r = { date: Date.now(), ...o, id }, tp = window.teamProfOf && teamProfOf(); if (tp) r.prof = tp; else if (window.epsTg) epsTg(r); DB.resultats.push(r); return true; }
+/* Copie d'office dans la validation enseignant : items = { élève: [{ id, n, v (niveau 0-3), s (repère de la source) }] }.
+   Une valeur copiée n'est remplacée que si sa source change (repère « _s ») : les retouches faites dans ✅ restent.
+   Un élément copié qui n'existe plus dans la source est retiré. Met aussi à jour le résultat « validation enseignant ». */
+function valCopy(tool, cls, items, names) {
+  if (!cls || !VAL_TOOLS[tool]) return false; const lv = valLevelOf(cls), ck = valHasSet(tool, lv) ? tool + '@' + lv : tool, C = valCrit(ck), all = valOf(tool, cls); let ch = false;
+  [...new Set([...(names || []), ...Object.keys(items), ...Object.keys(all)])].forEach(n => {
+    const L = items[n] || [], W = all[n] || {}, seen = new Set(L.map(x => x.id)); let wch = false;
+    L.forEach(x => { if (W['_s' + x.id] === x.s) return; if (!C.some(c => c.id === x.id)) C.push({ id: x.id, n: x.n }); W[x.id] = x.v; delete W['_p' + x.id]; W['_s' + x.id] = x.s; wch = true; });
+    Object.keys(W).filter(k => k.startsWith('_s') && !seen.has(k.slice(2))).forEach(k => { const id = k.slice(2); delete W[id]; delete W['_p' + id]; delete W[k]; wch = true; });
+    if (wch) { W._t = Date.now(); ch = true; }
+    if (Object.keys(W).some(k => k !== '_t')) all[n] = W; else if (all[n]) { delete all[n]; ch = true; }
+    if (epsUpsertResult(valResultObj(tool, cls, n))) ch = true; });
+  return ch; }
+/* Résultat « validation enseignant » d'un élève (outil sans sous-sport), sans enregistrer : utilisé pour les copies automatiques (Parkour) */
+function valResultObj(tool, cls, n) {
+  const lv = valLevelOf(cls), ck = valHasSet(tool, lv) ? tool + '@' + lv : tool, V = valOf(tool, cls)[n] || {}, L = valLvls(V), av = typeof epsMAvg === 'function' ? epsMAvg(L) : null;
+  const key = `valid|${tool}|${cls}|${n}`; if (av == null) return { key };
+  const C = valCrit(ck), cf = valCfg(ck), nt = cf.on ? valNote(C, V, cf) : null;
+  return { key, tool, label: VAL_TOOLS[tool].n + ' · validation enseignant', classe: cls, eleve: n, valeur: nt ? `${valFmt(nt.n20)} / 20` : EPS_M[av][0],
+    detail: (nt ? `${EPS_M[av][0]} · ` : '') + C.filter(c => V[c.id] != null).map(c => `${c.n} : ${EPS_M[V[c.id]][2]}${nt ? ` (${valPt(c.id, V, cf)}/20)` : ''}`).join(' · ') };
+}
 
 function openValid(tool) {
   const T = VAL_TOOLS[tool]; if (!T) return;
   if (!DB.classes.length) return toast('Créez d\'abord une classe');
   let cls = DB.classes.some(c => c.name === DB.lastClass) ? DB.lastClass : DB.classes[0].name, si = 0, view = 'eleve', undo = null;
+  if (T.prep) T.prep(cls);
   VD().last = VD().last || {}; let sub = T.sub ? (T.sub[VD().last[tool]] ? VD().last[tool] : Object.keys(T.sub)[0]) : '';
   const K = () => sub && sub !== 'gen' ? tool + ':' + sub : tool, NM = () => T.n + (sub && sub !== 'gen' ? ' · ' + T.sub[sub].n : '');
   let clv = '';   // niveau édité dans ⚙️ Critères ('' = toutes les classes)
@@ -128,7 +158,7 @@ function openValid(tool) {
     const $ = s => o.querySelector(s), A = s => o.querySelectorAll(s), snap = l => { undo = { l, v: JSON.stringify(VD()) }; };
     $('[data-q]').onclick = close;
     if ($('[data-fx]')) $('[data-fx]').onclick = () => { if (typeof openFiches !== 'function') return toast('Fiches indisponibles'); const who = view === 'eleve' ? st[si] : ''; openFiches({ cls, valKey: K(), who, day: true }); };
-    $('#vc').onchange = e => { cls = e.target.value; DB.lastClass = cls; si = 0; save(); draw(); };
+    $('#vc').onchange = e => { cls = e.target.value; DB.lastClass = cls; si = 0; if (T.prep) T.prep(cls); save(); draw(); };
     if ($('#ve')) $('#ve').onchange = e => { si = +e.target.value; draw(); };
     A('[data-v]').forEach(b => b.onclick = () => { view = b.dataset.v; if (view === 'crit') clv = valHasSet(K(), valLevelOf(cls)) ? valLevelOf(cls) : clv; draw(); });
     A('[data-clv]').forEach(b => b.onclick = () => { clv = b.dataset.clv; draw(); });
