@@ -4,9 +4,10 @@
    ========================================================= */
 /* Page Ko-fi : laisser vide tant qu'elle n'existe pas (le bouton est alors masqué) */
 const KOFI_URL = 'https://ko-fi.com/epsone';
-const APP_VERSION = '23.112';
+const APP_VERSION = '23.113';
 const APP_URL = 'https://steffdelaseuva-hue.github.io/eps-one/';
 const CHANGELOG = [
+  { v: '23.113', items: ['Parkour · ② Créer son enchaînement : bloc « Exigences de l\'enchaînement » comme en gym (points, éléments / minimum, familles / demandées, niveau maximal, alertes).', 'Gymnastique et Acrosport · 🎬 Enchaînement : carte « 🗑 Supprimer / remettre à zéro » (vider l\'enchaînement de l\'élève ou du groupe, effacer sa validation, vider tous les enchaînements de la classe) avec « ↶ Annuler ».'] },
   { v: '23.112', items: ['✅ Validation enseignant (Parkour, Gym, Acrosport) : chaque élève ne voit plus que les éléments de SON enchaînement (et leur niveau), et non ceux de toute la classe ; la note, les fiches et le bilan ne comptent que ceux-là.', 'Le critère « ↳ Niveau » de chaque élément est placé juste sous sa maîtrise, dans sa famille.'] },
   { v: '23.111', items: ['Parkour, Gymnastique et Acrosport · ✅ Validation enseignant : nouveau critère « Niveau des éléments » rempli d\'office pour chaque élément choisi dans l\'enchaînement (Parkour : niveau 1 = insuffisante · 2 = fragile · 3 = satisfaisante · 4 = très bonne ; Acrosport : A · B · C · D ; Gym : A–D en niveau 1, C–F en niveau 2 selon la lettre maximale), modifiable ensuite.', 'Chaque élément / pyramide de l\'enchaînement compte dans la validation : non validé par l\'enseignant = maîtrise insuffisante.'] },
   { v: '23.110', items: ['Gymnastique et Acrosport : bouton ✅ Validation enseignant en haut (critères, note sur 20, poids) ; les éléments / pyramides validés dans l\'enchaînement y sont copiés d\'office pour chaque élève du groupe, modifiables ensuite.', 'Gymnastique et Acrosport : bouton 📊 Bilan en haut (fiches élèves PDF / ZIP, bilan de la classe).'] },

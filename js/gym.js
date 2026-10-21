@@ -456,6 +456,28 @@ TOOL_IMPL.gym = function (el) {
   if (groups().some(g => g.seq.length) || Object.values(Gd.indiv[cls] || {}).some(g => g.seq.length)) tab = 'ench';
   const clearImgs = list => list.forEach(g => g.seq.forEach(it => { if (it.img) DB[gymImgKey(it.img)] = null; if (it.vid) epsVidDel(it.vid); }));
 
+  /* 🗑 Supprimer / remettre à zéro (avec « ↶ Annuler ») : les photos / vidéos ne sont effacées qu'au remplacement de l'annulation */
+  let EN_UNDO = null;
+  const medIds = o => { const m = new Set(); JSON.stringify(o, (k, v) => { if ((k === 'img' || k === 'vid') && v) m.add(k + ':' + v); return v; }); return m; };
+  const enSnap = label => { const prev = EN_UNDO; EN_UNDO = { label, cls, d: JSON.stringify({ g: Gd.groupes[cls] || [], i: (Gd.indiv || {})[cls] || {} }) };
+    if (prev) { const now = medIds({ a: { g: Gd.groupes[cls] || [], i: (Gd.indiv || {})[cls] || {} }, u: JSON.parse(EN_UNDO.d) }); medIds(JSON.parse(prev.d)).forEach(x => { if (now.has(x)) return; const [k, id] = x.split(':'); if (k === 'img') DB[gymImgKey(id)] = null; else epsVidDel(id); }); } };
+  const resetCard = g => `${EN_UNDO && EN_UNDO.cls === cls ? `<button class="btn btn-grad btn-block" style="margin-top:12px" id="enundo">↶ Annuler : ${esc(EN_UNDO.label)}</button>` : ''}
+    <div class="card" data-cfg="bare" style="margin-top:12px"><b>🗑 Supprimer / remettre à zéro</b>
+      <div style="display:flex;flex-direction:column;gap:8px;margin-top:8px">
+        <button class="btn btn-ghost" data-enrz="seq" ${g.seq.length ? '' : 'disabled'}>Vider l'enchaînement de ${esc(g.name)} (${g.seq.length})</button>
+        <button class="btn btn-ghost" data-enrz="val" ${g.seq.some(it => it.m != null) ? '' : 'disabled'}>Effacer la validation de ${esc(g.name)}</button>
+        <button class="btn btn-ghost" style="color:var(--danger)" data-enrz="cls" ${[...(Gd.groupes[cls] || []), ...Object.values((Gd.indiv || {})[cls] || {})].some(x => x.seq.length) ? '' : 'disabled'}>Vider tous les enchaînements de la classe ${esc(cls)}</button></div>
+      <p class="muted" style="margin:6px 0 0;font-size:.75rem">Un bouton « ↶ Annuler » permet de revenir en arrière juste après.</p></div>`;
+  const resetWire = (box, g, redraw) => {
+    box.querySelectorAll('[data-enrz]').forEach(b => b.onclick = () => { const k = b.dataset.enrz;
+      const msg = k === 'seq' ? `Vider l'enchaînement de ${g.name} ?` : k === 'val' ? `Effacer la validation de tous les éléments de ${g.name} ?` : `Vider tous les enchaînements (groupes et élèves) de la classe ${cls} ?\nLes groupes sont conservés.`;
+      if (!confirm(msg)) return;
+      enSnap(k === 'seq' ? `enchaînement de ${g.name} vidé` : k === 'val' ? `validation de ${g.name} effacée` : `enchaînements de ${cls} vidés`);
+      if (k === 'seq') g.seq = []; else if (k === 'val') g.seq.forEach(it => { delete it.m; delete it.mt; }); else [...(Gd.groupes[cls] || []), ...Object.values((Gd.indiv || {})[cls] || {})].forEach(x => { x.seq = []; });
+      gymSync(cls); save(); toast('Supprimé — « ↶ Annuler » juste au-dessus'); redraw(); });
+    const u = box.querySelector('#enundo'); if (u) u.onclick = () => { const x = EN_UNDO; if (!x) return; const d = JSON.parse(x.d); Gd.groupes[cls] = d.g; Gd.indiv = Gd.indiv || {}; Gd.indiv[cls] = d.i; EN_UNDO = null; gymSync(cls); save(); toast('↶ Annulé'); frame(); };
+  };
+
   function frame() {
     if (gymSync(cls)) save();
     const gs = cls ? groups() : []; if (gi >= gs.length) gi = 0;
@@ -707,7 +729,9 @@ TOOL_IMPL.gym = function (el) {
             ${e || img ? `<label class="btn btn-ghost" style="padding:5px 8px;font-size:.75rem;cursor:pointer;margin:0;text-align:center">📷 ${img ? 'Changer' : 'Photo'}<input data-ph="${k}" type="file" accept="image/*" capture="environment" style="display:none"></label>` : ''}
             <label class="btn btn-ghost" style="padding:5px 8px;font-size:.75rem;cursor:pointer;margin:0;text-align:center">🎬 ${it.vid ? 'Changer' : 'Vidéo'}<input data-vd="${k}" type="file" accept="video/*" capture="environment" style="display:none"></label>
             <div style="display:flex;gap:4px"><button class="btn btn-ghost" style="padding:5px 8px" data-up="${k}" ${k ? '' : 'disabled'}>↑</button><button class="btn btn-ghost" style="padding:5px 8px" data-dn="${k}" ${k < g.seq.length - 1 ? '' : 'disabled'}>↓</button><button class="btn btn-ghost" style="padding:5px 8px" data-rm="${k}">✕</button></div></div></div>`; }).join('')}</div>`
-        : '<div class="card empty">L\'enchaînement est vide : ajoutez des éléments de la banque ou des photos du groupe.</div>'}`;
+        : '<div class="card empty">L\'enchaînement est vide : ajoutez des éléments de la banque ou des photos du groupe.</div>'}
+      ${resetCard(g)}`;
+    resetWire(box, g, () => frame());
     const $ = s => box.querySelector(s);
     const setR = (k, v) => { R[k] = v; reqOpen = $('#greq').open; save(); tabEnch(box); };
     $('#grag').onchange = e => setR('ag', e.target.value); $('#grmx').onchange = e => setR('max', e.target.value);

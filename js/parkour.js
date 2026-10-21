@@ -74,7 +74,7 @@ function pkSync(cls) {
   if (hasVal && typeof valRegroup === 'function') valRegroup(C);
   return ch; }
 
-let PK_UNDO = null;   // dernière suppression : { label, evals, list, ench, cls, val, res }
+let PK_UNDO = null, pkReqOpen = false;   // dernière suppression : { label, evals, list, ench, cls, val, res }
 TOOL_IMPL.parkour = function (el) {
   const D = liveDB(() => DB.parkour); D.lists = D.lists || {}; D.customEx = D.customEx || []; D.evals = D.evals || []; D.cycle = D.cycle || 1; D.ench = D.ench || {};
   const PID = localStorage.getItem('epsone_prof_actif') || '_';
@@ -218,9 +218,23 @@ TOOL_IMPL.parkour = function (el) {
     const o = host, close = () => { step = 'valid'; draw(); }; let prevW = null;
     const paint = () => {
       const left = avail.filter(y => !W.seq.some(x => key(x) === key(y)));
+      /* ⚙️ Exigences de l'enchaînement (comme en gym) : nombre d'éléments, familles différentes, niveau maximal */
+      const R = D.req = Object.assign({ min: 5, fam: 3, max: 4 }, D.req || {}), FA = famsOf(), fams = new Set(W.seq.map(x => x.fam)), pts = W.seq.reduce((a, x) => a + (+x.niv || 0), 0), WR = [];
+      if (W.seq.length < R.min) WR.push(`${W.seq.length} élément${W.seq.length > 1 ? 's' : ''} sur ${R.min} demandés.`);
+      if (fams.size < R.fam) WR.push(`${fams.size} famille${fams.size > 1 ? 's' : ''} sur ${R.fam} demandées.`);
+      const over = W.seq.filter(x => +x.niv > R.max); if (over.length) WR.push(`Niveau au-dessus de ${R.max} : ${[...new Set(over.map(x => x.ex))].join(', ')}.`);
+      const reqCard = `<div class="card" style="margin-top:10px">
+          <div class="result" style="margin-top:0"><div class="card"><b>${pts}</b><small>points</small></div><div class="card"><b>${W.seq.length}</b><small>élément${W.seq.length > 1 ? 's' : ''} / ${R.min}</small></div><div class="card"><b>${fams.size}</b><small>famille${fams.size > 1 ? 's' : ''} / ${R.fam}</small></div></div>
+          <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px">${FA.map(f => `<span class="gy-chip ${fams.has(f) ? 'ok' : ''}">${fams.has(f) ? '✓ ' : ''}${esc(f)}</span>`).join('')}</div>
+          ${WR.length ? `<div class="gy-warn">⚠️ ${WR.map(esc).join('<br>⚠️ ')}</div>` : '<div class="gy-chip ok" style="margin-top:10px">✓ Exigences respectées</div>'}
+          <details id="preq" data-cfg="bare" style="margin-top:10px" ${pkReqOpen ? 'open' : ''}><summary data-free class="muted" style="cursor:pointer;font-weight:800">⚙️ Exigences de l'enchaînement</summary>
+            <div class="row"><div><label>Éléments minimum</label><input id="prmn" type="number" min="1" max="20" value="${R.min}"></div><div><label>Familles différentes</label><input id="prfm" type="number" min="1" max="${FA.length}" value="${R.fam}"></div></div>
+            <label>Niveau maximal</label><div class="seg">${[1, 2, 3, 4].map(n => `<button data-prmx="${n}" class="${R.max === n ? 'on' : ''}">Niveau ${n}</button>`).join('')}</div>
+            <p class="muted" style="margin:6px 0 0;font-size:.75rem">Points : niveau 1 = 1 pt … niveau 4 = 4 pts.</p></details></div>`;
       o.innerHTML = `<div>
         <div class="card"><h3 style="margin:0">② Créer son enchaînement · ${esc(n)}</h3>
         <p class="muted" style="margin:6px 0 0;font-size:.84rem">Touche les éléments dans l'ordre où tu veux les enchaîner. Flèches pour changer l'ordre, ✕ pour retirer.</p></div>
+        ${reqCard}
         <div style="height:10px"></div>
         <div class="card"><b>Éléments de la séance</b>${left.length ? `<div class="pk-at">${left.map(y => `<button data-ad="${esc(key(y))}">＋ ${esc(y.ex)} <small style="opacity:.75">· ${esc(y.fam)} · niv. ${y.niv}</small></button>`).join('')}</div>
           <button class="btn btn-ghost btn-block" style="margin-top:8px" id="eall">＋ Tout ajouter dans cet ordre</button>` : '<p class="muted" style="margin:6px 0 0;font-size:.82rem">Tous les éléments sont dans l\'enchaînement.</p>'}</div>
@@ -231,6 +245,11 @@ TOOL_IMPL.parkour = function (el) {
           : '<div class="empty">Ajoute des éléments depuis la liste ci-dessus.</div>'}</div>
         <div class="row" style="margin:12px 0 8px"><button class="btn btn-grad" id="eok" ${W.seq.length ? '' : 'disabled'}>💾 Enregistrer · ③ Validation →</button>${old ? '<button class="btn btn-ghost" id="edel" style="flex:0 0 auto">🗑</button>' : ''}</div></div>`;
       const $ = q => o.querySelector(q), all = q => o.querySelectorAll(q);
+      const setR = (k, v) => { R[k] = v; pkReqOpen = $('#preq').open; save(); paint(); };
+      $('#preq').ontoggle = e => { pkReqOpen = e.target.open; };
+      $('#prmn').onchange = e => setR('min', Math.max(1, Math.min(20, +e.target.value || 5)));
+      $('#prfm').onchange = e => setR('fam', Math.max(1, Math.min(FA.length || 6, +e.target.value || 3)));
+      all('[data-prmx]').forEach(b => b.onclick = () => setR('max', +b.dataset.prmx));
       if ($('#eclr')) $('#eclr').onclick = () => { prevW = JSON.parse(JSON.stringify(W)); W.seq = []; W.app = []; paint(); };
       if ($('#eund')) $('#eund').onclick = () => { Object.assign(W, prevW); prevW = null; paint(); };
       all('[data-ad]').forEach(b => b.onclick = () => { const y = avail.find(z => key(z) === b.dataset.ad); if (y) W.seq.push(y); paint(); });
