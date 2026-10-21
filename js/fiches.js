@@ -58,7 +58,7 @@
     Object.keys(V).forEach(k => {
       const W = V[k] && V[k][cls] && V[k][cls][n]; if (!W || !valLvls(W).length) return;
       const [t, sb] = k.split(':'); if (act ? !actValOk(act, k) : tools && !tools.includes(t)) return;
-      const T = VAL_TOOLS[t] || { n: t }, ck = valHasSet(k, lv) ? k + '@' + lv : k; let C = []; try { C = valCrit(ck); } catch (e) {} if (!C.length) return;
+      const T = VAL_TOOLS[t] || { n: t }, ck = valHasSet(k, lv) ? k + '@' + lv : k; let C = []; try { C = valCrit(ck); } catch (e) {} if (typeof valFor === 'function') C = valFor(C, W); if (!C.length) return;
       const cfg = valCfg(ck), NT = cfg.on ? valNote(C, W, cfg) : null, L = valLvls(W), avg = epsMAvg(L);
       out.push({ k, ck, t, title: T.n + (sb ? ' · ' + ((T.sub && T.sub[sb] && T.sub[sb].n) || sb) : ''), C, W, cfg, NT, L, avg });
     });
@@ -408,7 +408,7 @@ h3.st{margin:18px 0 6px;font-size:1.05rem;color:#0B2A5B;border-bottom:3px solid 
     const M = Mx(), st = (studentsOf(cls) || []).slice(), V = (DB.valid || {}).v || {}, lv = valLevelOf(cls); let html = '';
     valKeys(cls).forEach(k => { const [t, sb] = k.split(':'); if (opt.act ? !actValOk(opt.act, k) : opt.tools && !opt.tools.includes(t)) return;
       const D = V[k][cls], names = [...new Set([...st, ...Object.keys(D)])].filter(n => D[n] && valLvls(D[n]).length); if (!names.length) return;
-      const T = VAL_TOOLS[t] || { n: t }, ck = valHasSet(k, lv) ? k + '@' + lv : k; let C = []; try { C = valCrit(ck); } catch (e) {} if (!C.length) return;
+      const T = VAL_TOOLS[t] || { n: t }, ck = valHasSet(k, lv) ? k + '@' + lv : k; let C = []; try { C = valCrit(ck); } catch (e) {} if (typeof valIsAuto === 'function') C = C.filter(c => !valIsAuto(c) || names.some(x => D[x]['_s' + c.id] != null)); if (!C.length) return;
       const cfg = valCfg(ck), title = T.n + (sb ? ' · ' + ((T.sub && T.sub[sb] && T.sub[sb].n) || sb) : ''), pts = cfg.on;
       const rows = names.map(n => { const W = D[n], NT = pts ? valNote(C, W, cfg) : null, avg = epsMAvg(valLvls(W)); return { n, W, NT, avg }; });
       const dist = M.map((m, i) => ({ l: m[0], c: m[1], v: rows.reduce((a, r) => a + C.filter(c => r.W[c.id] === i).length, 0) }));

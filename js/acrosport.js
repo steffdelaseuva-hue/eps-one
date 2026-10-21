@@ -543,7 +543,7 @@ function acroSync(cls) {
   if (!cls) return false; const gs = ((DB.acro || {}).groupes || {})[cls] || [], items = {}; let ch = false;
   // niveau de chaque pyramide choisie : A insuffisante · B fragile · C satisfaisante · D très bonne maîtrise
   gs.forEach(g => (g.seq || []).forEach(it => { if (it.t !== 'fig') return; const f = acroFind(it.fig); if (!f) return; const lv = acroNiv(f);
-    const x = { id: 'nvac' + it.fig, n: `Niveau des pyramides · ${f.n} (niv. ${lv})`, v: Math.max(0, 'ABCD'.indexOf(lv)), s: 'lv' + lv, t: -1, f, nv: 1 };
+    const x = { id: 'nvac' + it.fig, n: `Pyramides · ↳ Niveau : ${f.n} (niv. ${lv})`, v: Math.max(0, 'ABCD'.indexOf(lv)), s: 'lv' + lv, t: -1, f, nv: 1 };
     (g.members || []).forEach(n => { const L = items[n] = items[n] || []; if (!L.some(y => y.id === x.id)) L.push(x); }); }));
   // chaque pyramide de l'enchaînement compte : non validée = pas réalisée = maîtrise insuffisante
   gs.forEach(g => (g.seq || []).forEach(it => { if (it.t !== 'fig') return; const f = acroFind(it.fig); if (!f) return; const no = it.m == null;

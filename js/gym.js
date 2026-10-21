@@ -428,7 +428,7 @@ function gymSync(cls) {
      Niveau 1 (A–D) : A insuffisante · B fragile · C satisfaisante · D très bonne · Niveau 2 (C–F) : C · D · E · F */
   const off = gymPts((Gd.req || {}).max || 'D') <= 4 ? 0 : 2, lvM = l => Math.max(0, Math.min(3, gymPts(l) - 1 - off));
   gs.forEach(g => (g.seq || []).forEach(it => { if (it.t !== 'el') return; const e = gymFind(it.el); if (!e) return;
-    const x = { id: 'nvgy' + it.el, n: `Niveau des éléments · ${e.lvl} – ${e.n}`, v: lvM(e.lvl), s: 'lv' + e.lvl + off, t: -1, e, nv: 1 };
+    const x = { id: 'nvgy' + it.el, n: `${GYM_SEC[e.fam] || 'Gym'} · ↳ Niveau : ${e.lvl} – ${e.n}`, v: lvM(e.lvl), s: 'lv' + e.lvl + off, t: -1, e, nv: 1 };
     (g.members || []).forEach(n => { const L = items[n] = items[n] || []; if (!L.some(y => y.id === x.id)) L.push(x); }); }));
   // chaque élément de l'enchaînement compte : non validé = pas réalisé = maîtrise insuffisante
   gs.forEach(g => (g.seq || []).forEach(it => { if (it.t !== 'el') return; const e = gymFind(it.el); if (!e) return; const no = it.m == null;

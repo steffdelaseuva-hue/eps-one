@@ -162,7 +162,7 @@ function bilanFiches(opt) {
       // 1) validation enseignant : objectifs/critères, maîtrise, note
       vKeys.forEach(k => { const W = V[k][cls][n]; if (!W || typeof valLvls !== 'function' || !valLvls(W).length) return;
         const [t, sb] = k.split(':'), T = (typeof VAL_TOOLS !== 'undefined' && VAL_TOOLS[t]) || { n: t }, ck = typeof valHasSet === 'function' && valHasSet(k, lv) ? k + '@' + lv : k;
-        let C = []; try { C = valCrit(ck); } catch (e) {} if (!C.length) return;
+        let C = []; try { C = valCrit(ck); } catch (e) {} if (typeof valFor === 'function') C = valFor(C, W); if (!C.length) return;
         const cfg = valCfg(ck), NT = cfg.on ? valNote(C, W, cfg) : null, avg = epsMAvg(valLvls(W)), title = T.n + (sb ? ' · ' + ((T.sub && T.sub[sb] && T.sub[sb].n) || sb) : '');
         badges += `<span class="fb" style="background:${avg != null ? M[avg][1] : '#889'}">${esc(title)} · ${avg != null ? esc(M[avg][2] || M[avg][0]) : '–'}${NT ? ' · ' + fr(NT.n20) + '/20' : ''}</span>`;
         const subs = NT && Object.keys(NT.sub).filter(x => x).length ? `<div class="fsub">${Object.entries(NT.sub).filter(([x]) => x).map(([x, v]) => `<span style="border-color:${noteCol(v)};color:${noteCol(v)}">${esc(x)} : <b>${fr(v)}/20</b></span>`).join('')}</div>` : '';

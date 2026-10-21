@@ -63,7 +63,10 @@ const valCommitShares = (keys, store, vals) => { const v = keys.map(k => Math.ma
   const r = v.map(x => Math.round(x / sum * 1000) / 10), d = Math.round((100 - r.reduce((a, b) => a + b, 0)) * 10) / 10, im = r.indexOf(Math.max(...r)); r[im] = Math.round((r[im] + d) * 10) / 10;
   keys.forEach((k, i) => store[k] = r[i]); };
 const valWeights = (C, cfg) => { const G = valGroups(C), sw = valShares(G.map(g => g.sec), cfg.sw), w = {}; G.forEach(g => { const cw = valShares(g.items.map(c => c.id), cfg.cw); g.items.forEach(c => w[c.id] = sw[g.sec] / 100 * cw[c.id] / 100); }); return w; };
-const valNote = (C, W, cfg) => { const w = valWeights(C, cfg), obs = C.filter(c => valPt(c.id, W, cfg) != null), den = cfg.zero ? 1 : obs.reduce((a, c) => a + w[c.id], 0);
+/* Critères copiés d'office (Parkour, Gym, Acrosport) : propres à chaque élève. On ne garde, pour un élève, que ceux venant de SON enchaînement / ses évaluations */
+const valIsAuto = c => !!c && (c.auto || /^(nv)?(pk|gy|ac)[a-z0-9]+$/.test(c.id));
+const valFor = (C, W) => (C || []).filter(c => !valIsAuto(c) || (W && W['_s' + c.id] != null));
+const valNote = (C, W, cfg) => { C = valFor(C, W); const w = valWeights(C, cfg), obs = C.filter(c => valPt(c.id, W, cfg) != null), den = cfg.zero ? 1 : obs.reduce((a, c) => a + w[c.id], 0);
   const sub = {}; valGroups(C).forEach(g => { const o = g.items.filter(c => valPt(c.id, W, cfg) != null), d = o.reduce((a, c) => a + w[c.id], 0); if (o.length) sub[g.sec] = o.reduce((a, c) => a + w[c.id] * valPt(c.id, W, cfg), 0) / d; });
   return { n: obs.length, tot: C.length, n20: den > 0 ? obs.reduce((a, c) => a + w[c.id] * valPt(c.id, W, cfg), 0) / den : 0, sub }; };
 const valLvls = o => Object.keys(o || {}).filter(k => k[0] !== '_').map(k => o[k]).filter(x => x != null);
@@ -76,17 +79,21 @@ function epsUpsertResult(o) { DB.resultats = DB.resultats || []; const id = 'r:'
    Une valeur copiée n'est remplacée que si sa source change (repère « _s ») : les retouches faites dans ✅ restent.
    Un élément copié qui n'existe plus dans la source est retiré. Met aussi à jour le résultat « validation enseignant ». */
 /* Regroupe les critères par rubrique (ordre de première apparition), sans changer l'ordre à l'intérieur d'une rubrique */
-const valRegroup = C => { const G = valGroups(C).flatMap(g => g.items); if (G.some((c, i) => c !== C[i])) C.splice(0, C.length, ...G); };
+/* + chaque critère « ↳ Niveau » (id « nv… ») est placé juste sous la maîtrise de son élément */
+const valRegroup = C => { const G0 = valGroups(C).flatMap(g => g.items), nv = G0.filter(c => /^nv/.test(c.id)), G = G0.filter(c => !/^nv/.test(c.id));
+  nv.forEach(c => { const i = G.findIndex(x => x.id === c.id.slice(2)); if (i >= 0) G.splice(i + 1, 0, c); else G.push(c); });
+  if (G.some((c, i) => c !== C[i])) C.splice(0, C.length, ...G); };
 function valCopy(tool, cls, items, names) {
   if (!cls || !VAL_TOOLS[tool]) return false; const lv = valLevelOf(cls), ck = valHasSet(tool, lv) ? tool + '@' + lv : tool, C = valCrit(ck), all = valOf(tool, cls), nC = C.length; let ch = false;
   [...new Set([...(names || []), ...Object.keys(items), ...Object.keys(all)])].forEach(n => {
     const L = (items[n] || []).slice().sort((a, b) => /^nv/.test(a.id) - /^nv/.test(b.id)), W = all[n] || {}, seen = new Set(L.map(x => x.id)); let wch = false;   // critères « Niveau des … » après les maîtrises
-    L.forEach(x => { if (W['_s' + x.id] === x.s) return; if (!C.some(c => c.id === x.id)) C.push({ id: x.id, n: x.n }); W[x.id] = x.v; delete W['_p' + x.id]; W['_s' + x.id] = x.s; wch = true; });
+    L.forEach(x => { const c0 = C.find(c => c.id === x.id); if (c0 && /^nv/.test(x.id) && /^Niveau des /.test(c0.n)) c0.n = x.n;   // ancien nom de rubrique
+      if (W['_s' + x.id] === x.s) return; if (!c0) C.push({ id: x.id, n: x.n, auto: 1 }); W[x.id] = x.v; delete W['_p' + x.id]; W['_s' + x.id] = x.s; wch = true; });
     Object.keys(W).filter(k => k.startsWith('_s') && !seen.has(k.slice(2))).forEach(k => { const id = k.slice(2); delete W[id]; delete W['_p' + id]; delete W[k]; wch = true; });
     if (wch) { W._t = Date.now(); ch = true; }
     if (Object.keys(W).some(k => k !== '_t')) all[n] = W; else if (all[n]) { delete all[n]; ch = true; }
     if (epsUpsertResult(valResultObj(tool, cls, n))) ch = true; });
-  if (C.length !== nC) valRegroup(C);
+  valRegroup(C);
   return ch; }
 /* Résultat « validation enseignant » d'un élève (outil sans sous-sport), sans enregistrer : utilisé pour les copies automatiques (Parkour) */
 function valResultObj(tool, cls, n) {
@@ -117,7 +124,8 @@ function openValid(tool) {
     saveResult({ key: `valid|${K()}|${cls}|${n}`, tool, label: NM() + ' · validation enseignant', classe: cls, eleve: n, valeur: nt ? `${valFmt(nt.n20)} / 20` : EPS_M[av][0],
       detail: (nt ? `${EPS_M[av][0]} · ` : '') + C.filter(c => V[c.id] != null).map(c => `${c.n} : ${EPS_M[V[c.id]][2]}${nt ? ` (${valPt(c.id, V, cf)}/20)` : ''}`).join(' · ') }); };
   const draw = () => {
-    const st = studentsOf(cls), C = valCrit(KC()), all = valOf(K(), cls); if (si >= st.length) si = 0; const n = st[si], V = all[n] || {};
+    const st = studentsOf(cls), C0 = valCrit(KC()), all = valOf(K(), cls); if (si >= st.length) si = 0; const n = st[si], V = all[n] || {};
+    const C = view === 'eleve' ? valFor(C0, V) : view === 'classe' ? C0.filter(c => !valIsAuto(c) || st.some(x => (all[x] || {})['_s' + c.id] != null)) : C0;   // par élève : seulement ses éléments
     const L = valLvls(V), av = epsMAvg(L), cfg = valCfg(KC()), NT = cfg.on ? valNote(C, V, cfg) : null, WT = cfg.on ? valWeights(C, cfg) : null;
     o.innerHTML = `<div style="display:flex;align-items:center;gap:8px;max-width:900px;margin:0 auto"><h2 style="flex:1;margin:0;font-size:1.15rem">✅ Validation enseignant · ${esc(NM())}</h2><button class="btn btn-grad" style="flex:0 0 auto" data-fx title="Fiche élève de cette activité (validation + tournoi du jour)">📄 Fiches</button><button class="btn btn-ghost" style="flex:0 0 auto" data-q>✕ Fermer</button></div>
       <div style="max-width:900px;margin:10px auto 0">

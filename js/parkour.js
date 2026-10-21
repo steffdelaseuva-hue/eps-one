@@ -48,9 +48,10 @@ function pkSync(cls) {
   const names = [...new Set([...(typeof studentsOf === 'function' ? studentsOf(cls) : []), ...(D.evals || []).filter(e => e.classe === cls).map(e => e.eleve), ...Object.keys(EN)])].filter(Boolean);
   const hasVal = typeof valOf === 'function' && typeof VAL_TOOLS !== 'undefined' && VAL_TOOLS.parkour;
   const lv = hasVal ? valLevelOf(cls) : '', ck = hasVal && valHasSet('parkour', lv) ? 'parkour@' + lv : 'parkour', C = hasVal ? valCrit(ck) : [], all = hasVal ? valOf('parkour', cls) : {}, nC = C.length;
-  const put = (n, id, nm, val, stamp) => { const W = all[n] || {}; if (W['_s' + id] === stamp) return;
+  const put = (n, id, nm, val, stamp) => { const W = all[n] || {}, c0 = C.find(c => c.id === id); if (c0 && nm && /^nv/.test(id) && /^Niveau des /.test(c0.n)) { c0.n = nm; ch = true; }
+    if (W['_s' + id] === stamp) return;
     if (val == null) { if (W['_s' + id] == null) return; delete W[id]; delete W['_p' + id]; delete W['_s' + id]; }
-    else { if (!C.some(c => c.id === id)) C.push({ id, n: nm }); W[id] = val; delete W['_p' + id]; W['_s' + id] = stamp; }
+    else { if (!C.some(c => c.id === id)) C.push({ id, n: nm, auto: 1 }); W[id] = val; delete W['_p' + id]; W['_s' + id] = stamp; }
     W._t = Date.now(); all[n] = W; ch = true; };
   names.forEach(n => {
     const L = pkLatest(cls, n), E = EN[n], flu = E && E.cycle === 2 && E.fluM != null ? E.fluM : null;
@@ -61,7 +62,7 @@ function pkSync(cls) {
       // élément de l'enchaînement pas (encore) validé = pas réalisé : maîtrise insuffisante
       NV.filter(x => !L.some(e => pkKey(e) === pkKey(x))).forEach(x => put(n, pkCid(pkKey(x)), `${x.fam} · ${x.ex} (niv. ${x.niv})`, 0, 'none'));
       // niveau de chaque élément choisi : niv. 1 = insuffisante · 2 = fragile · 3 = satisfaisante · 4 = très bonne maîtrise
-      NV.forEach(x => put(n, 'nv' + pkCid(pkKey(x)), `Niveau des éléments · ${x.ex} (niv. ${x.niv})`, Math.max(0, Math.min(3, (+x.niv || 1) - 1)), 'lv' + x.niv));
+      NV.forEach(x => put(n, 'nv' + pkCid(pkKey(x)), `${x.fam} · ↳ Niveau : ${x.ex} (niv. ${x.niv})`, Math.max(0, Math.min(3, (+x.niv || 1) - 1)), 'lv' + x.niv));
       Object.keys(W).filter(k => k.startsWith('_s') && k !== '_s' + PK_FLU && !seen.has(k.slice(2))).forEach(k => put(n, k.slice(2), '', null, null));   // évaluation supprimée
       put(n, PK_FLU, 'ENCHAÎNER · Fluidité de l\'enchaînement', flu, flu == null ? null : (E.fluT || E.date || 1));
       if (all[n] && !Object.keys(all[n]).some(k => k !== '_t')) delete all[n];
@@ -70,7 +71,7 @@ function pkSync(cls) {
     const ok = L.filter(e => e.m >= 2).length, det = [...L.map(e => `${e.ex} (niv. ${e.niv}) : ${PK_M[e.m][0]}`), ...(E && E.seq && E.seq.length ? [`Enchaînement : ${E.seq.map(x => x.ex).join(' → ')}`] : []), ...(flu != null ? [`Fluidité : ${PK_M[flu][0]}`] : [])];
     if (pkUpsert({ key: `parkour|${cls}|${n}`, tool: 'parkour', label: 'Parkour', classe: cls, eleve: n, valeur: L.length || flu != null ? `${ok}/${L.length} élément${L.length > 1 ? 's' : ''} validé${ok > 1 ? 's' : ''}${flu != null ? ' · fluidité : ' + PK_M[flu][0].toLowerCase() : ''}` : '', detail: det.join(' · ') })) ch = true;
   });
-  if (hasVal && C.length !== nC && typeof valRegroup === 'function') valRegroup(C);
+  if (hasVal && typeof valRegroup === 'function') valRegroup(C);
   return ch; }
 
 let PK_UNDO = null;   // dernière suppression : { label, evals, list, ench, cls, val, res }
