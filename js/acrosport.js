@@ -541,13 +541,18 @@ function acroEditor(src, onSave) {
 /* Copie d'office des pyramides validées de l'enchaînement vers ✅ Validation enseignant + résultats (📊 Bilan) */
 function acroSync(cls) {
   if (!cls) return false; const gs = ((DB.acro || {}).groupes || {})[cls] || [], items = {}; let ch = false;
-  gs.forEach(g => (g.seq || []).forEach(it => { if (it.t !== 'fig' || it.m == null) return; const f = acroFind(it.fig); if (!f) return;
-    const x = { id: 'ac' + it.fig, n: `Pyramides · ${f.n} (niv. ${acroNiv(f)})`, v: it.m, s: `${it.m}|${it.mt || 0}`, t: it.mt || 0, f };
+  // niveau de chaque pyramide choisie : A insuffisante · B fragile · C satisfaisante · D très bonne maîtrise
+  gs.forEach(g => (g.seq || []).forEach(it => { if (it.t !== 'fig') return; const f = acroFind(it.fig); if (!f) return; const lv = acroNiv(f);
+    const x = { id: 'nvac' + it.fig, n: `Niveau des pyramides · ${f.n} (niv. ${lv})`, v: Math.max(0, 'ABCD'.indexOf(lv)), s: 'lv' + lv, t: -1, f, nv: 1 };
+    (g.members || []).forEach(n => { const L = items[n] = items[n] || []; if (!L.some(y => y.id === x.id)) L.push(x); }); }));
+  // chaque pyramide de l'enchaînement compte : non validée = pas réalisée = maîtrise insuffisante
+  gs.forEach(g => (g.seq || []).forEach(it => { if (it.t !== 'fig') return; const f = acroFind(it.fig); if (!f) return; const no = it.m == null;
+    const x = { id: 'ac' + it.fig, n: `Pyramides · ${f.n} (niv. ${acroNiv(f)})`, v: no ? 0 : it.m, s: no ? 'none' : `${it.m}|${it.mt || 0}`, t: no ? -0.5 : it.mt || 0, f, no };
     (g.members || []).forEach(n => { const L = items[n] = items[n] || [], j = L.findIndex(y => y.id === x.id); if (j < 0) L.push(x); else if (x.t >= L[j].t) L[j] = x; }); }));
   const names = [...new Set([...(typeof studentsOf === 'function' ? studentsOf(cls) : []), ...Object.keys(items)])];
   if (typeof valCopy === 'function' && valCopy('acrosport', cls, items, names)) ch = true;
-  names.forEach(n => { const L = items[n] || [], av = L.length ? epsMAvg(L.map(x => x.v)) : null;
-    const r = { key: `acro-ench|${cls}|${n}`, tool: 'acrosport', label: 'Acrosport · enchaînement', classe: cls, eleve: n, valeur: av == null ? '' : `${EPS_M[av][0]} · ${L.length} pyramide${L.length > 1 ? 's' : ''}`, detail: L.map(x => `${x.f.n} : ${EPS_M[x.v][2]}`).join(' · ') };
+  names.forEach(n => { const L = (items[n] || []).filter(x => !x.nv), av = L.length ? epsMAvg(L.map(x => x.v)) : null;
+    const r = { key: `acro-ench|${cls}|${n}`, tool: 'acrosport', label: 'Acrosport · enchaînement', classe: cls, eleve: n, valeur: av == null ? '' : `${EPS_M[av][0]} · ${L.length} pyramide${L.length > 1 ? 's' : ''}`, detail: L.map(x => `${x.f.n} : ${x.no ? 'non validée' : EPS_M[x.v][2]}`).join(' · ') };
     if (typeof epsUpsertResult === 'function' && epsUpsertResult(r)) ch = true; });
   return ch; }
 TOOL_IMPL.acrosport = function (el) {

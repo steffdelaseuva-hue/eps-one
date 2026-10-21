@@ -75,15 +75,18 @@ function epsUpsertResult(o) { DB.resultats = DB.resultats || []; const id = 'r:'
 /* Copie d'office dans la validation enseignant : items = { élève: [{ id, n, v (niveau 0-3), s (repère de la source) }] }.
    Une valeur copiée n'est remplacée que si sa source change (repère « _s ») : les retouches faites dans ✅ restent.
    Un élément copié qui n'existe plus dans la source est retiré. Met aussi à jour le résultat « validation enseignant ». */
+/* Regroupe les critères par rubrique (ordre de première apparition), sans changer l'ordre à l'intérieur d'une rubrique */
+const valRegroup = C => { const G = valGroups(C).flatMap(g => g.items); if (G.some((c, i) => c !== C[i])) C.splice(0, C.length, ...G); };
 function valCopy(tool, cls, items, names) {
-  if (!cls || !VAL_TOOLS[tool]) return false; const lv = valLevelOf(cls), ck = valHasSet(tool, lv) ? tool + '@' + lv : tool, C = valCrit(ck), all = valOf(tool, cls); let ch = false;
+  if (!cls || !VAL_TOOLS[tool]) return false; const lv = valLevelOf(cls), ck = valHasSet(tool, lv) ? tool + '@' + lv : tool, C = valCrit(ck), all = valOf(tool, cls), nC = C.length; let ch = false;
   [...new Set([...(names || []), ...Object.keys(items), ...Object.keys(all)])].forEach(n => {
-    const L = items[n] || [], W = all[n] || {}, seen = new Set(L.map(x => x.id)); let wch = false;
+    const L = (items[n] || []).slice().sort((a, b) => /^nv/.test(a.id) - /^nv/.test(b.id)), W = all[n] || {}, seen = new Set(L.map(x => x.id)); let wch = false;   // critères « Niveau des … » après les maîtrises
     L.forEach(x => { if (W['_s' + x.id] === x.s) return; if (!C.some(c => c.id === x.id)) C.push({ id: x.id, n: x.n }); W[x.id] = x.v; delete W['_p' + x.id]; W['_s' + x.id] = x.s; wch = true; });
     Object.keys(W).filter(k => k.startsWith('_s') && !seen.has(k.slice(2))).forEach(k => { const id = k.slice(2); delete W[id]; delete W['_p' + id]; delete W[k]; wch = true; });
     if (wch) { W._t = Date.now(); ch = true; }
     if (Object.keys(W).some(k => k !== '_t')) all[n] = W; else if (all[n]) { delete all[n]; ch = true; }
     if (epsUpsertResult(valResultObj(tool, cls, n))) ch = true; });
+  if (C.length !== nC) valRegroup(C);
   return ch; }
 /* Résultat « validation enseignant » d'un élève (outil sans sous-sport), sans enregistrer : utilisé pour les copies automatiques (Parkour) */
 function valResultObj(tool, cls, n) {

@@ -4,9 +4,10 @@
    ========================================================= */
 /* Page Ko-fi : laisser vide tant qu'elle n'existe pas (le bouton est alors masqué) */
 const KOFI_URL = 'https://ko-fi.com/epsone';
-const APP_VERSION = '23.110';
+const APP_VERSION = '23.111';
 const APP_URL = 'https://steffdelaseuva-hue.github.io/eps-one/';
 const CHANGELOG = [
+  { v: '23.111', items: ['Parkour, Gymnastique et Acrosport · ✅ Validation enseignant : nouveau critère « Niveau des éléments » rempli d\'office pour chaque élément choisi dans l\'enchaînement (Parkour : niveau 1 = insuffisante · 2 = fragile · 3 = satisfaisante · 4 = très bonne ; Acrosport : A · B · C · D ; Gym : A–D en niveau 1, C–F en niveau 2 selon la lettre maximale), modifiable ensuite.', 'Chaque élément / pyramide de l\'enchaînement compte dans la validation : non validé par l\'enseignant = maîtrise insuffisante.'] },
   { v: '23.110', items: ['Gymnastique et Acrosport : bouton ✅ Validation enseignant en haut (critères, note sur 20, poids) ; les éléments / pyramides validés dans l\'enchaînement y sont copiés d\'office pour chaque élève du groupe, modifiables ensuite.', 'Gymnastique et Acrosport : bouton 📊 Bilan en haut (fiches élèves PDF / ZIP, bilan de la classe).'] },
   { v: '23.109', items: ['Parkour : la fluidité ne se valide plus élément par élément, seulement dans « 🌊 Fluidité de l\'enchaînement ».', 'Parkour : bouton ✅ Validation enseignant en haut (critères, note sur 20, poids) ; les éléments évalués et la fluidité y sont copiés d\'office, modifiables ensuite.', 'Parkour : bouton 📊 Bilan en haut (fiches élèves PDF / ZIP, bilan de la classe).'] },
   { v: '23.108', items: ['Cartes Dropbox et Google Drive : mention « 🔒 Chiffrement de bout en bout (recommandé) » visible dès avant la connexion.'] },

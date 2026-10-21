@@ -424,13 +424,20 @@ window.epsMAvg = window.epsMAvg || (L => { const v = L.filter(x => x != null); r
 const GYM_SEC = { av: 'Tourner avant', ar: 'Tourner arrière', rv: 'Se renverser', lat: 'Renversement latéral', vol: 'Voler', vrot: 'Voler et tourner' };
 function gymSync(cls) {
   if (!cls) return false; const Gd = gymDB(), gs = [...(Gd.groupes[cls] || []), ...Object.values((Gd.indiv || {})[cls] || {})], items = {}, info = {}; let ch = false;
-  gs.forEach(g => (g.seq || []).forEach(it => { if (it.t !== 'el' || it.m == null) return; const e = gymFind(it.el); if (!e) return;
-    const x = { id: 'gy' + it.el, n: `${GYM_SEC[e.fam] || 'Gym'} · ${e.lvl} – ${e.n}`, v: it.m, s: `${it.m}|${it.mt || 0}`, t: it.mt || 0, e };
+  /* Niveau de chaque élément choisi, sur l'échelle du niveau de l'enchaînement (lettre maximale des exigences) :
+     Niveau 1 (A–D) : A insuffisante · B fragile · C satisfaisante · D très bonne · Niveau 2 (C–F) : C · D · E · F */
+  const off = gymPts((Gd.req || {}).max || 'D') <= 4 ? 0 : 2, lvM = l => Math.max(0, Math.min(3, gymPts(l) - 1 - off));
+  gs.forEach(g => (g.seq || []).forEach(it => { if (it.t !== 'el') return; const e = gymFind(it.el); if (!e) return;
+    const x = { id: 'nvgy' + it.el, n: `Niveau des éléments · ${e.lvl} – ${e.n}`, v: lvM(e.lvl), s: 'lv' + e.lvl + off, t: -1, e, nv: 1 };
+    (g.members || []).forEach(n => { const L = items[n] = items[n] || []; if (!L.some(y => y.id === x.id)) L.push(x); }); }));
+  // chaque élément de l'enchaînement compte : non validé = pas réalisé = maîtrise insuffisante
+  gs.forEach(g => (g.seq || []).forEach(it => { if (it.t !== 'el') return; const e = gymFind(it.el); if (!e) return; const no = it.m == null;
+    const x = { id: 'gy' + it.el, n: `${GYM_SEC[e.fam] || 'Gym'} · ${e.lvl} – ${e.n}`, v: no ? 0 : it.m, s: no ? 'none' : `${it.m}|${it.mt || 0}`, t: no ? -0.5 : it.mt || 0, e, no };
     (g.members || []).forEach(n => { const L = items[n] = items[n] || [], j = L.findIndex(y => y.id === x.id); if (j < 0) L.push(x); else if (x.t >= L[j].t) L[j] = x; }); }));
   const names = [...new Set([...(typeof studentsOf === 'function' ? studentsOf(cls) : []), ...Object.keys(items)])];
   if (typeof valCopy === 'function' && valCopy('gym', cls, items, names)) ch = true;
-  names.forEach(n => { const L = items[n] || [], av = L.length ? epsMAvg(L.map(x => x.v)) : null, pts = L.reduce((a, x) => a + gymPts(x.e.lvl), 0);
-    const r = { key: `gym-ench|${cls}|${n}`, tool: 'gym', label: 'Gymnastique · enchaînement', classe: cls, eleve: n, valeur: av == null ? '' : `${EPS_M[av][0]} · ${L.length} élément${L.length > 1 ? 's' : ''} · ${pts} pt${pts > 1 ? 's' : ''}`, detail: L.map(x => `${x.e.lvl} – ${x.e.n} : ${EPS_M[x.v][2]}`).join(' · ') };
+  names.forEach(n => { const L = (items[n] || []).filter(x => !x.nv), av = L.length ? epsMAvg(L.map(x => x.v)) : null, pts = L.filter(x => !x.no).reduce((a, x) => a + gymPts(x.e.lvl), 0);
+    const r = { key: `gym-ench|${cls}|${n}`, tool: 'gym', label: 'Gymnastique · enchaînement', classe: cls, eleve: n, valeur: av == null ? '' : `${EPS_M[av][0]} · ${L.length} élément${L.length > 1 ? 's' : ''} · ${pts} pt${pts > 1 ? 's' : ''}`, detail: L.map(x => `${x.e.lvl} – ${x.e.n} : ${x.no ? 'non validé' : EPS_M[x.v][2]}`).join(' · ') };
     if (typeof epsUpsertResult === 'function' && epsUpsertResult(r)) ch = true; });
   return ch; }
 TOOL_IMPL.gym = function (el) {
