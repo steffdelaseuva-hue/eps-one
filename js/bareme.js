@@ -37,7 +37,7 @@ function barDefault(lv, name) {
   return { id: 'b' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), name: name || `Barème classe de ${lv}è`, lv: lv || '3', dfMin: 12, pjUnit: 'pct', ctOn: true, w: { df: 1, la: 1, sa: lv === '4' ? 0 : 1 }, t };
 }
 function barStore() {
-  const v = VD(); v.bar = v.bar || {}; const B = v.bar; B.who = B.who || {};
+  const v = VD(); v.bar = v.bar || {}; const B = v.bar; B.who = B.who || {}; B.man = B.man || {};
   if (!Array.isArray(B.list)) { const b3 = barDefault('3'), b4 = barDefault('4'); B.list = [b3, b4]; }
   B.list.forEach((b, i) => { if (b.name === 'Barème classe de 4è (copie du 3è : à ajuster)') B.list[i] = barDefault('4'); });
   return B;
@@ -65,7 +65,7 @@ function barFill(tb, step) {
   tb.rows = R.concat(add).sort((a, b) => tb.dir === 'down' ? a[0] - b[0] : b[0] - a[0]); return add.length;
 }
 /* ---------- Mesures d'un élève dans une épreuve ---------- */
-function barMesures(c, e, cls) {
+function barMesures(c, e, cls, b) {
   const T = cbTot(c, e), M = { T, df: { dist: T.n ? T.dist : null, t: T.t, pj: null, ct: null, ok: T.n === T.N } };
   const P = T.runs.filter(r => r.done && r.pv);
   if (P.length) {
@@ -79,17 +79,22 @@ function barMesures(c, e, cls) {
   }
   [['la', 'l'], ['sa', 's']].forEach(([k, w]) => { if (k === 'sa' && c.format !== 'triathlon') return; const E = cbElan(c, e, w), mode = c[w + 'Elan'];
     M[k] = { sans: E.deux ? E.sans || null : mode === 'sans' ? E.best || null : null, avec: E.deux ? E.avec || null : mode === 'avec' ? E.best || null : null, pj: E.deux && E.sans && E.avec ? E.gain : null, deux: E.deux, mesure: w === 'l' ? c.lMesure : 'distance' }; });
-  return M;
+  const ov = ((barStore().man || {})[cls] || {})[e.nom] || {};   // valeurs saisies à la main (priment sur l'épreuve)
+  Object.keys(ov).forEach(k => { const v = ov[k]; if (v == null) return;
+    if (k === 'df.dist') M.df.dist = v; else if (k === 'df.ct') M.df.ct = v;
+    else if (k === 'df.pj') { const u = (b && b.pjUnit) || 'pct'; M.df.pj = Object.assign({ pct: null, dist: null, time: null }, M.df.pj && !M.df.pjMan ? {} : M.df.pj); M.df.pj[u] = v; M.df.pjMan = true; }
+    else { const [a, f] = k.split('.'); if (M[a] && f) M[a][f] = v; } });
+  M.ov = ov; return M;
 }
 /* Notes d'un élève selon un barème et son public (G / F / M) */
 function barScore(b, c, M, pub) {
-  const t = b.t, S = { df: null, la: null, sa: null }, add = (o, nm, v, tb, val) => { if (val == null || !tb) return; const n = barNote(tb, val); if (n == null) return; o.items.push({ nm, v: val, n, max: tb.max }); };
+  const t = b.t, S = { df: null, la: null, sa: null }, add = (o, nm, v, tb, val, key) => { if (val == null || !tb) return; const n = barNote(tb, val); if (n == null) return; o.items.push({ nm, v: val, n, max: tb.max, key }); };
   const sub = (key, fn) => { const o = { items: [] }; fn(o); if (o.items.length) { o.pts = o.items.reduce((a, x) => a + x.n, 0); o.max = o.items.reduce((a, x) => a + x.max, 0); o.n20 = o.pts / o.max * 20; S[key] = o; } };
-  sub('df', o => { add(o, 'Distance cumulée', M.df.dist, t['df.' + pub], M.df.dist); add(o, 'Maîtrise du projet', null, t['df.pj.' + b.pjUnit], M.df.pj ? M.df.pj[b.pjUnit === 'pct' ? 'pct' : b.pjUnit] : null);
-    if (b.ctOn) add(o, 'Contrat de course', null, t['df.ct'], M.df.ct);
+  sub('df', o => { add(o, 'Distance cumulée', M.df.dist, t['df.' + pub], M.df.dist, 'df.dist'); add(o, 'Maîtrise du projet', null, t['df.pj.' + b.pjUnit], M.df.pj ? M.df.pj[b.pjUnit] : null, 'df.pj');
+    if (b.ctOn) add(o, 'Contrat de course', null, t['df.ct'], M.df.ct, 'df.ct');
     o.items.forEach(x => { if (x.nm === 'Maîtrise du projet') x.v = M.df.pj[b.pjUnit]; if (x.nm === 'Contrat de course') x.v = M.df.ct; }); });
   [['la', 'Lancer'], ['sa', 'Saut']].forEach(([k]) => { if (!M[k]) return; const g = pub === 'G' ? 'G' : 'F';
-    sub(k, o => { add(o, 'Sans élan', null, t[`${k}.${g}.sans`], M[k].sans); add(o, 'Avec élan', null, t[`${k}.${g}.avec`], M[k].avec); add(o, 'Maîtrise du projet', null, t[`${k}.pj`], M[k].pj);
+    sub(k, o => { add(o, 'Sans élan', null, t[`${k}.${g}.sans`], M[k].sans, k + '.sans'); add(o, 'Avec élan', null, t[`${k}.${g}.avec`], M[k].avec, k + '.avec'); add(o, 'Maîtrise du projet', null, t[`${k}.pj`], M[k].pj, k + '.pj');
       o.items.forEach(x => { x.v = x.nm === 'Sans élan' ? M[k].sans : x.nm === 'Avec élan' ? M[k].avec : M[k].pj; }); }); });
   const ks = Object.keys(S).filter(k => S[k]), wt = ks.reduce((a, k) => a + (+b.w[k] || 0), 0);
   S.n20 = ks.length && wt > 0 ? ks.reduce((a, k) => a + S[k].n20 * (+b.w[k] || 0), 0) / wt : null; return S;
@@ -153,7 +158,7 @@ function openBareme(cls0, onClose) {
       ${L.length ? `<label>Épreuve</label><select id="ns">${L.map((x, i) => `<option value="${i}" ${x === s ? 'selected' : ''}>${new Date(x.date).toLocaleDateString('fr-FR')} · ${esc(cbFmt(x.cfg))}</option>`).join('')}</select>` : ''}</div>`;
     if (!s) return head + '<div class="card empty" style="margin-top:12px">Aucune épreuve enregistrée pour cette classe dans le Combiné.</div>';
     const c = s.cfg, W = (B.who[cls] = B.who[cls] || {}), eleves = s.groups.flatMap(g => g.eleves);
-    const rows = eleves.map(e => { const pub = W[e.nom] || '', M = barMesures(c, e, cls), S = pub ? barScore(b, c, M, pub) : null; return { e, pub, M, S }; });
+    const rows = eleves.map(e => { const pub = W[e.nom] || '', M = barMesures(c, e, cls, b), S = pub ? barScore(b, c, M, pub) : null; return { e, pub, M, S }; });
     const warn = []; if (c.lMesure && c.lMesure !== 'distance') warn.push('Le lancer est mesuré en ' + (c.lMesure === 'zones' ? 'zones' : 'points') + ' : le barème attend des mètres.');
     const tm = rows.find(r => r.M.df.t); if (tm && Math.abs(tm.M.df.t / 60 - b.dfMin) > 0.05) warn.push(`Temps total de course : ${brFr(tm.M.df.t / 60, 1)} min (barème prévu pour ${brFr(b.dfMin, 1)} min).`);
     const cell = (it) => it ? `${it.v == null ? '' : brFr(it.v, 2)} → <b>${brFr(it.n)}</b>/${brFr(it.max)}` : '–';
@@ -179,13 +184,13 @@ function openBareme(cls0, onClose) {
     if ($('#nb')) $('#nb').onchange = e => { bi = +e.target.value; draw(); };
     if ($('#ns')) $('#ns').onchange = e => { sid = +e.target.value; draw(); };
     A('[data-who]').forEach(x => x.onchange = () => { const W = (B.who[cls] = B.who[cls] || {}); if (x.value) W[x.dataset.who] = x.value; else delete W[x.dataset.who]; commit(); draw(); });
-    const collect = () => { const L = seances(), s = L[sid >= 0 && L[sid] ? sid : 0]; if (!s) return []; const W = B.who[cls] || {}; return s.groups.flatMap(g => g.eleves).map(e => ({ e, pub: W[e.nom], S: W[e.nom] ? barScore(b, s.cfg, barMesures(s.cfg, e, cls), W[e.nom]) : null })); };
+    const collect = () => { const L = seances(), s = L[sid >= 0 && L[sid] ? sid : 0]; if (!s) return []; const W = B.who[cls] || {}; return s.groups.flatMap(g => g.eleves).map(e => ({ e, pub: W[e.nom], S: W[e.nom] ? barScore(b, s.cfg, barMesures(s.cfg, e, cls, b), W[e.nom]) : null })); };
     if ($('#nsave')) $('#nsave').onclick = () => { const R = collect().filter(r => r.S && r.S.n20 != null); if (!R.length) return toast('Choisis le public de chaque élève');
       R.forEach(({ e, pub, S }) => saveResult({ key: `valid|combine-bareme|${cls}|${e.nom}`, tool: 'combine', label: 'Combiné athlétique · ' + b.name, classe: cls, eleve: e.nom, valeur: `${brFr(S.n20, 1)} / 20`,
         detail: [['df', 'Demi-fond'], ['la', 'Lancer'], ['sa', 'Saut']].filter(([k]) => S[k]).map(([k, l]) => `${l} ${brFr(S[k].n20, 1)}/20 (${S[k].items.map(x => x.nm + ' ' + brFr(x.n) + '/' + brFr(x.max)).join(', ')})`).join(' · ') + ` · ${BAR_PUB[pub]}` }));
       save(); toast(R.length + ' notes enregistrées ✔'); };
     if ($('#ncsv')) $('#ncsv').onclick = () => { const R = collect(); download(`bareme-combine-${cls}.csv`.replace(/[^\w.-]+/g, '-'), csv([['Élève', 'Public', 'Distance cumulée (m)', 'Écart projet (%)', 'Écart projet (m)', 'Écart projet (s)', 'Demi-fond /20', 'Lancer /20', 'Saut /20', 'Note /20'],
-      ...R.map(({ e, pub, S }) => { const s0 = seances()[0], M = barMesures(s0.cfg, e, cls); return [e.nom, pub ? BAR_PUB[pub] : '', M.df.dist == null ? '' : Math.round(M.df.dist), M.df.pj ? brFr(M.df.pj.pct, 1) : '', M.df.pj ? Math.round(M.df.pj.dist) : '', M.df.pj ? Math.round(M.df.pj.time) : '', S && S.df ? brFr(S.df.n20, 1) : '', S && S.la ? brFr(S.la.n20, 1) : '', S && S.sa ? brFr(S.sa.n20, 1) : '', S && S.n20 != null ? brFr(S.n20, 1) : '']; })])); };
+      ...R.map(({ e, pub, S }) => { const s0 = seances()[0], M = barMesures(s0.cfg, e, cls, b); return [e.nom, pub ? BAR_PUB[pub] : '', M.df.dist == null ? '' : Math.round(M.df.dist), M.df.pj ? brFr(M.df.pj.pct, 1) : '', M.df.pj ? Math.round(M.df.pj.dist) : '', M.df.pj ? Math.round(M.df.pj.time) : '', S && S.df ? brFr(S.df.n20, 1) : '', S && S.la ? brFr(S.la.n20, 1) : '', S && S.sa ? brFr(S.sa.n20, 1) : '', S && S.n20 != null ? brFr(S.n20, 1) : '']; })])); };
     /* liste */
     if ($('#bnew')) $('#bnew').onclick = () => { const lv = $('#blv').value, nm = $('#bnm').value.trim() || `Barème classe de ${lv}è`, f = $('#bfrom').value, nb = f === '' ? barDefault(lv, nm) : JSON.parse(JSON.stringify(B.list[+f]));
       nb.id = 'b' + Date.now().toString(36); nb.name = nm; nb.lv = lv; B.list.push(nb); bi = B.list.length - 1; edit = true; part = 'df'; pub = 'G'; commit(); draw(); };
@@ -215,3 +220,33 @@ function openBareme(cls0, onClose) {
   draw();
 }
 window.openBareme = openBareme;
+
+/* ---------- Liaison avec la validation prof et l'épreuve ---------- */
+const barFor = cls => { const B = barStore(); return B.list.find(b => b.lv === valLevelOf(cls)) || B.list[0]; };
+const barSeance = cls => (DB.combine.seances || []).filter(s => s && s.classe === cls).sort((a, b) => b.date - a.date)[0] || null;
+const barItemLbl = { 'df.dist': '🏃 Course · distance cumulée (m)', 'df.pj': '🎯 Course · maîtrise du projet', 'df.ct': '📈 Course · contrat (% VMA)', 'la.sans': '🥏 Lancer sans élan (m)', 'la.avec': '🥏 Lancer avec élan (m)', 'la.pj': '🥏 Lancer · maîtrise du projet (écart m)', 'sa.sans': '🦘 Saut sans élan (m)', 'sa.avec': '🦘 Saut avec élan (m)', 'sa.pj': '🦘 Saut · maîtrise du projet (écart m)' };
+function barResult(cls, e, s, b) { const pub = (barStore().who[cls] || {})[e.nom]; if (!pub) return null; const M = barMesures(s.cfg, e, cls, b), S = barScore(b, s.cfg, M, pub); return { pub, M, S }; }
+function barSave(cls, e, s, b) { const R = barResult(cls, e, s, b); if (!R || R.S.n20 == null) return false; const { S, pub } = R;
+  saveResult({ key: `valid|combine-bareme|${cls}|${e.nom}`, tool: 'combine', label: 'Combiné athlétique · ' + b.name, classe: cls, eleve: e.nom, valeur: `${brFr(S.n20, 1)} / 20`,
+    detail: [['df', 'Demi-fond'], ['la', 'Lancer'], ['sa', 'Saut']].filter(([k]) => S[k]).map(([k, l]) => `${l} ${brFr(S[k].n20, 1)}/20 (${S[k].items.map(x => x.nm + ' ' + brFr(x.n) + '/' + brFr(x.max)).join(', ')})`).join(' · ') + ` · ${BAR_PUB[pub]}` }); return true; }
+/* À l'enregistrement d'une épreuve : les notes du barème sont calculées d'office pour les élèves dont le public est connu */
+window.barAuto = function (cls, rec) { try { const b = barFor(cls), done = []; let miss = 0; rec.groups.forEach(g => g.eleves.forEach(e => { if (barSave(cls, e, rec, b)) done.push(e.nom); else miss++; })); if (done.length) save();
+  if (miss) toast(miss + ' élève(s) sans public (G/F) : indique-le dans ✅ Validation › 📐 Barèmes pour obtenir leur note'); else if (done.length) toast('Notes du barème calculées ✔'); } catch (er) { console.warn(er); } };
+/* Bloc « Barème » de la fiche d'un élève (Validation prof, Combiné) */
+window.barEleveHTML = function (cls, nom) {
+  const s = barSeance(cls), b = barFor(cls); if (!s) return `<div class="card" style="margin-top:12px"><b>📐 Barème</b><div class="muted" style="font-size:.85rem">Aucune épreuve enregistrée pour cette classe : les performances et les projets s'afficheront ici avec leur note.</div></div>`;
+  const e = s.groups.flatMap(g => g.eleves).find(x => x.nom === nom); if (!e) return `<div class="card" style="margin-top:12px"><b>📐 Barème</b><div class="muted" style="font-size:.85rem">${esc(nom)} n'a pas participé à la dernière épreuve (${new Date(s.date).toLocaleDateString('fr-FR')}).</div></div>`;
+  const pub = (barStore().who[cls] || {})[nom] || '', R = pub ? barResult(cls, e, s, b) : null, S = R && R.S, ov = (barStore().man[cls] || {})[nom] || {};
+  const sel = `<select data-bwho style="padding:6px"><option value="">Public ?</option>${Object.entries(BAR_PUB).map(([k, l]) => `<option value="${k}" ${pub === k ? 'selected' : ''}>${l}</option>`).join('')}</select>`;
+  const rows = S ? [['df', 'Demi-fond'], ['la', 'Lancer'], ['sa', 'Saut']].filter(([k]) => S[k]).map(([k, l]) => `<div style="margin-top:10px;font-weight:900;font-size:.78rem;text-transform:uppercase;letter-spacing:.05em">${l} · ${brFr(S[k].n20, 1)} / 20</div>` + S[k].items.map(x => `<div style="display:flex;align-items:center;gap:6px;padding:6px 0;border-top:1px solid var(--line);flex-wrap:wrap"><span style="flex:1;min-width:150px;font-weight:700;font-size:.88rem">${barItemLbl[x.key] || x.nm}${ov[x.key] != null ? ' <small>✎ saisi</small>' : ''}</span>
+      <input data-bman="${x.key}" value="${brFr(x.v, 2)}" inputmode="decimal" style="width:84px;padding:6px;text-align:center" title="Modifier la valeur à la main"><b style="min-width:70px;text-align:right">${brFr(x.n)} / ${brFr(x.max)}</b>${ov[x.key] != null ? `<button class="btn btn-ghost" style="padding:3px 8px" data-bmanx="${x.key}" title="Reprendre la valeur de l'épreuve">↺</button>` : ''}</div>`).join('')).join('') : '';
+  return `<div class="card" style="margin-top:12px"><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><b style="flex:1">📐 ${esc(b.name)}</b>${sel}</div>
+    <div class="muted" style="font-size:.78rem;margin-top:4px">Épreuve du ${new Date(s.date).toLocaleDateString('fr-FR')} · performances et projets repris d'office ; tu peux corriger une valeur : la note du barème suit.</div>
+    ${!pub ? '<div style="margin-top:8px;font-size:.88rem">Choisis le public (Garçons / Filles / Marche rapide) pour calculer la note.</div>' : !S || !S.n20 && S.n20 !== 0 ? '<div class="muted" style="margin-top:8px">Aucune performance enregistrée.</div>' : rows + `<div style="margin-top:10px;padding:10px 12px;border-radius:12px;background:var(--grad-soft);display:flex;justify-content:space-between;align-items:baseline"><b>Note du barème</b><span style="font-size:1.6rem;font-weight:900">${brFr(S.n20, 1)} / 20</span></div>`}</div>`;
+};
+window.barEleveBind = function (o, cls, nom, redraw) {
+  const B = barStore(), s = barSeance(cls), b = barFor(cls), set = () => { save(); window.syncFlush && window.syncFlush(); const e = s && s.groups.flatMap(g => g.eleves).find(x => x.nom === nom); if (e) barSave(cls, e, s, b); save(); redraw(); };
+  const w = o.querySelector('[data-bwho]'); if (w) w.onchange = () => { const W = (B.who[cls] = B.who[cls] || {}); if (w.value) W[nom] = w.value; else delete W[nom]; set(); };
+  o.querySelectorAll('[data-bman]').forEach(i => i.onchange = () => { const M = (B.man[cls] = B.man[cls] || {}), m = (M[nom] = M[nom] || {}), v = brNum(i.value); if (v == null) delete m[i.dataset.bman]; else m[i.dataset.bman] = v; set(); });
+  o.querySelectorAll('[data-bmanx]').forEach(i => i.onclick = () => { const m = ((B.man[cls] || {})[nom]) || {}; delete m[i.dataset.bmanx]; set(); });
+};

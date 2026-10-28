@@ -426,7 +426,7 @@ TOOL_IMPL.combine = function (el) {
       DB.combine.seances.push((window.epsTg ? epsTg(rec) : rec)); DB.combine.current = null; vk = null;
       // synthèse « Résultats des élèves » : une ligne par élève ayant des résultats
       done.forEach(g => g.eleves.filter(hasData).forEach(e => saveResult({ tool: 'combine', label: 'Combiné athlétique', classe: S.classe, eleve: e.nom, ...resTxt(c, e, grp ? g.name : '') })));
-      save(); clearInterval(iv); toast('Épreuve enregistrée ✔'); tab = 'bilan'; frame(); };
+      window.barAuto && barAuto(S.classe, rec); save(); clearInterval(iv); toast('Épreuve enregistrée ✔'); tab = 'bilan'; frame(); };
     const startBtnLbl = (o, prefix) => { const k = nextK(o), T = TL(o); if (k == null) return '';
       return T.ph === 'rest' ? `⏭ Départ course ${k + 1} maintenant` : multi ? `${prefix} course ${k + 1}` : ''; };
     // Vue « un seul groupe » : ce que voient les élèves sur leur tablette
