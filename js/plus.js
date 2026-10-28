@@ -4,9 +4,10 @@
    ========================================================= */
 /* Page Ko-fi : laisser vide tant qu'elle n'existe pas (le bouton est alors masqué) */
 const KOFI_URL = 'https://ko-fi.com/epsone';
-const APP_VERSION = '23.115';
+const APP_VERSION = '23.117';
 const APP_URL = 'https://steffdelaseuva-hue.github.io/eps-one/';
 const CHANGELOG = [
+  { v: '23.117', items: ['Combiné athlétique › ✅ Validation prof › 📐 Barèmes : création de barèmes par niveau de classe (3è et 4è proposés, modifiables) avec sous-barèmes Demi-fond (Garçons / Filles / Marche rapide, somme des courses, écart moyen au projet en %, m ou s, contrat de course), Lancer et Saut (Garçons / Filles, sans / avec élan, écart en m). Barème 4è : course −150 m et lancer −1 m par rapport au 3è, sans saut par défaut (activable). Notes par élève, enregistrement dans Résultats, export CSV.', 'Projet de course annoncé en vitesse par défaut (réglable : distance ou temps) avec une table de correspondance vitesse ↔ distance / temps pour les élèves et l\'enseignant.'] },
   { v: '23.115', items: ['Combiné athlétique : option « Pas de projet sur la dernière course » (course libre) : pas de projet à saisir pour la dernière course, qui compte dans le total (distance, temps, classement) mais pas dans l\'écart au projet.'] },
   { v: '23.114', items: ['Plus · Nouveautés : seules les 5 dernières versions sont affichées.'] },
   { v: '23.113', items: ['Parkour · ② Créer son enchaînement : bloc « Exigences de l\'enchaînement » comme en gym (points, éléments / minimum, familles / demandées, niveau maximal, alertes).', 'Gymnastique et Acrosport · 🎬 Enchaînement : carte « 🗑 Supprimer / remettre à zéro » (vider l\'enchaînement de l\'élève ou du groupe, effacer sa validation, vider tous les enchaînements de la classe) avec « ↶ Annuler ».'] },

@@ -34,6 +34,7 @@ if (!document.getElementById('cb-css')) document.head.insertAdjacentHTML('before
 .cb-el{font-size:.8rem;margin-top:3px}
 @media (max-width:520px){.cb-tabs button{padding:8px 2px;line-height:1.15;min-width:0}.cb-tabs button span{display:block}}
 .cb-tbl td,.cb-tbl th{font-size:.8rem;padding:6px 7px;vertical-align:top;white-space:nowrap}
+.cb-corr{margin-top:8px}.cb-cc{display:flex;gap:10px;flex-wrap:wrap;margin-top:4px}.cb-cc table{border-collapse:collapse;font-size:.8rem}.cb-cc td,.cb-cc th{border:1px solid var(--line);padding:3px 8px;text-align:center}.cb-cc th{background:var(--grad-soft)}
 .cb-tbl td small{display:block;color:var(--muted);font-size:.7rem}
 </style>`);
 
@@ -129,8 +130,8 @@ const CB_PRE = [['1 course', null], ['4 × 3 min', ['duree', 180, 4, 60]], ['3 �
 
 TOOL_IMPL.combine = function (el) {
   const C0 = { format: 'duathlon', orga: 'indiv', cMode: 'distance', cDist: 800, cDur: 6, tour: 200, plotOn: true, plot: 20,
-    lEssais: 3, lEssaisA: 3, lMesure: 'distance', lElan: 'sans', sEssais: 3, sEssaisA: 3, sElan: 'sans', projOn: true, lastNoProj: false, tol: 5, refV: 10 };
-  let tab = DB.combine.current ? 'saisie' : 'config', iv, pu = 'nat', vk = null, afterPrep = 'saisie', pjSel = 0;
+    lEssais: 3, lEssaisA: 3, lMesure: 'distance', lElan: 'sans', sEssais: 3, sEssaisA: 3, sElan: 'sans', projOn: true, lastNoProj: false, pjUnit: 'v', tol: 5, refV: 10 };
+  let tab = DB.combine.current ? 'saisie' : 'config', iv, pu = (DB.combine.cfg && DB.combine.cfg.pjUnit === 'nat') ? 'nat' : 'v', vk = null, afterPrep = 'saisie', pjSel = 0;
   const cfg = () => { const c = DB.combine.cfg = DB.combine.cfg || {}; Object.keys(C0).forEach(k => { if (c[k] == null) c[k] = C0[k]; }); return cbNorm(c); };
   const projOn = () => { const S = DB.combine.current; return (S ? S.cfg : cfg()).projOn !== false; };
   function frame() {
@@ -204,6 +205,7 @@ TOOL_IMPL.combine = function (el) {
       <div class="card" data-cfg style="margin-top:12px"><h3>🎯 Projet de course</h3>
         <label style="display:flex;gap:8px;align-items:center;margin-top:0"><input type="checkbox" id="pjon" ${c.projOn ? 'checked' : ''} style="width:auto"> Chaque élève annonce un projet pour chaque course</label>
         ${c.projOn && multi ? `<label style="display:flex;gap:8px;align-items:flex-start;margin-top:10px"><input type="checkbox" id="pjlast" ${c.lastNoProj ? 'checked' : ''} style="width:auto;margin-top:3px"><span>Pas de projet sur la dernière course<br><span class="muted" style="font-weight:400;font-size:.82rem">Course « libre » : l'élève se dépasse sans chercher à tenir une allure. Elle compte dans le total (distance, temps, classement) mais pas dans l'écart au projet.</span></span></label>` : ''}
+        ${c.projOn ? `<label style="margin-top:10px">Annonce du projet par défaut</label><select id="pjunit"><option value="v" ${c.pjUnit !== 'nat' ? 'selected' : ''}>Vitesse (km/h) — avec table de correspondance distance / temps</option><option value="nat" ${c.pjUnit === 'nat' ? 'selected' : ''}>Distance (courses en durée) ou temps (courses en distance)</option></select>` : ''}
         ${c.projOn ? `<p class="df-help">En vitesse (km/h), en distance (m, tours ou plots) pour une course en durée, ou en temps pour une course en distance. Écart projet / réalisation après chaque course et sur le total.</p>
           <div class="row"><div><label>Tolérance « projet respecté » (± %)</label><input id="tol" type="number" min="1" max="30" step="1" value="${c.tol}"></div><div><label>Vitesse de référence (km/h)</label><input id="refv" type="number" min="3" step="0.5" value="${c.refV}"></div></div>
           <p class="df-help">Écart vert si ≤ ${c.tol} %, orange si ≤ ${2 * c.tol} %, rouge au-delà.${multi ? '' : `<br>Équivalence à ${dfFr(c.refV)} km/h : ${cbEq(c.refV, R[0], c)}`}</p>` : ''}</div>
@@ -223,7 +225,7 @@ TOOL_IMPL.combine = function (el) {
     const read = () => { if ($('#cd')) c.cDist = +$('#cd').value || 0; if ($('#cu')) c.cDur = +$('#cu').value || 0; c.plotOn = $('#po').checked; if ($('#pd')) c.plot = +$('#pd').value || 1;
       if ($('#se')) c.sEssais = +$('#se').value; if ($('#sl')) c.sElan = $('#sl').value; if ($('#sea')) c.sEssaisA = +$('#sea').value;
       c.lEssais = +$('#le').value; c.lElan = $('#ll').value; if ($('#lea')) c.lEssaisA = +$('#lea').value;
-      c.projOn = $('#pjon').checked; c.lastNoProj = !!($('#pjlast') && $('#pjlast').checked); if ($('#tol')) c.tol = Math.min(50, Math.max(1, dfNum($('#tol').value) || 5)); if ($('#refv')) c.refV = Math.max(3, dfNum($('#refv').value) || 10);
+      c.projOn = $('#pjon').checked; c.lastNoProj = !!($('#pjlast') && $('#pjlast').checked); if ($('#pjunit')) c.pjUnit = $('#pjunit').value; if ($('#tol')) c.tol = Math.min(50, Math.max(1, dfNum($('#tol').value) || 5)); if ($('#refv')) c.refV = Math.max(3, dfNum($('#refv').value) || 10);
       if (!multi) { c.runs = [cbLegacyRun(c)]; c.rests = []; } save(); };
     const re = () => { if (c.runs.length > 1) cbSync(c); save(); config(box); };
     all('[data-f]').forEach(b => b.onclick = () => { read(); c.format = b.dataset.f; config(box); });
@@ -261,7 +263,7 @@ TOOL_IMPL.combine = function (el) {
   function prepare(box) {
     const c = cfg();
     if (!DB.classes.length) { box.innerHTML = noClassMsg; return; }
-    const launch = (classe, groups) => { vk = null; DB.combine.current = { id: Date.now().toString(36), date: Date.now(), classe, cfg: JSON.parse(JSON.stringify(c)), start: null,
+    const launch = (classe, groups) => { vk = null; pu = c.pjUnit === 'nat' ? 'nat' : 'v'; DB.combine.current = { id: Date.now().toString(36), date: Date.now(), classe, cfg: JSON.parse(JSON.stringify(c)), start: null,
       groups: groups.map(g => ({ name: g.name, eleves: g.members.map(n => blankE(c, n)) })) }; if (afterPrep === 'manual') DB.combine.current.manual = true; pub(DB.combine.current, true); save(); tab = afterPrep === 'projets' && DB.combine.current.cfg.projOn !== false ? 'projets' : 'saisie'; afterPrep = 'saisie'; frame(); };
     if (c.orga === 'indiv') {
       box.innerHTML = `<div class="card" data-cfg><label style="margin-top:0">Classe</label><select id="cl">${DB.classes.map(x => `<option ${x.name === (DB.lastClass || '') ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select><button class="btn btn-grad btn-block" style="margin-top:12px" id="ok">▶ Commencer</button></div>`;
@@ -292,6 +294,16 @@ TOOL_IMPL.combine = function (el) {
       return `<div class="it"><div style="display:flex;justify-content:space-between;gap:6px"><b style="font-size:.82rem">C${k + 1} · ${cbRunLbl(run)}</b><span class="muted" style="font-size:.72rem">${uLbl[U(run)]}</span></div>
         <input data-pj="${gi}|${ei}|${k}" value="${fmtIn(v, run)}" inputmode="decimal" placeholder="${U(run) === 't' ? 'ex. 2:30' : '—'}" aria-label="Projet course ${k + 1}">
         <div class="df-eq">${v ? cbEq(v, run, c) : ''}</div>${warn(v)}</div>`; };
+    /* Table de correspondance vitesse ↔ distance / temps (pour l'élève et l'enseignant) */
+    const corr = () => { const seen = new Set(), L = R.filter(r => { const k = cbRunLbl(r); if (seen.has(k)) return false; seen.add(k); return true; });
+      const sp = []; for (let v = 6; v <= 18.01; v += 0.5) sp.push(v);
+      const one = r => { if (r.k === 'duree') { const m = v => v / 3.6 * r.d, lo = m(6), hi = m(18), st = r.d <= 240 ? 50 : 100, ds = []; for (let d = Math.ceil(lo / st) * st; d <= hi; d += st) ds.push(d);
+          return `<div class="cb-corr"><b>${cbRunLbl(r)}</b><div class="cb-cc"><table><tr><th>km/h</th><th>m</th><th>tours</th></tr>${sp.map(v => `<tr><td>${dfFr(v, 1)}</td><td>${dfFr(m(v), 0)}</td><td>${dfFr(m(v) / c.tour, 2)}</td></tr>`).join('')}</table>
+            <table><tr><th>m</th><th>km/h</th></tr>${ds.map(d => `<tr><td>${d}</td><td>${dfFr(d / r.d * 3.6, 1)}</td></tr>`).join('')}</table></div></div>`; }
+        const tm = v => r.m / (v / 3.6), lo = tm(18), hi = tm(6), st = r.m <= 600 ? 10 : 15, ts = []; for (let t = Math.ceil(lo / st) * st; t <= hi; t += st) ts.push(t);
+        return `<div class="cb-corr"><b>${cbRunLbl(r)}</b><div class="cb-cc"><table><tr><th>km/h</th><th>temps</th></tr>${sp.map(v => `<tr><td>${dfFr(v, 1)}</td><td>${dfT(tm(v))}</td></tr>`).join('')}</table>
+          <table><tr><th>temps</th><th>km/h</th></tr>${ts.map(t => `<tr><td>${dfT(t)}</td><td>${dfFr(r.m / t * 3.6, 1)}</td></tr>`).join('')}</table></div></div>`; };
+      return `<details class="cb-pjd"><summary>📋 Table de correspondance (vitesse ↔ ${anyD ? 'distance' : ''}${anyD && R.some(r => r.k === 'dist') ? ' / ' : ''}${R.some(r => r.k === 'dist') ? 'temps' : ''})</summary><p class="df-help" style="margin-top:4px">Lis à gauche la vitesse à annoncer, ou à droite ce que représente une distance (ou un temps) en km/h.</p>${L.map(one).join('')}</details>`; };
     const unitTog = () => `<div class="tog">${[['v', 'Vitesse (km/h)'], ['nat', allD ? 'Distance (m)' : allM ? 'Temps' : 'Distance / temps'], ...(anyD ? [['tours', 'Tours']] : []), ...(anyD && c.plotOn ? [['plots', 'Plots']] : [])].map(([k, l]) => `<button data-pu="${k}" class="${pu === k ? 'on' : ''}">${l}</button>`).join('')}</div>`;
     const bind = (box, redraw) => {
       box.querySelectorAll('[data-pu]').forEach(b => b.onclick = () => { pu = b.dataset.pu; redraw(); });
@@ -301,7 +313,7 @@ TOOL_IMPL.combine = function (el) {
         const id = i.dataset.pj; redraw(); const L = [...box.querySelectorAll('[data-pj]')], j = L.findIndex(x => x.dataset.pj === id); if (L[j + 1]) L[j + 1].focus({ preventScroll: true }); });
     };
     const NP = R.filter((r, k) => !cbNoPj(c, k)).length, filled = e => R.every((r, k) => cbNoPj(c, k) || (e.proj || [])[k] > 0);
-    return { cell, unitTog, bind, filled, np: NP, help: `Chaque élève annonce ce qu'il pense réaliser sur chaque course : ${allD ? 'une distance (m, tours ou plots)' : allM ? 'un temps' : 'une distance (courses en durée) ou un temps (courses en distance)'} ou une vitesse. Les équivalences s'affichent aussitôt.` };
+    return { cell, unitTog, corr, bind, filled, np: NP, help: `Chaque élève annonce ce qu'il pense réaliser sur chaque course : ${allD ? 'une distance (m, tours ou plots)' : allM ? 'un temps' : 'une distance (courses en durée) ou un temps (courses en distance)'} ou une vitesse. Les équivalences s'affichent aussitôt.` };
   };
   function projets(box) {
     const S = DB.combine.current;
@@ -310,7 +322,7 @@ TOOL_IMPL.combine = function (el) {
     S.groups.forEach(g => g.eleves.forEach(e => normE(c, e)));
     const parts = S.groups.flatMap((g, gi) => S.only != null && S.only !== gi ? [] : g.eleves.map((e, ei) => ({ g, gi, e, ei })));
     box.innerHTML = `<div class="card"><h3 style="margin-top:0">🎯 Projets de course</h3><p class="df-help" style="margin-top:0">${K.help}</p>
-        <label>Saisir en</label>${K.unitTog()}<p class="df-help">${cbFmt(c)} · ${parts.filter(p => K.filled(p.e)).length}/${parts.length} projets complets · tolérance ± ${c.tol} %</p></div>
+        <label>Saisir en</label>${K.unitTog()}<p class="df-help">${cbFmt(c)} · ${parts.filter(p => K.filled(p.e)).length}/${parts.length} projets complets · tolérance ± ${c.tol} %</p>${K.corr()}</div>
       ${parts.length ? (() => { if (pjSel >= parts.length) pjSel = 0; const p = parts[pjSel];
         return `<div class="card" style="margin-top:10px"><label style="margin-top:0">${grp ? 'Élève (groupe)' : 'Élève'} · ${pjSel + 1}/${parts.length}</label>
           <div class="row" style="align-items:center;gap:6px"><button class="btn btn-ghost" style="flex:0 0 52px" id="pjp" aria-label="Élève précédent">◀</button>
@@ -384,7 +396,7 @@ TOOL_IMPL.combine = function (el) {
         <span class="tot">Total ${dfFr(T.dist, 0)} m · ${dfT(T.t)} · ${dfFr(T.v)} km/h${T.ev != null ? ` · écart <b class="${cbCls(T.ev, c)}">${dfPct(T.ev)}</b>` : ''}</span></div>`; };
     const pjBlock = (gi, ei, e, T) => { if (!pj) return ''; const ok = K.filled(e);
       return `<details class="cb-pjd" ${TL(T).ph === 'idle' && !started(T, 0) && !ok ? 'open' : ''}><summary>🎯 ${grp ? 'Projet de ' + esc(e.nom) : 'Mon projet'} <span class="muted" style="font-weight:600;font-size:.8rem">· ${R.filter((r, k) => !cbNoPj(c, k) && (e.proj || [])[k] > 0).length}/${K.np} ${ok ? '✅' : ''}</span></summary>
-        <p class="df-help" style="margin-top:4px">Saisir en :</p>${K.unitTog()}<div class="df-pj">${R.map((r, k) => K.cell(gi, ei, e, k)).join('')}</div></details>`; };
+        <p class="df-help" style="margin-top:4px">Saisir en :</p>${K.unitTog()}<div class="df-pj">${R.map((r, k) => K.cell(gi, ei, e, k)).join('')}</div>${K.corr()}</details>`; };
     // sauts / lancers : champs sans élan (ou unique) + avec élan si « les deux »
     const essaisHTML = (k, e, big) => { const inp = (attr, arr) => arr.map((v, i) => big ? `<input class="gv-in" inputmode="decimal" data-${attr}="${k}|${i}" value="${esc(v)}" placeholder="${i + 1}">` : `<input style="width:58px;padding:6px;text-align:center" inputmode="decimal" data-${attr}="${k}|${i}" value="${esc(v)}" placeholder="${i + 1}">`).join(big ? '' : ' ');
       const block = (ico, nm, u, E, a1, arr1, a2, arr2, elan) => {
