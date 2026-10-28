@@ -132,7 +132,7 @@ const ASNS = ['Entrer dans l\'eau en chute arrière', 'Nager sur le ventre', 'Pa
   'Passage du ventre au dos', 'Nage dorsale', 'Flottaison en étoile sur le dos', '2e immersion (repasser sous l\'obstacle)'];
 function natationSavoir(el) {
   if (!DB.classes.length) { el.innerHTML = noClassMsg; return; }
-  let cls = DB.classes.some(c => c.name === DB.lastClass) ? DB.lastClass : DB.classes[0].name, si = 0;
+  let cls = DB.classes.some(c => c.name === DB.lastClass) ? DB.lastClass : DB.classes[0].name, si = 0; const sel = new Set();
   const rec = n => { DB.asns[cls] = DB.asns[cls] || {}; return DB.asns[cls][n] = DB.asns[cls][n] || { r: ASNS.map(() => null) }; };
   const ok = r => r.r.every(v => v === 1);
   const draw = () => {
@@ -143,13 +143,17 @@ function natationSavoir(el) {
       ${n ? `<div class="card" style="margin-top:12px"><h3>${esc(n)} — test du savoir-nager</h3>
         ${ASNS.map((l, i) => `<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--line)"><span style="flex:1;font-weight:700">${i + 1}. ${l}</span>
           <button class="btn ${R.r[i] === 1 ? 'btn-grad' : 'btn-ghost'}" style="flex:0 0 auto;padding:10px 12px" data-ok="${i}">✔</button><button class="btn ${R.r[i] === 0 ? 'btn-danger' : 'btn-ghost'}" style="flex:0 0 auto;padding:10px 12px" data-ko="${i}">✗</button></div>`).join('')}
+        ${ok(R) ? '' : '<button class="btn btn-grad btn-block" style="margin-top:10px" id="allok">✔ Valider tous les items d\'un coup</button>'}
         <div class="${ok(R) ? 'win' : 'card'}" style="margin-top:12px;text-align:center">${ok(R) ? '🏅 Savoir-nager validé' : `${R.r.filter(v => v === 1).length}/${ASNS.length} épreuves validées`}</div>
         ${ok(R) ? '<button class="btn btn-grad btn-block" style="margin-top:10px" id="att1">📄 Attestation « savoir-nager » en sécurité</button>' : ''}
         <div class="row" style="margin-top:10px"><button class="btn btn-ghost" id="pv">← Élève précédent</button><button class="btn btn-grad" id="nx">Élève suivant →</button></div></div>` : ''}
       <div class="section-title"><h2>Bilan de la classe · ${nb}/${st.length} validés</h2><button class="link" id="exp">Exporter CSV</button></div>
-      ${nb ? '<button class="btn btn-ghost btn-block" style="margin-bottom:10px" id="attc">📄 Attestations de la classe : un PDF par élève validé (' + nb + ')</button>' : ''}
-      <div class="card sheet-table"><table><tr><th>Élève</th>${ASNS.map((l, i) => `<th title="${esc(l)}">${i + 1}</th>`).join('')}<th>Validé</th></tr>
-        ${st.map((x, k) => { const r = DB.asns[cls]?.[x]; return `<tr data-row="${k}" style="cursor:pointer"><td><b>${esc(x)}</b></td>${ASNS.map((_, i) => { const v = r ? r.r[i] : null; return `<td>${v === 1 ? '<b style="color:#1B9E5A">✔</b>' : v === 0 ? '<b style="color:var(--danger)">✗</b>' : '<span class="muted">·</span>'}</td>`; }).join('')}<td>${r && ok(r) ? '🏅' : ''}</td></tr>`; }).join('')}</table>
+      <div class="card" style="margin-bottom:10px"><b>📋 Grille de la classe</b><div class="muted" style="font-size:.8rem">Coche les élèves puis valide tous leurs critères d'un coup. Les attestations de tous les élèves validés se génèrent d'ici (un PDF par élève).</div>
+        <div class="row" style="gap:6px;margin-top:8px;flex-wrap:wrap"><button class="btn btn-ghost" style="padding:8px" id="gnv">☑ Cocher les non validés</button><button class="btn btn-ghost" style="padding:8px" id="gnone">☐ Tout décocher</button></div>
+        <button class="btn btn-grad btn-block" style="margin-top:8px" id="gall" ${sel.size ? '' : 'disabled'}>✔ Valider tous les critères des ${sel.size} élève(s) coché(s)</button>
+        <button class="btn btn-grad btn-block" style="margin-top:8px" id="attc" ${nb ? '' : 'disabled'}>📄 Générer tous les PDF individuels des ${nb} élève(s) validé(s)</button></div>
+      <div class="card sheet-table"><table><tr><th></th><th>Élève</th>${ASNS.map((l, i) => `<th title="${esc(l)}">${i + 1}</th>`).join('')}<th>Validé</th></tr>
+        ${st.map((x, k) => { const r = DB.asns[cls]?.[x]; return `<tr data-row="${k}" style="cursor:pointer"><td><input type="checkbox" data-sel="${esc(x)}" ${sel.has(x) ? 'checked' : ''} style="width:20px;height:20px"></td><td><b>${esc(x)}</b></td>${ASNS.map((_, i) => { const v = r ? r.r[i] : null; return `<td>${v === 1 ? '<b style="color:#1B9E5A">✔</b>' : v === 0 ? '<b style="color:var(--danger)">✗</b>' : '<span class="muted">·</span>'}</td>`; }).join('')}<td>${r && ok(r) ? `🏅 <button class="link" data-pdf="${esc(x)}" title="Attestation de cet élève">📄</button>` : ''}</td></tr>`; }).join('')}</table>
         <p class="muted" style="font-size:.75rem;margin:6px 0 0">${ASNS.map((l, i) => `${i + 1}. ${l}`).join(' · ')}</p></div>`;
     const $ = s => el.querySelector(s);
     $('#sc').onchange = e => { cls = e.target.value; DB.lastClass = cls; si = 0; save(); draw(); };
@@ -158,8 +162,15 @@ function natationSavoir(el) {
       if (!was && ok(R)) { saveResult({ tool: 'natation', label: 'Savoir-nager', classe: cls, eleve: n, valeur: 'Savoir-nager validé', detail: 'Toutes les épreuves du test' }); toast(`🏅 ${n} : savoir-nager validé`); } else save(); draw(); };
     el.querySelectorAll('[data-ok]').forEach(b => b.onclick = () => set(+b.dataset.ok, 1));
     el.querySelectorAll('[data-ko]').forEach(b => b.onclick = () => set(+b.dataset.ko, 0));
+    const valAll = x => { const r = rec(x), was = ok(r); r.r = ASNS.map(() => 1); r.d = Date.now(); if (!was) saveResult({ tool: 'natation', label: 'Savoir-nager', classe: cls, eleve: x, valeur: 'Savoir-nager validé', detail: 'Toutes les épreuves du test' }); return !was; };
+    if ($('#allok')) $('#allok').onclick = () => { valAll(n); save(); toast(`🏅 ${n} : savoir-nager validé`); draw(); };
     if ($('#att1')) $('#att1').onclick = () => asnsDialog(cls, [n], n);
     if ($('#attc')) $('#attc').onclick = () => asnsDialog(cls, st.filter(x => DB.asns[cls]?.[x] && ok(DB.asns[cls][x])));
+    el.querySelectorAll('[data-sel]').forEach(c => { c.onclick = e => e.stopPropagation(); c.onchange = () => { if (c.checked) sel.add(c.dataset.sel); else sel.delete(c.dataset.sel); draw(); }; });
+    el.querySelectorAll('[data-pdf]').forEach(b => b.onclick = e => { e.stopPropagation(); asnsDialog(cls, [b.dataset.pdf], b.dataset.pdf); });
+    if ($('#gnv')) $('#gnv').onclick = () => { sel.clear(); st.forEach(x => { if (!(DB.asns[cls]?.[x] && ok(DB.asns[cls][x]))) sel.add(x); }); draw(); };
+    if ($('#gnone')) $('#gnone').onclick = () => { sel.clear(); draw(); };
+    if ($('#gall')) $('#gall').onclick = () => { const L = [...sel]; if (!confirm(`Valider tous les critères du test pour ${L.length} élève(s) ?`)) return; let k = 0; L.forEach(x => { if (valAll(x)) k++; }); sel.clear(); save(); toast(`🏅 ${k} élève(s) validé(s)`); draw(); };
     if ($('#pv')) $('#pv').onclick = () => { si = Math.max(0, si - 1); draw(); };
     if ($('#nx')) $('#nx').onclick = () => { si = Math.min(st.length - 1, si + 1); draw(); };
     el.querySelectorAll('[data-row]').forEach(r => r.onclick = () => { si = +r.dataset.row; draw(); el.scrollIntoView({ behavior: 'smooth' }); });

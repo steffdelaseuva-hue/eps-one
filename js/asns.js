@@ -29,7 +29,8 @@ function asnsPdf(list, o) {
     P.text('Fait à', 26, 150, 11, { color: GR }); P.text(P.fit(o.lieu || '', 11, true, 70), 38, 150, 11, { bold: true });
     const x0 = 38 + P.width(P.fit(o.lieu || '', 11, true, 70), 11, true) + 1.5; P.text(', le', x0, 150, 11, { color: GR }); P.text(asnsFr(o.date), x0 + 8, 150, 11, { bold: true });
     P.text('Visa du responsable de l\'établissement', 36, 162, 11, { color: GR }); P.text('Professeur (PO)', 191, 162, 11, { color: GR });
-    if (o.sigV) P.image(asnsB64(o.sigV.b), o.sigV.w, o.sigV.h, 40, 165, 55, Math.min(28, 55 * o.sigV.h / o.sigV.w));
+    if (o.stamp) { const k = Math.min(70 / o.stamp.w, 32 / o.stamp.h); P.image(asnsB64(o.stamp.b), o.stamp.w, o.stamp.h, 38, 164, o.stamp.w * k, o.stamp.h * k); }
+    else if (o.sigV) P.image(asnsB64(o.sigV.b), o.sigV.w, o.sigV.h, 40, 165, 55, Math.min(28, 55 * o.sigV.h / o.sigV.w));
     if (o.sigP) P.image(asnsB64(o.sigP.b), o.sigP.w, o.sigP.h, 190, 165, 55, Math.min(28, 55 * o.sigP.h / o.sigP.w));
   });
   return P.blob();
@@ -50,19 +51,23 @@ function asnsPad(host, key, label) {
 /* Fenêtre « Attestation » : names = élèves validés de la classe ; un seul → fiche modifiable, sinon tout le lot */
 function asnsDialog(cls, names, only) {
   const c = asnsCfg(), o = document.createElement('div'); o.style.cssText = 'position:fixed;inset:0;z-index:330;background:var(--bg,#fff);overflow:auto;padding:14px 14px 40px'; document.body.appendChild(o);
-  const today = new Date(), iso = new Date(today.getTime() - today.getTimezoneOffset() * 60000).toISOString().slice(0, 10), sp = asnsSplit(only || ''), dob = (c.dob[cls] || {})[only] || '';
+  const today = new Date(), iso = c.date || new Date(today.getTime() - today.getTimezoneOffset() * 60000).toISOString().slice(0, 10), sp = asnsSplit(only || ''), dob = (c.dob[cls] || {})[only] || '';
   o.innerHTML = `<div style="max-width:700px;margin:0 auto"><div style="display:flex;align-items:center;gap:8px"><h2 style="flex:1;margin:0;font-size:1.15rem">📄 Attestation « savoir-nager » en sécurité</h2><button class="btn btn-ghost" data-q>✕ Fermer</button></div>
     <div class="card" style="margin-top:12px"><b>${only ? esc(only) : `${names.length} élève(s) validé(s) · ${esc(cls)}`}</b>
       ${only ? `<div class="row"><div><label>Nom</label><input id="an" value="${esc(sp.nom)}"></div><div><label>Prénom</label><input id="ap" value="${esc(sp.prenom)}"></div></div><label>Date de naissance</label><input type="date" id="ad" value="${esc(dob)}">` : '<div class="muted" style="font-size:.82rem">Les dates de naissance déjà saisies sont reprises ; sinon la case reste vide à compléter à la main.</div>'}</div>
     <div class="card" style="margin-top:10px"><div class="row"><div><label style="margin-top:0">Académie</label><input id="ac" value="${esc(c.acad || '')}" placeholder="Bordeaux, Versailles, Montpellier…"></div><div><label style="margin-top:0">Établissement</label><input id="et" value="${esc(c.etab || '')}" placeholder="CLG … "></div></div>
       <div class="row"><div><label>Délivrée par</label><input id="ch" value="${esc(c.chef || '')}" placeholder="M DUPONT"></div><div><label>Fonction</label><input id="fo" value="${esc(c.fonction || '')}" placeholder="Principal du collège de …"></div></div>
       <div class="row"><div><label>Lieu (Fait à)</label><input id="li" value="${esc(c.lieu || '')}"></div><div><label>Date</label><input type="date" id="dt" value="${iso}"></div></div></div>
-    <div class="card" style="margin-top:10px"><div id="pv"></div><div id="pp" style="margin-top:10px"></div></div>
+    <div class="card" style="margin-top:10px"><b>🖋 Tampon de l'établissement + signature du chef d'établissement</b><div class="muted" style="font-size:.8rem">Photo ou image du tampon signé (fond blanc). Elle est conservée et placée dans la case « Visa » de chaque attestation.</div><div id="st" style="margin-top:8px"></div><input type="file" accept="image/*" id="stf" style="margin-top:6px"></div>
+    <div class="card" style="margin-top:10px"><div class="muted" style="font-size:.8rem;margin-bottom:6px">Ou, sans tampon : signature dessinée.</div><div id="pv"></div><div id="pp" style="margin-top:10px"></div></div>
     <button class="btn btn-grad btn-block" style="margin-top:12px;padding:15px" id="go">📄 ${only ? 'Générer le PDF' : 'Générer ' + names.length + ' PDF (un par élève)'}</button></div>`;
   const $ = s => o.querySelector(s); asnsPad($('#pv'), 'sigV', 'Visa du responsable de l\'établissement (signature)'); asnsPad($('#pp'), 'sigP', 'Professeur (signature)');
   $('[data-q]').onclick = () => o.remove();
+  const showSt = () => { $('#st').innerHTML = c.stamp ? `<img src="data:image/jpeg;base64,${c.stamp.b}" style="max-width:220px;max-height:140px;border:1px solid var(--line);border-radius:8px;background:#fff"><div><button class="btn btn-ghost" style="padding:6px 10px;margin-top:6px" id="stx">🗑 Retirer le tampon</button></div>` : '<div class="muted" style="font-size:.85rem">Aucun tampon enregistré.</div>'; if ($('#stx')) $('#stx').onclick = () => { delete c.stamp; save(); showSt(); }; };
+  showSt();
+  $('#stf').onchange = e => { const f = e.target.files[0]; if (!f) return; const u = URL.createObjectURL(f), im = new Image(); im.onload = () => { const k = Math.min(1, 700 / Math.max(im.width, im.height)), w = Math.round(im.width * k), h = Math.round(im.height * k), cv = document.createElement('canvas'); cv.width = w; cv.height = h; const x = cv.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, w, h); x.drawImage(im, 0, 0, w, h); c.stamp = { w, h, b: cv.toDataURL('image/jpeg', .9).split(',')[1] }; URL.revokeObjectURL(u); save(); showSt(); toast('Tampon enregistré ✔'); }; im.src = u; };
   $('#go').onclick = async () => {
-    c.acad = $('#ac').value.trim(); c.etab = $('#et').value.trim(); c.chef = $('#ch').value.trim(); c.fonction = $('#fo').value.trim(); c.lieu = $('#li').value.trim(); const date = $('#dt').value;
+    c.acad = $('#ac').value.trim(); c.etab = $('#et').value.trim(); c.chef = $('#ch').value.trim(); c.fonction = $('#fo').value.trim(); c.lieu = $('#li').value.trim(); const date = $('#dt').value; c.date = date;
     let list; if (only) { const d = $('#ad').value; (c.dob[cls] = c.dob[cls] || {})[only] = d; list = [{ nom: $('#an').value.trim(), prenom: $('#ap').value.trim(), dob: d }]; }
     else list = names.map(n => ({ ...asnsSplit(n), dob: (c.dob[cls] || {})[n] || '' }));
     save(); const base = { ...c, date }, safe = t => String(t).replace(/[^\w.-]+/g, '-');
