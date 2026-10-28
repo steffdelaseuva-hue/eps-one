@@ -60,9 +60,11 @@ function cbNorm(c) {
 const cbX = (e, k, make) => { if (!k) return e; if (!e.rx) { if (!make) return null; e.rx = []; }
   if (!e.rx[k - 1] && make) e.rx[k - 1] = { dep: null, arr: null, tours: 0, plots: 0 }; return e.rx[k - 1] || null; };
 const cbRaw = (c, x) => x.man != null ? +x.man || 0 : (x.tours || 0) * c.tour + (c.plotOn ? (x.plots || 0) * c.plot : 0);
+// Dernière course « libre » (option de l'épreuve) : pas de projet, donc aucun écart calculé pour elle
+const cbNoPj = (c, k) => !!c.lastNoProj && c.projOn !== false && cbRuns(c).length > 1 && k === cbRuns(c).length - 1;
 // Résultat d'une course (distance, temps, vitesse, projet et écarts via dfEval)
 function cbRun(c, e, k) {
-  const run = cbRuns(c)[k], x = cbX(e, k) || {}, pv = (e.proj || [])[k] > 0 ? +e.proj[k] : null;
+  const run = cbRuns(c)[k], x = cbX(e, k) || {}, pv = !cbNoPj(c, k) && (e.proj || [])[k] > 0 ? +e.proj[k] : null;
   let dist = 0, t = null;
   if (run.k === 'duree') { dist = cbRaw(c, x); t = dist > 0 ? run.d : null; }
   else if (x.dep && x.arr) { dist = run.m; t = (x.arr - x.dep) / 1000; }
@@ -127,7 +129,7 @@ const CB_PRE = [['1 course', null], ['4 × 3 min', ['duree', 180, 4, 60]], ['3 �
 
 TOOL_IMPL.combine = function (el) {
   const C0 = { format: 'duathlon', orga: 'indiv', cMode: 'distance', cDist: 800, cDur: 6, tour: 200, plotOn: true, plot: 20,
-    lEssais: 3, lEssaisA: 3, lMesure: 'distance', lElan: 'sans', sEssais: 3, sEssaisA: 3, sElan: 'sans', projOn: true, tol: 5, refV: 10 };
+    lEssais: 3, lEssaisA: 3, lMesure: 'distance', lElan: 'sans', sEssais: 3, sEssaisA: 3, sElan: 'sans', projOn: true, lastNoProj: false, tol: 5, refV: 10 };
   let tab = DB.combine.current ? 'saisie' : 'config', iv, pu = 'nat', vk = null, afterPrep = 'saisie', pjSel = 0;
   const cfg = () => { const c = DB.combine.cfg = DB.combine.cfg || {}; Object.keys(C0).forEach(k => { if (c[k] == null) c[k] = C0[k]; }); return cbNorm(c); };
   const projOn = () => { const S = DB.combine.current; return (S ? S.cfg : cfg()).projOn !== false; };
@@ -201,6 +203,7 @@ TOOL_IMPL.combine = function (el) {
         ${multi ? '' : `<p class="muted" style="margin:8px 0 0">Équivalence : ${c.cMode === 'distance' ? `${c.cDist} m = ${n1(c.cDist / c.tour)} tour(s) de ${c.tour} m${c.plotOn ? ` = ${Math.floor(c.cDist / c.tour)} tour(s) + ${Math.round((c.cDist % c.tour) / c.plot)} plot(s)` : ''}` : `1 tour = ${c.tour} m${c.plotOn ? ` = ${n1(c.tour / c.plot)} plots` : ''}`}</p>`}</div>
       <div class="card" data-cfg style="margin-top:12px"><h3>🎯 Projet de course</h3>
         <label style="display:flex;gap:8px;align-items:center;margin-top:0"><input type="checkbox" id="pjon" ${c.projOn ? 'checked' : ''} style="width:auto"> Chaque élève annonce un projet pour chaque course</label>
+        ${c.projOn && multi ? `<label style="display:flex;gap:8px;align-items:flex-start;margin-top:10px"><input type="checkbox" id="pjlast" ${c.lastNoProj ? 'checked' : ''} style="width:auto;margin-top:3px"><span>Pas de projet sur la dernière course<br><span class="muted" style="font-weight:400;font-size:.82rem">Course « libre » : l'élève se dépasse sans chercher à tenir une allure. Elle compte dans le total (distance, temps, classement) mais pas dans l'écart au projet.</span></span></label>` : ''}
         ${c.projOn ? `<p class="df-help">En vitesse (km/h), en distance (m, tours ou plots) pour une course en durée, ou en temps pour une course en distance. Écart projet / réalisation après chaque course et sur le total.</p>
           <div class="row"><div><label>Tolérance « projet respecté » (± %)</label><input id="tol" type="number" min="1" max="30" step="1" value="${c.tol}"></div><div><label>Vitesse de référence (km/h)</label><input id="refv" type="number" min="3" step="0.5" value="${c.refV}"></div></div>
           <p class="df-help">Écart vert si ≤ ${c.tol} %, orange si ≤ ${2 * c.tol} %, rouge au-delà.${multi ? '' : `<br>Équivalence à ${dfFr(c.refV)} km/h : ${cbEq(c.refV, R[0], c)}`}</p>` : ''}</div>
@@ -220,7 +223,7 @@ TOOL_IMPL.combine = function (el) {
     const read = () => { if ($('#cd')) c.cDist = +$('#cd').value || 0; if ($('#cu')) c.cDur = +$('#cu').value || 0; c.plotOn = $('#po').checked; if ($('#pd')) c.plot = +$('#pd').value || 1;
       if ($('#se')) c.sEssais = +$('#se').value; if ($('#sl')) c.sElan = $('#sl').value; if ($('#sea')) c.sEssaisA = +$('#sea').value;
       c.lEssais = +$('#le').value; c.lElan = $('#ll').value; if ($('#lea')) c.lEssaisA = +$('#lea').value;
-      c.projOn = $('#pjon').checked; if ($('#tol')) c.tol = Math.min(50, Math.max(1, dfNum($('#tol').value) || 5)); if ($('#refv')) c.refV = Math.max(3, dfNum($('#refv').value) || 10);
+      c.projOn = $('#pjon').checked; c.lastNoProj = !!($('#pjlast') && $('#pjlast').checked); if ($('#tol')) c.tol = Math.min(50, Math.max(1, dfNum($('#tol').value) || 5)); if ($('#refv')) c.refV = Math.max(3, dfNum($('#refv').value) || 10);
       if (!multi) { c.runs = [cbLegacyRun(c)]; c.rests = []; } save(); };
     const re = () => { if (c.runs.length > 1) cbSync(c); save(); config(box); };
     all('[data-f]').forEach(b => b.onclick = () => { read(); c.format = b.dataset.f; config(box); });
@@ -285,6 +288,7 @@ TOOL_IMPL.combine = function (el) {
       const n = dfNum(s); if (n == null) return null; return n * (u === 'tours' ? c.tour : u === 'plots' ? c.plot : 1) / run.d * 3.6; };
     const warn = v => v && (v > 25 || v < 3) ? '<div class="w">⚠️ vitesse inhabituelle</div>' : '';
     const cell = (gi, ei, e, k) => { const run = R[k], v = (e.proj || [])[k] || 0;
+      if (cbNoPj(c, k)) return `<div class="it"><div style="display:flex;justify-content:space-between;gap:6px"><b style="font-size:.82rem">C${k + 1} · ${cbRunLbl(run)}</b></div><div class="muted" style="padding:10px 0;font-size:.85rem">🏁 Course libre : pas de projet</div></div>`;
       return `<div class="it"><div style="display:flex;justify-content:space-between;gap:6px"><b style="font-size:.82rem">C${k + 1} · ${cbRunLbl(run)}</b><span class="muted" style="font-size:.72rem">${uLbl[U(run)]}</span></div>
         <input data-pj="${gi}|${ei}|${k}" value="${fmtIn(v, run)}" inputmode="decimal" placeholder="${U(run) === 't' ? 'ex. 2:30' : '—'}" aria-label="Projet course ${k + 1}">
         <div class="df-eq">${v ? cbEq(v, run, c) : ''}</div>${warn(v)}</div>`; };
@@ -296,8 +300,8 @@ TOOL_IMPL.combine = function (el) {
         e.proj = e.proj || []; e.proj[k] = v ? Math.round(v * 100) / 100 : null; save();
         const id = i.dataset.pj; redraw(); const L = [...box.querySelectorAll('[data-pj]')], j = L.findIndex(x => x.dataset.pj === id); if (L[j + 1]) L[j + 1].focus({ preventScroll: true }); });
     };
-    const filled = e => R.every((r, k) => (e.proj || [])[k] > 0);
-    return { cell, unitTog, bind, filled, help: `Chaque élève annonce ce qu'il pense réaliser sur chaque course : ${allD ? 'une distance (m, tours ou plots)' : allM ? 'un temps' : 'une distance (courses en durée) ou un temps (courses en distance)'} ou une vitesse. Les équivalences s'affichent aussitôt.` };
+    const NP = R.filter((r, k) => !cbNoPj(c, k)).length, filled = e => R.every((r, k) => cbNoPj(c, k) || (e.proj || [])[k] > 0);
+    return { cell, unitTog, bind, filled, np: NP, help: `Chaque élève annonce ce qu'il pense réaliser sur chaque course : ${allD ? 'une distance (m, tours ou plots)' : allM ? 'un temps' : 'une distance (courses en durée) ou un temps (courses en distance)'} ou une vitesse. Les équivalences s'affichent aussitôt.` };
   };
   function projets(box) {
     const S = DB.combine.current;
@@ -379,7 +383,7 @@ TOOL_IMPL.combine = function (el) {
       return `<div class="cb-sum">${T.runs.map(r => r.done ? `<span>C${r.k + 1} · ${r.run.k === 'dist' ? dfT(r.t) : dfFr(r.dist, 0) + ' m'} · ${dfFr(r.v)} km/h${r.ev != null ? ` · <b class="${cbCls(r.ev, c)}">${dfPct(r.ev)}</b>` : ''}</span>` : `<span class="muted">C${r.k + 1} –</span>`).join('')}
         <span class="tot">Total ${dfFr(T.dist, 0)} m · ${dfT(T.t)} · ${dfFr(T.v)} km/h${T.ev != null ? ` · écart <b class="${cbCls(T.ev, c)}">${dfPct(T.ev)}</b>` : ''}</span></div>`; };
     const pjBlock = (gi, ei, e, T) => { if (!pj) return ''; const ok = K.filled(e);
-      return `<details class="cb-pjd" ${TL(T).ph === 'idle' && !started(T, 0) && !ok ? 'open' : ''}><summary>🎯 ${grp ? 'Projet de ' + esc(e.nom) : 'Mon projet'} <span class="muted" style="font-weight:600;font-size:.8rem">· ${R.filter((r, k) => (e.proj || [])[k] > 0).length}/${N} ${ok ? '✅' : ''}</span></summary>
+      return `<details class="cb-pjd" ${TL(T).ph === 'idle' && !started(T, 0) && !ok ? 'open' : ''}><summary>🎯 ${grp ? 'Projet de ' + esc(e.nom) : 'Mon projet'} <span class="muted" style="font-weight:600;font-size:.8rem">· ${R.filter((r, k) => !cbNoPj(c, k) && (e.proj || [])[k] > 0).length}/${K.np} ${ok ? '✅' : ''}</span></summary>
         <p class="df-help" style="margin-top:4px">Saisir en :</p>${K.unitTog()}<div class="df-pj">${R.map((r, k) => K.cell(gi, ei, e, k)).join('')}</div></details>`; };
     // sauts / lancers : champs sans élan (ou unique) + avec élan si « les deux »
     const essaisHTML = (k, e, big) => { const inp = (attr, arr) => arr.map((v, i) => big ? `<input class="gv-in" inputmode="decimal" data-${attr}="${k}|${i}" value="${esc(v)}" placeholder="${i + 1}">` : `<input style="width:58px;padding:6px;text-align:center" inputmode="decimal" data-${attr}="${k}|${i}" value="${esc(v)}" placeholder="${i + 1}">`).join(big ? '' : ' ');
@@ -525,9 +529,9 @@ TOOL_IMPL.combine = function (el) {
       clearInterval(window._cbTick);
       const rows = [], ref = [], sD = hasSaut(c) && c.sElan === 'deux', lD = c.lElan === 'deux', lu = lUnit(c);
       S.groups.forEach((g, gi) => g.eleves.forEach((e, ei) => { rows.push({ label: e.nom, sub: grp ? g.name : '' }); ref.push([gi, ei]); }));
-      const PJ = pj ? R.map((r, k) => r.k === 'dist' ? { k: 'p' + k, l: `🎯 Projet ${N > 1 ? 'C' + (k + 1) + ' ' : ''}(temps)`, type: 'time' } : { k: 'p' + k, l: `🎯 Projet ${N > 1 ? 'C' + (k + 1) + ' ' : ''}(m)`, type: 'num' }) : [];
+      const PJ = pj ? R.map((r, k) => cbNoPj(c, k) ? null : r.k === 'dist' ? { k: 'p' + k, l: `🎯 Projet ${N > 1 ? 'C' + (k + 1) + ' ' : ''}(temps)`, type: 'time' } : { k: 'p' + k, l: `🎯 Projet ${N > 1 ? 'C' + (k + 1) + ' ' : ''}(m)`, type: 'num' }).filter(Boolean) : [];
       // projets déjà saisis (onglet Projets) : affichés dans le tableau
-      const V0 = ref.map(([gi, ei]) => { const e = S.groups[gi].eleves[ei], o = {}; R.forEach((r, k) => { const v = (e.proj || [])[k]; if (pj && v > 0) o['p' + k] = r.k === 'dist' ? Math.round(r.m / (v / 3.6) * 10) / 10 : Math.round(v / 3.6 * r.d); }); return o; });
+      const V0 = ref.map(([gi, ei]) => { const e = S.groups[gi].eleves[ei], o = {}; R.forEach((r, k) => { const v = (e.proj || [])[k]; if (pj && v > 0 && !cbNoPj(c, k)) o['p' + k] = r.k === 'dist' ? Math.round(r.m / (v / 3.6) * 10) / 10 : Math.round(v / 3.6 * r.d); }); return o; });
       const F = [...PJ, ...R.map((r, k) => r.k === 'dist' ? { k: 'r' + k, l: `${N > 1 ? 'C' + (k + 1) + ' · ' : ''}Temps ${r.m} m`, type: 'time' } : { k: 'r' + k, l: `${N > 1 ? 'C' + (k + 1) + ' · ' : ''}Distance (m) en ${cbRunLbl(r)}`, type: 'num' }),
         ...(hasSaut(c) ? (sD ? [{ k: 's0', l: 'Saut sans élan (m)', type: 'num' }, { k: 's1', l: 'Saut avec élan (m)', type: 'num' }] : [{ k: 's0', l: 'Meilleur saut (m)', type: 'num' }]) : []),
         ...(lD ? [{ k: 'l0', l: `Lancer sans élan (${lu})`, type: 'num' }, { k: 'l1', l: `Lancer avec élan (${lu})`, type: 'num' }] : [{ k: 'l0', l: `Meilleur lancer (${lu})`, type: 'num' }])];
@@ -535,7 +539,7 @@ TOOL_IMPL.combine = function (el) {
         help: `Remplissez seulement ce que vous avez relevé : les lignes vides sont ignorées. Temps au format 2:35.${pj ? ' 🎯 Projet : temps visé (courses en distance) ou distance visée en mètres (courses en durée) ; l\'écart au projet est calculé.' : ''}`, cancelLbl: 'Annuler (rien n\'est enregistré)',
         onCancel: () => { if (!confirm('Abandonner cette saisie ? Rien ne sera enregistré.')) return; DB.combine.current = null; save(); tab = 'config'; frame(); },
         onSave: V => { V.forEach((v, i) => { const [gi, ei] = ref[i], e = S.groups[gi].eleves[ei];
-            R.forEach((r, k) => { const p = v['p' + k]; if (pj && p != null && p > 0) { e.proj = e.proj || []; e.proj[k] = Math.round((r.k === 'dist' ? r.m / p : p / r.d) * 3.6 * 100) / 100; } });
+            R.forEach((r, k) => { const p = v['p' + k]; if (pj && !cbNoPj(c, k) && p != null && p > 0) { e.proj = e.proj || []; e.proj[k] = Math.round((r.k === 'dist' ? r.m / p : p / r.d) * 3.6 * 100) / 100; } });
             R.forEach((r, k) => { const val = v['r' + k]; if (val == null) return; const x = cbX(e, k, true) || e;
               if (r.k === 'dist') { x.dep = 1; x.arr = 1 + Math.round(val * 1000); } else x.man = Math.round(val); });
             const put = (f, a) => { if (a != null) e[f] = [String(a).replace('.', ',')]; };

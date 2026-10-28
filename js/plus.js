@@ -4,9 +4,10 @@
    ========================================================= */
 /* Page Ko-fi : laisser vide tant qu'elle n'existe pas (le bouton est alors masqué) */
 const KOFI_URL = 'https://ko-fi.com/epsone';
-const APP_VERSION = '23.114';
+const APP_VERSION = '23.115';
 const APP_URL = 'https://steffdelaseuva-hue.github.io/eps-one/';
 const CHANGELOG = [
+  { v: '23.115', items: ['Combiné athlétique : option « Pas de projet sur la dernière course » (course libre) : pas de projet à saisir pour la dernière course, qui compte dans le total (distance, temps, classement) mais pas dans l\'écart au projet.'] },
   { v: '23.114', items: ['Plus · Nouveautés : seules les 5 dernières versions sont affichées.'] },
   { v: '23.113', items: ['Parkour · ② Créer son enchaînement : bloc « Exigences de l\'enchaînement » comme en gym (points, éléments / minimum, familles / demandées, niveau maximal, alertes).', 'Gymnastique et Acrosport · 🎬 Enchaînement : carte « 🗑 Supprimer / remettre à zéro » (vider l\'enchaînement de l\'élève ou du groupe, effacer sa validation, vider tous les enchaînements de la classe) avec « ↶ Annuler ».'] },
   { v: '23.112', items: ['✅ Validation enseignant (Parkour, Gym, Acrosport) : chaque élève ne voit plus que les éléments de SON enchaînement (et leur niveau), et non ceux de toute la classe ; la note, les fiches et le bilan ne comptent que ceux-là.', 'Le critère « ↳ Niveau » de chaque élément est placé juste sous sa maîtrise, dans sa famille.'] },
