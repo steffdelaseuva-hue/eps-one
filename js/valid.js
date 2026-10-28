@@ -113,7 +113,7 @@ function openValid(tool) {
   const K = () => sub && sub !== 'gen' ? tool + ':' + sub : tool, NM = () => T.n + (sub && sub !== 'gen' ? ' · ' + T.sub[sub].n : '');
   let clv = '';   // niveau édité dans ⚙️ Critères ('' = toutes les classes)
   const KC = () => view === 'crit' ? (valHasSet(K(), clv) ? K() + '@' + clv : K()) : (valHasSet(K(), valLevelOf(cls)) ? K() + '@' + valLevelOf(cls) : K());
-  if (!valCrit(KC()).length) view = 'crit';
+  if (!valCrit(KC()).length && tool !== 'natation') view = 'crit';
   const o = document.createElement('div'); o.style.cssText = 'position:fixed;inset:0;z-index:300;background:var(--bg,#fff);overflow:auto;padding:14px 14px 40px';
   document.body.appendChild(o);
   const close = () => { o.remove(); };
@@ -127,13 +127,14 @@ function openValid(tool) {
     const st = studentsOf(cls), C0 = valCrit(KC()), all = valOf(K(), cls); if (si >= st.length) si = 0; const n = st[si], V = all[n] || {};
     const C = view === 'eleve' ? valFor(C0, V) : view === 'classe' ? C0.filter(c => !valIsAuto(c) || st.some(x => (all[x] || {})['_s' + c.id] != null)) : C0;   // par élève : seulement ses éléments
     const L = valLvls(V), av = epsMAvg(L), cfg = valCfg(KC()), NT = cfg.on ? valNote(C, V, cfg) : null, WT = cfg.on ? valWeights(C, cfg) : null;
-    o.innerHTML = `<div style="display:flex;align-items:center;gap:8px;max-width:900px;margin:0 auto"><h2 style="flex:1;margin:0;font-size:1.15rem">✅ Validation enseignant · ${esc(NM())}</h2>${tool === 'combine' && window.openBareme ? '<button class="btn btn-grad" style="flex:0 0 auto" data-bar title="Créer et appliquer des barèmes (demi-fond, lancer, saut)">📐 Barèmes</button>' : ''}<button class="btn btn-grad" style="flex:0 0 auto" data-fx title="Fiche élève de cette activité (validation + tournoi du jour)">📄 Fiches</button><button class="btn btn-ghost" style="flex:0 0 auto" data-q>✕ Fermer</button></div>
+    o.innerHTML = `<div style="display:flex;align-items:center;gap:8px;max-width:900px;margin:0 auto"><h2 style="flex:1;margin:0;font-size:1.15rem">✅ Validation enseignant · ${esc(NM())}</h2>${tool === 'natation' && window.openBaremeNat ? '<button class="btn btn-grad" style="flex:0 0 auto" data-barn title="Barème : temps, indice de nage, plongeon">📐 Barèmes</button>' : ''}${tool === 'combine' && window.openBareme ? '<button class="btn btn-grad" style="flex:0 0 auto" data-bar title="Créer et appliquer des barèmes (demi-fond, lancer, saut)">📐 Barèmes</button>' : ''}<button class="btn btn-grad" style="flex:0 0 auto" data-fx title="Fiche élève de cette activité (validation + tournoi du jour)">📄 Fiches</button><button class="btn btn-ghost" style="flex:0 0 auto" data-q>✕ Fermer</button></div>
       <div style="max-width:900px;margin:10px auto 0">
       <div class="card"><div class="row"><div><label style="margin-top:0">Classe</label><select id="vc">${DB.classes.map(c => `<option ${c.name === cls ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</select></div>
         ${view === 'eleve' ? `<div><label style="margin-top:0">Élève</label><select id="ve">${st.map((x, k) => { const q = epsMAvg(valLvls(all[x])); return `<option value="${k}" ${k === si ? 'selected' : ''}>${q != null ? '✓ ' : ''}${esc(x)}</option>`; }).join('')}</select></div>` : ''}</div>
         ${T.sub ? `<label>Sport</label><div class="tog">${Object.entries(T.sub).map(([k, x]) => `<button data-sub="${k}" class="${sub === k ? 'on' : ''}">${esc(x.n)}</button>`).join('')}</div>` : ''}
         <div class="tog" style="margin-top:10px">${[['eleve', '👤 Par élève'], ['classe', '📋 Tableau de la classe'], ['crit', '⚙️ Critères']].map(([k, l]) => `<button data-v="${k}" class="${view === k ? 'on' : ''}">${l}</button>`).join('')}</div>${view !== 'crit' && valHasSet(K(), valLevelOf(cls)) ? `<div class="muted" style="font-size:.78rem;margin-top:8px">🎓 Critères et poids des ${valLevelOf(cls)}e (jeu spécifique)</div>` : ''}</div>
       ${view === 'eleve' && tool === 'combine' && st.length && window.barEleveHTML ? barEleveHTML(cls, n) : ''}
+      ${view === 'eleve' && tool === 'natation' && st.length && window.barNatEleveHTML ? barNatEleveHTML(cls, n) : ''}
       ${view === 'eleve' && !C.length ? '<div class="card empty" style="margin-top:12px">Aucun critère pour l\'instant : créez-les dans <b>⚙️ Critères</b>.</div>' : view === 'eleve' ? (st.length ? `<div class="card" style="margin-top:12px"><div style="display:flex;align-items:center;gap:8px"><button class="btn btn-ghost" style="flex:0 0 auto;padding:8px 12px" id="vp" ${si ? '' : 'disabled'}>◀</button><h3 style="flex:1;margin:0;text-align:center">${esc(n)}</h3><button class="btn btn-ghost" style="flex:0 0 auto;padding:8px 12px" id="vn" ${si < st.length - 1 ? '' : 'disabled'}>▶</button></div>
           ${C.map((c, i) => { const [sec, nm] = valSplit(c.n), prev = i ? valSplit(C[i - 1].n)[0] : null;
             return `${sec && sec !== prev ? `<div style="margin-top:12px;font-size:.78rem;font-weight:900;text-transform:uppercase;letter-spacing:.05em;color:${VAL_SEC[sec] || 'var(--muted)'}">${esc(sec)}</div>` : ''}<div data-crow="${c.id}" style="padding:10px 0;border-top:1px solid var(--line)"><div style="font-weight:800;margin-bottom:6px">${esc(nm)} ${epsMTag(V[c.id])}${cfg.on && WT ? ` <span class="muted" style="font-size:.72rem;font-weight:700">· ${valFmt(WT[c.id] * 100)} % de la note</span>` : ''}</div>${epsMBar(V[c.id], 'data-vm')}${cfg.on && V[c.id] != null ? (() => { const bd = cfg.bands[V[c.id]], cur = valPt(c.id, V, cfg), col = EPS_M[V[c.id]][1]; return `<div style="margin-top:8px"><div class="muted" style="font-size:.75rem;margin-bottom:4px">Note du critère (${bd[0]} à ${bd[1]} / 20)</div><div style="display:flex;flex-wrap:wrap;gap:6px">${Array.from({ length: bd[1] - bd[0] + 1 }, (_, k) => bd[0] + k).map(x => `<button type="button" data-np="${c.id}|${x}" style="min-width:42px;padding:8px 6px;border-radius:10px;font-weight:800;border:1.5px solid ${cur === x ? 'transparent' : 'var(--line)'};background:${cur === x ? col : 'transparent'};color:${cur === x ? '#fff' : 'inherit'}">${x}</button>`).join('')}</div></div>`; })() : ''}</div>`; }).join('')}
@@ -170,6 +171,7 @@ function openValid(tool) {
     const $ = s => o.querySelector(s), A = s => o.querySelectorAll(s), snap = l => { undo = { l, v: JSON.stringify(VD()) }; };
     $('[data-q]').onclick = close;
     if ($('[data-bar]')) $('[data-bar]').onclick = () => openBareme(cls);
+    if ($('[data-barn]')) $('[data-barn]').onclick = () => openBaremeNat(cls);
     if ($('[data-fx]')) $('[data-fx]').onclick = () => { if (typeof openFiches !== 'function') return toast('Fiches indisponibles'); const who = view === 'eleve' ? st[si] : ''; openFiches({ cls, valKey: K(), who, day: true }); };
     $('#vc').onchange = e => { cls = e.target.value; DB.lastClass = cls; si = 0; if (T.prep) T.prep(cls); save(); draw(); };
     if ($('#ve')) $('#ve').onchange = e => { si = +e.target.value; draw(); };
@@ -179,6 +181,7 @@ function openValid(tool) {
     if ($('#lvrm')) $('#lvrm').onclick = () => { if (!confirm(`Supprimer le jeu spécifique ${clv}e ? Les classes de ${clv}e reprendront les critères généraux.`)) return; const V0 = VD(), kk = K() + '@' + clv; delete V0.crit[kk]; if (V0.pts) delete V0.pts[kk]; clv = ''; commit(); draw(); };
     A('[data-sub]').forEach(b => b.onclick = () => { sub = b.dataset.sub; VD().last[tool] = sub; commit(); if (!valCrit(KC()).length) view = 'crit'; draw(); });
     if ($('#csug')) $('#csug').onclick = () => { const have = new Set(C.map(c => c.n)); (T.sug || []).filter(x => !have.has(x)).forEach((x, i) => C.push({ id: 'u' + Date.now().toString(36) + i, n: x })); commit(); draw(); };
+    if (view === 'eleve' && tool === 'natation' && window.barNatEleveBind && st.length) barNatEleveBind(o, cls, n, () => { const y = o.scrollTop; draw(); o.scrollTop = y; });
     if (view === 'eleve' && tool === 'combine' && window.barEleveBind && st.length) barEleveBind(o, cls, n, () => { const y = o.scrollTop; draw(); o.scrollTop = y; });
     if ($('#vp')) $('#vp').onclick = () => { si--; draw(); };
     if ($('#vn')) $('#vn').onclick = () => { si++; draw(); };

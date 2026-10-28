@@ -51,7 +51,7 @@ function natationVite(el) {
     $('#cm').onclick = () => { $('#c').value = Math.max(0, (+$('#c').value || 0) - 1); res(); };
     $('#sv').onclick = () => { const eleve = $('#el').value.trim(), d = +$('#d').value || 0, t = time(), c = +$('#c').value || 0;
       if (!eleve) return toast('Nom de l\'élève requis'); if (!d || !t) return toast('Distance et temps requis');
-      DB.natation.push({ date: Date.now(), classe: $('#cl')?.value || '', eleve, d, t: Math.round(t * 100) / 100, c }); save(); toast(`${eleve} : enregistré ✔`);
+      DB.natation.push({ date: Date.now(), classe: $('#cl')?.value || '', eleve, d, t: Math.round(t * 100) / 100, c }); window.barNatAuto && barNatAuto($('#cl')?.value || '', eleve); save(); toast(`${eleve} : enregistré ✔`);
       run = false; acc = 0; { const e = $('#el'); if (e.tagName === 'SELECT') { if (e.selectedIndex < e.options.length - 1) e.selectedIndex++; } else e.value = ''; } $('#c').value = 0; $('#mm').value = ''; $('#ss').value = ''; $('#go').textContent = '▶ Départ'; $('#tm').textContent = '00:00,00'; res(); list(); };
     const list = () => {
       const own = r => (!window.teamSees || teamSees(r)) && (!(window.eleveMode && eleveMode()) || r.classe === ($('#cl')?.value || ''));   // mode élève : seulement la classe en cours
@@ -112,7 +112,7 @@ function natationMulti(el, n) {
     all('[data-lm]').forEach(b => b.onclick = () => { const L = S.lanes[+b.dataset.lm]; L.c = Math.max(0, L.c - 1); draw(); });
     $('#msv').onclick = () => { if (S.lanes.some(L => L.run)) return toast('Arrêtez d\'abord tous les chronos'); let k = 0;
       S.lanes.forEach(L => { const eleve = st[L.si], t = Math.round(sec(L) * 100) / 100; if (!eleve || !t) return;
-        DB.natation.push({ date: Date.now(), classe: S.cls, eleve, d: S.d, t, c: L.c }); k++; });
+        DB.natation.push({ date: Date.now(), classe: S.cls, eleve, d: S.d, t, c: L.c }); window.barNatAuto && barNatAuto(S.cls, eleve); k++; });
       if (!k) return toast('Aucun temps à enregistrer'); save(); toast(`${k} nageur(s) enregistré(s) ✔`);
       const next = Math.max(...S.lanes.map(L => L.si)) + 1;
       S.lanes.forEach((L, i) => Object.assign(L, { si: st.length ? (next + i) % st.length : 0, t0: 0, acc: 0, run: false, c: 0 })); draw(); };
@@ -144,8 +144,10 @@ function natationSavoir(el) {
         ${ASNS.map((l, i) => `<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--line)"><span style="flex:1;font-weight:700">${i + 1}. ${l}</span>
           <button class="btn ${R.r[i] === 1 ? 'btn-grad' : 'btn-ghost'}" style="flex:0 0 auto;padding:10px 12px" data-ok="${i}">✔</button><button class="btn ${R.r[i] === 0 ? 'btn-danger' : 'btn-ghost'}" style="flex:0 0 auto;padding:10px 12px" data-ko="${i}">✗</button></div>`).join('')}
         <div class="${ok(R) ? 'win' : 'card'}" style="margin-top:12px;text-align:center">${ok(R) ? '🏅 Savoir-nager validé' : `${R.r.filter(v => v === 1).length}/${ASNS.length} épreuves validées`}</div>
+        ${ok(R) ? '<button class="btn btn-grad btn-block" style="margin-top:10px" id="att1">📄 Attestation « savoir-nager » en sécurité</button>' : ''}
         <div class="row" style="margin-top:10px"><button class="btn btn-ghost" id="pv">← Élève précédent</button><button class="btn btn-grad" id="nx">Élève suivant →</button></div></div>` : ''}
       <div class="section-title"><h2>Bilan de la classe · ${nb}/${st.length} validés</h2><button class="link" id="exp">Exporter CSV</button></div>
+      ${nb ? '<button class="btn btn-ghost btn-block" style="margin-bottom:10px" id="attc">📄 Attestations de la classe : un PDF par élève validé (' + nb + ')</button>' : ''}
       <div class="card sheet-table"><table><tr><th>Élève</th>${ASNS.map((l, i) => `<th title="${esc(l)}">${i + 1}</th>`).join('')}<th>Validé</th></tr>
         ${st.map((x, k) => { const r = DB.asns[cls]?.[x]; return `<tr data-row="${k}" style="cursor:pointer"><td><b>${esc(x)}</b></td>${ASNS.map((_, i) => { const v = r ? r.r[i] : null; return `<td>${v === 1 ? '<b style="color:#1B9E5A">✔</b>' : v === 0 ? '<b style="color:var(--danger)">✗</b>' : '<span class="muted">·</span>'}</td>`; }).join('')}<td>${r && ok(r) ? '🏅' : ''}</td></tr>`; }).join('')}</table>
         <p class="muted" style="font-size:.75rem;margin:6px 0 0">${ASNS.map((l, i) => `${i + 1}. ${l}`).join(' · ')}</p></div>`;
@@ -156,6 +158,8 @@ function natationSavoir(el) {
       if (!was && ok(R)) { saveResult({ tool: 'natation', label: 'Savoir-nager', classe: cls, eleve: n, valeur: 'Savoir-nager validé', detail: 'Toutes les épreuves du test' }); toast(`🏅 ${n} : savoir-nager validé`); } else save(); draw(); };
     el.querySelectorAll('[data-ok]').forEach(b => b.onclick = () => set(+b.dataset.ok, 1));
     el.querySelectorAll('[data-ko]').forEach(b => b.onclick = () => set(+b.dataset.ko, 0));
+    if ($('#att1')) $('#att1').onclick = () => asnsDialog(cls, [n], n);
+    if ($('#attc')) $('#attc').onclick = () => asnsDialog(cls, st.filter(x => DB.asns[cls]?.[x] && ok(DB.asns[cls][x])));
     if ($('#pv')) $('#pv').onclick = () => { si = Math.max(0, si - 1); draw(); };
     if ($('#nx')) $('#nx').onclick = () => { si = Math.min(st.length - 1, si + 1); draw(); };
     el.querySelectorAll('[data-row]').forEach(r => r.onclick = () => { si = +r.dataset.row; draw(); el.scrollIntoView({ behavior: 'smooth' }); });
@@ -233,7 +237,7 @@ function natationTabVite(el, T, back) {
     $('#tv-cm').onclick = () => { c = Math.max(0, c - 1); $('#tv-cp').textContent = c; $('#tv-ix').innerHTML = ixTxt(); };
     el.querySelectorAll('[data-sw]').forEach(b => b.onclick = () => { if (run) return; if ((acc || c) && !confirm('Le résultat en cours n\'est pas enregistré. Changer de nageur ?')) return; cur = +b.dataset.sw; acc = 0; c = 0; draw(); });
     if ($('#tv-sv')) $('#tv-sv').onclick = () => { const t = Math.round(sec() * 100) / 100; if (!t) return toast('Aucun temps à enregistrer');
-      DB.natation.push({ date: Date.now(), classe: T.cls, eleve: n, d, t, c }); save(); toast(`${n} : enregistré ✔`);
+      DB.natation.push({ date: Date.now(), classe: T.cls, eleve: n, d, t, c }); window.barNatAuto && barNatAuto(T.cls, n); save(); toast(`${n} : enregistré ✔`);
       const done = new Set(mine().filter(r => r.d === d).map(r => r.eleve)), nx = st.findIndex((x, k) => k > cur && !done.has(x));
       cur = nx >= 0 ? nx : Math.max(0, st.findIndex(x => !done.has(x))); acc = 0; c = 0; draw(); };
   };
@@ -305,7 +309,7 @@ function natManual(box, back) {
   const table = () => { const st = studentsOf(cls);
     spTable(box, { title: `Natation · ${cls} · ${d} m`, rows: st.map(n => ({ label: n })), fields: [{ k: 't', l: `Temps ${d} m`, type: 'time', ph: '0:25,4' }, { k: 'c', l: 'Coups de bras', type: 'num' }],
       cancelLbl: '← Retour', onCancel: pick,
-      onSave: V => { let n = 0; V.forEach((v, i) => { if (v.t == null) return; DB.natation.push({ date: Date.now(), classe: cls, eleve: st[i], d, t: Math.round(v.t * 100) / 100, c: v.c != null ? Math.round(v.c) : 0 }); n++; });
+      onSave: V => { let n = 0; V.forEach((v, i) => { if (v.t == null) return; DB.natation.push({ date: Date.now(), classe: cls, eleve: st[i], d, t: Math.round(v.t * 100) / 100, c: v.c != null ? Math.round(v.c) : 0 }); window.barNatAuto && barNatAuto(cls, st[i]); n++; });
         if (!n) return toast('Saisissez au moins un temps'); save(); toast(`${n} résultat(s) enregistré(s) ✔`); back(); } }); };
   pick();
 }
