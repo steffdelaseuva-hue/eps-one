@@ -532,26 +532,28 @@ TOOL_IMPL.combine = function (el) {
       const now = Date.now(); let ch = adv(S, now); S.groups.forEach(g => { if (g.tl) ch = adv(g, now) || ch; });
       if (ch || dirty) { const a = document.activeElement; if (a && box.contains(a) && /INPUT|SELECT|TEXTAREA/.test(a.tagName)) { dirty = true; paint(now); return; } dirty = false; redraw(); return; }
       paint(now); };
+    let mu = c.pjUnit === 'nat' ? 'nat' : 'v';   // unité des projets dans ce tableau : vitesse (km/h) ou distance / temps
     if (S.manual) return manualEntry();
     const t0 = Date.now(); adv(S, t0); S.groups.forEach(g => { if (g.tl) adv(g, t0); });
     draw(); clearInterval(window._cbTick); iv = window._cbTick = setInterval(tick, 500); tick();
 
     /* ✍️ Saisie des résultats par le prof (sans lancer l'épreuve) */
-    function manualEntry() {
+    function manualEntry(seed) {
       clearInterval(window._cbTick);
       const rows = [], ref = [], sD = hasSaut(c) && c.sElan === 'deux', lD = c.lElan === 'deux', lu = lUnit(c);
       S.groups.forEach((g, gi) => g.eleves.forEach((e, ei) => { rows.push({ label: e.nom, sub: grp ? g.name : '' }); ref.push([gi, ei]); }));
-      const PJ = pj ? R.map((r, k) => cbNoPj(c, k) ? null : r.k === 'dist' ? { k: 'p' + k, l: `🎯 Projet ${N > 1 ? 'C' + (k + 1) + ' ' : ''}(temps)`, type: 'time' } : { k: 'p' + k, l: `🎯 Projet ${N > 1 ? 'C' + (k + 1) + ' ' : ''}(m)`, type: 'num' }).filter(Boolean) : [];
+      const PJ = pj ? R.map((r, k) => cbNoPj(c, k) ? null : mu === 'v' ? { k: 'p' + k, l: `🎯 Projet ${N > 1 ? 'C' + (k + 1) + ' ' : ''}(km/h)`, type: 'num' } : r.k === 'dist' ? { k: 'p' + k, l: `🎯 Projet ${N > 1 ? 'C' + (k + 1) + ' ' : ''}(temps)`, type: 'time' } : { k: 'p' + k, l: `🎯 Projet ${N > 1 ? 'C' + (k + 1) + ' ' : ''}(m)`, type: 'num' }).filter(Boolean) : [];
       // projets déjà saisis (onglet Projets) : affichés dans le tableau
-      const V0 = ref.map(([gi, ei]) => { const e = S.groups[gi].eleves[ei], o = {}; R.forEach((r, k) => { const v = (e.proj || [])[k]; if (pj && v > 0 && !cbNoPj(c, k)) o['p' + k] = r.k === 'dist' ? Math.round(r.m / (v / 3.6) * 10) / 10 : Math.round(v / 3.6 * r.d); }); return o; });
+      const V0 = ref.map(([gi, ei]) => { const e = S.groups[gi].eleves[ei], o = {}; R.forEach((r, k) => { const v = (e.proj || [])[k]; if (pj && v > 0 && !cbNoPj(c, k)) o['p' + k] = mu === 'v' ? Math.round(v * 10) / 10 : r.k === 'dist' ? Math.round(r.m / (v / 3.6) * 10) / 10 : Math.round(v / 3.6 * r.d); }); return o; });
+      if (seed) seed.forEach((o, i) => Object.assign(V0[i], o));
       const F = [...PJ, ...R.map((r, k) => r.k === 'dist' ? { k: 'r' + k, l: `${N > 1 ? 'C' + (k + 1) + ' · ' : ''}Temps ${r.m} m`, type: 'time' } : { k: 'r' + k, l: `${N > 1 ? 'C' + (k + 1) + ' · ' : ''}Distance (m) en ${cbRunLbl(r)}`, type: 'num' }),
         ...(hasSaut(c) ? (sD ? [{ k: 's0', l: 'Saut sans élan (m)', type: 'num' }, { k: 's1', l: 'Saut avec élan (m)', type: 'num' }] : [{ k: 's0', l: 'Meilleur saut (m)', type: 'num' }]) : []),
         ...(lD ? [{ k: 'l0', l: `Lancer sans élan (${lu})`, type: 'num' }, { k: 'l1', l: `Lancer avec élan (${lu})`, type: 'num' }] : [{ k: 'l0', l: `Meilleur lancer (${lu})`, type: 'num' }])];
       spTable(box, { title: `Saisie des résultats · ${hasSaut(c) ? 'triathlon' : 'duathlon'} · ${S.classe || ''}`, rows, fields: F, values: V0,
-        help: `Remplissez seulement ce que vous avez relevé : les lignes vides sont ignorées. Temps au format 2:35.${pj ? ' 🎯 Projet : temps visé (courses en distance) ou distance visée en mètres (courses en durée) ; l\'écart au projet est calculé.' : ''}`, cancelLbl: 'Annuler (rien n\'est enregistré)',
+        help: `Remplissez seulement ce que vous avez relevé : les lignes vides sont ignorées. Temps au format 2:35.${pj ? ` 🎯 Projet : ${mu === 'v' ? 'vitesse visée en km/h' : 'temps visé (courses en distance) ou distance visée en mètres (courses en durée)'} ; l\'écart au projet est calculé.` : ''}`, cancelLbl: 'Annuler (rien n\'est enregistré)',
         onCancel: () => { if (!confirm('Abandonner cette saisie ? Rien ne sera enregistré.')) return; DB.combine.current = null; save(); tab = 'config'; frame(); },
         onSave: V => { V.forEach((v, i) => { const [gi, ei] = ref[i], e = S.groups[gi].eleves[ei];
-            R.forEach((r, k) => { const p = v['p' + k]; if (pj && !cbNoPj(c, k) && p != null && p > 0) { e.proj = e.proj || []; e.proj[k] = Math.round((r.k === 'dist' ? r.m / p : p / r.d) * 3.6 * 100) / 100; } });
+            R.forEach((r, k) => { const p = v['p' + k]; if (pj && !cbNoPj(c, k) && p != null && p > 0) { e.proj = e.proj || []; e.proj[k] = mu === 'v' ? Math.round(p * 100) / 100 : Math.round((r.k === 'dist' ? r.m / p : p / r.d) * 3.6 * 100) / 100; } });
             R.forEach((r, k) => { const val = v['r' + k]; if (val == null) return; const x = cbX(e, k, true) || e;
               if (r.k === 'dist') { x.dep = 1; x.arr = 1 + Math.round(val * 1000); } else x.man = Math.round(val); });
             const put = (f, a) => { if (a != null) e[f] = [String(a).replace('.', ',')]; };
@@ -559,6 +561,13 @@ TOOL_IMPL.combine = function (el) {
             put('lancers', v.l0); if (lD) put('lancersA', v.l1); });
           S.groups.forEach(g => g.eleves.forEach(e => { if (e.rx) e.rx = e.rx.map(x => x || {}); }));
           saveSeance(); } });
+      if (pj) { box.insertAdjacentHTML('afterbegin', `<div class="card"><b>🎯 Saisir les projets en</b><div class="tog" style="margin-top:6px">${[['v', 'Vitesse (km/h)'], ['nat', 'Distance (m) / temps']].map(([u, l]) => `<button data-mu="${u}" class="${mu === u ? 'on' : ''}">${l}</button>`).join('')}</div></div>`);
+        box.querySelectorAll('[data-mu]').forEach(b => b.onclick = () => { const nu = b.dataset.mu; if (nu === mu) return;
+          const pv = (r, x) => mu === 'v' ? x : r.k === 'dist' ? r.m / x * 3.6 : x / r.d * 3.6, fv = (r, v) => nu === 'v' ? Math.round(v * 10) / 10 : r.k === 'dist' ? Math.round(r.m / (v / 3.6) * 10) / 10 : Math.round(v / 3.6 * r.d);
+          const kept = ref.map((_, i) => { const o = {}; box.querySelectorAll(`[data-sp^="${i}|"]`).forEach(inp => { const k = inp.dataset.sp.split('|')[1], raw = inp.value.trim(); if (raw === '') return;
+              const isT = /^[pr]\d+$/.test(k) && (k[0] === 'r' ? R[+k.slice(1)].k === 'dist' : mu === 'nat' && R[+k.slice(1)].k === 'dist'), v = isT ? dfParseT(raw) : dfNum(raw); if (v == null) return;
+              if (k[0] === 'p') { const r = R[+k.slice(1)], kmh = pv(r, v); if (kmh > 0) o[k] = fv(r, kmh); } else o[k] = v; }); return o; });
+          mu = nu; manualEntry(kept); }); }
     }
   }
 
