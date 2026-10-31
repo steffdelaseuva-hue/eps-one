@@ -197,28 +197,43 @@ window.relSeanceClassMount = (host, g) => { if (!host) return; let k = 'avg'; co
 
 Object.assign(TOOL_IMPL, {
 
-/* ---------- Chronos EPS (12 élèves) — web app de Stéphane ---------- */
+/* ---------- Multi chrono (de 2 à 20 chronos) — web app de Stéphane ---------- */
 chronos12(el) {
   el.classList.add('flush');
+  const CK = 'chronos-eps-v1', mkc = i => ({ id: i, name: '', running: false, startedAt: 0, accumulated: 0, laps: [], pauses: 0, pauseStartedAt: null, pauseTotal: 0 });
+  const rd = () => { let S; try { S = JSON.parse(localStorage.getItem(CK)); } catch (e) {} return Array.isArray(S) && S.length >= 3 && S.length <= 21 ? S : Array.from({ length: 13 }, (_, i) => mkc(i)); };
+  const wr = S => { try { localStorage.setItem(CK, JSON.stringify(S)); } catch (e) {} };
   el.innerHTML = `<div class="chronos-bar">
-      ${DB.classes.length ? `<select id="cc" data-cfg="bare"><option value="">Charger les prénoms d'une classe…</option>${DB.classes.map((c, i) => `<option value="${i}">${esc(c.name)}</option>`).join('')}</select>` : '<span class="muted" style="flex:1">Astuce : créez une classe pour charger les prénoms.</span>'}
+      <label style="margin:0;display:flex;align-items:center;gap:6px;font-weight:700;font-size:.85rem" data-cfg="bare">Chronos <select id="cn" style="width:auto;padding:6px">${Array.from({ length: 19 }, (_, i) => i + 2).map(n => `<option value="${n}" ${n === rd().length - 1 ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
+      ${DB.classes.length ? '<button class="btn btn-ghost" id="pk" data-cfg="bare">👥 Choisir les élèves</button>' : '<span class="muted" style="flex:1">Astuce : créez une classe pour choisir les élèves.</span>'}
       <button class="btn btn-ghost" id="full">⛶ Plein écran</button>
     </div>
-    <iframe class="chronos-frame" id="fr" src="outils/chronos-eps.html" title="Multi chrono (12 élèves)"></iframe>`;
+    <iframe class="chronos-frame" id="fr" src="outils/chronos-eps.html" title="Multi chrono"></iframe>`;
   const fr = el.querySelector('#fr');
-  const sel = el.querySelector('#cc');
-  if (sel) sel.onchange = () => {
-    if (sel.value === '') return;
-    const st = DB.classes[sel.value].students;
-    let S; try { S = JSON.parse(localStorage.getItem('chronos-eps-v1')); } catch (e) {}
-    if (!Array.isArray(S) || S.length !== 13)
-      S = Array.from({ length: 13 }, (_, i) => ({ id: i, name: '', running: false, startedAt: 0, accumulated: 0, laps: [], pauses: 0, pauseStartedAt: null, pauseTotal: 0 }));
-    for (let i = 1; i <= 12; i++) S[i].name = st[i - 1] ? st[i - 1].slice(0, 20) : '';
-    try { localStorage.setItem('chronos-eps-v1', JSON.stringify(S)); } catch (e) {}
-    fr.contentWindow.location.reload();
-    toast(`${Math.min(12, st.length)} prénoms chargés ✔`);
-    sel.value = '';
-  };
+  // nombre de chronos : on garde prénoms et temps des chronos conservés
+  el.querySelector('#cn').onchange = e => { const n = +e.target.value, S = rd(), old = S.length - 1; if (n === old) return;
+    if (n < old && S.slice(n + 1).some(c => c.name || c.accumulated || c.running) && !confirm(`Passer à ${n} chronos ? Les chronos ${n + 1} à ${old} (prénoms et temps) seront supprimés.`)) { e.target.value = old; return; }
+    const T = S.slice(0, n + 1); while (T.length < n + 1) T.push(mkc(T.length)); wr(T); fr.contentWindow.location.reload(); toast(`${n} chronos`); };
+  // choix des élèves : on touche les prénoms dans l'ordre voulu (1er touché = chrono 1…)
+  const pk = el.querySelector('#pk');
+  if (pk) pk.onclick = () => {
+    const S = rd(), n = S.length - 1; let ci = Math.max(0, DB.classes.findIndex(c => c.name === DB.lastClass)); let pick = [];
+    const o = document.createElement('div'); o.style.cssText = 'position:fixed;inset:0;z-index:330;background:var(--bg,#fff);overflow:auto;padding:14px 14px 40px'; document.body.appendChild(o);
+    const load = () => { const st = DB.classes[ci].students; pick = S.slice(1).map(c => (c.name || '').trim()).filter(x => x).map(x => st.find(s => s.slice(0, 30) === x)).filter(Boolean); };
+    load();
+    const draw = () => { const st = DB.classes[ci].students;
+      o.innerHTML = `<div style="max-width:700px;margin:0 auto"><div style="display:flex;align-items:center;gap:8px"><h2 style="flex:1;margin:0;font-size:1.15rem">👥 Choisir les élèves</h2><button class="btn btn-ghost" data-q>✕ Fermer</button></div>
+        <div class="card" style="margin-top:12px"><label style="margin-top:0">Classe</label><select id="pc">${DB.classes.map((c, i) => `<option value="${i}" ${i === ci ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</select>
+          <div style="margin-top:8px;font-weight:800">${pick.length} / ${n} chronos</div><div class="muted" style="font-size:.8rem">Touche les élèves dans l'ordre : le 1er touché prend le chrono 1, etc. Touche à nouveau pour retirer. Il y a ${n} chronos ; change leur nombre au-dessus de l'écran si besoin.</div>
+          <div class="row" style="gap:6px;margin-top:8px;flex-wrap:wrap"><button class="btn btn-ghost" style="padding:8px" id="pf">Les ${Math.min(n, st.length)} premiers</button><button class="btn btn-ghost" style="padding:8px" id="p0">Vider</button></div></div>
+        <div class="card" style="margin-top:10px"><div style="display:flex;flex-wrap:wrap;gap:6px">${st.map((x, k) => { const j = pick.indexOf(x); return `<button class="btn ${j >= 0 ? 'btn-grad' : 'btn-ghost'}" data-s="${k}" style="padding:9px 12px">${j >= 0 ? `<b>${j + 1}</b> · ` : ''}${esc(x)}</button>`; }).join('')}</div></div>
+        <button class="btn btn-grad btn-block" style="margin-top:12px;padding:15px" id="pok">✅ Mettre ces élèves sur les chronos</button></div>`;
+      const $ = s => o.querySelector(s); $('[data-q]').onclick = () => o.remove();
+      $('#pc').onchange = e => { ci = +e.target.value; pick = []; draw(); };
+      o.querySelectorAll('[data-s]').forEach(b => b.onclick = () => { const x = st[+b.dataset.s], j = pick.indexOf(x); if (j >= 0) pick.splice(j, 1); else if (pick.length >= n) return toast(`Les ${n} chronos sont pris : retire un élève ou augmente le nombre de chronos`); else pick.push(x); const y = o.scrollTop; draw(); o.scrollTop = y; });
+      $('#pf').onclick = () => { pick = st.slice(0, n); draw(); }; $('#p0').onclick = () => { pick = []; draw(); };
+      $('#pok').onclick = () => { const T = rd(); for (let i = 1; i <= n; i++) T[i].name = pick[i - 1] ? pick[i - 1].slice(0, 30) : ''; wr(T); DB.lastClass = DB.classes[ci].name; save(); o.remove(); fr.contentWindow.location.reload(); toast(`${pick.length} élève(s) placé(s) ✔`); }; };
+    draw(); };
   // Plein écran DANS l'app (sans quitter EPS ONE) : bouton ✕ pour revenir
   if (!document.getElementById('chr-css')) document.head.insertAdjacentHTML('beforeend', `<style id="chr-css">.chronos-frame.fs{position:fixed;inset:0;width:100vw;height:100vh;height:100dvh;z-index:140;background:#fff;border:0}
     .chr-x{position:fixed;top:calc(8px + env(safe-area-inset-top));right:calc(10px + env(safe-area-inset-right));z-index:141;width:46px;height:46px;border-radius:50%;border:none;background:rgba(11,42,91,.9);color:#fff;font-size:1.3rem;font-weight:900;box-shadow:0 4px 14px rgba(0,0,0,.3)}</style>`);

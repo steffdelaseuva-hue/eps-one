@@ -196,7 +196,7 @@ th{color:var(--muted);font-size:.78rem;text-transform:uppercase}
 <body>
 <noscript id="seo"><h1>EPS ONE · l'application gratuite des profs d'EPS</h1>
 <p>EPS ONE regroupe les outils numériques du professeur d'EPS au collège et au lycée, classés par champ d'apprentissage, utilisables hors ligne sur tablette, téléphone et ordinateur, sans publicité.</p>
-<ul><li>Multi-chronos (12 élèves), chronomètre, timer HIIT / Tabata</li><li>Gestion de match en direct sur plusieurs tablettes : handball, basket, football, volley-ball, rugby, ultimate, badminton, tennis de table</li>
+<ul><li>Multi-chronos (jusqu'à 20 élèves), chronomètre, timer HIIT / Tabata</li><li>Gestion de match en direct sur plusieurs tablettes : handball, basket, football, volley-ball, rugby, ultimate, badminton, tennis de table</li>
 <li>Tests 6e et tests 2nde (évaluations nationales des aptitudes physiques : Luc Léger, saut en longueur sans élan, vitesse 30 m / 50 m)</li><li>Test VMA Luc Léger, VAMEVAL, 45-15, calcul des allures et correspondance plots</li>
 <li>Demi-fond, combiné athlétique, duathlon, relais, HYROX / crosstraining, natation, sauvetage aquatique</li><li>Acrosport : banque de pyramides (duo, trio, quatuor), niveaux de difficulté A à D, sécurité et prises de mains</li>
 <li>Parkour : éléments par famille et par niveau, création d'enchaînement, fluidité</li><li>Gymnastique, lutte, escrime, course d'orientation, escalade</li><li>Cross du collège : dossards QR code, scan à l'arrivée, classements par course, niveau et classe</li><li>Gestion de classe : tirages au sort, équipes, dispenses, résultats et bilans</li></ul>
@@ -288,6 +288,8 @@ th{color:var(--muted);font-size:.78rem;text-transform:uppercase}
 const KEY='mesOutilsEPS_v1';
 let DB={favs:['chronos12','chrono','hiit','tirage'],recent:[],classes:[]};
 try{const s=localStorage.getItem(KEY); if(s) DB=Object.assign(DB,JSON.parse(s));}catch(e){}
+/* l'ancien « Multi chrono (6 élèves) » est remplacé par le Multi chrono (jusqu'à 20) */
+try{['favs','recent'].forEach(k=>{if(Array.isArray(DB[k])&&DB[k].includes('multi')){DB[k]=DB[k].map(x=>x==='multi'?'chronos12':x).filter((x,i,a)=>a.indexOf(x)===i);}});}catch(e){}
 /* Sauvegarde regroupée : plusieurs save() rapprochés → une seule écriture (évite les ralentissements
    quand les données sont volumineuses) ; écriture immédiate quand l'app passe en arrière-plan. */
 let _saveT=null;
@@ -367,9 +369,8 @@ const TOOLS=[
   {id:'escalade', cat:'appn', name:'Escalade', desc:'Voies 3a-6c + photo · moulinette / tête · observables · vidéo', ready:true},
   {id:'sauvetage', cat:'appn', name:'Sauvetage aquatique', desc:'Épreuves de sauvetage, victimes, obstacles, projet / réalisé', ready:true},
 
-  {id:'chronos12',cat:'temps', name:'Multi chrono (12 élèves)', desc:'Chrono central + 12 chronos numérotés', ready:true},
+  {id:'chronos12',cat:'temps', name:'Multi chrono', desc:'Chrono central + jusqu\'à 20 chronos élèves', ready:true},
   {id:'chrono',   cat:'temps', name:'Chronomètre',        desc:'Chrono plein écran avec tours', ready:true},
-  {id:'multi',    cat:'temps', name:'Multi chrono (6 élèves)',       desc:'Un chrono par élève / groupe',  ready:true},
   {id:'photo',    cat:'temps', name:'Photo-finish',       desc:'Arrivées au ralenti', ready:true},
   {id:'video',    cat:'temps', name:'Vidéo différée',     desc:'Retour vidéo en différé', ready:true},
 
@@ -522,27 +523,6 @@ chrono(el){
   tick(); return ()=>cancelAnimationFrame(raf);
 },
 
-/* ---------- Multi-chrono ---------- */
-multi(el){
-  let chronos=[],raf,gStart=null;
-  el.innerHTML=`<div class="card"><div data-cfg>${classSelect('mcs')}
-    <div class="row" style="margin-top:10px"><input id="mcn" type="number" min="1" max="40" value="6" style="max-width:90px"><button class="btn btn-ghost" id="mcgen">Créer les chronos</button></div></div>
-    <div class="row" style="margin-top:10px"><button class="btn btn-grad" id="all">▶ Départ groupé</button><button class="btn btn-ghost" id="rst">↺ Tout remettre à zéro</button></div></div>
-    <div class="mc-grid" id="mcg"></div>`;
-  const g=el.querySelector('#mcg');
-  const build=names=>{chronos=names.map(n=>({name:n,start:null,end:null}));draw();};
-  const draw=()=>{g.innerHTML=chronos.map((c,i)=>`<div class="mc ${c.end?'done':c.start?'run':''}"><input value="${esc(c.name)}" data-i="${i}"><div class="t" data-t="${i}">00:00,00</div><button class="btn ${c.start&&!c.end?'btn-grad':'btn-ghost'} btn-block" data-b="${i}">${!c.start?'▶ Départ':!c.end?'⏹ Arrivée':'↺'}</button></div>`).join('');};
-  g.oninput=e=>{if(e.target.dataset.i!==undefined) chronos[e.target.dataset.i].name=e.target.value};
-  g.onclick=e=>{const i=e.target.dataset.b;if(i===undefined)return;const c=chronos[i];
-    if(!c.start){c.start=performance.now();} else if(!c.end){c.end=performance.now();beep(1000,.08);} else {c.start=null;c.end=null;} draw();};
-  el.querySelector('#mcgen').onclick=()=>{const s=el.querySelector('#mcs').value;
-    if(s!=='') build([...DB.classes[s].students]); else {const n=+el.querySelector('#mcn').value||6;build(Array.from({length:n},(_,i)=>'Élève '+(i+1)));}};
-  el.querySelector('#all').onclick=()=>{const t=performance.now();chronos.forEach(c=>{c.start=t;c.end=null});beep(1500,.25);draw();};
-  el.querySelector('#rst').onclick=()=>{chronos.forEach(c=>{c.start=null;c.end=null});draw();};
-  const tick=()=>{const t=performance.now();chronos.forEach((c,i)=>{const d=g.querySelector(`[data-t="${i}"]`);if(d)d.textContent=fmt(c.start?(c.end||t)-c.start:0)});raf=requestAnimationFrame(tick)};
-  build(Array.from({length:6},(_,i)=>'Élève '+(i+1))); tick();
-  return ()=>cancelAnimationFrame(raf);
-},
 
 /* ---------- Timer HIIT / Tabata ---------- */
 hiit(el){

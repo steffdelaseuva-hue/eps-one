@@ -45,7 +45,6 @@ function addSaveCard(el, { tool, label, single, bulk }) {
 const hook = (k, fn) => { const o = TOOL_IMPL[k]; if (!o) return; TOOL_IMPL[k] = function (el) { const r = o(el); fn(el); return r; }; };
 hook('chrono', el => addSaveCard(el, { tool: 'chrono', label: 'le temps', single: () => {
   const t = el.querySelector('#c')?.textContent, laps = el.querySelectorAll('.laps li').length; return t && t !== '00:00,00' ? { valeur: t, detail: laps ? laps + ' tour(s)' : '' } : null; } }));
-hook('multi', el => addSaveCard(el, { tool: 'multi', label: 'les temps', bulk: () => [...el.querySelectorAll('.mc')].filter(c => c.classList.contains('done')).map(c => ({ nom: c.querySelector('input').value.trim(), valeur: c.querySelector('.t').textContent })) }));
 hook('vma', el => addSaveCard(el, { tool: 'vma', label: 'la VMA', single: () => ({ valeur: (el.querySelector('#v').value || '').replace('.', ',') + ' km/h', detail: 'VMA' }) }));
 hook('vitesse', el => addSaveCard(el, { tool: 'vitesse', label: 'la vitesse', single: () => { const b = el.querySelector('#res .card b'); return b ? { valeur: b.textContent + ' km/h', detail: `${el.querySelector('#d').value} m en ${el.querySelector('#m').value} min ${el.querySelector('#s').value} s` } : null; } }));
 hook('rm', el => addSaveCard(el, { tool: 'rm', label: 'la 1RM', single: () => { const b = el.querySelector('#res .card b'); return b ? { valeur: b.textContent, detail: `${el.querySelector('#c').value} kg × ${el.querySelector('#r').value} rép.` } : null; } }));
@@ -58,7 +57,7 @@ hook('chronos12', el => { const bar = el.querySelector('.chronos-bar'); if (!bar
   btn.onclick = () => { let S; try { S = JSON.parse(localStorage.getItem('chronos-eps-v1')); } catch (e) {} if (!Array.isArray(S)) return toast('Aucun temps');
     const cls = prompt('Classe (nom exact) :', lastClass()); if (!cls) return; const st = studentsOf(cls); if (!st.length) return toast('Classe introuvable');
     const now = Date.now(); let n = 0;
-    S.slice(1).forEach(c => { const t = c.accumulated + (c.running ? now - c.startedAt : 0), name = (c.name || '').trim(); if (t > 0 && st.includes(name)) { saveResult({ tool: 'chronos12', label: 'Chronos EPS', classe: cls, eleve: name, valeur: fmt(t), detail: c.laps.length ? c.laps.length + ' tour(s)' : '' }); n++; } });
+    S.slice(1).forEach(c => { const t = c.accumulated + (c.running ? now - c.startedAt : 0), raw = (c.name || '').trim(), name = st.find(x => x === raw || x.slice(0, 30) === raw) || raw; if (t > 0 && st.includes(name)) { saveResult({ tool: 'chronos12', label: 'Chronos EPS', classe: cls, eleve: name, valeur: fmt(t), detail: c.laps.length ? c.laps.length + ' tour(s)' : '' }); n++; } });
     toast(n ? `${n} temps enregistré(s) ✔` : 'Aucun prénom de la classe trouvé'); }; });
 
 /* ---------- Outil « Résultats des élèves » ---------- */

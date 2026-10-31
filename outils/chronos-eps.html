@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>Multi chrono (12 élèves)</title>
+<title>Multi chrono</title>
 <meta name="theme-color" content="#F3F6FC">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
@@ -159,7 +159,7 @@
     <div class="sheet-head">
       <span class="badge" id="mBadge"></span>
       <span class="sheet-title" id="mTitle"></span>
-      <input id="nameInput" maxlength="20" autocomplete="off" enterkeyhint="done">
+      <input id="nameInput" maxlength="30" autocomplete="off" enterkeyhint="done">
       <button class="close" id="mClose">Fermer</button>
     </div>
     <div class="stats num" id="mStats"></div>
@@ -172,11 +172,15 @@
 // ─────────────────────────────────────────────────────────────
 // Réglages
 // ─────────────────────────────────────────────────────────────
-const N = 12, MASTER = 0, KEY = 'chronos-eps-v1';
+const MASTER = 0, KEY = 'chronos-eps-v1';
+// Nombre de chronos : 12 par défaut, de 2 à 20 (déduit des données enregistrées, réglé depuis EPS ONE)
+let N = 12;
+try { const v0 = JSON.parse(localStorage.getItem(KEY)); if (Array.isArray(v0) && v0.length >= 3 && v0.length <= 21) N = v0.length - 1; } catch (e) {}
 // Dossards aux couleurs d'EPS ONE : or et bleu en alternance (du clair au foncé)
 const BIBS = ['#FFFFFF',
   '#F3E3A8','#BFD3F7','#E6C76E','#8DB0F0','#D4AF37','#5A8DE6',
   '#B8912A','#2F6BD8','#9C7A1E','#1E4FB0','#7A5F17','#123A85'];
+const bibOf = id => BIBS[((id - 1) % 12) + 1];
 const BIBTXT = c => { const n = parseInt(c.slice(1), 16), l = (0.299 * (n >> 16) + 0.587 * (n >> 8 & 255) + 0.114 * (n & 255)); return l > 150 ? '#0B1220' : '#FFFFFF'; };
 
 // ─────────────────────────────────────────────────────────────
@@ -216,7 +220,7 @@ function reset(c) { Object.assign(c, mk(c.id, c.name)); }
 const ACTIONS = {
   toggle: (c, now) => c.running ? pause(c, now) : start(c, now),
   lap, reset: (c) => reset(c),
-  startAll: (_, now) => S.forEach(c => start(c, now)), // départ groupé : 13 chronos au même instant
+  startAll: (_, now) => S.forEach(c => start(c, now)), // départ groupé : tous les chronos au même instant
   pauseAll: (_, now) => S.forEach(c => pause(c, now)),
 };
 function act(type, id) {
@@ -267,7 +271,7 @@ let html = `
   </div>`;
 for (let id = 1; id <= N; id++) {
   html += `
-  <div class="card" data-id="${id}" data-st="idle" style="grid-area:c${id};--bib:${BIBS[id]};--bibtxt:${BIBTXT(BIBS[id])}">
+  <div class="card" data-id="${id}" data-st="idle" style="grid-area:c${id};--bib:${bibOf(id)};--bibtxt:${BIBTXT(bibOf(id))}">
     <button class="head" data-open><span class="badge">${id}</span><span class="name"></span><span class="laps"></span></button>
     <div class="time num">00:00.00</div>
     <div class="sub num"></div>
@@ -275,6 +279,23 @@ for (let id = 1; id <= N; id++) {
   </div>`;
 }
 grid.innerHTML = html;
+// Disposition selon le nombre de chronos et l'orientation : paysage = couronne autour du chrono central (sens horaire), portrait = central en haut
+function layout() {
+  const land = window.matchMedia('(orientation: landscape)').matches;
+  if (land) {
+    const D = [[4, 4], [5, 4], [5, 5], [6, 5], [6, 6]].find(([c, r]) => 2 * c + 2 * (r - 2) >= N) || [6, 6], [C, R] = D;
+    const M = Array.from({ length: R }, () => Array(C).fill('.'));
+    for (let r = 1; r < R - 1; r++) for (let c = 1; c < C - 1; c++) M[r][c] = 'm';
+    const ring = []; for (let c = 0; c < C; c++) ring.push([0, c]); for (let r = 1; r < R - 1; r++) ring.push([r, C - 1]); for (let c = C - 1; c >= 0; c--) ring.push([R - 1, c]); for (let r = R - 2; r >= 1; r--) ring.push([r, 0]);
+    ring.forEach(([r, c], i) => { M[r][c] = i + 1 <= N ? 'c' + (i + 1) : '.'; });
+    grid.style.gridTemplateColumns = `repeat(${C}, 1fr)`; grid.style.gridTemplateRows = `repeat(${R}, 1fr)`; grid.style.gridTemplateAreas = M.map(r => `"${r.join(' ')}"`).join(' ');
+  } else {
+    const rows = Math.ceil(N / 4), A = ['"m m m m"', '"m m m m"'];
+    for (let r = 0; r < rows; r++) A.push('"' + [0, 1, 2, 3].map(c => r * 4 + c + 1 <= N ? 'c' + (r * 4 + c + 1) : '.').join(' ') + '"');
+    grid.style.gridTemplateColumns = 'repeat(4, 1fr)'; grid.style.gridTemplateRows = `repeat(${rows + 2}, 1fr)`; grid.style.gridTemplateAreas = A.join(' ');
+  }
+}
+layout(); window.addEventListener('resize', layout); window.addEventListener('orientationchange', layout);
 
 // Références DOM mises en cache
 const V = S.map(c => {
@@ -339,7 +360,7 @@ grid.addEventListener('click', e => {
   const c = e.target.closest('[data-click]');
   if (!c) return;
   if (c.dataset.click === 'resetAll') {
-    if (confirm('Tout remettre à zéro ?\nLes 13 chronos et tous les tours seront effacés. Les prénoms sont conservés.')) {
+    if (confirm(`Tout remettre à zéro ?\nLes ${N} chronos et tous les tours seront effacés. Les prénoms sont conservés.`)) {
       S.forEach(reset); save(); update(true);
     }
   } else if (c.dataset.click === 'export') exportResults();
@@ -399,7 +420,7 @@ function toast(msg) {
 }
 async function exportResults() {
   const n = Date.now(), d = new Date();
-  let txt = `Multi chrono (12 élèves) – ${d.toLocaleDateString('fr-FR')} ${d.toLocaleTimeString('fr-FR').slice(0, 5)}\n\n`;
+  let txt = `Multi chrono – ${d.toLocaleDateString('fr-FR')} ${d.toLocaleTimeString('fr-FR').slice(0, 5)}\n\n`;
   S.forEach(c => {
     const t = elapsed(c, n);
     if (t === 0 && !c.laps.length) return;
@@ -410,7 +431,7 @@ async function exportResults() {
     c.laps.forEach((l, i) => txt += `   Tour ${i + 1} : ${fmt(l.split)}   (cumul ${fmt(l.total)})\n`);
   });
   try {
-    if (navigator.share) return await navigator.share({ title: 'Multi chrono (12 élèves)', text: txt });
+    if (navigator.share) return await navigator.share({ title: 'Multi chrono', text: txt });
     await navigator.clipboard.writeText(txt); toast('Résultats copiés');
   } catch (e) {
     if (e.name === 'AbortError') return;
