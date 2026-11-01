@@ -1,0 +1,13 @@
+image: alpine:latest
+pages:
+  stage: deploy
+  script:
+    - mkdir -p /tmp/site
+    - cp -a . /tmp/site/
+    - rm -rf /tmp/site/.git /tmp/site/.gitlab-ci.yml /tmp/site/public
+    - mv /tmp/site public
+  artifacts:
+    paths:
+      - public
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
