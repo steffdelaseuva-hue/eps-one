@@ -4,10 +4,11 @@
    ========================================================= */
 /* Page Ko-fi : laisser vide tant qu'elle n'existe pas (le bouton est alors masqué) */
 const KOFI_URL = 'https://ko-fi.com/epsone';
-const APP_VERSION = '23.128';
+const APP_VERSION = '23.129';
 const APP_URL = 'https://bardynstephane.forge.apps.education.fr/eps-one/';
 const CHANGELOG = [
-  { v: '23.128', items: ['EPS ONE déménage sur la Forge des communs numériques éducatifs (Éducation nationale) : nouvelle adresse bardynstephane.forge.apps.education.fr/eps-one. Mentions légales et confidentialité mises à jour (hébergement, licence libre GPL v3).'] },
+  { v: '23.129', items: ['Confidentialité & RGPD : les sauvegardes dans le Nuage Apps Éducation et dans iCloud Drive sont désormais décrites ; mention du comptage anonyme des visites.'] },
+  { v: '23.128', items: ['EPS ONE déménage sur la Forge des communs numériques éducatifs (Éducation nationale) : nouvelle adresse bardynstephane.forge.apps.education.fr/eps-one. Mentions légales et confidentialité mises à jour (hébergement, licence libre GPL v3, sauvegardes Nuage Apps Éducation et iCloud Drive).'] },
   { v: '23.127', items: ['Parkour : le lien « Parkour EPS – Arzacq » ouvre la nouvelle web app (hébergée sur la Forge des communs numériques éducatifs) à la place de l\'ancienne appli Glide, avec son nouveau logo bleu et or.'] },
   { v: '23.125', items: ['Combiné athlétique : les performances (course, lancer, saut) et la maîtrise du projet sont reliées au barème. À l\'enregistrement d\'une épreuve, la note /20 est calculée d\'office ; dans ✅ Validation prof › fiche de l\'élève, un bloc « Barème » affiche chaque performance avec sa note et permet de corriger une valeur à la main.'] },
   { v: '23.117', items: ['Combiné athlétique › ✅ Validation prof › 📐 Barèmes : création de barèmes par niveau de classe (3è et 4è proposés, modifiables) avec sous-barèmes Demi-fond (Garçons / Filles / Marche rapide, somme des courses, écart moyen au projet en %, m ou s, contrat de course), Lancer et Saut (Garçons / Filles, sans / avec élan, écart en m). Barème 4è : course −150 m et lancer −1 m par rapport au 3è, sans saut par défaut (activable). Notes par élève, enregistrement dans Résultats, export CSV.', 'Projet de course annoncé en vitesse par défaut (réglable : distance ou temps) avec une table de correspondance vitesse ↔ distance / temps pour les élèves et l\'enseignant.'] },
@@ -129,9 +130,9 @@ function openPrivacy() {
     const nbEleves = DB.classes.reduce((a, c) => a + c.students.length, 0);
     el.innerHTML = `<div class="card doc">
         <h3>🔐 En résumé</h3>
-        <ul><li><b>Deux modes au choix</b> : <b>stockage local</b> (par défaut, rien n'est envoyé en ligne) ou <b>compte e-mail</b> pour synchroniser ses appareils.</li>
-          <li><b>Aucune publicité</b>, aucun cookie de suivi, aucune statistique de visite.</li>
-          <li><b>Accès</b> : sans compte en stockage local, avec son propre cloud (Google Drive, Dropbox), ou avec un compte EPS ONE sur invitation (validé par l'administrateur). L'adresse e-mail, l'état de la demande (en attente, autorisé, refusé) et l'activation ou non de la synchronisation sont enregistrés, non chiffrés, uniquement pour gérer les autorisations.</li>
+        <ul><li><b>Trois modes au choix</b> : <b>stockage local</b> (par défaut, rien n'est envoyé en ligne), <b>votre propre cloud</b> (Google Drive ou Dropbox) ou <b>compte EPS ONE</b> pour synchroniser ses appareils.</li>
+          <li><b>Aucune publicité</b>, aucun cookie de suivi ; les visites sont seulement comptées de façon anonyme, sans cookie.</li>
+          <li><b>Accès</b> : sans compte en stockage local, avec son propre cloud (Google Drive, Dropbox), ou avec un compte EPS ONE sur invitation (validé par l'administrateur). En plus, des <b>sauvegardes manuelles</b> peuvent être rangées dans le <b>Nuage Apps Éducation</b> ou dans <b>iCloud Drive</b> (fichier, sans synchronisation). L'adresse e-mail, l'état de la demande (en attente, autorisé, refusé) et l'activation ou non de la synchronisation sont enregistrés, non chiffrés, uniquement pour gérer les autorisations.</li>
           <li>Mode actuel sur cet appareil : <b>${window.EPSONE_SYNC && window.EPSONE_SYNC.user ? 'Synchronisé (' + esc(window.EPSONE_SYNC.user.email) + ')' : 'Stockage local'}</b>.</li></ul>
         <h3>📱 Mode « Stockage local »</h3>
         <p>Classes, listes d'élèves, évaluations, suivi, dispenses… sont enregistrés uniquement dans le navigateur de cet appareil (stockage local). Rien n'est envoyé sur un serveur, rien n'est partagé. Effacer les données de Safari/Chrome ou désinstaller l'app les supprime : pensez à exporter régulièrement une sauvegarde.</p>
