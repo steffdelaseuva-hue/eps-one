@@ -11,7 +11,7 @@
   window.epsStatsToggle = b => { try { off() ? localStorage.removeItem('skipgc') : localStorage.setItem('skipgc', 't'); } catch (e) {}
     if (b) b.textContent = window.epsStatsLabel(); try { toast(off() ? 'Vos visites ne seront plus comptées sur cet appareil' : 'Vos visites seront de nouveau comptées'); } catch (e) {} };
   if (off()) return;
-  if (location.hostname !== 'steffdelaseuva-hue.github.io') return;      // jamais en local, ni ailleurs
+  if (!['bardynstephane.forge.apps.education.fr', 'steffdelaseuva-hue.github.io'].includes(location.hostname)) return;      // jamais en local, ni ailleurs
   try {
     const s = document.createElement('script');
     s.async = true; s.src = 'https://gc.zgo.at/count.js';

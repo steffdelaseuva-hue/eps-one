@@ -4,9 +4,10 @@
    ========================================================= */
 /* Page Ko-fi : laisser vide tant qu'elle n'existe pas (le bouton est alors masqué) */
 const KOFI_URL = 'https://ko-fi.com/epsone';
-const APP_VERSION = '23.127';
-const APP_URL = 'https://steffdelaseuva-hue.github.io/eps-one/';
+const APP_VERSION = '23.128';
+const APP_URL = 'https://bardynstephane.forge.apps.education.fr/eps-one/';
 const CHANGELOG = [
+  { v: '23.128', items: ['EPS ONE déménage sur la Forge des communs numériques éducatifs (Éducation nationale) : nouvelle adresse bardynstephane.forge.apps.education.fr/eps-one. Mentions légales et confidentialité mises à jour (hébergement, licence libre GPL v3).'] },
   { v: '23.127', items: ['Parkour : le lien « Parkour EPS – Arzacq » ouvre la nouvelle web app (hébergée sur la Forge des communs numériques éducatifs) à la place de l\'ancienne appli Glide, avec son nouveau logo bleu et or.'] },
   { v: '23.125', items: ['Combiné athlétique : les performances (course, lancer, saut) et la maîtrise du projet sont reliées au barème. À l\'enregistrement d\'une épreuve, la note /20 est calculée d\'office ; dans ✅ Validation prof › fiche de l\'élève, un bloc « Barème » affiche chaque performance avec sa note et permet de corriger une valeur à la main.'] },
   { v: '23.117', items: ['Combiné athlétique › ✅ Validation prof › 📐 Barèmes : création de barèmes par niveau de classe (3è et 4è proposés, modifiables) avec sous-barèmes Demi-fond (Garçons / Filles / Marche rapide, somme des courses, écart moyen au projet en %, m ou s, contrat de course), Lancer et Saut (Garçons / Filles, sans / avec élan, écart en m). Barème 4è : course −150 m et lancer −1 m par rapport au 3è, sans saut par défaut (activable). Notes par élève, enregistrement dans Résultats, export CSV.', 'Projet de course annoncé en vitesse par défaut (réglable : distance ou temps) avec une table de correspondance vitesse ↔ distance / temps pour les élèves et l\'enseignant.'] },
@@ -144,14 +145,14 @@ function openPrivacy() {
           <li>Vous pouvez à tout moment <b>supprimer toutes vos données en ligne</b> (Plus → Stockage & synchronisation) : la synchronisation s'arrête et les données restent seulement sur l'appareil.</li>
           <li><b>Conseil</b> : en mode synchronisé, préférez <b>prénom + initiale</b> pour les élèves. Pour toute question sur l'usage d'outils numériques avec des données d'élèves, votre établissement reste l'interlocuteur de référence.</li></ul>
         <h3>📊 Statistiques de visite</h3>
-        <ul><li><b>Mesure d'audience</b> : le nombre de visites est compté de façon anonyme avec <b>GoatCounter</b>, sans cookie, et seulement sur le site publié (steffdelaseuva-hue.github.io). Rien de ce que vous saisissez dans l'app n'est transmis.</li></ul>
+        <ul><li><b>Mesure d'audience</b> : le nombre de visites est compté de façon anonyme avec <b>GoatCounter</b>, sans cookie, et seulement sur le site publié (bardynstephane.forge.apps.education.fr, et l'ancienne adresse steffdelaseuva-hue.github.io pendant la transition). Rien de ce que vous saisissez dans l'app n'est transmis.</li></ul>
         <h3>📷 Caméra, photos et vidéos</h3>
         <ul><li><b>Vidéo différée, photo-finish, scan des dossards</b> : la caméra n'est utilisée que pendant que l'outil est ouvert ; les images restent en mémoire vive, ne sont jamais enregistrées ni envoyées.</li>
           <li><b>Vidéos</b> ajoutées en danse, gym ou acrosport : enregistrées <b>uniquement sur l'appareil</b>, jamais envoyées en ligne.</li>
           <li><b>Photos</b> ajoutées en acrosport, gym, escalade ou danse : enregistrées sur l'appareil et, si la synchronisation est activée, partagées avec vos autres appareils <b>chiffrées de bout en bout</b> (Firebase, ou Google Drive / Dropbox avec phrase de chiffrement).</li>
           <li><b>Droit à l'image</b> : photographier ou filmer des élèves suppose l'autorisation des responsables légaux (souvent recueillie par l'établissement en début d'année). Effacez les photos et vidéos qui ne servent plus, au plus tard en fin d'année.</li></ul>
         <h3>🌐 Hébergement</h3>
-        <p>L'application est hébergée sur GitHub Pages. Comme pour tout site web, l'hébergeur peut enregistrer des données techniques de connexion (adresse IP) lors du chargement de la page. Aucune donnée d'élève ne transite par ce biais (en mode synchronisé, elles transitent uniquement vers Firebase, ou vers votre Google Drive / Dropbox, chiffrées de bout en bout).</p>
+        <p>L'application est hébergée sur la <b>Forge des communs numériques éducatifs</b> (forge.apps.education.fr), service numérique partagé du ministère de l'Éducation nationale (apps.education.fr). Son code y est publié sous licence libre GNU GPL v3. Pendant la transition, l'ancienne adresse sur GitHub Pages reste ouverte. Comme pour tout site web, l'hébergeur peut enregistrer des données techniques de connexion (adresse IP) lors du chargement de la page. Aucune donnée d'élève ne transite par ce biais (en mode synchronisé, elles transitent uniquement vers Firebase, ou vers votre Google Drive / Dropbox, chiffrées de bout en bout).</p>
         <h3>🧑‍🏫 Bonnes pratiques pour l'enseignant</h3>
         <ul><li><b>Minimiser</b> : prénom + initiale du nom suffisent le plus souvent.</li>
           <li><b>Dispenses</b> : ne pas saisir de motif médical ni de diagnostic, seulement les dates et les aménagements.</li>
