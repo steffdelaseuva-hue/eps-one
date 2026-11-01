@@ -1,3 +1,4 @@
+/*! EPS ONE — Copyright (C) 2026 Steff64 — Logiciel libre sous licence GNU GPL v3 avec conditions supplémentaires (voir LICENSE). */
 /* =========================================================
    EPS ONE — « 📐 Barèmes » du Combiné athlétique (dans ✅ Validation enseignant)
    Un barème = un niveau de classe (ex. « Barème classe de 3è »), avec 3 sous-barèmes :

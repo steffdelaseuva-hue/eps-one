@@ -1,3 +1,4 @@
+/*! EPS ONE — Copyright (C) 2026 Steff64 — Logiciel libre sous licence GNU GPL v3 avec conditions supplémentaires (voir LICENSE). */
 /* =========================================================
    EPS ONE — Fenêtres par-dessus l'écran (overlays) : toujours fermables
    Sur iPhone / iPad, une fenêtre plus haute que l'écran pouvait cacher

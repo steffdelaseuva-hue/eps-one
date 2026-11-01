@@ -1,3 +1,4 @@
+/*! EPS ONE — Copyright (C) 2026 Steff64 — Logiciel libre sous licence GNU GPL v3 avec conditions supplémentaires (voir LICENSE). */
 /* =========================================================
    EPS ONE — Mes classes : import CSV / Excel + ajout d'élève
    Lecture hors ligne : .csv, .txt, .xlsx (Excel), .xls (export HTML)

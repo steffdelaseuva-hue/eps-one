@@ -1,12 +1,15 @@
+/*! EPS ONE — Copyright (C) 2026 Steff64 — Logiciel libre sous licence GNU GPL v3 avec conditions supplémentaires (voir LICENSE). */
 /* =========================================================
    EPS ONE — Onglet PLUS : mise à jour, partage,
    à propos, confidentialité/RGPD, nouvelle année scolaire
    ========================================================= */
 /* Page Ko-fi : laisser vide tant qu'elle n'existe pas (le bouton est alors masqué) */
 const KOFI_URL = 'https://ko-fi.com/epsone';
-const APP_VERSION = '23.129';
+const APP_VERSION = '23.131';
 const APP_URL = 'https://bardynstephane.forge.apps.education.fr/eps-one/';
 const CHANGELOG = [
+  { v: '23.131', items: ['Mentions légales : nom de l\'éditeur indiqué (Stéphane Bardyn, alias Steff64).'] },
+  { v: '23.130', items: ['À propos et mentions légales : EPS ONE est un logiciel libre (GNU GPL v3) ; toute version dérivée doit afficher « Basée sur EPS ONE, par Steff64 ».'] },
   { v: '23.129', items: ['Confidentialité & RGPD : les sauvegardes dans le Nuage Apps Éducation et dans iCloud Drive sont désormais décrites ; mention du comptage anonyme des visites.'] },
   { v: '23.128', items: ['EPS ONE déménage sur la Forge des communs numériques éducatifs (Éducation nationale) : nouvelle adresse bardynstephane.forge.apps.education.fr/eps-one. Mentions légales et confidentialité mises à jour (hébergement, licence libre GPL v3, sauvegardes Nuage Apps Éducation et iCloud Drive).'] },
   { v: '23.127', items: ['Parkour : le lien « Parkour EPS – Arzacq » ouvre la nouvelle web app (hébergée sur la Forge des communs numériques éducatifs) à la place de l\'ancienne appli Glide, avec son nouveau logo bleu et or.'] },
@@ -118,6 +121,8 @@ function openAbout() {
         <p>Plus → « Exporter mes données » sur l'ancien appareil, puis « Importer une sauvegarde » sur le nouveau.</p>
         <h3>🙏 Remerciements</h3>
         <p>Conception et développement : Steff64, professeur d'EPS.</p>
+        <h3>⚖️ Licence</h3>
+        <p>EPS ONE est un <b>logiciel libre</b> © 2026 Steff64, publié sous licence <b>GNU GPL v3</b> sur la Forge des communs numériques éducatifs. Toute version dérivée doit rester libre, porter un autre nom et afficher la mention « <b>Basée sur EPS ONE, par Steff64</b> » (détail dans le fichier LICENSE du dépôt).</p>
         <p style="margin-top:12px"><a href="mentions-legales.html" target="_blank" rel="noopener">⚖️ Mentions légales</a> · <a href="confidentialite.html" target="_blank" rel="noopener">🔒 Politique de confidentialité</a></p>
       </div>`;
   });

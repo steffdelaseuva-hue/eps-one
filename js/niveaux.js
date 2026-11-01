@@ -1,3 +1,4 @@
+/*! EPS ONE — Copyright (C) 2026 Steff64 — Logiciel libre sous licence GNU GPL v3 avec conditions supplémentaires (voir LICENSE). */
 /* =========================================================
    EPS ONE — Niveaux de jeu & composition d'équipes
    (hétérogène / homogène) : Composition d'équipes, Championnat,

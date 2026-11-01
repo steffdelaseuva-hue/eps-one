@@ -1,3 +1,4 @@
+/*! EPS ONE — Copyright (C) 2026 Steff64 — Logiciel libre sous licence GNU GPL v3 avec conditions supplémentaires (voir LICENSE). */
 /* =========================================================
    EPS ONE — Petit générateur de PDF autonome (hors ligne, sans bibliothèque)
    Pages A4, rectangles (pleins / pointillés / arrondis), texte Helvetica (accents français).

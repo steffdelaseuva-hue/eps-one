@@ -1,3 +1,4 @@
+/*! EPS ONE — Copyright (C) 2026 Steff64 — Logiciel libre sous licence GNU GPL v3 avec conditions supplémentaires (voir LICENSE). */
 /* =========================================================
    EPS ONE — Sauvegarde des résultats par classe / élève
    · Carte « Enregistrer pour un élève » ajoutée aux outils de mesure

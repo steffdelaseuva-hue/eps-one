@@ -1,3 +1,4 @@
+/*! EPS ONE — Copyright (C) 2026 Steff64 — Logiciel libre sous licence GNU GPL v3 avec conditions supplémentaires (voir LICENSE). */
 /* =========================================================
    EPS ONE — Changement d'adresse : GitHub → Forge des communs
    Visible UNIQUEMENT sur l'ancienne adresse (steffdelaseuva-hue.github.io).

@@ -1,3 +1,4 @@
+/*! EPS ONE — Copyright (C) 2026 Steff64 — Logiciel libre sous licence GNU GPL v3 avec conditions supplémentaires (voir LICENSE). */
 /* =========================================================
    Générateur de QR code autonome (hors ligne) — EPS ONE
    Mode octet (UTF-8), correction M, versions 1 à 10.

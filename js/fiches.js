@@ -1,3 +1,4 @@
+/*! EPS ONE — Copyright (C) 2026 Steff64 — Logiciel libre sous licence GNU GPL v3 avec conditions supplémentaires (voir LICENSE). */
 /* =========================================================
    EPS ONE — 🧑‍🎓 Fiches élèves visuelles + validation de la classe en couleurs
    Fabriquées au clic à partir des données existantes (rien n'est stocké) :

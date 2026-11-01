@@ -1,3 +1,4 @@
+/*! EPS ONE — Copyright (C) 2026 Steff64 — Logiciel libre sous licence GNU GPL v3 avec conditions supplémentaires (voir LICENSE). */
 /* =========================================================
    EPS ONE — 📊 Bilan (fichier HTML en couleurs : camemberts, tableaux par classe et par outil)
    Le fichier est fabriqué au moment du clic à partir de DB.resultats : rien n'est stocké dans l'appli.

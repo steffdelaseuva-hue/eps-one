@@ -1,3 +1,4 @@
+/*! EPS ONE — Copyright (C) 2026 Steff64 — Logiciel libre sous licence GNU GPL v3 avec conditions supplémentaires (voir LICENSE). */
 /* =========================================================
    EPS ONE — « Saisie des résultats prof (sans lancer l'épreuve) »
    Tableau générique : une ligne par élève (ou groupe), quelques champs

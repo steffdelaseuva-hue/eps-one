@@ -1,3 +1,4 @@
+/*! EPS ONE — Copyright (C) 2026 Steff64 — Logiciel libre sous licence GNU GPL v3 avec conditions supplémentaires (voir LICENSE). */
 /* =========================================================
    EPS ONE — Tirage au sort : roue qui tourne (couleurs de l'app)
    Remplace l'outil « tirage ». Prénoms affichés sur la roue,

@@ -1,3 +1,4 @@
+/*! EPS ONE — Copyright (C) 2026 Steff64 — Logiciel libre sous licence GNU GPL v3 avec conditions supplémentaires (voir LICENSE). */
 /* =========================================================
    🗂 Données stockées (Plus → Espace utilisé → « Voir les données stockées »)
    Liste ce que l'appli garde sur la tablette, avec le nombre d'éléments et la taille, et permet de vider ce qu'on veut.

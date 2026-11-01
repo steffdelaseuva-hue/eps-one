@@ -1,3 +1,35 @@
+EPS ONE — boîte à outils web pour l'EPS
+Copyright (C) 2026 Steff64
+
+Ce programme est un logiciel libre : vous pouvez le redistribuer et/ou le
+modifier selon les termes de la GNU General Public License version 3 publiée
+par la Free Software Foundation, complétée par les conditions supplémentaires
+ci-dessous (article 7 de la licence).
+
+Ce programme est distribué dans l'espoir qu'il sera utile, mais SANS AUCUNE
+GARANTIE, sans même la garantie implicite de QUALITÉ MARCHANDE ou
+d'ADÉQUATION À UN USAGE PARTICULIER. Voir la GNU General Public License
+ci-dessous pour plus de détails.
+
+CONDITIONS SUPPLÉMENTAIRES (article 7 de la GNU GPL v3)
+
+a) Article 7 b) — Attribution. Toute copie ou version modifiée doit conserver
+   les avis de copyright « Steff64 » présents dans les fichiers, et afficher
+   dans ses mentions légales appropriées (écran « À propos » ou équivalent,
+   visible par les utilisateurs) la mention :
+       « Basée sur EPS ONE, par Steff64 »
+   accompagnée d'une indication de l'origine (dépôt EPS ONE sur la Forge des
+   communs numériques éducatifs).
+
+b) Article 7 c) — Origine. Toute version modifiée doit être clairement
+   présentée comme différente de la version d'origine et ne doit pas laisser
+   croire qu'elle est EPS ONE ou qu'elle est publiée par Steff64.
+
+c) Article 7 e) — Nom et logo. Cette licence n'accorde aucun droit d'utiliser
+   le nom « EPS ONE » ni son logo pour une version modifiée.
+
+------------------------------------------------------------------------------
+
                     GNU GENERAL PUBLIC LICENSE
                        Version 3, 29 June 2007
 

@@ -1,3 +1,4 @@
+/*! EPS ONE — Copyright (C) 2026 Steff64 — Logiciel libre sous licence GNU GPL v3 avec conditions supplémentaires (voir LICENSE). */
 /* =========================================================
    Lecteur de QR code autonome (hors ligne) — EPS ONE
    Pendant de js/qr.js : décode une image (caméra) sans réseau.

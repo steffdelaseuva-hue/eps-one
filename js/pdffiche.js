@@ -1,3 +1,4 @@
+/*! EPS ONE — Copyright (C) 2026 Steff64 — Logiciel libre sous licence GNU GPL v3 avec conditions supplémentaires (voir LICENSE). */
 /* =========================================================
    EPS ONE — 📄 Fiche en vrai PDF (hors ligne, sans bibliothèque)
    La fiche HTML est affichée dans un cadre invisible de la largeur d'une page A4, puis dessinée sur un canvas

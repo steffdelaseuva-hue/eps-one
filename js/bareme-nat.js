@@ -1,3 +1,4 @@
+/*! EPS ONE — Copyright (C) 2026 Steff64 — Logiciel libre sous licence GNU GPL v3 avec conditions supplémentaires (voir LICENSE). */
 /* =========================================================
    EPS ONE — « 📐 Barèmes » de la Natation de vitesse (dans ✅ Validation enseignant)
    Barème = temps de nage (s) + indice de nage (temps en s + coups de bras, sur 25 m) + critère « plongeon » (note saisie par le prof).

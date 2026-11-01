@@ -1,3 +1,4 @@
+/*! EPS ONE — Copyright (C) 2026 Steff64 — Logiciel libre sous licence GNU GPL v3 avec conditions supplémentaires (voir LICENSE). */
 /* Statistiques de visite anonymes (GoatCounter) : uniquement sur le site publié.
    Aucun cookie, aucune donnée personnelle, aucune donnée de l'app n'est envoyée. Sans effet hors-ligne. */
 (function () {

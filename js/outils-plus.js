@@ -1,3 +1,4 @@
+/*! EPS ONE — Copyright (C) 2026 Steff64 — Logiciel libre sous licence GNU GPL v3 avec conditions supplémentaires (voir LICENSE). */
 /* =========================================================
    MES OUTILS EPS — outils complémentaires (v0.2)
    Chargé après le script principal : complète TOOL_IMPL.
