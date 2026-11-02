@@ -498,11 +498,12 @@ h3.st{margin:18px 0 6px;font-size:1.05rem;color:#0B2A5B;border-bottom:3px solid 
         <div class="muted" style="font-size:.76rem;margin-top:3px">Choisis une activité (ex. Badminton) : la fiche ne contient que sa validation, ses tournois / matchs et ses camemberts.</div>
         ${actId ? `<label style="display:flex;align-items:center;gap:8px;margin:8px 0 0;font-weight:700"><input type="checkbox" id="fday" ${dayOn ? 'checked' : ''} style="width:20px;height:20px;margin:0"> 📅 Seulement le tournoi / les matchs du jour de l'évaluation <small class="muted">(date de la validation)</small></label>` : ''}
         <b style="display:block;margin-top:12px">Contenu</b>${chk('val', '✅ Validation enseignant (niveaux, points, note)')}${chk('coll', '🏆 Tournois, matchs, classements')}${chk('res', '📈 Résultats des outils')}${chk('pie', '🥧 Camemberts (points bonus, consignes, rapports)')}${chk('gr', '📝 Grilles d\'évaluation')}
-        <div style="margin-top:12px;padding:10px;border:2px dashed var(--line,#C9D3E6);border-radius:12px"><b>📦 Envoyer élève par élève</b>
-          <div class="muted" style="font-size:.78rem;margin:3px 0 6px">Un ZIP avec <b>un fichier indépendant par élève</b> (toute la classe), à envoyer un par un.</div>
+        <div style="margin-top:12px;padding:10px;border:2px dashed var(--line,#C9D3E6);border-radius:12px"><b>📦 Un PDF par élève (fichier ZIP)</b>
+          <div class="muted" style="font-size:.78rem;margin:3px 0 6px">Un ZIP avec <b>un PDF indépendant par élève</b> (toute la classe) : tu extrais chaque fiche et tu l'envoies séparément.</div>
           ${actId ? '' : `<label style="display:flex;align-items:center;gap:8px;margin:4px 0;font-weight:700"><input type="checkbox" id="fsp" checked style="width:20px;height:20px;margin:0"> 📁 Un dossier par activité (sinon : une seule fiche par élève avec tout)</label>`}
           <button class="btn btn-grad btn-block" data-zip>📦 Créer le ZIP de la classe</button></div>
-        <div class="row" style="margin-top:12px"><button class="btn btn-ghost" data-x>Annuler</button><button class="btn btn-grad" data-go>Créer</button></div></div>`;
+        <div class="muted" style="font-size:.78rem;margin-top:12px">Ou un seul document qui réunit toutes les fiches à la suite (ou la fiche de l'élève choisi) :</div>
+        <div class="row" style="margin-top:6px"><button class="btn btn-ghost" data-x>Annuler</button><button class="btn btn-ghost" data-go>📄 Un seul document</button></div></div>`;
       o.querySelector('#fe').value = who0; o.querySelector('#fe').onchange = e => { who0 = e.target.value; };
       o.querySelector('#fc').onchange = e => { cls = e.target.value; who0 = ''; draw(); };
       o.querySelector('#fa').onchange = e => { actId = e.target.value; draw(); };
