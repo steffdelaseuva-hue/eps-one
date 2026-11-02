@@ -45,6 +45,19 @@ const mmss = s => { if (s == null || isNaN(s)) return '–'; const neg = s < 0; 
 // Format de l'épreuve : absent = plan commun (comportement historique) · 1 individuel · 2 duo · 3 trio · 4 quatuor
 // Duo/trio/quatuor : chaque bloc porte b.pe = [plan Élève 1, plan Élève 2, …] (listes d'exercices) et b.obj = { famille: objectif de groupe par série }
 const WOD_FMT = ['Plan commun', 'Individuel', 'Duo', 'Trio', 'Quatuor'];
+/* ⚡ Formats rapides : EMOM / E2MOM / E3MOM / Death By / AMRAP / For Time / Tabata */
+const RAP_T = [['emom', 'EMOM', 1], ['e2mom', 'E2MOM', 2], ['e3mom', 'E3MOM', 3], ['deathby', 'Death By', 1], ['amrap', 'AMRAP', 0], ['fortime', 'For Time', 0], ['tabata', 'Tabata', 0]];
+const rapLabel = r => { const n = r.type === 'tabata' ? r.rounds : Math.max(1, Math.round(r.total / (r.interv || 1)));
+  return r.type === 'tabata' ? `Tabata ${r.work}-${r.rest} × ${r.rounds}` : /mom$/.test(r.type) ? `${r.type === 'emom' ? 'EMOM' : r.type.toUpperCase()} ${r.total} min (${n} × ${r.interv} min)`
+    : r.type === 'deathby' ? `Death By ${r.total} min max` : r.type === 'amrap' ? `AMRAP ${r.total} min` : `For Time (cap ${r.total} min)`; };
+const rapMin = r => r.type === 'tabata' ? Math.max(1, Math.ceil(r.rounds * (r.work + r.rest) / 60)) : Math.max(1, r.total);
+/* repère à afficher pendant la séance (+ clé qui change à chaque intervalle : bip) */
+const rapCue = (r, el) => { if (!r || el == null || el < 0) return null;
+  if (/mom$/.test(r.type) || r.type === 'deathby') { const iv = Math.max(1, r.interv || 1) * 60, N = Math.max(1, Math.round(r.total / (r.interv || 1))), k = Math.min(N, Math.floor(el / iv) + 1), left = el >= N * iv ? 0 : iv - el % iv;
+    return { key: 's' + k, txt: r.type === 'deathby' ? `Minute ${k}/${N} : ${k} répétition${k > 1 ? 's' : ''} · suivante dans ${mmss(left)}` : `Séquence ${k}/${N} · changement dans ${mmss(left)}` }; }
+  if (r.type === 'tabata') { const cyc = r.work + r.rest, T = r.rounds * cyc; if (el >= T) return { key: 'end', txt: 'Tabata terminé' }; const k = Math.floor(el / cyc) + 1, x = el % cyc, w = x < r.work;
+    return { key: 't' + k + w, txt: `${w ? '🔥 EFFORT' : '😮‍💨 REPOS'} ${Math.ceil((w ? r.work : cyc) - x)} s · tour ${k}/${r.rounds}` }; }
+  return null; };
 const WOD_STU = ['#7E57C2', '#00897B', '#EF6C00', '#3949AB'];
 const wodMulti = e => e && e.format >= 2 && (e.blocs || []).every(b => Array.isArray(b.pe) && b.pe.length) ? e.format : 0;
 const wodClone = o => JSON.parse(JSON.stringify(o));
@@ -182,25 +195,89 @@ TOOL_IMPL.wod = function (el) {
     el.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => { tab = b.dataset.tab; frame(); });
     ({ epreuves: listEp, seance, resultats })[tab](el.querySelector('#w-body'));
   }
-  const summaryOf = e => `${e.format ? WOD_FMT[e.format] + ' · ' : ''}${e.sport === 'hyrox' ? 'HYROX' : 'Crosstraining'} · ${e.blocs.length} bloc${e.blocs.length > 1 ? 's' : ''} · ${e.prevu} min prévues · cap ${e.cap} min`;
+  const summaryOf = e => `${e.rapide ? '⚡ ' + rapLabel(e.rapide) + ' · ' : ''}${e.format ? WOD_FMT[e.format] + ' · ' : ''}${e.sport === 'hyrox' ? 'HYROX' : 'Crosstraining'} · ${e.blocs.length} bloc${e.blocs.length > 1 ? 's' : ''} · ${e.prevu} min prévues · cap ${e.cap} min`;
 
   /* ================= 1. ÉPREUVES ================= */
+  let selMode = false; const sel = new Set();
   function listEp(box) {
     const VIS = DB.wod.epreuves.map((e, i) => [e, i]).filter(([e]) => !window.teamSees || teamSees(e));   // Mode Équipe : pas les épreuves d'un collègue
     const FREE = window.teamOn && teamOn() && window.activeProf && activeProf() ? DB.wod.epreuves.filter(e => !e.prof) : [];
-    box.innerHTML = `${FREE.length ? `<div class="card" style="border:2px solid #B8912A;margin-bottom:12px"><b>🔒 ${FREE.length} épreuve${FREE.length > 1 ? 's' : ''} visible${FREE.length > 1 ? 's' : ''} par tous les enseignants</b><p class="muted" style="font-size:.84rem;margin:6px 0 8px">Réserve-les à ton profil : tes collègues ne les verront plus.</p><button class="btn btn-grad btn-block" data-resv>🔒 Les réserver à ${esc(activeProf().name)}</button></div>` : ''}<div class="card" style="padding:0">${VIS.length ? VIS.map(([e, i]) => `<div class="list-item"><div style="flex:1"><b>${esc(e.nom)}</b><div class="muted">${summaryOf(e)}</div></div>
-      <button class="btn btn-ghost" data-cfg="bare" data-e="${i}">✏️</button><button class="btn btn-ghost" data-cfg="bare" data-c="${i}" title="Dupliquer">⧉</button></div>`).join('') : '<div class="empty">Aucune épreuve. Créez la première !</div>'}</div>
-      <button class="btn btn-grad btn-block" data-cfg style="margin-top:12px" id="new">＋ Créer une épreuve</button>`;
+    box.innerHTML = `${FREE.length ? `<div class="card" style="border:2px solid #B8912A;margin-bottom:12px"><b>🔒 ${FREE.length} épreuve${FREE.length > 1 ? 's' : ''} visible${FREE.length > 1 ? 's' : ''} par tous les enseignants</b><p class="muted" style="font-size:.84rem;margin:6px 0 8px">Réserve-les à ton profil : tes collègues ne les verront plus.</p><button class="btn btn-grad btn-block" data-resv>🔒 Les réserver à ${esc(activeProf().name)}</button></div>` : ''}${VIS.length ? `<div class="row" style="margin-bottom:8px;gap:6px;flex-wrap:wrap">${selMode ? `<button class="btn btn-ghost" data-sa>☑ Tout (${VIS.length})</button><button class="btn btn-ghost" data-sn>☐ Aucune</button><button class="btn btn-ghost" data-ss="hyrox">HYROX</button><button class="btn btn-ghost" data-ss="cross">Crosstraining</button><button class="btn btn-danger" data-sd ${sel.size ? '' : 'disabled'}>🗑 Supprimer (${sel.size})</button><button class="btn btn-ghost" data-sx>Terminer</button>` : '<button class="btn btn-ghost" data-sm>☑ Sélectionner / supprimer en masse</button>'}</div>` : ''}<div class="card" style="padding:0">${VIS.length ? VIS.map(([e, i]) => `<div class="list-item" ${selMode ? `data-row="${esc(e.id)}" style="cursor:pointer;${sel.has(e.id) ? 'background:rgba(214,69,69,.10)' : ''}"` : ''}>${selMode ? `<input type="checkbox" data-ck="${esc(e.id)}" ${sel.has(e.id) ? 'checked' : ''} style="width:22px;height:22px;margin:0 10px 0 0;flex:0 0 auto">` : ''}<div style="flex:1"><b>${esc(e.nom)}</b><div class="muted">${summaryOf(e)}</div></div>
+      ${selMode ? '' : `<button class="btn btn-ghost" data-cfg="bare" data-e="${i}">✏️</button><button class="btn btn-ghost" data-cfg="bare" data-c="${i}" title="Dupliquer">⧉</button>`}</div>`).join('') : '<div class="empty">Aucune épreuve. Créez la première !</div>'}</div>
+      <button class="btn btn-grad btn-block" data-cfg style="margin-top:12px;${selMode ? 'display:none' : ''}" id="new">＋ Créer une épreuve</button>`;
+    const ids = VIS.map(([e]) => e.id), again = () => listEp(box);
+    const q1 = x => box.querySelector(x);
+    if (q1('[data-sm]')) q1('[data-sm]').onclick = () => { selMode = true; sel.clear(); again(); };
+    if (q1('[data-sx]')) q1('[data-sx]').onclick = () => { selMode = false; sel.clear(); again(); };
+    if (q1('[data-sa]')) q1('[data-sa]').onclick = () => { ids.forEach(i => sel.add(i)); again(); };
+    if (q1('[data-sn]')) q1('[data-sn]').onclick = () => { sel.clear(); again(); };
+    box.querySelectorAll('[data-ss]').forEach(b => b.onclick = () => { VIS.forEach(([e]) => { if (e.sport === b.dataset.ss) sel.add(e.id); }); again(); });
+    box.querySelectorAll('[data-row]').forEach(r => r.onclick = ev => { const id = r.dataset.row; if (sel.has(id)) sel.delete(id); else sel.add(id); again(); });
+    if (q1('[data-sd]')) q1('[data-sd]').onclick = () => { const n = sel.size; if (!n) return;
+      if (!confirm(`Supprimer ${n} épreuve${n > 1 ? 's' : ''} ? Les résultats des séances déjà enregistrées sont conservés.`)) return;
+      DB.wod.epreuves = DB.wod.epreuves.filter(e => !sel.has(e.id)); sel.clear(); save(); toast(`🗑 ${n} épreuve${n > 1 ? 's' : ''} supprimée${n > 1 ? 's' : ''}`); selMode = false; again(); };
     const rv = box.querySelector('[data-resv]'); if (rv) rv.onclick = () => { const me = activeProf(), go = () => { FREE.forEach(e => e.prof = me.id); save(); toast('🔒 Épreuves réservées à ' + me.name); listEp(box); }; if (me.pin && typeof pinPad === 'function') pinPad('ask', go, `Code de ${me.name}`, { hash: me.pin }); else go(); };
-    box.querySelector('#new').onclick = () => editEp(box, null);
+    box.querySelector('#new').onclick = () => choisir(box);
     box.querySelectorAll('[data-e]').forEach(b => b.onclick = () => editEp(box, +b.dataset.e));
     box.querySelectorAll('[data-c]').forEach(b => b.onclick = () => { const c = JSON.parse(JSON.stringify(DB.wod.epreuves[+b.dataset.c])); delete c.prof; if (window.epsTg) epsTg(c); c.id = wid(); c.nom += ' (copie)'; DB.wod.epreuves.push(c); save(); listEp(box); });
+  }
+
+  /* Choix à la création : épreuve libre ou format rapide */
+  function choisir(box) {
+    box.innerHTML = `<div class="card" data-cfg><h3>Créer une épreuve</h3>
+      <button class="btn btn-grad btn-block" style="padding:16px;margin-top:6px" id="c-lib">🏋️ Libre<br><small style="font-weight:600;opacity:.9">Blocs, séries, familles, exercices N1-N4, run, duo / trio / quatuor</small></button>
+      <button class="btn btn-grad btn-block" style="padding:16px;margin-top:10px" id="c-rap">⚡ Formats rapides<br><small style="font-weight:600;opacity:.9">EMOM · E2MOM · E3MOM · Death By · AMRAP · For Time · Tabata</small></button>
+      <button class="btn btn-ghost btn-block" style="margin-top:10px" id="c-no">Annuler</button></div>`;
+    box.querySelector('#c-lib').onclick = () => editEp(box, null);
+    box.querySelector('#c-rap').onclick = () => rapide(box);
+    box.querySelector('#c-no').onclick = () => listEp(box);
+  }
+  function rapide(box) {
+    const Q = { type: 'e2mom', sport: 'cross', nom: '', total: 20, interv: 2, work: 20, rest: 10, rounds: 8 };
+    const DUR = { emom: [10, 15, 20, 30], e2mom: [10, 20, 30], e3mom: [15, 21, 30], deathby: [10, 15, 20], amrap: [10, 20], fortime: [15, 20] };
+    const setType = t => { Q.type = t; const d = RAP_T.find(x => x[0] === t)[2]; if (d) Q.interv = d;
+      Q.total = t === 'e2mom' ? 20 : t === 'e3mom' ? 21 : t === 'emom' ? 10 : t === 'deathby' ? 10 : t === 'amrap' ? 10 : t === 'fortime' ? 15 : Q.total; };
+    const draw = () => {
+      const T = Q.type, mom = /mom$/.test(T), mk = () => ({ type: T, total: Q.total, interv: Q.interv, work: Q.work, rest: Q.rest, rounds: Q.rounds });
+      const chips = (DUR[T] || []).map(m => `<button data-d="${m}" class="${Q.total === m ? 'on' : ''}">${m} min</button>`).join('') + (DUR[T] ? `<button data-d="free" class="${(DUR[T] || []).includes(Q.total) ? '' : 'on'}">Libre</button>` : '');
+      box.innerHTML = `<div class="card" data-cfg><h3>⚡ Format rapide</h3>
+        <label>Format</label><div class="seg" style="flex-wrap:wrap">${RAP_T.map(([k, l]) => `<button data-t="${k}" class="${T === k ? 'on' : ''}">${l}</button>`).join('')}</div>
+        ${mom ? `<label>Intervalle d'une séquence (min)</label><input id="iv" type="number" min="1" max="10" value="${Q.interv}"><p class="muted" style="margin:4px 2px 0;font-size:.78rem">${T === 'emom' ? 'EMOM : toutes les minutes' : T === 'e2mom' ? 'E2MOM : toutes les 2 minutes (réglage par défaut)' : 'E3MOM : toutes les 3 minutes'} — l'élève fait sa série, le temps qui reste est son repos.</p>` : ''}
+        ${T === 'deathby' ? '<p class="muted" style="margin:6px 2px 0;font-size:.82rem">Death By : minute 1 = 1 répétition, minute 2 = 2 répétitions… on s\'arrête à la première minute non réussie.</p>' : ''}
+        ${T === 'tabata' ? `<label>Intervalles</label><div class="seg"><button data-tb="std" class="${Q.work === 20 && Q.rest === 10 && Q.rounds === 8 ? 'on' : ''}">20 s / 10 s × 8</button><button data-tb="free" class="${Q.work === 20 && Q.rest === 10 && Q.rounds === 8 ? '' : 'on'}">Libre</button></div>
+          <div class="row"><div><label>Effort (s)</label><input id="tw" type="number" min="5" value="${Q.work}"></div><div><label>Repos (s)</label><input id="tr" type="number" min="0" value="${Q.rest}"></div><div><label>Répétitions</label><input id="tn" type="number" min="1" value="${Q.rounds}"></div></div>
+          <p class="muted" style="margin:4px 2px 0;font-size:.78rem">Durée totale : <b>${mmss(Q.rounds * (Q.work + Q.rest))}</b></p>`
+          : `<label>Durée ${T === 'fortime' ? '(time cap)' : T === 'deathby' ? 'maximale' : 'totale'}</label><div class="seg" id="ds" style="flex-wrap:wrap">${chips}</div><input id="dur" type="number" min="1" value="${Q.total}" style="margin-top:6px"><p class="muted" style="margin:4px 2px 0;font-size:.78rem">${mom ? `→ ${Math.max(1, Math.round(Q.total / Q.interv))} séquences de ${Q.interv} min` : T === 'amrap' ? 'AMRAP : un maximum de tours dans le temps imparti (le temps est la limite).' : T === 'fortime' ? 'For Time : le plus vite possible, avec un temps limite.' : ''}</p>`}
+        <label>Sport</label><div class="seg"><button data-sp="cross" class="${Q.sport === 'cross' ? 'on' : ''}">Crosstraining</button><button data-sp="hyrox" class="${Q.sport === 'hyrox' ? 'on' : ''}">HYROX</button></div>
+        <label>Nom (facultatif)</label><input id="nm" value="${esc(Q.nom)}" placeholder="${esc(rapLabel(mk()))}">
+        <div class="row" style="margin-top:12px"><button class="btn btn-grad" id="ok">Régler les exercices ›</button><button class="btn btn-ghost" id="no">Retour</button></div></div>`;
+      const $ = x => box.querySelector(x), read = () => { Q.nom = $('#nm').value;
+        if ($('#iv')) Q.interv = Math.max(1, Math.min(10, +$('#iv').value || 1)); if ($('#dur')) Q.total = Math.max(1, +$('#dur').value || 1);
+        if ($('#tw')) { Q.work = Math.max(5, +$('#tw').value || 20); Q.rest = Math.max(0, +$('#tr').value || 0); Q.rounds = Math.max(1, +$('#tn').value || 1); } };
+      box.querySelectorAll('[data-t]').forEach(b => b.onclick = () => { read(); setType(b.dataset.t); draw(); });
+      box.querySelectorAll('[data-sp]').forEach(b => b.onclick = () => { read(); Q.sport = b.dataset.sp; draw(); });
+      box.querySelectorAll('[data-d]').forEach(b => b.onclick = () => { read(); if (b.dataset.d !== 'free') Q.total = +b.dataset.d; else Q.total = DUR[T].includes(Q.total) ? Q.total + 1 : Q.total; draw(); if (b.dataset.d === 'free') { const i = $('#dur'); i && i.focus(); } });
+      box.querySelectorAll('[data-tb]').forEach(b => b.onclick = () => { read(); if (b.dataset.tb === 'std') { Q.work = 20; Q.rest = 10; Q.rounds = 8; } else Q.rest = Q.rest === 10 ? 15 : Q.rest; draw(); });
+      ['#iv', '#dur', '#tw', '#tr', '#tn'].forEach(id => { const i = $(id); if (i) i.onchange = () => { read(); draw(); }; });
+      $('#no').onclick = () => choisir(box);
+      $('#ok').onclick = () => { read(); const r = mk(), sp = Q.sport, mn = rapMin(r);
+        const rb = (i, series, reps) => { const b = newBloc(sp, i); b.run = false; b.series = series; b.ex[0].reps = reps; return b; };
+        let blocs;
+        if (/mom$/.test(T)) blocs = [rb(0, Math.max(1, Math.round(Q.total / Q.interv)), 10)];
+        else if (T === 'deathby') blocs = Array.from({ length: Math.max(1, Q.total) }, (_, k) => rb(0, 1, k + 1));
+        else if (T === 'amrap') { const b = rb(0, 6, 10); b.ex = [{ nom: 'Air squats', reps: 10, niv: 1 }, { nom: 'Pompes sur box', reps: 10, niv: 1 }, { nom: 'Mountain climbers', reps: 10, niv: 1 }]; blocs = [b]; }
+        else if (T === 'fortime') blocs = [rb(0, 3, 15), rb(1, 3, 15), rb(2, 3, 15)];
+        else blocs = [rb(0, Q.rounds, 10)];
+        const seed = { id: wid(), nom: Q.nom.trim() || rapLabel(r), sport: sp, prevu: T === 'fortime' ? Math.max(1, Math.round(mn * .8)) : mn, cap: mn, rapide: r, blocs };
+        editEp(box, null, seed); };
+    };
+    draw();
   }
   const newBloc = (sport, i) => ({ famille: i % 4, series: sport === 'hyrox' ? 1 : 3, ex: [{ nom: ['Air squats', 'Pompes sur box', 'Jumping jacks', 'Mountain climbers'][i % 4], reps: 10, niv: 1 }],
     run: sport === 'hyrox', runType: 'm', runVal: sport === 'hyrox' ? 400 : 200 });
 
-  function editEp(box, idx) {
-    const e = idx != null ? JSON.parse(JSON.stringify(DB.wod.epreuves[idx])) : { id: wid(), nom: 'WOD 1', sport: 'cross', prevu: 12, cap: 15, blocs: [newBloc('cross', 0)] };
+  function editEp(box, idx, seed) {
+    const e = idx != null ? JSON.parse(JSON.stringify(DB.wod.epreuves[idx])) : seed ? seed : { id: wid(), nom: 'WOD 1', sport: 'cross', prevu: 12, cap: 15, blocs: [newBloc('cross', 0)] };
     let custom = JSON.parse(JSON.stringify(DB.wod.customEx || [])), nf = null;
     // liste « Ajouter un exercice » rangée par famille (famille du bloc en premier), du niveau 1 au niveau 4
     const exList = () => [...WOD_CAT.map(x => ({ nom: x[0], f: x[1], n: x[2] })), ...custom.map(c => { const m = exMeta(c); return { nom: c, f: m ? m.f : null, n: m ? m.n : null }; })];
@@ -239,7 +316,7 @@ TOOL_IMPL.wod = function (el) {
     const draw0 = () => {
       norm(); const nM = nMulti();
       const allEx = exList().map(x => x.nom);
-      box.innerHTML = `<div data-cfg="bare"><div class="card" data-cfg><h3>${idx != null ? 'Modifier' : 'Nouvelle'} épreuve</h3>
+      box.innerHTML = `<div data-cfg="bare"><div class="card" data-cfg><h3>${idx != null ? 'Modifier' : 'Nouvelle'} épreuve</h3>${e.rapide ? `<div class="pill" style="display:inline-block;margin-bottom:6px">⚡ ${esc(rapLabel(e.rapide))}</div><p class="muted" style="margin:0 0 6px;font-size:.8rem">Format rapide : réglez ci-dessous les exercices et les répétitions. Pendant la séance, l'écran indique la séquence en cours (bip à chaque changement).</p>` : ''}
         <label>Nom</label><input id="nm" value="${esc(e.nom)}">
         <label>Sport</label><div class="seg"><button data-sp="cross" class="${e.sport === 'cross' ? 'on' : ''}">Crosstraining</button><button data-sp="hyrox" class="${e.sport === 'hyrox' ? 'on' : ''}">HYROX</button></div>
         <div class="row"><div><label>Temps d'épreuve prévu (min)</label><input id="pv" type="number" min="1" value="${e.prevu}"></div><div><label>Temps limite / time cap (min)</label><input id="cp" type="number" min="1" value="${e.cap}"></div></div>
@@ -508,12 +585,15 @@ TOOL_IMPL.wod = function (el) {
       $('#save').onclick = saveSeance;
       $('#cancel').onclick = () => { if (confirm('Abandonner la séance ?')) { partAskRemove(cur); DB.wod.current = null; save(); clearInterval(iv); prepare(box); } };
     };
+    let lastCue = null;
     const tick = () => {
       if (!box.isConnected || !DB.wod.current) return clearInterval(iv);
       const now = Date.now(), capMs = e.cap * 60000;
       const gc = box.querySelector('#gclk'); if (gc) gc.textContent = cur.start ? mmss((now - cur.start) / 1000) : '0:00';
       const t0 = cur.only != null && cur.groups[cur.only] ? cur.groups[cur.only].dep : cur.start, gOnly = cur.only != null && cur.groups[cur.only];
-      const ci = box.querySelector('#capinfo'); if (ci) ci.textContent = gOnly && (gOnly.arr || gOnly.capped) ? '' : t0 ? `Time cap dans ${mmss(Math.max(0, (t0 + capMs - now) / 1000))}` : `Time cap : ${e.cap} min`;
+      const ci = box.querySelector('#capinfo'); const cue = t0 && !(gOnly && (gOnly.arr || gOnly.capped)) ? rapCue(e.rapide, (now - t0) / 1000) : null;
+      if (ci) ci.textContent = (gOnly && (gOnly.arr || gOnly.capped) ? '' : t0 ? `Time cap dans ${mmss(Math.max(0, (t0 + capMs - now) / 1000))}` : `Time cap : ${e.cap} min`) + (cue ? ' · ' + cue.txt : '');
+      if (cue) { if (lastCue != null && lastCue !== cue.key) beep(1200, .3); lastCue = cue.key; }
       let changed = false;
       cur.groups.forEach((g, i) => {
         if (g.dep && !g.arr && !g.capped && now - g.dep >= capMs) { g.capped = true; g.arr = g.dep + capMs; changed = true; }

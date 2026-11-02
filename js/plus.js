@@ -5,9 +5,10 @@
    ========================================================= */
 /* Page Ko-fi : laisser vide tant qu'elle n'existe pas (le bouton est alors masqué) */
 const KOFI_URL = 'https://ko-fi.com/epsone';
-const APP_VERSION = '23.132';
+const APP_VERSION = '23.133';
 const APP_URL = 'https://bardynstephane.forge.apps.education.fr/eps-one/';
 const CHANGELOG = [
+  { v: '23.133', items: ['Crosstraining / HYROX › Épreuves : bouton « Sélectionner / supprimer en masse » (tout, aucune, HYROX, Crosstraining, puis 🗑 Supprimer).', 'Créer une épreuve : choix entre « Libre » (comme avant) et « ⚡ Formats rapides » : EMOM, E2MOM (20 min = 10 séquences de 2 min, par défaut), E3MOM, Death By, AMRAP (10 / 20 min ou libre), For Time (15 / 20 min ou libre), Tabata (20 s / 10 s × 8 ou libre). Pendant la séance, la séquence en cours et le temps avant changement s\'affichent, avec un bip à chaque intervalle.'] },
   { v: '23.132', items: ['Bilan d\'un outil : le menu de classe n\'ouvre plus par erreur la suppression (🧹) — identifiant en double corrigé.', 'Fiches élèves : le ZIP (un PDF par élève) devient le choix principal ; le document unique passe en second.'] },
   { v: '23.131', items: ['Mentions légales : nom de l\'éditeur indiqué (Stéphane Bardyn, alias Steff64).'] },
   { v: '23.130', items: ['À propos et mentions légales : EPS ONE est un logiciel libre (GNU GPL v3) ; toute version dérivée doit afficher « Basée sur EPS ONE, par Steff64 ».'] },
