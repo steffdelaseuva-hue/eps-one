@@ -80,14 +80,19 @@ TOOL_IMPL.parkour = function (el) {
   const D = liveDB(() => DB.parkour); D.lists = D.lists || {}; D.customEx = D.customEx || []; D.evals = D.evals || []; D.cycle = D.cycle || 1; D.ench = D.ench || {};
   const PID = localStorage.getItem('epsone_prof_actif') || '_';
   /* Éléments choisis de la séance : propres à chaque enseignant (ne sont plus partagés) */
-  if ((D.list || []).length && !Object.keys(D.lists).length) D.lists[PID] = D.list;
-  const LS = () => (D.lists[PID] = D.lists[PID] || []), setLS = v => { D.lists[PID] = v; };
+  /* Éléments choisis : propres à chaque ÉLÈVE (D.sel[prof][classe][élève]) — plus partagés entre les élèves de la classe */
+  D.sel = D.sel || {};
+  if (!D.selM) { D.selM = 1; const P = (D.sel[PID] = D.sel[PID] || {});   // reprise de l'ancienne liste commune : chaque élève garde les éléments de son enchaînement
+    Object.keys(D.ench).forEach(c => Object.keys(D.ench[c] || {}).forEach(n => { const E = D.ench[c][n]; if (E && (E.seq || []).length) { P[c] = P[c] || {}; if (!P[c][n]) P[c][n] = E.seq.map(x => ({ cycle: E.cycle || 1, fam: x.fam, atelier: x.atelier, ex: x.ex, niv: x.niv })); } })); }
+  const curName = () => (cls ? studentsOf(cls) : [])[si] || '';
+  const selOf = n => { const P = (D.sel[PID] = D.sel[PID] || {}), C = (P[cls] = P[cls] || {}); return C[n] = C[n] || []; };
+  const LS = () => selOf(curName()), setLS = v => { selOf(curName()); D.sel[PID][cls][curName()] = v; };
   let cls = DB.lastClass && DB.classes.some(c => c.name === DB.lastClass) ? DB.lastClass : (DB.classes[0]?.name || ''), si = 0, at = 0, niv = 1, exi = 0, ratings = {}, step = 'choix';
   const ateliers = () => (PK_DATA[D.cycle] || []).filter(a => a.f !== 'ENCHAÎNER');   // l'enchaînement se construit avec le bouton 🎬
   const famsOf = () => [...new Set(ateliers().map(a => a.f))];
   const elems = (a, v) => [...a.e.filter(x => x.v === v), ...D.customEx.filter(c => c.cycle === D.cycle && c.a === a.a && c.v === v).map(c => ({ n: c.n, v: c.v, c: [], custom: true, ref: c }))];
   const findEl = (x) => { const a = (PK_DATA[x.cycle || D.cycle] || []).find(a => a.a === x.atelier); return a ? a.e.find(e => e.n === x.ex && e.v === x.niv) : null; };
-  const pkSnap = label => ({ label, evals: JSON.parse(JSON.stringify(D.evals)), list: JSON.parse(JSON.stringify(LS())), ench: JSON.parse(JSON.stringify(D.ench)), cls,
+  const pkSnap = label => ({ label, evals: JSON.parse(JSON.stringify(D.evals)), sel: JSON.parse(JSON.stringify(D.sel)), ench: JSON.parse(JSON.stringify(D.ench)), cls,
     val: typeof valOf === 'function' ? JSON.stringify(valOf('parkour', cls)) : null, res: JSON.stringify((DB.resultats || []).filter(r => r && r.classe === cls && r.tool === 'parkour')) });
   const tag = m => m == null ? '–' : `<span class="pk-tag" style="background:${PK_M[m][1]}">${PK_M[m][0]}</span>`;
   const crit = e => e && (e.c.length || e.o) ? `<ul class="pk-crit">${e.c.map(c => `<li>${esc(c)}</li>`).join('')}${e.o ? `<li><b>${esc(e.o)}</b></li>` : ''}</ul>` : '';
@@ -109,8 +114,11 @@ TOOL_IMPL.parkour = function (el) {
         <label>Élément</label><div class="row"><select id="ex">${L.map((x, k) => `<option value="${k}" ${k === exi ? 'selected' : ''}>${esc(x.n)}</option>`).join('') || '<option value="">— aucun élément à ce niveau —</option>'}</select><button class="btn btn-ghost" style="flex:0 0 auto" id="addx" title="Élément non répertorié">✎</button>${L[exi] && L[exi].custom ? `<button class="btn btn-ghost" style="flex:0 0 auto" id="delx" title="Supprimer cet élément ajouté">${epsCanEdit(L[exi].ref) ? '🗑' : '🔒'}</button>` : ''}</div>
         ${cur ? `<div class="muted" style="font-size:.78rem;margin-top:6px"><b>Critères de validation</b></div>${crit(cur) || '<div class="muted" style="font-size:.8rem">—</div>'}` : ''}
         <button class="btn btn-grad btn-block" style="margin-top:12px" id="addl" ${cur ? '' : 'disabled'}>＋ Ajouter cet élément</button></div>
-      <div class="card" style="margin-top:12px;padding:0"><div style="padding:12px 14px 4px;display:flex;align-items:center;gap:8px"><b style="flex:1">Éléments choisis (${LS().length})</b>${LS().length ? '<button class="btn btn-ghost" data-cfg="bare" style="padding:6px 10px;font-size:.8rem" data-rz="list">🗑 Tout supprimer</button>' : ''}</div>
+      <div class="card" style="margin-top:12px;padding:0"><div style="padding:12px 14px 4px;display:flex;align-items:center;gap:8px"><b style="flex:1">Éléments choisis de ${esc(st[si] || '—')} (${LS().length})</b>${LS().length ? '<button class="btn btn-ghost" data-cfg="bare" style="padding:6px 10px;font-size:.8rem" data-rz="list">🗑 Tout supprimer</button>' : ''}</div>
         ${LS().length ? LS().map((x, i) => `<div class="list-item"><div style="flex:1"><b>${esc(x.ex)}</b> <span class="muted">· ${esc(x.atelier || x.fam)} · niv. ${x.niv}</span></div><button class="btn btn-ghost" data-cfg="bare" style="padding:4px 9px" data-rml="${i}" title="Retirer">✕</button></div>`).join('') : '<div class="empty">Aucun élément choisi pour l\'instant.</div>'}</div>
+      <div class="card" data-cfg="bare" style="margin-top:12px"><b>📋 Même choix que d'autres élèves ?</b>
+        <select id="cpl" style="margin-top:8px"><option value="">Reprendre la liste d'un autre élève…</option>${st.filter((n, k) => k !== si && selOf(n).length).map(n => `<option value="${esc(n)}">${esc(n)} (${selOf(n).length} éléments)</option>`).join('')}</select>
+        <button class="btn btn-ghost btn-block" style="margin-top:8px" id="cpall" ${LS().length ? '' : 'disabled'}>👥 Donner cette liste aux élèves qui n'en ont pas</button></div>
       <button class="btn btn-grad btn-block" style="margin-top:12px;padding:15px" data-step="ench" ${LS().length ? '' : 'disabled'}>② Créer son enchaînement →</button>` : ''}
       ${step === 'ench' ? `<div id="pk-ench" style="margin-top:12px"></div>` : ''}
       ${step === 'valid' ? `<div class="card" style="margin-top:12px"><div style="display:flex;align-items:center;gap:8px"><h3 style="flex:1;margin:0">③ Validation · ${esc(st[si] || '')}</h3><button class="btn btn-ghost" data-cfg="bare" style="padding:6px 10px;font-size:.8rem" data-rz="valid">🗑 Tout effacer</button></div>
@@ -133,18 +141,22 @@ TOOL_IMPL.parkour = function (el) {
       ${PK_UNDO ? `<button class="btn btn-grad btn-block" style="margin-top:12px" id="pkundo">↶ Annuler : ${esc(PK_UNDO.label)}</button>` : ''}
       <div class="card" data-cfg="bare" style="margin-top:12px"><b>🗑 Supprimer / remettre à zéro</b>
         <div style="display:flex;flex-direction:column;gap:8px;margin-top:8px">
-          <button class="btn btn-ghost" data-rz="list" ${LS().length ? '' : 'disabled'}>Vider les éléments choisis (${LS().length})</button>
+          <button class="btn btn-ghost" data-rz="list" ${LS().length ? '' : 'disabled'}>Vider les éléments choisis de ${esc(st[si] || '—')} (${LS().length})</button>
           <button class="btn btn-ghost" data-rz="eleve" ${st[si] ? '' : 'disabled'}>Effacer les évaluations et l'enchaînement de ${esc(st[si] || '—')}</button>
           <button class="btn btn-ghost" style="color:var(--danger)" data-rz="classe">Tout remettre à zéro pour la classe ${esc(cls)}</button></div>
         <p class="muted" style="margin:6px 0 0;font-size:.75rem">Un bouton « ↶ Annuler » permet de revenir en arrière juste après.</p></div>` : ''}`;
     const $ = s => el.querySelector(s), all = s => el.querySelectorAll(s);
-    all('[data-c]').forEach(b => b.onclick = () => { if (+b.dataset.c !== D.cycle && LS().length && !confirm('Changer de cycle vide la liste d\'exercices de la séance. Continuer ?')) return; if (+b.dataset.c !== D.cycle) setLS([]); D.cycle = +b.dataset.c; at = 0; exi = 0; ratings = {}; save(); draw(); });
+    all('[data-c]').forEach(b => b.onclick = () => { const anySel = Object.values((D.sel[PID] || {})).some(C => Object.values(C).some(L => L.length)); if (+b.dataset.c !== D.cycle && anySel && !confirm('Changer de cycle vide les listes d\'éléments de tous les élèves. Continuer ?')) return; if (+b.dataset.c !== D.cycle) D.sel[PID] = {}; D.cycle = +b.dataset.c; at = 0; exi = 0; ratings = {}; save(); draw(); });
     if (!DB.classes.length) return;
     $('#cl').onchange = () => { cls = $('#cl').value; DB.lastClass = cls; si = 0; ratings = {}; pkSync(cls); save(); draw(); };
     $('#se').onchange = () => { si = +$('#se').value; ratings = {}; draw(); };
     $('#pv').onclick = () => { si = Math.max(0, si - 1); ratings = {}; draw(); };
     $('#nx').onclick = () => { si = Math.min(st.length - 1, si + 1); ratings = {}; draw(); };
     all('[data-step]').forEach(b => b.onclick = () => { step = b.dataset.step; draw(); });
+    if ($('#cpl')) $('#cpl').onchange = () => { const n = $('#cpl').value; if (!n) return; if (LS().length && !confirm(`Remplacer les éléments de ${st[si]} par ceux de ${n} ?`)) { $('#cpl').value = ''; return; }
+      snap(`éléments de ${st[si]} remplacés`); setLS(JSON.parse(JSON.stringify(selOf(n)))); ratings = {}; save(); toast(`Liste de ${n} reprise ✔`); draw(); };
+    if ($('#cpall')) $('#cpall').onclick = () => { const src = JSON.parse(JSON.stringify(LS())), tg = st.filter((n, k) => k !== si && !selOf(n).length); if (!tg.length) return toast('Tous les élèves ont déjà une liste');
+      if (!confirm(`Donner ces ${src.length} éléments à ${tg.length} élève(s) qui n'en ont pas encore ?`)) return; snap('liste donnée à la classe'); tg.forEach(n => { D.sel[PID][cls][n] = JSON.parse(JSON.stringify(src)); }); save(); toast(`✔ ${tg.length} élève(s)`); draw(); };
     if (step === 'ench') enchainement(st[si], $('#pk-ench'));
     const fE = () => enchOf(st[si]), fSave = E => { E.fluM = fluLevel(E); E.fluT = Date.now(); E.date = E.date || Date.now(); pkSync(cls); save(); draw(); };
     all('[data-fap]').forEach(b => b.onclick = () => { const E = fE(); if (!E) return; const [k, a] = b.dataset.fap.split('|').map(Number); E.app = E.app || []; E.app[k] = E.app[k] === a ? null : a; fSave(E); });
@@ -162,20 +174,20 @@ TOOL_IMPL.parkour = function (el) {
       const done = LS().map((x, i) => ({ x, r: rt(i) })).filter(o => o.r.m != null);
       if (!done.length) return toast('Évaluez au moins un élément');
       done.forEach(({ x, r }) => D.evals.push({ date: Date.now(), classe: cls, eleve: st[si], cycle: D.cycle, fam: x.fam, atelier: x.atelier, ex: x.ex, niv: x.niv, m: r.m, flu: null }));
-      pkSync(cls); save(); toast(`${st[si]} : ${done.length} élément(s) ✔ · copiés dans ✅ Validation`); ratings = {}; if (si < st.length - 1) si++; draw();
+      pkSync(cls); save(); toast(`${st[si]} : ${done.length} élément(s) ✔ · copiés dans ✅ Validation`); ratings = {}; if (si < st.length - 1) { si++; if (!LS().length) step = 'choix'; } draw();
     };
     const snap = label => { PK_UNDO = pkSnap(label); };
     all('[data-x]').forEach(b => b.onclick = () => { if (confirm('Supprimer cette évaluation ?')) { snap('suppression d\'une évaluation'); D.evals.splice(+b.dataset.x, 1); pkSync(cls); save(); draw(); } });
     all('[data-edel]').forEach(b => b.onclick = () => { const n = b.dataset.edel; if (!confirm(`Supprimer l'enchaînement de ${n} ?`)) return; snap(`enchaînement de ${n} supprimé`); delete (D.ench[cls] || {})[n]; pkSync(cls); save(); draw(); });
     all('[data-rz]').forEach(b => b.onclick = () => { const k = b.dataset.rz, n = st[si];
-      const msg = k === 'list' ? 'Supprimer tous les éléments choisis ?' : k === 'valid' ? `Effacer toutes les validations de ${n} (maîtrise des éléments, appuis / fluidité de l'enchaînement) ?` : k === 'eleve' ? `Effacer toutes les évaluations et l'enchaînement de ${n} ?` : `Tout remettre à zéro pour la classe ${cls} (évaluations, enchaînements, éléments choisis) ?`;
+      const msg = k === 'list' ? `Supprimer tous les éléments choisis de ${n} ?` : k === 'valid' ? `Effacer toutes les validations de ${n} (maîtrise des éléments, appuis / fluidité de l'enchaînement) ?` : k === 'eleve' ? `Effacer toutes les évaluations et l'enchaînement de ${n} ?` : `Tout remettre à zéro pour la classe ${cls} (évaluations, enchaînements, éléments choisis) ?`;
       if (!confirm(msg)) return;
-      if (k === 'list') { snap('liste des éléments vidée'); setLS([]); ratings = {}; }
+      if (k === 'list') { snap(`éléments de ${n} vidés`); setLS([]); ratings = {}; }
       if (k === 'valid') { snap(`validations de ${n} effacées`); D.evals = D.evals.filter(e => !(e.classe === cls && e.eleve === n)); const E = enchOf(n); if (E) { E.app = []; E.fluM = null; } ratings = {}; }
       if (k === 'eleve') { snap(`${n} remis à zéro`); D.evals = D.evals.filter(e => !(e.classe === cls && e.eleve === n)); if (D.ench[cls]) delete D.ench[cls][n]; ratings = {}; }
-      if (k === 'classe') { snap(`classe ${cls} remise à zéro`); D.evals = D.evals.filter(e => e.classe !== cls); delete D.ench[cls]; setLS([]); ratings = {}; }
+      if (k === 'classe') { snap(`classe ${cls} remise à zéro`); D.evals = D.evals.filter(e => e.classe !== cls); delete D.ench[cls]; (D.sel[PID] = D.sel[PID] || {})[cls] = {}; ratings = {}; }
       pkSync(cls); save(); toast('Supprimé — « ↶ Annuler » en bas de page'); draw(); });
-    if ($('#pkundo')) $('#pkundo').onclick = () => { const u = PK_UNDO; if (!u) return; D.evals = u.evals; setLS(u.list); D.ench = u.ench;
+    if ($('#pkundo')) $('#pkundo').onclick = () => { const u = PK_UNDO; if (!u) return; D.evals = u.evals; if (u.sel) D.sel = u.sel; D.ench = u.ench;
       if (u.val != null && typeof valOf === 'function') { valOf('parkour', u.cls); DB.valid.v.parkour[u.cls] = JSON.parse(u.val); }
       if (u.res) DB.resultats = (DB.resultats || []).filter(r => !(r && r.classe === u.cls && (r.tool === 'parkour'))).concat(JSON.parse(u.res));
       PK_UNDO = null; pkSync(u.cls); save(); toast('↶ Annulé'); draw(); };

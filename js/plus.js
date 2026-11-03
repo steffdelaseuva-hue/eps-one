@@ -5,9 +5,11 @@
    ========================================================= */
 /* Page Ko-fi : laisser vide tant qu'elle n'existe pas (le bouton est alors masqué) */
 const KOFI_URL = 'https://ko-fi.com/epsone';
-const APP_VERSION = '23.136';
+const APP_VERSION = '23.138';
 const APP_URL = 'https://bardynstephane.forge.apps.education.fr/eps-one/';
 const CHANGELOG = [
+  { v: '23.138', items: ['Format HYROX : l\'adaptation est désormais présentée comme « collège / lycée » (parcours, aide « Adaptation collège / lycée : remplacer les stations », alternatives de matériel).'] },
+  { v: '23.137', items: ['Parkour : les éléments choisis sont maintenant propres à CHAQUE élève (avant, la liste était commune à la classe : le deuxième élève reprenait ceux du premier et les modifier changeait tout). Nouveau : « Reprendre la liste d\'un autre élève » et « Donner cette liste aux élèves qui n\'en ont pas » pour gagner du temps. Les enchaînements déjà créés sont conservés : chaque élève garde les éléments de son enchaînement.'] },
   { v: '23.136', items: ['Format HYROX : parcours par défaut adapté au collège (courses 200 m ; SkiErg, Sled Push, Sled Pull, Burpee Broad Jumps 20 m ; Rameur 200 m ; Farmers Carry 20 m ; Sandbag Lunges 10 m ; Wall Balls 20 rép.). Wall Balls : boutons 5 / 10 / 20 ou valeur libre. Menu d\'exercice : alternatives « collège » (woodchops, rowing haltères, goblet squat, bear crawl, roue abdominale, corde à sauter…) et aide « Remplacer les stations au collège ».'] },
   { v: '23.135', items: ['Format HYROX : choix de la division, comme à la vraie épreuve — Open (solo, charges modérées), Pro (solo, charges plus lourdes), Doubles (duo garçons / filles / mixte : on court ensemble, on partage les stations) et Relay (équipe de 4 : chaque élève fait 2 fois course + station, étapes marquées « Relayeur 1 à 4 »). Une charge (kg) est réglable sur chaque station. La séance impose la bonne organisation (individuel, groupes de 2 ou de 4).'] },
   { v: '23.134', items: ['Créer une épreuve : on choisit d\'abord « 🏋️ Format Crosstraining » (Libre, EMOM, E2MOM, E3MOM, Death By, AMRAP, For Time, Tabata) ou « 🏃 Format HYROX ».', 'Format HYROX : parcours de 16 étapes (4 × course 200 m + SkiErg, Sled Push, Sled Pull, Burpee Broad Jumps 20 m, puis 4 × course 1 km + Rameur 1 km, Farmers Carry 200 m, Sandbag Lunges 100 m, Wall Balls 75 ou 100) ; chaque étape peut changer de distance (m, tours, allers-retours, répétitions, secondes), être remplacée par un autre exercice, déplacée, supprimée, et on peut en ajouter.'] },
