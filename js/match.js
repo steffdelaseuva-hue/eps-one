@@ -1342,9 +1342,10 @@ TOOL_IMPL.match = function (el, grp = 'col') {
     const sp = SP(), c = courtSVG(S.sport), zonesOn = sp.zones && S.zones, possOn = S.type === 'poss' && zonesOn, zpOn = zonesOn && (S.zp || possOn);
     const vbW = +c.vb.split(' ')[2], vbH = +c.vb.split(' ')[3];
     const bands = zonesOn ? Array.from({ length: S.nz }, (_, z) => { const w = vbW / S.nz;
-      return `<rect class="zone-band" data-z="${z}" x="${z * w}" y="0" width="${w}" height="${vbH}" fill="rgba(255,255,255,${z % 2 ? .06 : .14})" stroke="rgba(255,255,255,.55)" stroke-dasharray="4 4" stroke-width="1"/>
+      return `<rect class="zone-band" data-z="${z}" x="${z * w}" y="0" width="${w}" height="${vbH}" fill="rgba(255,255,255,${zonesOn ? (z % 2 ? .04 : .24) : z % 2 ? .06 : .14})" stroke="rgba(255,255,255,${zonesOn ? .95 : .55})" ${zonesOn ? 'stroke-width="2.5"' : 'stroke-dasharray="4 4" stroke-width="1"'}/>
         <text x="${z * w + w / 2}" y="${vbH * .18}" text-anchor="middle" font-size="${vbH * .09}" font-weight="900" fill="#fff" opacity=".9" pointer-events="none" data-zl="${z}"></text>
-        <text x="${z * w + w / 2}" y="${vbH * .92}" text-anchor="middle" font-size="${vbH * .075}" font-weight="800" fill="#fff" pointer-events="none" data-zc="${z}"></text>`; }).join('') : '';
+        <text x="${z * w + w / 2}" y="${vbH * .92}" text-anchor="middle" font-size="${vbH * (zonesOn ? .055 : .075)}" font-weight="800" fill="#fff" pointer-events="none" data-zc="${z}"></text>${zonesOn ? `
+        <text x="${z * w + w / 2}" y="${vbH * .56}" text-anchor="middle" font-size="${vbH * .2}" font-weight="900" fill="#fff" stroke="rgba(0,0,0,.35)" stroke-width="2" paint-order="stroke" pointer-events="none" data-zn="${z}"></text>` : ''}`;  }).join('') : '';
     el.innerHTML = `<div class="sb"><div class="tm a"><span>${esc(S.a)}</span><b id="sa">0</b></div>
         <div class="ck"><div class="muted" style="font-size:.72rem;font-weight:800">${S.type === 'temps' ? 'TEMPS RESTANT' : 'TEMPS'}</div><b id="ck">${S.type === 'temps' ? fmt(S.dur * 60000, false) : '00:00'}</b>
           <div class="row" style="margin-top:6px;gap:6px"><button class="btn btn-grad" style="padding:9px 12px;font-size:.85rem" id="go">▶ Démarrer</button></div></div>
@@ -1446,6 +1447,12 @@ TOOL_IMPL.match = function (el, grp = 'col') {
     for (let z = 0; z < S.nz; z++) {
       const za = z + 1, zb = S.nz - z;
       const zk = M.poss === 0 ? za : zb, zpts = SP().zones && S.zones && (S.zp || S.type === 'poss') ? ` · ${+zvArr()[zk - 1] || 0} pt` : '';
+      if (el.querySelector(`[data-zn="${z}"]`)) {   // terrain épuré (tous les matchs à zones) (Z1 · pts en petit, + nombre de possessions finies là par l'équipe qui attaque)
+        const n = M.poss === 0 ? st[0].zones[za - 1] : st[1].zones[zb - 1], q = el.querySelector(`[data-zn="${z}"]`);
+        el.querySelector(`[data-zl="${z}"]`).textContent = '';
+        el.querySelector(`[data-zc="${z}"]`).textContent = 'Z' + zk + zpts;
+        q.textContent = n; q.setAttribute('opacity', n ? 1 : .35); continue;
+      }
       el.querySelector(`[data-zl="${z}"]`).textContent = 'Z' + zk + zpts;
       el.querySelector(`[data-zc="${z}"]`).textContent = `A ${st[0].zones[za - 1]} · B ${st[1].zones[zb - 1]}`;
     }
