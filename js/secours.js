@@ -66,7 +66,7 @@
   const ikey = (x, d) => { if (!x || typeof x !== 'object' || Array.isArray(x)) return null; const k = x.id != null ? 'id:' + x.id : x.k != null ? 'k:' + x.k : x.name != null ? 'name:' + x.name : x.nom != null ? 'nom:' + x.nom : null;
     if (k != null || d > 1) return k; try { const j = JSON.stringify(x); return j.length < 1500 ? 'j:' + hsh(j) : null; } catch (e) { return null; } };   // sans identifiant (ex. anciens résultats) : empreinte du contenu, aux 2 premiers niveaux
   const isO = x => x && typeof x === 'object' && !Array.isArray(x);
-  const SKIP = k => /^(recent|recentBy|envois|lastClass|natLanes|natMode|acroFiltre|matchTeams|tablette)$/.test(k) || IMG.test(k);
+  const SKIP = k => /^(recent|recentBy|envois|lastClass|natLanes|natMode|acroFiltre|matchTeams|matchTeamsBy|tablette)$/.test(k) || IMG.test(k);
   function walk(v, p, d, out) {
     if (d > MAXD || !v || typeof v !== 'object') return;
     if (Array.isArray(v)) { if (v.length > 6000) return; for (const x of v) { const k = ikey(x, d); if (k == null) continue; const q = p + '/' + k; out.add(q); walk(x, q, d + 1, out); } }

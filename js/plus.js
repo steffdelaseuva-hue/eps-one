@@ -5,9 +5,12 @@
    ========================================================= */
 /* Page Ko-fi : laisser vide tant qu'elle n'existe pas (le bouton est alors masqué) */
 const KOFI_URL = 'https://ko-fi.com/epsone';
-const APP_VERSION = '23.143';
+const APP_VERSION = '23.146';
 const APP_URL = 'https://bardynstephane.forge.apps.education.fr/eps-one/';
 const CHANGELOG = [
+  { v: '23.146', items: ['Match collectif : les équipes constituées avec les élèves sont désormais séparées pour CHAQUE sport (volley, rugby, football, handball, basket, ultimate…). Des équipes faites en volley n\'apparaissent plus en rugby, et inversement. (L\'ancienne mémoire commune à tous les sports est abandonnée : il faudra refaire les équipes une fois.)'] },
+  { v: '23.145', items: ['Match collectif « sec » : les équipes/élèves d\'une ancienne séance (ex. une classe de 3e utilisée en volley) ne sont plus reprises automatiquement. Les équipes constituées ne sont utilisées que si elles datent d\'aujourd\'hui, et une case bien visible « Jouer avec les équipes déjà constituées (classe …) » permet de les activer ou de les désactiver.'] },
+  { v: '23.144', items: ['Rugby · Observations individuelles / ligne d\'avantage : on peut observer de 1 à 4 joueurs en même temps sur la tablette. Chaque joueur a ses propres compteurs (recule / avance / essai / bloque), ses points, son annulation et son enregistrement, avec un bouton « Enregistrer tous les joueurs ». Les valeurs bonus sont communes.'] },
   { v: '23.143', items: ['Sports collectifs : on peut maintenant observer de 1 à 4 joueurs par tablette (avant : 2 à 4), dans les réglages du match comme dans les règles des tournois.'] },
   { v: '23.142', items: ['Zones à atteindre : le terrain épuré (zones bien visibles, « Z1 · 1 pt » en petit en bas, un seul grand chiffre par zone pour l\'équipe qui a le ballon) s\'applique maintenant à tous les sports collectifs et à tous les types de match, pas seulement aux matchs aux possessions.'] },
   { v: '23.141', items: ['Match aux possessions : terrain épuré. Zones bien visibles (bandes contrastées, traits pleins), « Z1 · 1 pt » en petit en bas de chaque zone, et un seul grand chiffre par zone : le nombre de possessions terminées là par l\'équipe qui attaque (plus de « A 0 · B 0 » ni de texte en haut).'] },

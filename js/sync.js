@@ -96,7 +96,7 @@ function merge3(base, loc, rem) {
 /* Données propres à chaque appareil (jamais synchronisées) : séances EN COURS, équipes du match
    en cours, réglages d'affichage… Ainsi plusieurs tablettes peuvent utiliser le même outil en même
    temps (2 terrains, plusieurs voies…) ; seuls les résultats ENREGISTRÉS sont fusionnés. */
-const LOCAL_TOP = new Set(['recent', 'recentBy', 'envois', 'lastClass', 'natLanes', 'natMode', 'acroFiltre', 'matchTeams', 'tablette']); // tablette : réglages propres à chaque appareil (groupe suivi…)
+const LOCAL_TOP = new Set(['recent', 'recentBy', 'envois', 'lastClass', 'natLanes', 'natMode', 'acroFiltre', 'matchTeams', 'matchTeamsBy', 'tablette']); // tablette : réglages propres à chaque appareil (groupe suivi…)
 const LOCAL_SUB = { co: ['current'], duathlon: ['current', 'lastCfg'], combine: ['current'], demifond: ['current', 'lastCfg', 'calc'], sauvetage: ['current', 'lastCfg'], wod: ['current'], escalade: ['defi', 'lastVoie', 'lastMode', 'filt'], gym: ['filt'], lutte: ['current'] };
 const syncKeys = () => Object.keys(DB).filter(k => !LOCAL_TOP.has(k));
 const dbG = k => window.dbGet ? window.dbGet(k) : DB[k], dbS = (k, v) => { window.dbSet ? window.dbSet(k, v) : (DB[k] = v); try { window.epsSnapKey && window.epsSnapKey(k); } catch (e) {} };
