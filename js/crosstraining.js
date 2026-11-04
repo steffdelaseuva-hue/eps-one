@@ -191,6 +191,7 @@ TOOL_IMPL.wod = function (el) {
   let tab = DB.wod.current || partToday('wod').length || partRecoverHTML('wod') ? 'seance' : 'epreuves';
   const E = id => DB.wod.epreuves.find(e => e.id === id);
   function frame() {
+    epsBack(tab !== 'epreuves' ? () => { tab = 'epreuves'; frame(); } : null);
     el.innerHTML = `<div class="co-tabs">${[['epreuves', '🏋️ Épreuves'], ['seance', '⏱ Séance'], ['resultats', '📊 Résultats']].map(([k, l]) => `<button data-tab="${k}" class="${tab === k ? 'on' : ''}">${l}</button>`).join('')}</div><div id="w-body"></div>`;
     el.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => { tab = b.dataset.tab; frame(); });
     ({ epreuves: listEp, seance, resultats })[tab](el.querySelector('#w-body'));

@@ -136,6 +136,7 @@ TOOL_IMPL.combine = function (el) {
   const cfg = () => { const c = DB.combine.cfg = DB.combine.cfg || {}; Object.keys(C0).forEach(k => { if (c[k] == null) c[k] = C0[k]; }); return cbNorm(c); };
   const projOn = () => { const S = DB.combine.current; return (S ? S.cfg : cfg()).projOn !== false; };
   function frame() {
+    epsBack(tab !== 'config' ? () => { tab = 'config'; frame(); } : null);
     if (tab === 'projets' && !projOn()) tab = 'saisie';
     el.innerHTML = `<div class="co-tabs cb-tabs">${[['config', '⚙️', 'Épreuve'], ...(projOn() ? [['projets', '🎯', 'Projets']] : []), ['saisie', '⏱', 'Saisie'], ['bilan', '📊', 'Bilan']].map(([k, i, l]) => `<button data-tab="${k}" class="${tab === k ? 'on' : ''}"><span>${i}</span> ${l}</button>`).join('')}</div><div id="cb-body"></div>`;
     el.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => { tab = b.dataset.tab; frame(); });

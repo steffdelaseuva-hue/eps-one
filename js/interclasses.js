@@ -195,6 +195,7 @@ ICONS.interclasses = '<path d="M7 4h10v3a5 5 0 0 1-10 0z"/><path d="M7 5H4.5a2.5
       L.splice(i, 1); if (curId === id) { try { stopTick(); } catch (e) {} curId = null; } undo = null; commit(); toast('Interclasses supprimé'); after(); };
     /* ----- Accueil : liste + création ----- */
     function home() {
+      epsBack(null);
       curId = null; const L = IC().filter(vis).sort((a, b) => (b.created || 0) - (a.created || 0));
       el.innerHTML = `<div class="card"><h3 style="margin-top:0">🏆 Interclasses</h3><p class="muted" style="margin:4px 0 0">Tournoi de sport collectif entre plusieurs classes : équipes, poules, phases finales, terrains, arbitres et classements calculés automatiquement.</p>
           <button class="btn btn-grad btn-block" style="margin-top:12px" id="ic-new" data-prof>＋ Nouvel interclasses</button></div>
@@ -207,6 +208,7 @@ ICONS.interclasses = '<path d="M7 4h10v3a5 5 0 0 1-10 0z"/><path d="M7 5H4.5a2.5
 
     /* ----- Création / réglages ----- */
     function setup(T0) {
+      epsBack(() => home());
       const edit = !!T0, cls = allClasses();
       if (!cls.length) { el.innerHTML = noClassMsg; return; }
       const T = T0 ? JSON.parse(JSON.stringify(T0)) : { id: uid(), nom: 'Interclasses ' + new Date().toLocaleDateString('fr-FR'), date: new Date().toISOString().slice(0, 10), created: Date.now(), sport: 'handball', cls: [], teams: [], absents: [], cfg: defCfg('handball'), matches: [] };
@@ -276,6 +278,7 @@ ICONS.interclasses = '<path d="M7 4h10v3a5 5 0 0 1-10 0z"/><path d="M7 5H4.5a2.5
 
     /* ----- Écran d'un interclasses ----- */
     function frame(T) {
+      epsBack(() => home());
       const M = T.matches || [], hasP = M.some(m => m.ph === 'p'), hasF = M.some(m => m.ph === 'f');
       const tabs = [['eq', '👥 Équipes'], ['mt', '📅 Matchs'], ['cl', '📊 Classement'], ...(T.cfg.fmt === 'poules' ? [['fi', '🥇 Phases finales']] : [])];
       el.innerHTML = `<div class="cx-bar" style="display:flex;gap:8px;align-items:center"><button class="btn btn-ghost" style="flex:0 0 auto" id="ic-back">← Liste</button><b style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${IC_SP[T.sport][1]} ${esc(T.nom)}</b><button class="btn btn-ghost" style="flex:0 0 auto" id="ic-set" data-prof>⚙️</button></div>

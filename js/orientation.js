@@ -754,6 +754,7 @@ TOOL_IMPL.co = function (el) {
   const P = id => DB.co.parcours.find(p => p.id === id);
 
   function frame() {
+    epsBack(tab !== 'parcours' ? () => { tab = 'parcours'; frame(); } : null);
     el.innerHTML = `<div class="co-tabs">${[['parcours', '🗺 Parcours'], ['controle', '🔎 Contrôle'], ['seance', '⏱ Séance'], ['bilan', '📊 Bilan']].map(([k, l]) => `<button data-tab="${k}" class="${tab === k ? 'on' : ''}">${l}</button>`).join('')}</div><div id="co-body"></div>`;
     el.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => { tab = b.dataset.tab; frame(); });
     const body = el.querySelector('#co-body');

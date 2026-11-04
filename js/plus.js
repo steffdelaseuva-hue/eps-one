@@ -5,9 +5,10 @@
    ========================================================= */
 /* Page Ko-fi : laisser vide tant qu'elle n'existe pas (le bouton est alors masqué) */
 const KOFI_URL = 'https://ko-fi.com/epsone';
-const APP_VERSION = '23.139';
+const APP_VERSION = '23.140';
 const APP_URL = 'https://bardynstephane.forge.apps.education.fr/eps-one/';
 const CHANGELOG = [
+  { v: '23.140', items: ['Flèche ← en haut à gauche : elle revient désormais à l\'écran précédent de l\'outil au lieu de renvoyer à l\'accueil. Match en cours ou bilan → réglages du match (ou page du tournoi), avec confirmation si le match n\'est pas enregistré ; Demi-fond, Sauvetage, Combiné, Crosstraining, Duathlon, Course d\'orientation → onglet de préparation ; Lutte et Interclasses → leur liste. Depuis l\'écran de départ d\'un outil, la flèche quitte l\'outil comme avant.'] },
   { v: '23.139', items: ['Rugby : « Observations individuelles / ligne d\'avantage » regroupe tout (recule / avance / ESSAI / bloque) ; l\'ancienne observation individuelle en doublon est supprimée. Score simplifié : ESSAI +5, bonus +2 / +3 et options +10 / +100 / +1000.', 'Zones à atteindre avec points (tous les sports à zones) : case « Les zones atteintes rapportent des points » (zone 1 = 1 pt, zone 2 = 2 pts… réglables ; en rugby la dernière zone = essai = 5 pts), le score évolue.', 'Nouveau « Match aux possessions » (rugby, football, handball, basket, ultimate) : N possessions par équipe, l\'équipe A attaque toutes les siennes, une possession s\'arrête quand la balle est perdue dans une zone (points de la zone), puis l\'équipe B. Bilan : score et possessions par zone. Disponible aussi dans les règles des tournois.'] },
   { v: '23.138', items: ['Format HYROX : l\'adaptation est désormais présentée comme « collège / lycée » (parcours, aide « Adaptation collège / lycée : remplacer les stations », alternatives de matériel).'] },
   { v: '23.137', items: ['Parkour : les éléments choisis sont maintenant propres à CHAQUE élève (avant, la liste était commune à la classe : le deuxième élève reprenait ceux du premier et les modifier changeait tout). Nouveau : « Reprendre la liste d\'un autre élève » et « Donner cette liste aux élèves qui n\'en ont pas » pour gagner du temps. Les enchaînements déjà créés sont conservés : chaque élève garde les éléments de son enchaînement.'] },

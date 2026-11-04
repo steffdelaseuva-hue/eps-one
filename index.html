@@ -273,7 +273,7 @@ th{color:var(--muted);font-size:.78rem;text-transform:uppercase}
 <!-- ============ ÉCRAN OUTIL ============ -->
 <div class="screen" id="screen">
   <header>
-    <button class="icon-btn" onclick="closeTool()" aria-label="Retour">←</button>
+    <button class="icon-btn" onclick="toolBackOrClose()" aria-label="Retour">←</button>
     <h2 id="screen-title">Outil</h2>
     <button class="icon-btn" id="screen-star" onclick="toggleFav(currentTool);updateScreenStar()">☆</button>
   </header>
@@ -440,9 +440,12 @@ function toggleFav(id){
 /* =========================================================
    ÉCRAN OUTIL
    ========================================================= */
-let currentTool=null, cleanup=null;
+let currentTool=null, cleanup=null, toolBack=null;
+/* Flèche ← : revient d'abord à l'écran précédent DE L'OUTIL (ex. match en cours → réglages) ; quitte l'outil seulement depuis son écran de départ. Un outil déclare son retour avec epsBack(fn) (ou epsBack(null)). */
+function epsBack(fn){ toolBack=typeof fn==='function'?fn:null; }
+function toolBackOrClose(){ if(toolBack){ const f=toolBack; try{ f(); return; }catch(e){ console.warn(e); toolBack=null; } } closeTool(); }
 function openTool(id){
-  const t=T(id); currentTool=id;
+  toolBack=null; const t=T(id); currentTool=id;
   DB.recent=[id,...DB.recent.filter(x=>x!==id)].slice(0,8); save();
   document.getElementById('screen-title').textContent=t.short||t.name; document.getElementById('screen-star').style.visibility='';
   updateScreenStar();
@@ -452,7 +455,7 @@ function openTool(id){
   document.getElementById('screen').classList.add('open');
   requestWake();
 }
-function closeTool(){ if(typeof cleanup==='function'){try{cleanup();}catch(e){console.warn(e);}} cleanup=null; document.getElementById('screen').classList.remove('open'); releaseWake(); renderHome(); renderTools(); }
+function closeTool(){ toolBack=null; if(typeof cleanup==='function'){try{cleanup();}catch(e){console.warn(e);}} cleanup=null; document.getElementById('screen').classList.remove('open'); releaseWake(); renderHome(); renderTools(); }
 function updateScreenStar(){document.getElementById('screen-star').textContent=DB.favs.includes(currentTool)?'★':'☆'}
 
 /* Écran toujours allumé pendant un outil */

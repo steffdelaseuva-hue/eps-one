@@ -66,6 +66,7 @@ TOOL_IMPL.duathlon = function (el) {
   let tab = 'seance', iv, rk = 'temps';
   const D = liveDB(() => DB.duathlon = DB.duathlon || { seances: [], current: null });   // toujours l'objet synchronisé actuel
   function frame() {
+    epsBack(tab !== 'seance' ? () => { tab = 'seance'; frame(); } : null);
     el.innerHTML = `<div class="co-tabs">${[['seance', '⏱ Épreuve'], ['resultats', '📊 Résultats']].map(([k, l]) => `<button data-tab="${k}" class="${tab === k ? 'on' : ''}">${l}</button>`).join('')}</div><div id="d-body"></div>`;
     el.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => { tab = b.dataset.tab; frame(); });
     const box = el.querySelector('#d-body');

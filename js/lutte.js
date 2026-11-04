@@ -259,7 +259,7 @@ TOOL_IMPL.lutte = function (el) {
 
   /* ===================== Accueil ===================== */
   function home() {
-    stop(); M = null; S.view = null;
+    stop(); M = null; S.view = null; epsBack(null);
     const c = luCfg(), T = c.type, R = c.rules[T], cur = LU().current;
     const rec = LU().seances.filter(s => s.date >= Date.now() - 7 * 864e5 && (!window.teamSees || teamSees(s))).sort((x, y) => y.date - x.date);
     const hist = LU().combats.filter(m => (!window.teamSees || teamSees(m)) && (!(window.eleveMode && eleveMode()) || !S.cls || m.cls === S.cls)).sort((x, y) => (y.date || 0) - (x.date || 0));
@@ -391,6 +391,7 @@ TOOL_IMPL.lutte = function (el) {
 
   /* ===================== Avant le combat ===================== */
   function prematch(o) {
+    epsBack(() => back(o));
     stop(); M = null; const R = o.R, r = R.r;
     LU().current = { o, pre: true }; save();
     const st = o.cls ? studentsOf(o.cls).filter(n => n !== o.a && n !== o.b) : [];
@@ -426,6 +427,7 @@ TOOL_IMPL.lutte = function (el) {
     fight(c.o, c);
   }
   function fight(o, res) {
+    epsBack(() => back(o));
     stop(); const R = o.R, r = R.r, timed = r.mode !== 'points';
     if (role() === 'obs' && !res) o.obsOnly = true;
     const obs = !!o.obsOnly;
@@ -536,6 +538,7 @@ TOOL_IMPL.lutte = function (el) {
 
   /* ===================== Résultats simples ===================== */
   function simple(o) {
+    epsBack(() => back(o));
     stop(); M = null; LU().current = { o }; save();
     let w = null, tb = false, xa = '', xb = '';
     const draw = () => {
@@ -816,6 +819,7 @@ TOOL_IMPL.lutte = function (el) {
       <p class="muted" style="font-size:.78rem;margin:6px 0 0">Les combats enregistrés restent dans l'historique et dans les résultats des élèves.</p></details>`;
   const csvName = (p, s) => `${p}-${s.nom}.csv`.replace(/[^\w.-]+/g, '-');
   function sview(id) {
+    epsBack(() => home());
     stop(); M = null; const s = findS(id); if (!s) { toast('Séance introuvable'); return home(); }
     S.view = id; s.kind === 'relais' ? vRelais(s) : s.kind === 'atp' ? vAtp(s) : vTournoi(s);
     $('#s-bk').onclick = home;
@@ -889,6 +893,7 @@ TOOL_IMPL.lutte = function (el) {
 
   /* ===================== Bilan des élèves ===================== */
   function bilan() {
+    epsBack(() => home());
     stop(); M = null;
     const CL = [...new Set([...DB.classes.map(c => c.name), ...LU().combats.map(m => m.cls).filter(Boolean)])];
     let cls = CL.includes(S.cls) ? S.cls : CL[0] || '', bw = '';

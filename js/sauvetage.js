@@ -219,6 +219,7 @@ TOOL_IMPL.sauvetage = function (el) {
   const started = C => C && C.live && (C.live.st !== 'idle' || C.live.w > 0 || C.groups.some(g => g.res && Object.keys(g.res).length));
 
   function frame() {
+    epsBack(tab !== 'prep' ? () => { tab = 'prep'; frame(); } : null);
     el.innerHTML = `<div class="co-tabs df-tabs">${[['prep', '⚙️', 'Épreuve'], ['projet', '🎯', 'Projets'], ['live', '⏱', 'Séance'], ['res', '📊', 'Résultats']].map(([k, i, l]) => `<button data-tab="${k}" class="${tab === k ? 'on' : ''}"><span>${i}</span>${l}</button>`).join('')}</div><div id="sv-body"></div>`;
     el.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => { tab = b.dataset.tab; frame(); });
     const box = el.querySelector('#sv-body'), C = cur();

@@ -427,7 +427,7 @@ TOOL_IMPL.match = function (el, grp = 'col') {
 
   /* ===== 1. Paramètres ===== */
   function setup() {
-    clearInterval(iv); M = null; S.view = null;
+    clearInterval(iv); M = null; S.view = null; epsBack(null);
     if (S.type === 'poss' && SP().zones) S.zones = true;
     const sp = SP(), lt = S.tid && TR().find(x => x.id === S.tid), lr = lt && S.rid && lt.rencontres.find(r => r.id === S.rid);
     if (S.tid && !lt) S.tid = S.rid = null;                     // tournoi supprimé entre-temps
@@ -577,7 +577,7 @@ TOOL_IMPL.match = function (el, grp = 'col') {
 
   /* ----- Match isolé en « résultats simples » : vainqueur + score, sans chrono ----- */
   function simpleMatch() {
-    clearInterval(iv); M = null; let w = null, xa = '', xb = '';
+    clearInterval(iv); M = null; epsBack(() => S.tid ? tview(S.tid) : setup()); let w = null, xa = '', xb = '';
     const pa = T() ? [...membersOf(S.ia)] : [], pb = T() ? [...membersOf(S.ib)] : [];
     const draw = () => {
       el.innerHTML = `<div class="card" style="text-align:center"><div class="muted" style="font-weight:800;font-size:.85rem">${esc(SP().name)} · ✍️ résultats simples</div>
@@ -814,7 +814,7 @@ TOOL_IMPL.match = function (el, grp = 'col') {
   const saiBtns = cur => `<div class="tn-fmts">${Object.entries(ATP_MODES).map(([k, x]) => `<button class="tn-fmt ${cur === k ? 'on' : ''}" data-sai="${k}" style="min-height:0"><span class="i">${x.i}</span><b>${x.n}</b><small>${x.d}</small></button>`).join('')}</div>`;
   /* ----- Défi ATP : création (élèves d'une classe, absents décochés) ----- */
   function createAtp(o = {}) {
-    clearInterval(iv); M = null; S.view = null;
+    clearInterval(iv); M = null; S.view = null; epsBack(() => setup());
     const C = { cls: DB.classes.some(c => c.name === o.cls) ? o.cls : o.txt ? '' : (DB.classes[0] || {}).name || '', off: new Set(), start: 100, cf: true, saisie: o.saisie === 'simple' ? 'simple' : 'obs', txt: o.txt || '', ini: 'alpha', nl: 3, gap: 10, lv: {} };
     const def = () => `Défi ATP ${C.cls ? C.cls + ' · ' : '· '}${SP().name}`;
     C.nom = def();
@@ -1256,7 +1256,7 @@ TOOL_IMPL.match = function (el, grp = 'col') {
   }
   const solo0 = t => t.teams.length > 1 && t.teams.every(x => (x.members || []).length === 1);
   function tview(id) {
-    clearInterval(iv); M = null;
+    clearInterval(iv); M = null; epsBack(() => setup());
     const t = TR().find(x => x.id === id); if (!t) { toast('Tournoi introuvable'); return setup(); }
     S.view = id;
     const f = tFmt(t), V = f === 'elim' ? vElim(t) : f === 'pyramide' ? vPyr(t) : f === 'atp' ? vAtp(t) : vPoule(t), who = f === 'atp' ? 'Joueur' : 'Mon équipe';
@@ -1336,6 +1336,8 @@ TOOL_IMPL.match = function (el, grp = 'col') {
 
   function start(full) {
     M = { ev: [], acc: 0, t0: 0, run: false, poss: 0, over: false, pa: S.tid ? [...(S.pa || [])] : T() ? [...membersOf(S.ia)] : [], pb: S.tid ? [...(S.pb || [])] : T() ? [...membersOf(S.ib)] : [] };
+    const leave = sure => { if (sure && M && !M.over && (M.ev.length || M.acc) && !confirm('Retourner aux réglages ?\nLe match en cours ne sera pas enregistré.')) return; try { relEnc(); } catch (e) {} epsBack(null); S.tid ? tview(S.tid) : setup(); };
+    epsBack(() => leave(true));
     if (S.obsOn && S.role === 'obs' && !full) return startObs();
     const sp = SP(), c = courtSVG(S.sport), zonesOn = sp.zones && S.zones, possOn = S.type === 'poss' && zonesOn, zpOn = zonesOn && (S.zp || possOn);
     const vbW = +c.vb.split(' ')[2], vbH = +c.vb.split(' ')[3];
@@ -1509,6 +1511,7 @@ TOOL_IMPL.match = function (el, grp = 'col') {
       ${fromHistory ? '' : '<button class="btn btn-ghost btn-block" style="margin-top:10px" id="nw">Nouveau match sans enregistrer</button>'}`;
     const $ = s => el.querySelector(s);
     $('#ex').onclick = () => download(`match-${m.a}-${m.b}.csv`.replace(/[^\w.-]+/g, '-'), csv([['Temps', 'Équipe', 'Action', 'Points'], ...m.ev.map(e => [fmt(e.t * 1000, false), e.team ? m.b : m.a, e.label, e.pts || '']), ...((m.obs || []).length ? [[], ['Joueur observé', 'Équipe', ...obsCrit(m.sport).map(c => c[1])], ...m.obs.map(o => [o.name, o.team ? m.b : m.a, ...obsCrit(m.sport).map(([k]) => o.c[k] || 0)])] : [])]));
+    epsBack(fromHistory ? () => { const v = S.view; v ? tview(v) : setup(); } : () => { const e = myEnc(); if (!confirm(`Retourner aux réglages sans enregistrer le match ?${e ? '\n' + encMsg(e) : ''}`)) return; relEnc(); epsBack(null); S.tid ? tview(S.tid) : setup(); });
     if (fromHistory) { $('#bk').onclick = () => { const v = S.view; v ? tview(v) : setup(); }; return; }
     $('#sv').onclick = () => { const lt = m.tid && m.defi && !m.obsOnly && TR().find(x => x.id === m.tid);
       if (lt && tFmt(lt) === 'atp' && lt.confirm !== false && !confirm(atpMsg(lt, m))) return;
