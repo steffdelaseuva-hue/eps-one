@@ -5,9 +5,10 @@
    ========================================================= */
 /* Page Ko-fi : laisser vide tant qu'elle n'existe pas (le bouton est alors masqué) */
 const KOFI_URL = 'https://ko-fi.com/epsone';
-const APP_VERSION = '23.138';
+const APP_VERSION = '23.139';
 const APP_URL = 'https://bardynstephane.forge.apps.education.fr/eps-one/';
 const CHANGELOG = [
+  { v: '23.139', items: ['Rugby : « Observations individuelles / ligne d\'avantage » regroupe tout (recule / avance / ESSAI / bloque) ; l\'ancienne observation individuelle en doublon est supprimée. Score simplifié : ESSAI +5, bonus +2 / +3 et options +10 / +100 / +1000.', 'Zones à atteindre avec points (tous les sports à zones) : case « Les zones atteintes rapportent des points » (zone 1 = 1 pt, zone 2 = 2 pts… réglables ; en rugby la dernière zone = essai = 5 pts), le score évolue.', 'Nouveau « Match aux possessions » (rugby, football, handball, basket, ultimate) : N possessions par équipe, l\'équipe A attaque toutes les siennes, une possession s\'arrête quand la balle est perdue dans une zone (points de la zone), puis l\'équipe B. Bilan : score et possessions par zone. Disponible aussi dans les règles des tournois.'] },
   { v: '23.138', items: ['Format HYROX : l\'adaptation est désormais présentée comme « collège / lycée » (parcours, aide « Adaptation collège / lycée : remplacer les stations », alternatives de matériel).'] },
   { v: '23.137', items: ['Parkour : les éléments choisis sont maintenant propres à CHAQUE élève (avant, la liste était commune à la classe : le deuxième élève reprenait ceux du premier et les modifier changeait tout). Nouveau : « Reprendre la liste d\'un autre élève » et « Donner cette liste aux élèves qui n\'en ont pas » pour gagner du temps. Les enchaînements déjà créés sont conservés : chaque élève garde les éléments de son enchaînement.'] },
   { v: '23.136', items: ['Format HYROX : parcours par défaut adapté au collège (courses 200 m ; SkiErg, Sled Push, Sled Pull, Burpee Broad Jumps 20 m ; Rameur 200 m ; Farmers Carry 20 m ; Sandbag Lunges 10 m ; Wall Balls 20 rép.). Wall Balls : boutons 5 / 10 / 20 ou valeur libre. Menu d\'exercice : alternatives « collège » (woodchops, rowing haltères, goblet squat, bear crawl, roue abdominale, corde à sauter…) et aide « Remplacer les stations au collège ».'] },

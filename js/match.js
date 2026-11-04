@@ -145,9 +145,9 @@ const SPORTS = {
   basket:   { name: 'Basket', coll: true, zones: true, shot: 'Panier', type: 'temps', dur: 8,
               score: [{ l: '+1', p: 1, sub: 'lancer franc' }, { l: '+2', p: 2, sub: 'panier' }, { l: '+3', p: 3, sub: 'à 3 points' }] },
   handball: { name: 'Handball', coll: true, zones: true, shot: 'But', type: 'temps', dur: 10, score: [{ l: 'But +1', p: 1 }] },
-  football: { name: 'Football', coll: true, zones: false, shot: 'But', type: 'temps', dur: 10, score: [{ l: 'But +1', p: 1 }] },
+  football: { name: 'Football', coll: true, zones: true, shot: 'But', type: 'temps', dur: 10, score: [{ l: 'But +1', p: 1 }] },
   rugby:    { name: 'Rugby', coll: true, zones: true, shot: 'Essai', type: 'temps', dur: 10,
-              score: [{ l: 'Essai +5', p: 5, try: true }, { l: 'Transfo +2', p: 2 }, { l: 'Pénalité / drop +3', p: 3 }] },
+              score: [{ l: 'Essai +5', p: 5, try: true }] },
   ultimate: { name: 'Ultimate', coll: true, zones: true, shot: 'Point', type: 'temps', dur: 10, score: [{ l: 'Point +1', p: 1 }] },
   volley:   { name: 'Volley-ball', coll: false, type: 'points', target: 25, ecart: true, score: [{ l: 'Point +1', p: 1 }] },
   badminton:{ name: 'Badminton', coll: false, type: 'points', target: 21, ecart: true, score: [{ l: 'Point +1', p: 1 }] },
@@ -157,6 +157,10 @@ const SPORTS = {
   tt:       { name: 'Tennis de table', coll: false, type: 'points', target: 11, ecart: true, score: [{ l: 'Point +1', p: 1 }] },
 };
 const BONUS_VALUES = [1, 2, 3, 5, 10, 100, 1000];
+const RUGBY_BONUS = [2, 3, 10, 100, 1000];                       // rugby : essai +5 puis bonus +2 / +3 / +10 / +100 / +1000
+const bonusVals = sp => sp === 'rugby' ? RUGBY_BONUS : BONUS_VALUES;
+/* Points des zones atteintes : zone k = k point(s) ; rugby : dernière zone = essai (5 points) */
+const zvDefault = (sp, nz) => Array.from({ length: nz }, (_, i) => sp === 'rugby' && i === nz - 1 ? 5 : i + 1);
 
 /* Observations individuelles : critères selon le sport */
 function obsCrit(sport) {
@@ -321,7 +325,7 @@ document.head.insertAdjacentHTML('beforeend', `<style>
 .atp-tg.lib{background:#F4E7BE;color:#7A5C10}
 </style>`);
 
-const RLA_BOX = '<details class="card" style="margin-top:12px"><summary style="font-weight:800;cursor:pointer">🏉 Ligne d\'avantage : recueil individuel (recule / avance / bloque)</summary><div id="rla-host" style="margin-top:10px"></div></details>';
+const RLA_BOX = '<details class="card" style="margin-top:12px"><summary style="font-weight:800;cursor:pointer">👁 Observations individuelles · ligne d\'avantage (recule / avance / essai / bloque)</summary><div id="rla-host" style="margin-top:10px"></div></details>';
 
 /* Trois cartes, un seul outil : sports collectifs · sports de raquette · escrime (données communes : matchs, tournois) */
 const MATCH_GRP = { col: ['basket', 'handball', 'football', 'volley', 'ultimate', 'rugby'], raq: RACKET, esc: ['escrime'] };
@@ -407,14 +411,24 @@ function epsStudentPies(n) {
 TOOL_IMPL.match = function (el, grp = 'col') {
   const GS = MATCH_GRP[grp] || MATCH_GRP.col, inG = sp => GS.includes(sp);
   const NEW = true;   // les 3 cartes (collectifs, raquette, escrime)   // préparation « à la Lutte » : 1 forme · 2 déroulement · 3 joueurs · 4 réglages (sports de raquette d'abord)
-  let S = { forme: 'match', sai: 'obs', sport: GS.includes('handball') ? 'handball' : GS[0], a: 'Équipe A', b: 'Équipe B', type: 'temps', dur: 10, target: 21, ecart: true, bonus: [1, 2, 5], stats: true, zones: false, nz: 4, ia: 0, ib: 1, obsOn: false, obsN: 2, role: (DB.tablette && DB.tablette.match && DB.tablette.match.role) || 'table' };
+  let S = { forme: 'match', sai: 'obs', sport: GS.includes('handball') ? 'handball' : GS[0], a: 'Équipe A', b: 'Équipe B', type: 'temps', dur: 10, target: 21, ecart: true, bonus: [1, 2, 5], stats: true, zones: false, nz: 4, ia: 0, ib: 1, obsOn: false, obsN: 2, np: 5, zp: false, zv: null, role: (DB.tablette && DB.tablette.match && DB.tablette.match.role) || 'table' };
   let selPl = null;
   let M = null, iv = null;
   const SP = () => SPORTS[S.sport];
+  /* À chaque changement de sport : réglages propres au sport (rugby : seulement essai + bonus, sans statistiques ni observations de match ; points des zones) */
+  const sportDefaults = () => { const sp = SP();
+    if (S.sport === 'rugby') { S.stats = false; S.obsOn = false; S.bonus = S.bonus.filter(v => RUGBY_BONUS.includes(v)); if (!S.bonus.length) S.bonus = [2, 3]; }
+    else S.bonus = S.bonus.filter(v => BONUS_VALUES.includes(v));
+    if (!sp.zones && S.type === 'poss') S.type = sp.type; if (!sp.zones) S.zones = false;
+    S.zv = zvDefault(S.sport, S.nz); };
+  const zvArr = () => (S.zv && S.zv.length === S.nz) ? S.zv : (S.zv = zvDefault(S.sport, S.nz));
+  const zvHTML = () => `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">${zvArr().map((v, i) => `<label style="flex:1 1 64px;margin:0;font-size:.74rem;font-weight:800">Zone ${i + 1}${S.sport === 'rugby' && i === S.nz - 1 ? ' · essai' : ''}<input type="number" min="0" max="100" data-zv="${i}" value="${v}" style="padding:8px"></label>`).join('')}</div>`;
+  const possN = t => M.ev.filter(x => x.kind === 'poss' && x.team === t).length;
 
   /* ===== 1. Paramètres ===== */
   function setup() {
     clearInterval(iv); M = null; S.view = null;
+    if (S.type === 'poss' && SP().zones) S.zones = true;
     const sp = SP(), lt = S.tid && TR().find(x => x.id === S.tid), lr = lt && S.rid && lt.rencontres.find(r => r.id === S.rid);
     if (S.tid && !lt) S.tid = S.rid = null;                     // tournoi supprimé entre-temps
     const tSee = x => !window.teamSees || teamSees(x), mSee = m => { if (!window.teamSees) return true; if (!teamSees(m)) return false; const t = m.tid && TR().find(x => x.id === m.tid); return !t || teamSees(t); };
@@ -446,14 +460,18 @@ TOOL_IMPL.match = function (el, grp = 'col') {
         ${atpOK(S.sport) ? `<button class="btn btn-grad btn-block" style="margin-top:10px;padding:13px" id="atp-new">${atpI(S.sport)} Créer un ${S.sport === 'escrime' ? 'tournoi « style ATP »' : 'Défi ATP'} (classement individuel des élèves, partagé avec les tablettes)</button>` : ''}
         <div class="row"><div><label>Nom équipe A</label><input id="na" value="${esc(S.a)}"></div><div><label>Nom équipe B</label><input id="nb" value="${esc(S.b)}"></div></div></div>
       <div class="card" data-cfg style="margin-top:12px"><h3>Règles du match</h3>
-        <div class="tog" id="ty"><button data-t="temps" class="${S.type === 'temps' ? 'on' : ''}">⏱ Match au temps</button><button data-t="points" class="${S.type === 'points' ? 'on' : ''}">🎯 Match au point</button></div>
+        <div class="tog" id="ty"><button data-t="temps" class="${S.type === 'temps' ? 'on' : ''}">⏱ Match au temps</button><button data-t="points" class="${S.type === 'points' ? 'on' : ''}">🎯 Match au point</button>${sp.zones ? `<button data-t="poss" class="${S.type === 'poss' ? 'on' : ''}">🔁 Match aux possessions</button>` : ''}</div>
         ${S.type === 'temps' ? `<label>Durée (minutes)</label><input id="du" type="number" min="1" value="${S.dur}">`
+          : S.type === 'poss' ? `<label>Nombre de possessions par équipe</label><input id="np" type="number" min="1" max="30" value="${S.np}">
+            <p class="muted" style="font-size:.8rem;margin:6px 0 0">🔁 Chaque équipe joue à son tour toutes ses possessions, toujours en attaque. Une possession s'arrête là où la balle est perdue : on touche la zone atteinte et ses points sont marqués. Le match se termine quand les deux équipes ont fait toutes leurs possessions. Règle ci-dessous le nombre de zones et leurs points.</p>`
           : `<label>Points à atteindre</label><input id="tg" type="number" min="1" value="${S.target}"><label style="display:flex;gap:8px;align-items:center;margin-top:10px"><input type="checkbox" id="ec" ${S.ecart ? 'checked' : ''} style="width:auto"> 2 points d'écart pour gagner</label>`}
-        <label>Boutons « points bonus » à afficher</label><div class="tog" id="bo">${BONUS_VALUES.map(v => `<button data-b="${v}" class="${S.bonus.includes(v) ? 'on' : ''}">+${v}</button>`).join('')}</div>
-        ${sp.coll ? `<label style="display:flex;gap:8px;align-items:center;margin-top:14px"><input type="checkbox" id="st" ${S.stats ? 'checked' : ''} style="width:auto"> Statistiques : tirs tentés, ${sp.shot === 'Essai' ? 'essais' : sp.shot === 'Panier' ? 'paniers' : sp.shot === 'Point' ? 'points' : 'buts'} marqués, pertes de balle, passes décisives</label>` : ''}
-        ${sp.zones ? `<label style="display:flex;gap:8px;align-items:center;margin-top:10px"><input type="checkbox" id="zo" ${S.zones ? 'checked' : ''} style="width:auto"> Zones visées (progression du ballon sur le terrain)</label>
-          <div id="nzw" style="display:${S.zones ? 'block' : 'none'}"><label>Nombre de zones dans la longueur</label><div class="tog" id="nz">${[3, 4, 5].map(n => `<button data-n="${n}" class="${S.nz === n ? 'on' : ''}">${n} zones</button>`).join('')}</div></div>` : ''}
-        <label style="display:flex;gap:8px;align-items:center;margin-top:14px"><input type="checkbox" id="ob" ${S.obsOn ? 'checked' : ''} style="width:auto"> Observations individuelles : ${obsCrit(S.sport).map(c => c[1].toLowerCase()).join(', ')}</label>
+        <label>Boutons « points bonus » à afficher</label><div class="tog" id="bo">${bonusVals(S.sport).map(v => `<button data-b="${v}" class="${S.bonus.includes(v) ? 'on' : ''}">+${v}</button>`).join('')}</div>
+        ${sp.coll && S.sport !== 'rugby' ? `<label style="display:flex;gap:8px;align-items:center;margin-top:14px"><input type="checkbox" id="st" ${S.stats ? 'checked' : ''} style="width:auto"> Statistiques : tirs tentés, ${sp.shot === 'Essai' ? 'essais' : sp.shot === 'Panier' ? 'paniers' : sp.shot === 'Point' ? 'points' : 'buts'} marqués, pertes de balle, passes décisives</label>` : ''}
+        ${sp.zones ? `${S.type === 'poss' ? '' : `<label style="display:flex;gap:8px;align-items:center;margin-top:10px"><input type="checkbox" id="zo" ${S.zones ? 'checked' : ''} style="width:auto"> Zones visées (progression du ballon sur le terrain)</label>`}
+          <div id="nzw" style="display:${S.zones || S.type === 'poss' ? 'block' : 'none'}"><label>Nombre de zones dans la longueur</label><div class="tog" id="nz">${[3, 4, 5].map(n => `<button data-n="${n}" class="${S.nz === n ? 'on' : ''}">${n} zones</button>`).join('')}</div>
+            ${S.type === 'poss' ? '' : `<label style="display:flex;gap:8px;align-items:center;margin-top:10px"><input type="checkbox" id="zp" ${S.zp ? 'checked' : ''} style="width:auto"> Les zones atteintes rapportent des points (le score évolue)</label>`}
+            <div id="zvw" style="display:${S.zp || S.type === 'poss' ? 'block' : 'none'}"><label>Points de chaque zone atteinte</label><div id="zvh">${zvHTML()}</div><p class="muted" style="font-size:.76rem;margin:4px 0 0">Zone 1 = camp de l'équipe${S.sport === 'rugby' ? ' · dernière zone = essai' : ''}.</p></div></div>` : ''}
+        <label style="display:${S.sport === 'rugby' ? 'none' : 'flex'};gap:8px;align-items:center;margin-top:14px"><input type="checkbox" id="ob" ${S.obsOn ? 'checked' : ''} style="width:auto"> Observations individuelles : ${obsCrit(S.sport).map(c => c[1].toLowerCase()).join(', ')}</label>
         <div id="obw" style="display:${S.obsOn ? 'block' : 'none'}"><label>Nombre de joueurs observés</label><div class="tog" id="obn">${[2, 3, 4].map(n => `<button data-on="${n}" class="${S.obsN === n ? 'on' : ''}">${n} joueurs</button>`).join('')}</div>
           <label>Rôle de cette tablette</label><div class="tog" id="ro"><button data-ro="table" class="${S.role !== 'obs' ? 'on' : ''}">🏁 Table de marque (complet)</button><button data-ro="obs" class="${S.role === 'obs' ? 'on' : ''}">👁 Observateurs (élèves)</button></div>
           <p class="muted" style="font-size:.78rem;margin:6px 0 0">📱 Observateurs : les élèves ne voient que le chrono et les fiches des joueurs observés (réglage propre à cet appareil).</p></div>
@@ -467,12 +485,15 @@ TOOL_IMPL.match = function (el, grp = 'col') {
     if ($('#tl-more')) $('#tl-more').onclick = () => { const r = $('#setup-rest'), on = r.style.display === 'none'; r.style.display = on ? '' : 'none'; $('#tl-more').textContent = on ? '⚙️ Masquer les réglages du match' : '⚙️ Afficher les réglages du match'; };
     const keep = () => { S.a = $('#na').value.trim() || 'Équipe A'; S.b = $('#nb').value.trim() || 'Équipe B';
       if ($('#du')) S.dur = Math.max(1, +$('#du').value || 1); if ($('#tg')) S.target = Math.max(1, +$('#tg').value || 1); if ($('#ec')) S.ecart = $('#ec').checked;
-      if ($('#st')) S.stats = $('#st').checked; if ($('#zo')) S.zones = $('#zo').checked; S.obsOn = $('#ob').checked; };
-    el.querySelectorAll('[data-s]').forEach(b => b.onclick = () => { keep(); S.sport = b.dataset.s; const sp = SP(); S.type = sp.type; if (sp.dur) S.dur = sp.dur; if (sp.target) S.target = sp.target; S.ecart = !!sp.ecart; if (!sp.zones) S.zones = false; setup(); });
-    el.querySelectorAll('[data-t]').forEach(b => b.onclick = () => { keep(); S.type = b.dataset.t; setup(); });
+      if ($('#st')) S.stats = $('#st').checked; if ($('#zo')) S.zones = $('#zo').checked; S.obsOn = $('#ob').checked && S.sport !== 'rugby';
+      if ($('#np')) S.np = Math.max(1, Math.min(30, +$('#np').value || 5)); if ($('#zp')) S.zp = $('#zp').checked;
+      el.querySelectorAll('[data-zv]').forEach(i => { zvArr()[+i.dataset.zv] = Math.max(0, +i.value || 0); }); };
+    el.querySelectorAll('[data-s]').forEach(b => b.onclick = () => { keep(); S.sport = b.dataset.s; const sp = SP(); S.type = sp.type; if (sp.dur) S.dur = sp.dur; if (sp.target) S.target = sp.target; S.ecart = !!sp.ecart; sportDefaults(); setup(); });
+    el.querySelectorAll('[data-t]').forEach(b => b.onclick = () => { keep(); S.type = b.dataset.t; if (S.type === 'poss') S.zones = true; setup(); });
     el.querySelectorAll('[data-b]').forEach(b => b.onclick = () => { const v = +b.dataset.b; S.bonus = S.bonus.includes(v) ? S.bonus.filter(x => x !== v) : [...S.bonus, v].sort((x, y) => x - y); b.classList.toggle('on'); });
-    el.querySelectorAll('[data-n]').forEach(b => b.onclick = () => { S.nz = +b.dataset.n; el.querySelectorAll('[data-n]').forEach(x => x.classList.toggle('on', x === b)); });
+    el.querySelectorAll('[data-n]').forEach(b => b.onclick = () => { S.nz = +b.dataset.n; S.zv = zvDefault(S.sport, S.nz); const h = $('#zvh'); if (h) h.innerHTML = zvHTML(); el.querySelectorAll('[data-n]').forEach(x => x.classList.toggle('on', x === b)); });
     if ($('#zo')) $('#zo').onchange = () => $('#nzw').style.display = $('#zo').checked ? 'block' : 'none';
+    if ($('#zp')) $('#zp').onchange = () => { $('#zvw').style.display = $('#zp').checked ? 'block' : 'none'; };
     $('#ob').onchange = () => $('#obw').style.display = $('#ob').checked ? 'block' : 'none';
     el.querySelectorAll('[data-on]').forEach(b => b.onclick = () => { S.obsN = +b.dataset.on; el.querySelectorAll('[data-on]').forEach(x => x.classList.toggle('on', x === b)); });
     el.querySelectorAll('[data-ro]').forEach(b => b.onclick = () => { S.role = b.dataset.ro; DB.tablette = DB.tablette || {}; DB.tablette.match = { ...(DB.tablette.match || {}), role: S.role }; save();
@@ -542,7 +563,7 @@ TOOL_IMPL.match = function (el, grp = 'col') {
       if (S.sai === 'simple') { const ob = rg.querySelector('#ob'); if (ob) ob.closest('label').style.display = 'none'; const w = rg.querySelector('#obw'); if (w) w.style.display = 'none';
         rh.insertAdjacentHTML('afterend', '<p class="muted" style="margin:2px 0 6px;font-size:.82rem">✍️ Résultats simples : les règles servent de repère (temps ou points) ; seul le score final est saisi.</p>'); }
       go.textContent = S.forme === 'match' ? (S.sai === 'simple' ? `✍️ Saisir le résultat ${ESC ? 'de l\'assaut' : 'du match'}` : `▶ Lancer ${ESC ? 'l\'assaut' : 'le match'}`) : '✔ Créer le tournoi';
-      c1.querySelectorAll('[data-s]').forEach(b => b.onclick = () => { keep(); S.sport = b.dataset.s; const sp = SP(); S.type = sp.type; if (sp.dur) S.dur = sp.dur; if (sp.target) S.target = sp.target; S.ecart = !!sp.ecart; if (!sp.zones) S.zones = false; setup(); });
+      c1.querySelectorAll('[data-s]').forEach(b => b.onclick = () => { keep(); S.sport = b.dataset.s; const sp = SP(); S.type = sp.type; if (sp.dur) S.dur = sp.dur; if (sp.target) S.target = sp.target; S.ecart = !!sp.ecart; sportDefaults(); setup(); });
       el.querySelectorAll('[data-fo]').forEach(b => b.onclick = () => { keep(); S.forme = b.dataset.fo; setup(); });
       el.querySelectorAll('[data-sd]').forEach(b => b.onclick = () => { keep(); S.sai = b.dataset.sd; setup(); });
       go.onclick = () => { keep();
@@ -709,7 +730,7 @@ TOOL_IMPL.match = function (el, grp = 'col') {
     if (arbs) { const rr = (L.T0.rencontres || []).find(x => x.id === rid); if (rr) { rr.arb = arbs; save(); window.syncFlush && window.syncFlush(); } }
     playT(L.T0, r.a, r.b, rid, null, null, false, L.id, true); };
   const afterSave = m => { unlinkT(); if (m.tid && TR().some(x => x.id === m.tid)) tview(m.tid); else setup(); };
-  const curRegles = () => ({ type: S.type, dur: S.dur, target: S.target, ecart: S.ecart, bonus: [...S.bonus], stats: S.stats, zones: S.zones, nz: S.nz, obsOn: S.obsOn, obsN: S.obsN });
+  const curRegles = () => ({ type: S.type, dur: S.dur, target: S.target, ecart: S.ecart, bonus: [...S.bonus], stats: S.stats, zones: S.zones, nz: S.nz, np: S.np, zp: S.zp, zv: [...zvArr()], obsOn: S.obsOn, obsN: S.obsN });
   function createT(tm, fmt0) {
     const live = tm.teams.filter(x => x.name || x.members.length), solo = live.length > 1 && live.every(x => x.members.length === 1);   // participants individuels : on affiche le nom du joueur, pas « Équipe n »
     const seen = {}, teams = live.map((x, i) => { let n = (solo ? String(x.members[0]) : (x.name || '').trim()) || 'Équipe ' + (i + 1); if (seen[n]) n += ' (' + (++seen[n]) + ')'; else seen[n] = 1; return { name: n, members: [...x.members] }; });
@@ -845,7 +866,7 @@ TOOL_IMPL.match = function (el, grp = 'col') {
   }
   function playT(t, a, b, rid, defi, arb, libre, enc, own) {
     if (S.enc && S.enc !== enc) { if (!encOk()) return; relEnc(); }   // cette tablette abandonne le défi qu'elle avait lancé
-    if (SPORTS[t.sport] && t.sport !== S.sport) { const sp = SPORTS[t.sport]; S.sport = t.sport; S.type = sp.type; if (sp.dur) S.dur = sp.dur; if (sp.target) S.target = sp.target; S.ecart = !!sp.ecart; if (!sp.zones) S.zones = false; }
+    if (SPORTS[t.sport] && t.sport !== S.sport) { const sp = SPORTS[t.sport]; S.sport = t.sport; S.type = sp.type; if (sp.dur) S.dur = sp.dur; if (sp.target) S.target = sp.target; S.ecart = !!sp.ecart; sportDefaults(); }
     if (t.regles) Object.assign(S, JSON.parse(JSON.stringify(t.regles)));   // règles fixées par l'enseignant à la création
     const ta = t.teams.find(x => x.name === a), tb = t.teams.find(x => x.name === b);
     Object.assign(S, { a, b, pa: [...(ta ? ta.members : [])], pb: [...(tb ? tb.members : [])], tid: t.id, rid: rid || null, defi: defi || null, arb: arb || null, libre: !!(defi && libre), enc: enc || null, encOwn: !!(enc && own) });
@@ -1244,7 +1265,7 @@ TOOL_IMPL.match = function (el, grp = 'col') {
     el.innerHTML = `<span data-tvroot="${esc(t.id)}" hidden></span><button class="btn btn-ghost" id="t-bk">← Gestion de match</button>
       <div class="card" style="margin-top:10px;border-top:6px solid #B8912A"><h3>${fmtI(f, t.sport)} ${esc(t.nom)}</h3>
         <div class="muted" style="font-size:.85rem">${fmtN(f, t.sport)} · ${esc(SPORTS[t.sport]?.name || t.sport)}${t.classe ? ' · ' + esc(t.classe) : ''} · ${new Date(t.date).toLocaleDateString('fr-FR')} · ${t.teams.length} ${f === 'atp' ? 'joueurs' : 'équipes'}${amic ? ` · ${amic} match${amic > 1 ? 's' : ''} amica${amic > 1 ? 'ux' : 'l'}` : ''}</div>
-        <div class="muted" style="font-size:.78rem;margin-top:4px">${V.info}</div>${t.regles ? `<div class="muted" style="font-size:.78rem;margin-top:2px">⚙️ ${t.regles.type === 'temps' ? `Match au temps · ${t.regles.dur} min` : `Match en ${t.regles.target} points${t.regles.ecart ? ' (2 pts d\'écart)' : ''}`}${t.regles.bonus.length ? ' · bonus ' + t.regles.bonus.map(v => '+' + v).join(' ') : ' · sans bonus'}${t.regles.obsOn ? ` · observations ${t.regles.obsN} joueurs` : ''}</div>` : ''}</div>
+        <div class="muted" style="font-size:.78rem;margin-top:4px">${V.info}</div>${t.regles ? `<div class="muted" style="font-size:.78rem;margin-top:2px">⚙️ ${t.regles.type === 'temps' ? `Match au temps · ${t.regles.dur} min` : t.regles.type === 'poss' ? `Match aux possessions · ${t.regles.np || 5} par équipe` : `Match en ${t.regles.target} points${t.regles.ecart ? ' (2 pts d\'écart)' : ''}`}${t.regles.bonus.length ? ' · bonus ' + t.regles.bonus.map(v => '+' + v).join(' ') : ' · sans bonus'}${t.regles.obsOn ? ` · observations ${t.regles.obsN} joueurs` : ''}</div>` : ''}</div>
       ${f !== 'atp' && t.teams.some(x => (x.members || []).length && !(x.members.length === 1 && x.members[0] === x.name)) ? `<details class="card" style="margin-top:12px"><summary style="font-weight:800;cursor:pointer">👥 Composition des équipes (${t.teams.length})</summary>
         <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin-top:8px">${t.teams.map(x => `<div style="border:1.5px solid var(--line);border-radius:12px;padding:8px 10px"><b>${esc(x.name)}</b><div class="muted" style="font-size:.82rem">${(x.members || []).map(esc).join(', ') || '—'}</div></div>`).join('')}</div></details>` : ''}
       ${f !== 'atp' && t.teams.length > 1 && t.teams.every(x => (x.members || []).length === 1) && t.teams.some(x => x.name !== x.members[0]) ? `<div class="card" style="margin-top:12px;border:2px solid #B8912A"><b>👤 Chaque équipe n'a qu'un seul joueur</b><div class="muted" style="font-size:.82rem;margin:4px 0 8px">Afficher le nom du joueur (ex. « Thomas contre Baptiste, arbitre Loïc ») à la place de « ${esc(t.teams[0].name)} » dans les poules, les matchs et le classement.</div><button class="btn btn-grad btn-block" id="t-solo">✏️ Afficher les noms des joueurs</button></div>` : ''}
@@ -1259,12 +1280,12 @@ TOOL_IMPL.match = function (el, grp = 'col') {
         ${V.prof ? `<div style="margin-top:6px">${V.prof}</div>` : ''}
         <details style="margin-top:14px;border:1.5px solid var(--line);border-radius:12px;padding:8px 10px" id="t-rg"><summary style="font-weight:800;cursor:pointer">⚙️ Règles des matchs (modifiables en cours de tournoi)</summary>
           ${(() => { const R = Object.assign({ type: SPORTS[t.sport]?.type || 'temps', dur: SPORTS[t.sport]?.dur || 10, target: SPORTS[t.sport]?.target || 21, ecart: false, bonus: [], stats: false, obsOn: false, obsN: 2 }, t.regles || {}), sp = SPORTS[t.sport] || {};
-            return `<div class="tog" style="margin-top:8px"><button data-rgt="temps" class="${R.type === 'temps' ? 'on' : ''}">⏱ Au temps</button><button data-rgt="points" class="${R.type === 'points' ? 'on' : ''}">🎯 Au point</button></div>
-            <div class="row"><div><label>${R.type === 'temps' ? 'Durée (min)' : 'Points à atteindre'}</label><input id="rg-v" type="number" min="1" value="${R.type === 'temps' ? R.dur : R.target}"></div>${R.type === 'points' ? `<div><label style="display:flex;gap:8px;align-items:center;margin-top:28px"><input type="checkbox" id="rg-ec" ${R.ecart ? 'checked' : ''} style="width:auto"> 2 pts d'écart</label></div>` : ''}</div>
-            <label>Points bonus</label><div class="tog">${BONUS_VALUES.map(v => `<button data-rgb="${v}" class="${R.bonus.includes(v) ? 'on' : ''}">+${v}</button>`).join('')}</div>
-            ${sp.coll ? `<label style="display:flex;gap:8px;align-items:center;margin-top:10px"><input type="checkbox" id="rg-st" ${R.stats ? 'checked' : ''} style="width:auto"> Statistiques (tirs, pertes, passes)</label>` : ''}
-            <label style="display:flex;gap:8px;align-items:center;margin-top:10px"><input type="checkbox" id="rg-ob" ${R.obsOn ? 'checked' : ''} style="width:auto"> Observations individuelles des joueurs</label>
-            ${R.obsOn ? `<div class="tog" style="margin-top:6px">${[2, 3, 4].map(n => `<button data-rgn="${n}" class="${R.obsN === n ? 'on' : ''}">${n} joueurs observés</button>`).join('')}</div>` : ''}
+            return `<div class="tog" style="margin-top:8px"><button data-rgt="temps" class="${R.type === 'temps' ? 'on' : ''}">⏱ Au temps</button><button data-rgt="points" class="${R.type === 'points' ? 'on' : ''}">🎯 Au point</button>${sp.zones && R.zones ? `<button data-rgt="poss" class="${R.type === 'poss' ? 'on' : ''}">🔁 Possessions</button>` : ''}</div>
+            <div class="row"><div><label>${R.type === 'temps' ? 'Durée (min)' : R.type === 'poss' ? 'Possessions par équipe' : 'Points à atteindre'}</label><input id="rg-v" type="number" min="1" value="${R.type === 'temps' ? R.dur : R.type === 'poss' ? (R.np || 5) : R.target}"></div>${R.type === 'points' ? `<div><label style="display:flex;gap:8px;align-items:center;margin-top:28px"><input type="checkbox" id="rg-ec" ${R.ecart ? 'checked' : ''} style="width:auto"> 2 pts d'écart</label></div>` : ''}</div>
+            <label>Points bonus</label><div class="tog">${bonusVals(t.sport).map(v => `<button data-rgb="${v}" class="${R.bonus.includes(v) ? 'on' : ''}">+${v}</button>`).join('')}</div>
+            ${sp.coll && t.sport !== 'rugby' ? `<label style="display:flex;gap:8px;align-items:center;margin-top:10px"><input type="checkbox" id="rg-st" ${R.stats ? 'checked' : ''} style="width:auto"> Statistiques (tirs, pertes, passes)</label>` : ''}
+            ${t.sport === 'rugby' ? '' : `<label style="display:flex;gap:8px;align-items:center;margin-top:10px"><input type="checkbox" id="rg-ob" ${R.obsOn ? 'checked' : ''} style="width:auto"> Observations individuelles des joueurs</label>`}
+            ${R.obsOn && t.sport !== 'rugby' ? `<div class="tog" style="margin-top:6px">${[2, 3, 4].map(n => `<button data-rgn="${n}" class="${R.obsN === n ? 'on' : ''}">${n} joueurs observés</button>`).join('')}</div>` : ''}
             <p class="muted" style="font-size:.78rem;margin:6px 0 0">S'applique aux prochains matchs, sur toutes les tablettes. Les matchs déjà joués ne changent pas.</p>`; })()}</details>
         <button class="btn btn-ghost btn-block" style="margin-top:14px" id="t-pl">👥 Modifier les élèves : absent, retard, dispensé, remplaçant</button>
         <p class="muted" style="font-size:.78rem;margin:4px 0 0">${solo0(t) ? 'Retirer un joueur supprime ses matchs non joués ; en ajouter un crée ses matchs.' : 'Retirer ou déplacer un élève d\'une équipe ; ajouter un élève de la classe.'}</p>
@@ -1290,7 +1311,7 @@ TOOL_IMPL.match = function (el, grp = 'col') {
       T0.regles = Object.assign({ type: sp.type || 'temps', dur: sp.dur || 10, target: sp.target || 21, ecart: false, bonus: [], stats: false, zones: false, nz: 3, obsOn: false, obsN: 2 }, T0.regles || {}); f2(T0.regles);
       save(); window.syncFlush && window.syncFlush(); toast('Règles mises à jour ✔'); tview(t.id); const d = el.querySelector('#t-rg'); if (d) { d.open = true; d.closest('details[data-cfg]').open = true; } };
     el.querySelectorAll('[data-rgt]').forEach(b => b.onclick = () => rgSet(R => { R.type = b.dataset.rgt; }));
-    if ($('#rg-v')) $('#rg-v').onchange = () => rgSet(R => { const v = Math.max(1, +$('#rg-v').value || 1); if (R.type === 'temps') R.dur = v; else R.target = v; });
+    if ($('#rg-v')) $('#rg-v').onchange = () => rgSet(R => { const v = Math.max(1, +$('#rg-v').value || 1); if (R.type === 'temps') R.dur = v; else if (R.type === 'poss') R.np = v; else R.target = v; });
     if ($('#rg-ec')) $('#rg-ec').onchange = () => rgSet(R => { R.ecart = $('#rg-ec').checked; });
     el.querySelectorAll('[data-rgb]').forEach(b => b.onclick = () => rgSet(R => { const v = +b.dataset.rgb; R.bonus = R.bonus.includes(v) ? R.bonus.filter(x => x !== v) : [...R.bonus, v].sort((a, c) => a - c); }));
     if ($('#rg-st')) $('#rg-st').onchange = () => rgSet(R => { R.stats = $('#rg-st').checked; });
@@ -1305,18 +1326,18 @@ TOOL_IMPL.match = function (el, grp = 'col') {
   /* ===== 2. Match ===== */
   const stats = (ev, nz) => [0, 1].map(t => {
     const e = ev.filter(x => x.team === t);
-    const marques = e.filter(x => x.kind === 'score' && x.shot).length, tirsRates = e.filter(x => x.kind === 'tir').length;
-    const zones = Array.from({ length: nz || 0 }, (_, z) => e.filter(x => x.kind === 'zone' && x.zone === z + 1).length);
+    const marques = e.filter(x => (x.kind === 'score' && x.shot) || ((x.kind === 'zone' || x.kind === 'poss') && x.essai)).length, tirsRates = e.filter(x => x.kind === 'tir').length;
+    const zones = Array.from({ length: nz || 0 }, (_, z) => e.filter(x => (x.kind === 'zone' || x.kind === 'poss') && x.zone === z + 1).length);
     return { marques, tirs: marques + tirsRates, pertes: e.filter(x => x.kind === 'perte').length, passes: e.filter(x => x.kind === 'passe').length,
       bonus: e.filter(x => x.kind === 'bonus').reduce((a, x) => a + x.pts, 0), zones, touches: TOUCH_ZONES.map(z => e.filter(x => x.tz === z).length) };
   });
-  const scoreOf = t => M.ev.filter(x => x.team === t && (x.kind === 'score' || x.kind === 'bonus')).reduce((a, x) => a + x.pts, 0);
+  const scoreOf = t => M.ev.filter(x => x.team === t && (x.kind === 'score' || x.kind === 'bonus' || x.kind === 'zone' || x.kind === 'poss')).reduce((a, x) => a + x.pts, 0);
   const now = () => M.acc + (M.run ? performance.now() - M.t0 : 0);
 
   function start(full) {
     M = { ev: [], acc: 0, t0: 0, run: false, poss: 0, over: false, pa: S.tid ? [...(S.pa || [])] : T() ? [...membersOf(S.ia)] : [], pb: S.tid ? [...(S.pb || [])] : T() ? [...membersOf(S.ib)] : [] };
     if (S.obsOn && S.role === 'obs' && !full) return startObs();
-    const sp = SP(), c = courtSVG(S.sport), zonesOn = sp.zones && S.zones;
+    const sp = SP(), c = courtSVG(S.sport), zonesOn = sp.zones && S.zones, possOn = S.type === 'poss' && zonesOn, zpOn = zonesOn && (S.zp || possOn);
     const vbW = +c.vb.split(' ')[2], vbH = +c.vb.split(' ')[3];
     const bands = zonesOn ? Array.from({ length: S.nz }, (_, z) => { const w = vbW / S.nz;
       return `<rect class="zone-band" data-z="${z}" x="${z * w}" y="0" width="${w}" height="${vbH}" fill="rgba(255,255,255,${z % 2 ? .06 : .14})" stroke="rgba(255,255,255,.55)" stroke-dasharray="4 4" stroke-width="1"/>
@@ -1327,22 +1348,22 @@ TOOL_IMPL.match = function (el, grp = 'col') {
           <div class="row" style="margin-top:6px;gap:6px"><button class="btn btn-grad" style="padding:9px 12px;font-size:.85rem" id="go">▶ Démarrer</button></div></div>
         <div class="tm b"><span>${esc(S.b)}</span><b id="sb">0</b></div></div>
       ${M.pa.length || M.pb.length ? `<div class="roster"><b style="color:#B8912A">${esc(S.a)}</b> : ${M.pa.map(esc).join(', ') || '—'}<br><b style="color:#1E5BD8">${esc(S.b)}</b> : ${M.pb.map(esc).join(', ') || '—'}</div>` : ''}
-      <div class="muted" style="text-align:center;margin-top:6px;font-size:.8rem">${S.type === 'temps' ? `Match au temps · ${S.dur} min` : `Match en ${S.target} points${S.ecart ? ' (2 pts d\'écart)' : ''}`} · ${sp.name}</div>
-      ${zonesOn ? `<div class="poss">Ballon :<button class="a on" data-p="0">${esc(S.a)} ➜</button><button class="b" data-p="1">⬅ ${esc(S.b)}</button></div>` : '<div style="height:10px"></div>'}
+      <div class="muted" style="text-align:center;margin-top:6px;font-size:.8rem">${S.type === 'temps' ? `Match au temps · ${S.dur} min` : possOn ? `Match aux possessions · ${S.np} par équipe` : `Match en ${S.target} points${S.ecart ? ' (2 pts d\'écart)' : ''}`} · ${sp.name}</div>
+      ${possOn ? '<div class="poss" id="pban" style="display:block;text-align:center"></div>' : zonesOn ? `<div class="poss">Ballon :<button class="a on" data-p="0">${esc(S.a)} ➜</button><button class="b" data-p="1">⬅ ${esc(S.b)}</button></div>` : '<div style="height:10px"></div>'}
       <div class="court" style="background:${c.bg}"><svg viewBox="${c.vb}">${c.svg}${bands}</svg></div>
-      ${zonesOn ? '<p class="muted" style="margin:6px 2px 0;font-size:.8rem">Touchez la zone atteinte par l\'équipe qui a le ballon. Zone 1 = son propre camp, zone ' + S.nz + ' = près du but adverse.</p>' : ''}
+      ${possOn ? '<p class="muted" style="margin:6px 2px 0;font-size:.8rem">Touchez la zone où la balle est perdue (ou la dernière zone pour un but / essai) : la possession s\'arrête et les points de la zone sont marqués. Zone 1 = son propre camp.</p><button class="btn btn-ghost btn-block" style="margin-top:6px" id="p0">✖ Possession à 0 point (balle perdue tout de suite)</button>' : zonesOn ? '<p class="muted" style="margin:6px 2px 0;font-size:.8rem">Touchez la zone atteinte par l\'équipe qui a le ballon. Zone 1 = son propre camp, zone ' + S.nz + ' = près du but adverse.</p>' : ''}
       <div class="act">${[0, 1].map(t => `<div class="col ${t ? 'cb' : 'ca'}"><h4>${esc(t ? S.b : S.a)}</h4>
-          ${sp.touch ? TOUCH_ZONES.map(z => `<button class="sc" data-t="${t}" data-tz="${z}">Touche ${z.toLowerCase()}<small>+1</small></button>`).join('') : ''}
-          ${sp.score.map((s, i) => `<button class="sc" data-t="${t}" data-sc="${i}">${s.l}${s.sub ? `<small>${s.sub}</small>` : ''}</button>`).join('')}
+          ${possOn ? '' : sp.touch ? TOUCH_ZONES.map(z => `<button class="sc" data-t="${t}" data-tz="${z}">Touche ${z.toLowerCase()}<small>+1</small></button>`).join('') : ''}
+          ${possOn ? '' : sp.score.map((s, i) => `<button class="sc" data-t="${t}" data-sc="${i}">${s.l}${s.sub ? `<small>${s.sub}</small>` : ''}</button>`).join('')}
           ${S.bonus.length ? `<div class="bn">${S.bonus.map(v => `<button data-t="${t}" data-bo="${v}">Bonus<br>+${v}</button>`).join('')}</div>` : ''}
-          ${sp.coll && S.stats ? `<button data-t="${t}" data-k="tir">🎯 Tir tenté<small>raté</small></button><button data-t="${t}" data-k="passe">🤝 Passe décisive</button><button data-t="${t}" data-k="perte">❌ Perte de balle</button>` : ''}
+          ${sp.coll && S.stats && !possOn ? `<button data-t="${t}" data-k="tir">🎯 Tir tenté<small>raté</small></button><button data-t="${t}" data-k="passe">🤝 Passe décisive</button><button data-t="${t}" data-k="perte">❌ Perte de balle</button>` : ''}
         </div>`).join('')}</div>
       <div class="row" style="margin-top:12px"><button class="btn btn-ghost" id="un">↶ Annuler la dernière action</button><button class="btn btn-danger" id="end">🏁 Fin du match</button></div>
       <p class="muted" id="last" style="text-align:center;margin:8px 0"></p>
       ${S.obsOn ? '<details class="card" open style="margin-top:12px"><summary style="font-weight:800;cursor:pointer">👁 Observations individuelles</summary><div id="obs-host" style="margin-top:8px"></div></details>' : ''}
       ${S.sport === 'rugby' ? RLA_BOX : ''}`;
     const $ = s => el.querySelector(s);
-    const setPoss = p => { M.poss = p; el.querySelectorAll('[data-p]').forEach(b => b.classList.toggle('on', +b.dataset.p === p)); paintZones(); };
+    const setPoss = p => { M.poss = p; el.querySelectorAll('[data-p]').forEach(b => b.classList.toggle('on', +b.dataset.p === p)); paintZones(); paintPoss(); };
     const add = e => { if (M.over) return; e.t = Math.round(now() / 1000); M.ev.push(e); paint(e); check(); };
     el.querySelectorAll('[data-p]').forEach(b => b.onclick = () => setPoss(+b.dataset.p));
     el.querySelectorAll('[data-sc]').forEach(b => b.onclick = () => { const t = +b.dataset.t, s = sp.score[+b.dataset.sc];
@@ -1351,10 +1372,19 @@ TOOL_IMPL.match = function (el, grp = 'col') {
     el.querySelectorAll('[data-bo]').forEach(b => b.onclick = () => { add({ team: +b.dataset.t, kind: 'bonus', pts: +b.dataset.bo, label: 'Bonus +' + b.dataset.bo }); beep(1500, .08); });
     el.querySelectorAll('[data-k]').forEach(b => b.onclick = () => { const t = +b.dataset.t, k = b.dataset.k;
       add({ team: t, kind: k, pts: 0, label: { tir: 'Tir tenté', passe: 'Passe décisive', perte: 'Perte de balle' }[k] }); beep(700, .05); if (k === 'perte' && zonesOn) setPoss(1 - t); });
+    /* 🔁 Match aux possessions : la possession s'arrête dans la zone touchée, ses points sont marqués, puis possession suivante (ou équipe suivante) */
+    const endPoss = zone => { const t = M.poss; if (M.over) return; if (possN(t) >= S.np) return toast('Toutes les possessions de cette équipe sont jouées');
+      const pts = zone > 0 ? (+zvArr()[zone - 1] || 0) : 0, n = possN(t) + 1, ess = S.sport === 'rugby' && zone === S.nz;
+      add({ team: t, kind: 'poss', zone, pts, label: `Possession ${n}/${S.np} · ${zone ? 'zone ' + zone : 'balle perdue d\'emblée'}${pts ? ` (+${pts})` : ' (0 pt)'}`, essai: ess }); beep(pts ? 1200 : 700, .1);
+      if (!M.over && possN(t) >= S.np && possN(1 - t) < S.np) { setPoss(1 - t); toast(`À ${(1 - t) ? S.b : S.a} d'attaquer`); } };
+    if ($('#p0')) $('#p0').onclick = () => endPoss(0);
     el.querySelectorAll('.zone-band').forEach(r => r.onclick = () => { const z = +r.dataset.z, t = M.poss, zone = t === 0 ? z + 1 : S.nz - z;
+      if (possOn) return endPoss(zone);
+      if (zpOn) { const pts = +zvArr()[zone - 1] || 0, ess = S.sport === 'rugby' && zone === S.nz;   // les zones atteintes rapportent des points
+        add({ team: t, kind: 'zone', zone, pts, label: `Zone ${zone} atteinte${pts ? ` (+${pts})` : ''}`, essai: ess }); beep(pts ? 1200 : 900, .06); if (ess) setPoss(1 - t); return; }
       add({ team: t, kind: 'zone', zone, pts: 0, label: `Zone ${zone} atteinte` }); beep(900, .04); });
     $('#go').onclick = () => { if (M.over) return; if (M.run) { M.acc = now(); M.run = false; $('#go').textContent = '▶ Reprendre'; } else { M.t0 = performance.now(); M.run = true; $('#go').textContent = 'Pause'; beep(1300, .3); } };
-    $('#un').onclick = () => { const e = M.ev.pop(); if (!e) return; if (M.over) M.over = false; paint(); $('#last').textContent = 'Annulé : ' + e.label + ' (' + (e.team ? S.b : S.a) + ')'; };
+    $('#un').onclick = () => { const e = M.ev.pop(); if (!e) return; if (M.over) M.over = false; if (S.type === 'poss') setPoss(possN(0) < S.np ? 0 : 1); paint(); $('#last').textContent = 'Annulé : ' + e.label + ' (' + (e.team ? S.b : S.a) + ')'; };
     $('#end').onclick = () => { if (confirm('Terminer le match ?')) finish(); };
     iv = setInterval(tick, 200); paint(); paintZones();
     mountRLA(); drawObs();
@@ -1413,14 +1443,18 @@ TOOL_IMPL.match = function (el, grp = 'col') {
     const st = stats(M.ev, S.nz);
     for (let z = 0; z < S.nz; z++) {
       const za = z + 1, zb = S.nz - z;
-      el.querySelector(`[data-zl="${z}"]`).textContent = 'Z' + (M.poss === 0 ? za : zb);
+      const zk = M.poss === 0 ? za : zb, zpts = SP().zones && S.zones && (S.zp || S.type === 'poss') ? ` · ${+zvArr()[zk - 1] || 0} pt` : '';
+      el.querySelector(`[data-zl="${z}"]`).textContent = 'Z' + zk + zpts;
       el.querySelector(`[data-zc="${z}"]`).textContent = `A ${st[0].zones[za - 1]} · B ${st[1].zones[zb - 1]}`;
     }
   }
+  function paintPoss() {
+    const b = el.querySelector('#pban'); if (!b || !M) return; const n0 = possN(0), n1 = possN(1), np = S.np, t = M.poss;
+    b.innerHTML = `🔁 <b style="color:${t ? '#1E5BD8' : '#B8912A'}">${esc(t ? S.b : S.a)}</b> attaque · possession <b>${Math.min(possN(t) + 1, np)}</b> / ${np}<div class="muted" style="font-size:.78rem;font-weight:700;margin-top:2px">${esc(S.a)} ${n0}/${np} · ${esc(S.b)} ${n1}/${np}</div>`; }
   function paint(e) {
     el.querySelector('#sa').textContent = scoreOf(0); el.querySelector('#sb').textContent = scoreOf(1);
     if (e) el.querySelector('#last').textContent = `${e.label} — ${e.team ? S.b : S.a}`;
-    paintZones();
+    paintZones(); paintPoss();
   }
   function tick() {
     if (!M || !el.querySelector('#ck')) return;
@@ -1431,13 +1465,14 @@ TOOL_IMPL.match = function (el, grp = 'col') {
     else el.querySelector('#ck').textContent = fmt(t, false);
   }
   function check() {
+    if (S.type === 'poss') { if (possN(0) >= S.np && possN(1) >= S.np && !M.over) { [0, 350, 700].forEach(d => setTimeout(() => beep(1000, .4), d)); M.run = false; M.acc = now(); finish(); } return; }
     if (S.type !== 'points') return;
     const a = scoreOf(0), b = scoreOf(1), mx = Math.max(a, b);
     if (mx >= S.target && (!S.ecart || Math.abs(a - b) >= 2)) { [0, 350, 700].forEach(d => setTimeout(() => beep(1000, .4), d)); M.run = false; M.acc = now(); finish(); }
   }
   function finish() {
     if (!M) return; M.over = true; M.run = false; clearInterval(iv);
-    const rec = { id: tuid(), ...tlink(), date: Date.now(), sport: S.sport, a: S.a, b: S.b, sa: scoreOf(0), sb: scoreOf(1), duree: Math.round(M.acc / 1000), nz: SP().zones && S.zones ? S.nz : 0,
+    const rec = { id: tuid(), ...tlink(), date: Date.now(), sport: S.sport, a: S.a, b: S.b, sa: scoreOf(0), sb: scoreOf(1), duree: Math.round(M.acc / 1000), nz: SP().zones && S.zones ? S.nz : 0, np: S.type === 'poss' && SP().zones ? S.np : 0, zv: SP().zones && S.zones && (S.zp || S.type === 'poss') ? [...zvArr()] : null,
       pa: M.pa, pb: M.pb, obs: M.obs && M.obs.filter(o => o.name) || null, coll: SP().coll && S.stats, stats: stats(M.ev, SP().zones && S.zones ? S.nz : 0), ev: M.ev };
     summary(rec, false);
   }
@@ -1455,9 +1490,12 @@ TOOL_IMPL.match = function (el, grp = 'col') {
         ${row('Score', (s, t) => t ? m.sb : m.sa)}
         ${row('dont points bonus', s => s.bonus)}
         ${m.coll ? row(`${sp.shot}s marqués`, s => s.marques) + row('Tirs tentés', s => s.tirs) + row('Réussite', s => s.tirs ? Math.round(s.marques / s.tirs * 100) + ' %' : '–') + row('Passes décisives', s => s.passes) + row('Pertes de balle', s => s.pertes) : ''}
-        ${m.nz ? Array.from({ length: m.nz }, (_, z) => row(`Zone ${z + 1} atteinte`, s => s.zones[z])).join('') : ''}
+        ${m.sport === 'rugby' ? row('Essais marqués', s => s.marques) : ''}
+        ${m.nz ? Array.from({ length: m.nz }, (_, z) => row(m.np ? `Possessions finies en zone ${z + 1}${m.zv ? ' (' + (+m.zv[z] || 0) + ' pt)' : ''}` : `Zone ${z + 1} atteinte${m.zv ? ' (' + (+m.zv[z] || 0) + ' pt)' : ''}`, s => s.zones[z])).join('') : ''}
         ${m.sport === 'escrime' ? TOUCH_ZONES.map((z, i) => row(`Touches ${z.toLowerCase()}`, s => (s.touches || [])[i] || 0)).join('') : ''}
       </table>${m.nz ? `<p class="muted" style="margin:8px 0 0;font-size:.8rem">Zone 1 = camp de l'équipe, zone ${m.nz} = près du but adverse.</p>` : ''}</div>`}
+      ${m.np && !m.obsOnly ? `<div class="section-title"><h2>🔁 Possessions · ${m.np} par équipe</h2></div><div class="card">${[0, 1].map(t => { const L = (m.ev || []).filter(x => x.kind === 'poss' && x.team === t);
+        return `<div style="margin-top:${t ? 10 : 0}px"><b style="color:${t ? '#1E5BD8' : '#B8912A'}">${esc(t ? m.b : m.a)}</b> · <b>${L.reduce((a, x) => a + (x.pts || 0), 0)} pts</b><div class="muted" style="font-size:.85rem">${L.map((x, i) => `P${i + 1} : ${x.zone ? 'zone ' + x.zone : 'perdue d\'emblée'} (+${x.pts || 0})`).join(' · ') || '—'}</div></div>`; }).join('')}</div>` : ''}
       ${m.obsOnly ? '' : epsPieCard('📊 Synthèse du match', epsMatchPies(m))}
       ${(m.obs || []).length ? (() => { const crit = obsCrit(m.sport), mx = Math.max(1, ...m.obs.flatMap(o => crit.map(([k]) => o.c[k] || 0)));
         return `<div class="section-title"><h2>👁 Observations individuelles</h2></div><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px">${m.obs.map(o => `<div class="obs-c" style="border-top:5px solid ${o.team ? '#1E5BD8' : '#B8912A'}"><h4><span>${esc(o.name)}</span><small class="muted">${esc(o.team ? m.b : m.a)}</small></h4>
