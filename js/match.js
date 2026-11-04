@@ -472,7 +472,7 @@ TOOL_IMPL.match = function (el, grp = 'col') {
             ${S.type === 'poss' ? '' : `<label style="display:flex;gap:8px;align-items:center;margin-top:10px"><input type="checkbox" id="zp" ${S.zp ? 'checked' : ''} style="width:auto"> Les zones atteintes rapportent des points (le score évolue)</label>`}
             <div id="zvw" style="display:${S.zp || S.type === 'poss' ? 'block' : 'none'}"><label>Points de chaque zone atteinte</label><div id="zvh">${zvHTML()}</div><p class="muted" style="font-size:.76rem;margin:4px 0 0">Zone 1 = camp de l'équipe${S.sport === 'rugby' ? ' · dernière zone = essai' : ''}.</p></div></div>` : ''}
         <label style="display:${S.sport === 'rugby' ? 'none' : 'flex'};gap:8px;align-items:center;margin-top:14px"><input type="checkbox" id="ob" ${S.obsOn ? 'checked' : ''} style="width:auto"> Observations individuelles : ${obsCrit(S.sport).map(c => c[1].toLowerCase()).join(', ')}</label>
-        <div id="obw" style="display:${S.obsOn ? 'block' : 'none'}"><label>Nombre de joueurs observés</label><div class="tog" id="obn">${[2, 3, 4].map(n => `<button data-on="${n}" class="${S.obsN === n ? 'on' : ''}">${n} joueurs</button>`).join('')}</div>
+        <div id="obw" style="display:${S.obsOn ? 'block' : 'none'}"><label>Nombre de joueurs observés</label><div class="tog" id="obn">${[1, 2, 3, 4].map(n => `<button data-on="${n}" class="${S.obsN === n ? 'on' : ''}">${n} joueur${n > 1 ? 's' : ''}</button>`).join('')}</div>
           <label>Rôle de cette tablette</label><div class="tog" id="ro"><button data-ro="table" class="${S.role !== 'obs' ? 'on' : ''}">🏁 Table de marque (complet)</button><button data-ro="obs" class="${S.role === 'obs' ? 'on' : ''}">👁 Observateurs (élèves)</button></div>
           <p class="muted" style="font-size:.78rem;margin:6px 0 0">📱 Observateurs : les élèves ne voient que le chrono et les fiches des joueurs observés (réglage propre à cet appareil).</p></div>
       </div>
@@ -602,7 +602,7 @@ TOOL_IMPL.match = function (el, grp = 'col') {
     const h = el.querySelector('#obs-host'); if (!h || !M) return;
     const C = obsCrit(S.sport), pool = [...M.pa.map(n => [n, 0]), ...M.pb.map(n => [n, 1])];
     if (!M.obs) M.obs = Array.from({ length: S.obsN }, (_, i) => ({ name: pool[i] ? pool[i][0] : '', team: pool[i] ? pool[i][1] : 0, c: {} }));
-    h.innerHTML = `<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px">${M.obs.map((o, i) => `<div class="card" style="padding:8px;border-top:4px solid ${o.team ? '#1E5BD8' : '#B8912A'}">
+    h.innerHTML = `<div style="display:grid;grid-template-columns:repeat(${M.obs.length === 1 ? 1 : 2},1fr);gap:8px">${M.obs.map((o, i) => `<div class="card" style="padding:8px;border-top:4px solid ${o.team ? '#1E5BD8' : '#B8912A'}">
         ${pool.length ? `<select data-op="${i}" style="padding:6px;font-weight:700">${pool.map(([n, t]) => `<option value="${t}|${esc(n)}" ${n === o.name ? 'selected' : ''}>${esc(n)} (${esc(t ? S.b : S.a)})</option>`).join('')}</select>`
           : `<input data-oi="${i}" value="${esc(o.name)}" placeholder="Joueur ${i + 1}" style="padding:6px;font-weight:700">`}
         <div style="display:flex;flex-direction:column;gap:5px;margin-top:6px">${C.map(([k, l]) => `<div style="display:flex;gap:4px;align-items:center"><button class="btn btn-ghost" style="flex:0 0 32px;padding:8px 0" data-om="${i}|${k}">−</button>
@@ -1285,7 +1285,7 @@ TOOL_IMPL.match = function (el, grp = 'col') {
             <label>Points bonus</label><div class="tog">${bonusVals(t.sport).map(v => `<button data-rgb="${v}" class="${R.bonus.includes(v) ? 'on' : ''}">+${v}</button>`).join('')}</div>
             ${sp.coll && t.sport !== 'rugby' ? `<label style="display:flex;gap:8px;align-items:center;margin-top:10px"><input type="checkbox" id="rg-st" ${R.stats ? 'checked' : ''} style="width:auto"> Statistiques (tirs, pertes, passes)</label>` : ''}
             ${t.sport === 'rugby' ? '' : `<label style="display:flex;gap:8px;align-items:center;margin-top:10px"><input type="checkbox" id="rg-ob" ${R.obsOn ? 'checked' : ''} style="width:auto"> Observations individuelles des joueurs</label>`}
-            ${R.obsOn && t.sport !== 'rugby' ? `<div class="tog" style="margin-top:6px">${[2, 3, 4].map(n => `<button data-rgn="${n}" class="${R.obsN === n ? 'on' : ''}">${n} joueurs observés</button>`).join('')}</div>` : ''}
+            ${R.obsOn && t.sport !== 'rugby' ? `<div class="tog" style="margin-top:6px">${[1, 2, 3, 4].map(n => `<button data-rgn="${n}" class="${R.obsN === n ? 'on' : ''}">${n} joueur${n > 1 ? 's' : ''} observé${n > 1 ? 's' : ''}</button>`).join('')}</div>` : ''}
             <p class="muted" style="font-size:.78rem;margin:6px 0 0">S'applique aux prochains matchs, sur toutes les tablettes. Les matchs déjà joués ne changent pas.</p>`; })()}</details>
         <button class="btn btn-ghost btn-block" style="margin-top:14px" id="t-pl">👥 Modifier les élèves : absent, retard, dispensé, remplaçant</button>
         <p class="muted" style="font-size:.78rem;margin:4px 0 0">${solo0(t) ? 'Retirer un joueur supprime ses matchs non joués ; en ajouter un crée ses matchs.' : 'Retirer ou déplacer un élève d\'une équipe ; ajouter un élève de la classe.'}</p>

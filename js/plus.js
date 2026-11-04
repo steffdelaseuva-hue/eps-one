@@ -5,9 +5,10 @@
    ========================================================= */
 /* Page Ko-fi : laisser vide tant qu'elle n'existe pas (le bouton est alors masqué) */
 const KOFI_URL = 'https://ko-fi.com/epsone';
-const APP_VERSION = '23.142';
+const APP_VERSION = '23.143';
 const APP_URL = 'https://bardynstephane.forge.apps.education.fr/eps-one/';
 const CHANGELOG = [
+  { v: '23.143', items: ['Sports collectifs : on peut maintenant observer de 1 à 4 joueurs par tablette (avant : 2 à 4), dans les réglages du match comme dans les règles des tournois.'] },
   { v: '23.142', items: ['Zones à atteindre : le terrain épuré (zones bien visibles, « Z1 · 1 pt » en petit en bas, un seul grand chiffre par zone pour l\'équipe qui a le ballon) s\'applique maintenant à tous les sports collectifs et à tous les types de match, pas seulement aux matchs aux possessions.'] },
   { v: '23.141', items: ['Match aux possessions : terrain épuré. Zones bien visibles (bandes contrastées, traits pleins), « Z1 · 1 pt » en petit en bas de chaque zone, et un seul grand chiffre par zone : le nombre de possessions terminées là par l\'équipe qui attaque (plus de « A 0 · B 0 » ni de texte en haut).'] },
   { v: '23.140', items: ['Flèche ← en haut à gauche : elle revient désormais à l\'écran précédent de l\'outil au lieu de renvoyer à l\'accueil. Match en cours ou bilan → réglages du match (ou page du tournoi), avec confirmation si le match n\'est pas enregistré ; Demi-fond, Sauvetage, Combiné, Crosstraining, Duathlon, Course d\'orientation → onglet de préparation ; Lutte et Interclasses → leur liste. Depuis l\'écran de départ d\'un outil, la flèche quitte l\'outil comme avant.'] },
