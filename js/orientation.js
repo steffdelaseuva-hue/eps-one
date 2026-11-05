@@ -755,10 +755,10 @@ TOOL_IMPL.co = function (el) {
 
   function frame() {
     epsBack(tab !== 'parcours' ? () => { tab = 'parcours'; frame(); } : null);
-    el.innerHTML = `<div class="co-tabs">${[['parcours', '🗺 Parcours'], ['controle', '🔎 Contrôle'], ['seance', '⏱ Séance'], ['bilan', '📊 Bilan']].map(([k, l]) => `<button data-tab="${k}" class="${tab === k ? 'on' : ''}">${l}</button>`).join('')}</div><div id="co-body"></div>`;
+    el.innerHTML = `<div class="co-tabs">${[['parcours', '🗺 Parcours'], ['controle', '🔎 Contrôle'], ['seance', '⏱ Séance'], ['verif', '📷 Vérifier'], ['bilan', '📊 Bilan']].map(([k, l]) => `<button data-tab="${k}" class="${tab === k ? 'on' : ''}">${l}</button>`).join('')}</div><div id="co-body"></div>`;
     el.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => { tab = b.dataset.tab; frame(); });
     const body = el.querySelector('#co-body');
-    ({ parcours: listParcours, seance: seance, controle: controle, bilan: bilan })[tab](body);
+    ({ parcours: listParcours, seance: seance, controle: controle, verif: verif, bilan: bilan })[tab](body);
   }
 
   /* ================= 1. PARCOURS ================= */
@@ -1077,8 +1077,8 @@ TOOL_IMPL.co = function (el) {
     save(); const cur = DB.co.current;
     partPickGroup(box, cur.runs, i => { if (!DB.co.current) return prepare(box); cur.only = i; cur.teams = null; save(); seance(box); }, !!sp.indiv, ids => { if (!DB.co.current) return prepare(box); cur.only = null; cur.teams = ids; save(); seance(box); }); };
 
-  function seance(box) {
-    const cur = DB.co.current;
+  function seance(box, ext) {
+    const cur = ext ? ext.cur : DB.co.current;   // ext : séance TERMINÉE rouverte pour contrôler les cartons (à la maison)
     if (!cur) return prepare(box);
     const p = P(cur.parcours) || cur.psnap; if (!p) { DB.co.current = null; save(); return prepare(box); }
     let raf;
@@ -1249,6 +1249,7 @@ TOOL_IMPL.co = function (el) {
         DB.co.seances.push((window.epsTg ? epsTg(rec) : rec)); coResults(rec); });
       DB.co.current = null; save(); toast('Séance enregistrée ✔'); tabs(true); tab = 'bilan'; frame(); };
     const RUNCOL = ['#E53935', '#1E88E5', '#43A047', '#FB8C00', '#8E24AA', '#00ACC1', '#F4B400', '#D81B60', '#6D4C41', '#3949AB', '#7CB342', '#546E7A'];   // liseré de couleur propre à chaque carte
+    if (ext) return ext.run(profCtl);
     let ovw = false; try { ovw = localStorage.getItem('epsone_co_vue') === 'cartes'; } catch (e) {}   // vue propre à l'appareil
     let ocols = 4; try { const q = +localStorage.getItem('epsone_co_cols'); if (q >= 2 && q <= 6) ocols = q; } catch (e) {}
     const draw = () => {
@@ -1325,14 +1326,16 @@ TOOL_IMPL.co = function (el) {
   }
 
   /* Synthèse « Résultats des élèves » : une ligne par élève (de la classe) de chaque course enregistrée */
-  function coResults(s) {
+  function coResults(s, upd) {   // upd : correction après coup → remplace le résultat déjà enregistré de l'élève au lieu d'en ajouter un
     const p = s.parcoursSnap, cls = s.classe || '', st = cls ? studentsOf(cls) : [];
     if (!st.length || typeof saveResult !== 'function') return;
     s.runs.filter(r => r.dep).forEach(r => { const grp = r.members.length > 1 || r.name !== r.members[0];
       r.members.filter(m => st.includes(m)).forEach(m => { const x = resultFor(r, p, m), fd = r.found.filter(n => !(r.who || {})[n] || r.who[n] === m);
       const valeur = `${x.score} pts${x.total != null ? ' · ' + hms(x.total) : ''}`;
       const detail = [p.nom + (grp ? ` (${r.name})` : ''), `${fd.length}/${p.balises.length} balises`, x.penS || x.penP ? `pén. ${[x.penS ? '+' + hms(x.penS) : '', x.penP ? '−' + x.penP + ' pt' : ''].filter(Boolean).join(' ')}` : '', r.arr ? x.statut : 'non arrivé'].filter(Boolean).join(' · ');
-      saveResult({ tool: 'co', label: 'Course d\'orientation', classe: cls, eleve: m, valeur, detail }); }); });
+      let old = -1; if (upd) { const dk = coDayKey(s.date); for (let k = (DB.resultats || []).length - 1; k >= 0; k--) { const q = DB.resultats[k]; if (q && q.tool === 'co' && q.classe === cls && q.eleve === m && String(q.detail || '').startsWith(p.nom + (grp ? ` (${r.name})` : '')) && coDayKey(q.date) === dk) { old = k; break; } } }
+      if (old >= 0) { DB.resultats[old] = { ...DB.resultats[old], valeur, detail }; save(); window.syncFlush && window.syncFlush(); }
+      else saveResult({ tool: 'co', label: 'Course d\'orientation', classe: cls, eleve: m, valeur, detail }); }); });
   }
 
   /* Fusion d'affichage : séances enregistrées sur plusieurs tablettes (même jour + classe + parcours) = une seule séance.
@@ -1389,7 +1392,27 @@ TOOL_IMPL.co = function (el) {
     h.querySelectorAll('[data-cw]').forEach(b => b.onclick = () => apply({ when: b.dataset.cw }));
     h.querySelectorAll('[data-chw]').forEach(b => b.onclick = () => apply({ how: b.dataset.chw }));
   }
-  function controle(box) { box.innerHTML = ''; const top = document.createElement('div'), sub = document.createElement('div'); box.append(top, sub); ctlSettings(top); controle0(sub); }
+  function controle(box) { box.innerHTML = ''; const top = document.createElement('div'); box.append(top); ctlSettings(top); }
+  /* 📷 Vérifier un carton (après la séance ou hors séance) : onglet à part, entre Séance et Bilan */
+  let vkSel = '';
+  function verif(box) { box.innerHTML = ''; const post = document.createElement('div'), sub = document.createElement('div'); box.append(post, sub); verifPost(post); controle0(sub); }
+  /* 🏠 Corriger les cartons d'une séance TERMINÉE (à la maison) : même contrôle que pendant la séance, résultats mis à jour */
+  function verifPost(h) {
+    const ss = (window.teamFilter ? teamFilter(DB.co.seances) : DB.co.seances).filter(x => x && x.parcoursSnap && (x.runs || []).length).sort((a, b) => b.date - a.date).slice(0, 80);
+    if (!ss.length) { h.innerHTML = '<div class="card" style="margin-bottom:12px"><h3 style="margin-top:0">🏠 Corriger les cartons d\'une séance terminée</h3><p class="muted" style="margin:0">Aucune séance enregistrée pour l\'instant. Une fois une séance terminée et enregistrée, vous pourrez contrôler ici les cartons de chaque élève ou groupe, même plus tard.</p></div>'; return; }
+    if (!ss.some(x => x.id === vkSel)) vkSel = ss[0].id;
+    const rec = ss.find(x => x.id === vkSel), pp = rec.parcoursSnap, PB = (pp.balises || []).filter(b => isPat(b.code)), CT = Object.assign(coCtl(), rec.ctl || {});
+    h.innerHTML = `<div class="card" style="margin-bottom:12px;border:2px solid var(--gold,#C9A227)"><h3 style="margin-top:0">🏠 Corriger les cartons d'une séance terminée</h3>
+      <p class="muted" style="margin:0 0 8px;font-size:.85rem">Pour corriger après le cours : choisissez la séance, puis contrôlez le carton de chaque élève ou groupe (méthode de la séance : ${CTL_TXT(CT)}). Le score et le bilan sont mis à jour.</p>
+      <select id="vk-s">${ss.map(x => `<option value="${esc(x.id)}" ${x.id === vkSel ? 'selected' : ''}>${new Date(x.date).toLocaleDateString('fr-FR')} · ${esc(x.classe || '—')} · ${esc(x.parcoursSnap.nom)}</option>`).join('')}</select>
+      ${PB.length ? '' : '<p class="muted" style="margin:8px 0 0">Ce parcours n\'a pas de balises avec symbole de pince : rien à contrôler.</p>'}
+      ${PB.length ? rec.runs.map((r, i) => { const T = r.tries || {}, A = r.auto || {}, done = CT.how === 'auto' ? PB.filter(b => A[b.num]).length : PB.filter(b => T[b.num]).length, x = result(r, pp);
+        return `<div style="display:flex;gap:8px;align-items:center;padding:9px 0;border-top:1px solid var(--line)"><div style="flex:1;min-width:0"><b>${esc(r.name)}</b>${r.members.length > 1 || r.name !== r.members[0] ? `<div class="muted" style="font-size:.78rem">${r.members.map(esc).join(', ')}</div>` : ''}<div class="muted" style="font-size:.8rem">${r.found.length}/${(pp.balises || []).length} balises · ${x.score} pts · ${done}/${PB.length} contrôlée${done > 1 ? 's' : ''}${r.dep ? '' : ' · pas parti'}</div></div>
+          <button class="btn ${done >= PB.length ? 'btn-ghost' : 'btn-grad'}" data-vk="${i}" style="flex:none;padding:10px 12px">🔎 ${done ? 'Revoir' : 'Contrôler'}</button></div>`; }).join('') : ''}</div>`;
+    h.querySelector('#vk-s').onchange = e => { vkSel = e.target.value; verifPost(h); };
+    h.querySelectorAll('[data-vk]').forEach(b => b.onclick = () => { const i = +b.dataset.vk, pseudo = { ...rec, parcours: '', psnap: pp, ctl: CT };
+      seance(document.createElement('div'), { cur: pseudo, run: pc => pc(i, () => { try { coResults(rec, true); } catch (er) {} save(); toast('Carton contrôlé ✔ · score et bilan mis à jour'); verifPost(h); }) }); });
+  }
   function controle0(box) {
     const withCodes = DB.co.parcours.filter(p => p.balises.some(b => isPat(b.code)));
     if (!withCodes.length) { box.innerHTML = `<div class="card empty">Attribuez d'abord un <b>symbole de pince</b> aux balises d'un parcours (onglet 🗺 Parcours → ✏️).</div>`; return; }
@@ -1403,7 +1426,7 @@ TOOL_IMPL.co = function (el) {
     const draw = () => {
       const st = p.balises.map(status), ok = st.filter(x => x === 1).length, ko = st.filter(x => x === -1).length;
       box.innerHTML = `${cur ? `<div class="card" style="margin-bottom:12px"><b>⏱ Séance en cours</b><p class="muted" style="margin:4px 0 8px;font-size:.85rem">Les cartons des élèves se contrôlent directement sur chacun d'eux (bouton « 🔎 Contrôler le carton ») : la séance est lancée pour toute la classe.</p><button class="btn btn-grad btn-block" id="kgo">Aller à la séance</button></div>` : ''}
-        <div class="section-title"><h2>Vérifier un carton hors séance</h2></div><div class="card"><label>Parcours</label><select id="kp">${withCodes.map(x => `<option value="${x.id}" ${x.id === p.id ? 'selected' : ''}>${esc(x.nom)}</option>`).join('')}</select>
+        <div class="section-title"><h2>Vérifier un carton (après ou hors séance)</h2></div><div class="card"><label>Parcours</label><select id="kp">${withCodes.map(x => `<option value="${x.id}" ${x.id === p.id ? 'selected' : ''}>${esc(x.nom)}</option>`).join('')}</select>
           ${live ? `<label>Participant (séance en cours)</label><select id="kr"><option value="">— Contrôle seul —</option>${live.runs.map((r, i) => `<option value="${i}" ${String(i) === CK.run ? 'selected' : ''}>${esc(r.name)}</option>`).join('')}</select>` : ''}</div>
         <div class="card" style="margin-top:12px"><h3>📷 Photo du carton de l'élève</h3>
           ${CK.photo ? `<img src="${CK.photo}" id="kimg" style="width:100%;max-height:360px;object-fit:contain;border-radius:12px;background:#000;cursor:zoom-in">` : '<p class="muted" style="margin:0 0 8px">Facultatif : la photo reste affichée ici pendant que vous comparez les symboles.</p>'}
@@ -1419,7 +1442,7 @@ TOOL_IMPL.co = function (el) {
           <button class="btn btn-ghost btn-block" style="margin-top:8px" id="kz">↺ Carton suivant</button></div>`;
       const $ = s => box.querySelector(s);
       if ($('#kgo')) $('#kgo').onclick = () => { tab = 'seance'; frame(); };
-      $('#kp').onchange = e => { CK.pc = e.target.value; CK.ans = {}; CK.run = ''; CK.reveal = false; controle(box); };
+      $('#kp').onchange = e => { CK.pc = e.target.value; CK.ans = {}; CK.run = ''; CK.reveal = false; verif(box); };
       if ($('#kr')) $('#kr').onchange = e => { CK.run = e.target.value; };
       if ($('#kimg')) $('#kimg').onclick = () => { const o = document.createElement('div'); o.style.cssText = 'position:fixed;inset:0;z-index:300;background:rgba(0,0,0,.92);display:grid;place-items:center;padding:12px'; o.innerHTML = `<img src="${CK.photo}" style="max-width:100%;max-height:100%;object-fit:contain">`; o.onclick = () => o.remove(); document.body.appendChild(o); };
       $('#kf').onchange = e => { const f = e.target.files[0]; if (!f) return; const url = URL.createObjectURL(f), img = new Image();

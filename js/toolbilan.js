@@ -5,7 +5,8 @@
    Les bilans de l'onglet « Plus » restent inchangés (toutes activités).
    ========================================================= */
 (function () {
-  const IDS = ['co', 'combine', 'duathlon', 'escalade', 'lutte', 'natation', 'relais', 'demifond', 'sauvetage', 'wod', 'chronos12', 'rugbyla', 'cross', 'parkour', 'gym', 'acrosport'];
+  const IDS = ['co', 'combine', 'duathlon', 'escalade', 'lutte', 'natation', 'relais', 'demifond', 'sauvetage', 'wod', 'chronos12', 'rugbyla', 'cross', 'parkour', 'gym', 'acrosport', 'match', 'matchr'];
+  const RT = id => id === 'matchr' ? ['matchr', 'match'] : [id];   // les observations d'élèves en match sont enregistrées sous « match »
   const hasBil = id => IDS.includes(id), hasClean = id => (window.epsCleanTools ? epsCleanTools() : []).includes(id);
   const tname = id => ((typeof TOOLS !== 'undefined' ? TOOLS : []).find(t => t.id === id) || {}).name || id;
   const classes = () => [...new Set([...(DB.classes || []).map(c => c.name), ...(DB.resultats || []).map(r => r && r.classe).filter(Boolean)])].filter(Boolean);
@@ -27,7 +28,7 @@
     if (o.querySelector('#tb-cl')) o.querySelector('#tb-cl').onclick = () => { o.remove(); epsCleanTool(tool); };
     if (o.querySelector('#tb-d')) o.querySelector('#tb-d').onclick = () => { const c = cur(); o.remove(); if (typeof epsPurge === 'function') epsPurge({ cls: c, act: tool }); };
     if (o.querySelector('#tb-f')) o.querySelector('#tb-f').onclick = () => { const c = cur(); o.remove(); DB.lastClass = c; if (typeof openFiches !== 'function') return toast('Fiches indisponibles'); openFiches({ cls: c, tools: [tool] }); };
-    if (o.querySelector('#tb-b')) o.querySelector('#tb-b').onclick = () => { const c = cur(); o.remove(); DB.lastClass = c; if (typeof openBilan !== 'function') return toast('Bilan indisponible'); openBilan({ cls: c, tools: [tool], coll: true }); };
+    if (o.querySelector('#tb-b')) o.querySelector('#tb-b').onclick = () => { const c = cur(); o.remove(); DB.lastClass = c; if (typeof openBilan !== 'function') return toast('Bilan indisponible'); openBilan({ cls: c, tools: RT(tool), coll: true }); };
   }
   window.epsToolBilan = panel;
   function btn() {
