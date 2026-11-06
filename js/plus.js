@@ -5,9 +5,11 @@
    ========================================================= */
 /* Page Ko-fi : laisser vide tant qu'elle n'existe pas (le bouton est alors masqué) */
 const KOFI_URL = 'https://ko-fi.com/epsone';
-const APP_VERSION = '23.151';
+const APP_VERSION = '23.153';
 const APP_URL = 'https://bardynstephane.forge.apps.education.fr/eps-one/';
 const CHANGELOG = [
+  { v: '23.153', items: ['Course d\'orientation : l\'onglet « 📊 Bilan » (séances terminées) devient « 📋 Résultats », pour ne plus avoir deux boutons Bilan (le bouton 📊 Bilan en haut de l\'outil reste inchangé).'] },
+  { v: '23.152', items: ['Bilan / fiche élève Duathlon : « Potentiel VMA du groupe » et « 🏃 Maîtrise course » (coureur à la place de la cible, qui faisait penser aux lancers).'] },
   { v: '23.151', items: ['Duathlon : une épreuve = même jour + même classe + départs à moins d\'1 h d\'écart, QUELLE QUE SOIT LA DISTANCE. Un groupe qui court moins (absent, 4/5/5 tours au lieu de 6/8/8, distance 4180 m au lieu de 4400 m) est classé avec les autres, et son coefficient de maîtrise est calculé avec SA distance.'] },
   { v: '23.150', items: ['Duathlon · classements : les groupes saisis sur des tablettes créées séparément (sans réseau commun) puis synchronisées en plusieurs lots sont maintenant classés ENSEMBLE (même jour + même classe + même distance = une seule épreuve), dans l\'onglet Résultats comme dans les bilans et fiches élèves. Avant, chaque lot était classé à part (ex. « 1er sur 5 » au lieu de « sur 8 »). Chaque groupe garde ses propres réglages (pénalités, tours en commun).'] },
   { v: '23.149', items: ['Duathlon · étape 3 : l\'affichage reste « Tour en binôme n°1 … n°8 » même pour un groupe de 3 ou 4 (un élève au repos prend la place d\'un coureur au tour suivant) ; étapes en relais : « Tour en relais n°… ».', 'Course d\'orientation · onglet 📷 Vérifier : nouvelle section « Corriger les cartons d\'une séance terminée » (à la maison, après le cours) : on choisit la séance puis on contrôle le carton de chaque élève ou groupe avec la même méthode que pendant la séance ; le score et le bilan sont mis à jour. Le contrôle pendant la séance reste disponible (bouton « 🔎 Contrôler le carton »).'] },

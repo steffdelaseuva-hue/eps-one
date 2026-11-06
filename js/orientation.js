@@ -755,7 +755,7 @@ TOOL_IMPL.co = function (el) {
 
   function frame() {
     epsBack(tab !== 'parcours' ? () => { tab = 'parcours'; frame(); } : null);
-    el.innerHTML = `<div class="co-tabs">${[['parcours', '🗺 Parcours'], ['controle', '🔎 Contrôle'], ['seance', '⏱ Séance'], ['verif', '📷 Vérifier'], ['bilan', '📊 Bilan']].map(([k, l]) => `<button data-tab="${k}" class="${tab === k ? 'on' : ''}">${l}</button>`).join('')}</div><div id="co-body"></div>`;
+    el.innerHTML = `<div class="co-tabs">${[['parcours', '🗺 Parcours'], ['controle', '🔎 Contrôle'], ['seance', '⏱ Séance'], ['verif', '📷 Vérifier'], ['bilan', '📋 Résultats']].map(([k, l]) => `<button data-tab="${k}" class="${tab === k ? 'on' : ''}">${l}</button>`).join('')}</div><div id="co-body"></div>`;
     el.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => { tab = b.dataset.tab; frame(); });
     const body = el.querySelector('#co-body');
     ({ parcours: listParcours, seance: seance, controle: controle, verif: verif, bilan: bilan })[tab](body);
@@ -1393,7 +1393,7 @@ TOOL_IMPL.co = function (el) {
     h.querySelectorAll('[data-chw]').forEach(b => b.onclick = () => apply({ how: b.dataset.chw }));
   }
   function controle(box) { box.innerHTML = ''; const top = document.createElement('div'); box.append(top); ctlSettings(top); }
-  /* 📷 Vérifier un carton (après la séance ou hors séance) : onglet à part, entre Séance et Bilan */
+  /* 📷 Vérifier un carton (après la séance ou hors séance) : onglet à part, entre Séance et Résultats */
   let vkSel = '';
   function verif(box) { box.innerHTML = ''; const post = document.createElement('div'), sub = document.createElement('div'); box.append(post, sub); verifPost(post); controle0(sub); }
   /* 🏠 Corriger les cartons d'une séance TERMINÉE (à la maison) : même contrôle que pendant la séance, résultats mis à jour */
@@ -1403,7 +1403,7 @@ TOOL_IMPL.co = function (el) {
     if (!ss.some(x => x.id === vkSel)) vkSel = ss[0].id;
     const rec = ss.find(x => x.id === vkSel), pp = rec.parcoursSnap, PB = (pp.balises || []).filter(b => isPat(b.code)), CT = Object.assign(coCtl(), rec.ctl || {});
     h.innerHTML = `<div class="card" style="margin-bottom:12px;border:2px solid var(--gold,#C9A227)"><h3 style="margin-top:0">🏠 Corriger les cartons d'une séance terminée</h3>
-      <p class="muted" style="margin:0 0 8px;font-size:.85rem">Pour corriger après le cours : choisissez la séance, puis contrôlez le carton de chaque élève ou groupe (méthode de la séance : ${CTL_TXT(CT)}). Le score et le bilan sont mis à jour.</p>
+      <p class="muted" style="margin:0 0 8px;font-size:.85rem">Pour corriger après le cours : choisissez la séance, puis contrôlez le carton de chaque élève ou groupe (méthode de la séance : ${CTL_TXT(CT)}). Le score et les résultats sont mis à jour.</p>
       <select id="vk-s">${ss.map(x => `<option value="${esc(x.id)}" ${x.id === vkSel ? 'selected' : ''}>${new Date(x.date).toLocaleDateString('fr-FR')} · ${esc(x.classe || '—')} · ${esc(x.parcoursSnap.nom)}</option>`).join('')}</select>
       ${PB.length ? '' : '<p class="muted" style="margin:8px 0 0">Ce parcours n\'a pas de balises avec symbole de pince : rien à contrôler.</p>'}
       ${PB.length ? rec.runs.map((r, i) => { const T = r.tries || {}, A = r.auto || {}, done = CT.how === 'auto' ? PB.filter(b => A[b.num]).length : PB.filter(b => T[b.num]).length, x = result(r, pp);
@@ -1411,7 +1411,7 @@ TOOL_IMPL.co = function (el) {
           <button class="btn ${done >= PB.length ? 'btn-ghost' : 'btn-grad'}" data-vk="${i}" style="flex:none;padding:10px 12px">🔎 ${done ? 'Revoir' : 'Contrôler'}</button></div>`; }).join('') : ''}</div>`;
     h.querySelector('#vk-s').onchange = e => { vkSel = e.target.value; verifPost(h); };
     h.querySelectorAll('[data-vk]').forEach(b => b.onclick = () => { const i = +b.dataset.vk, pseudo = { ...rec, parcours: '', psnap: pp, ctl: CT };
-      seance(document.createElement('div'), { cur: pseudo, run: pc => pc(i, () => { try { coResults(rec, true); } catch (er) {} save(); toast('Carton contrôlé ✔ · score et bilan mis à jour'); verifPost(h); }) }); });
+      seance(document.createElement('div'), { cur: pseudo, run: pc => pc(i, () => { try { coResults(rec, true); } catch (er) {} save(); toast('Carton contrôlé ✔ · score et résultats mis à jour'); verifPost(h); }) }); });
   }
   function controle0(box) {
     const withCodes = DB.co.parcours.filter(p => p.balises.some(b => isPat(b.code)));
