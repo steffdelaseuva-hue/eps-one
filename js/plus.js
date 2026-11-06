@@ -5,9 +5,10 @@
    ========================================================= */
 /* Page Ko-fi : laisser vide tant qu'elle n'existe pas (le bouton est alors masqué) */
 const KOFI_URL = 'https://ko-fi.com/epsone';
-const APP_VERSION = '23.153';
+const APP_VERSION = '23.154';
 const APP_URL = 'https://bardynstephane.forge.apps.education.fr/eps-one/';
 const CHANGELOG = [
+  { v: '23.154', items: ['Course d\'orientation : les balises qui ont un symbole (contrôle du carton) sont verrouillées sur la tablette prof — elles ne deviennent vertes que par le contrôle, un simple toucher ne les coche plus (message d\'aide). Pour corriger à la main : appui long sur la balise puis confirmation. Les balises sans symbole restent cochables normalement.'] },
   { v: '23.153', items: ['Course d\'orientation : l\'onglet « 📊 Bilan » (séances terminées) devient « 📋 Résultats », pour ne plus avoir deux boutons Bilan (le bouton 📊 Bilan en haut de l\'outil reste inchangé).'] },
   { v: '23.152', items: ['Bilan / fiche élève Duathlon : « Potentiel VMA du groupe » et « 🏃 Maîtrise course » (coureur à la place de la cible, qui faisait penser aux lancers).'] },
   { v: '23.151', items: ['Duathlon : une épreuve = même jour + même classe + départs à moins d\'1 h d\'écart, QUELLE QUE SOIT LA DISTANCE. Un groupe qui court moins (absent, 4/5/5 tours au lieu de 6/8/8, distance 4180 m au lieu de 4400 m) est classé avec les autres, et son coefficient de maîtrise est calculé avec SA distance.'] },
